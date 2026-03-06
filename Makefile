@@ -2,7 +2,7 @@ APP_NAME := NomadDashboard
 SCHEME := NomadDashboard
 PROJECT := $(APP_NAME).xcodeproj
 
-.PHONY: bootstrap generate open build run rerun test lint archive dmg release-patch release-minor release-major release-dry-run clean
+.PHONY: bootstrap generate open build run rerun test lint archive brand-assets dmg release-patch release-minor release-major release-dry-run clean
 
 bootstrap:
 	./scripts/bootstrap.sh
@@ -31,7 +31,10 @@ lint:
 archive:
 	./scripts/archive-release.sh
 
-dmg:
+brand-assets:
+	./scripts/export-brand-assets.sh
+
+dmg: brand-assets
 	./scripts/create-dmg.sh
 
 release-patch:
