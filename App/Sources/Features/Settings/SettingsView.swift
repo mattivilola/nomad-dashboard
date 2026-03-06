@@ -7,6 +7,7 @@ struct SettingsView: View {
     @ObservedObject var snapshotStore: DashboardSnapshotStore
     @ObservedObject var locationStore: CurrentLocationStore
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
+    let updatesEnabled: Bool
     @Environment(\.openURL) private var openURL
     @Environment(\.openWindow) private var openWindow
 
@@ -16,23 +17,31 @@ struct SettingsView: View {
                 Text("Settings")
                     .font(.title2.weight(.semibold))
 
-                Text("Manage update behavior, privacy, and refresh cadence for Nomad Dashboard.")
+                Text("Manage startup behavior, privacy, and refresh cadence for Nomad Dashboard.")
                     .foregroundStyle(.secondary)
             }
 
             Form {
                 Section {
                     Toggle("Launch at login", isOn: launchAtLoginBinding)
-                    Toggle("Check for updates automatically", isOn: binding(\.automaticUpdateChecksEnabled))
+
+                    if updatesEnabled {
+                        Toggle("Check for updates automatically", isOn: binding(\.automaticUpdateChecksEnabled))
+                    } else {
+                        LabeledContent("Updates") {
+                            Text("Paused")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 } header: {
                     Text("General")
                 } footer: {
-                    Text("Nomad Dashboard stays menu-bar-first and keeps these preferences across relaunches.")
+                    Text(updatesEnabled ? "Nomad Dashboard stays menu-bar-first and keeps these preferences across relaunches." : "Nomad Dashboard stays menu-bar-first and keeps these preferences across relaunches. In-app update checks stay paused until the release pipeline is ready.")
                 }
 
                 Section {
                     Toggle("Use current location for weather", isOn: weatherLocationBinding)
-                    Toggle("Enable public IP geolocation", isOn: binding(\.publicIPGeolocationEnabled))
+                    Toggle("Show external IP location", isOn: binding(\.publicIPGeolocationEnabled))
 
                     LabeledContent("Location status") {
                         Text(locationStore.authorizationSummary)
@@ -45,7 +54,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Privacy & Location")
                 } footer: {
-                    Text("Weather uses device location only when you opt in. Public IP geolocation stays disabled until you enable it.")
+                    Text("Weather uses device location only when you opt in. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs.")
                 }
 
                 Section {
@@ -78,8 +87,14 @@ struct SettingsView: View {
                 Section {
                     LabeledContent("Version", value: AppRuntimeInfo.versionDescription)
 
-                    Button("Check for Updates") {
-                        snapshotStore.checkForUpdates()
+                    if updatesEnabled {
+                        Button("Check for Updates") {
+                            snapshotStore.checkForUpdates()
+                        }
+                    } else {
+                        Text(UpdateFeatureConfiguration.pausedReason)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
 
                     Button("About Nomad Dashboard") {

@@ -24,7 +24,7 @@ questions quickly:
 
 - Passive upload and download throughput
 - Periodic latency and jitter checks
-- Public IP and optional IP-based geolocation
+- Public IP and IP-based geolocation
 - Battery percentage, charging state, discharge rate, and adapter context
 - Wi-Fi signal context, VPN detection, and current time zone
 - Current weather plus tomorrow's forecast summary
@@ -101,8 +101,9 @@ app again.
 
 - The app is a menu bar utility with `LSUIElement=1`, so it should not appear in
   the Dock during normal operation.
-- External location lookups are opt-in. Device location and weather access use
-  explicit permission prompts.
+- External IP lookups use FreeIPAPI. IP-based location display is enabled by
+  default for new installs and can be turned off in Settings. Device location
+  and weather access use explicit permission prompts.
 - Release automation is local-first. Signing, notarization, DMG packaging, and
   Sparkle publishing are wired through scripts and documented in
   [docs/release.md](docs/release.md).

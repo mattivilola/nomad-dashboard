@@ -10,6 +10,12 @@ Nomad Dashboard is intended for direct distribution outside the Mac App Store.
 - `hdiutil` for DMG creation
 - Apple notarization tooling for signed releases
 
+## Current Status
+
+- Status as of March 6, 2026: in-app Sparkle update checks are temporarily disabled.
+- TODO: re-enable automatic and manual update checks after the release pipeline can publish signed app builds and `appcast.xml`.
+- Blocker: the publish/update pipeline has not been created yet.
+
 ## Planned Release Steps
 
 1. Keep `CHANGELOG.md` updated under `## [Unreleased]`.

@@ -9,17 +9,19 @@ struct DashboardRootView: View {
     @ObservedObject var settingsStore: AppSettingsStore
     @ObservedObject var locationStore: CurrentLocationStore
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
+    let updatesEnabled: Bool
 
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         DashboardPanelView(
             snapshot: snapshotStore.snapshot,
+            isPublicIPLocationEnabled: settingsStore.settings.publicIPGeolocationEnabled,
             versionDescription: AppRuntimeInfo.versionDescription,
             refreshAction: refresh,
             copyIPAddressAction: copyIPAddress,
             openNetworkSettingsAction: openNetworkSettings,
-            checkForUpdatesAction: snapshotStore.checkForUpdates,
+            checkForUpdatesAction: checkForUpdatesAction,
             openSettingsAction: openSettings,
             openAboutAction: { openWindow(id: "about") }
         )
@@ -63,6 +65,16 @@ struct DashboardRootView: View {
 
     private func openSettings() {
         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    }
+
+    private var checkForUpdatesAction: (() -> Void)? {
+        guard updatesEnabled else {
+            return nil
+        }
+
+        return {
+            snapshotStore.checkForUpdates()
+        }
     }
 }
 

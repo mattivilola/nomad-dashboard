@@ -14,7 +14,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         refreshIntervalSeconds: TimeInterval = 2,
         slowRefreshIntervalSeconds: TimeInterval = 60,
         historyRetentionHours: Int = 24,
-        publicIPGeolocationEnabled: Bool = false,
+        publicIPGeolocationEnabled: Bool = true,
         automaticUpdateChecksEnabled: Bool = true,
         launchAtLoginEnabled: Bool = false,
         useCurrentLocationForWeather: Bool = true,
@@ -30,4 +30,3 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.latencyHosts = latencyHosts
     }
 }
-

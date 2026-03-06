@@ -4,25 +4,28 @@ import SwiftUI
 
 public struct DashboardPanelView: View {
     private let snapshot: DashboardSnapshot
+    private let isPublicIPLocationEnabled: Bool
     private let versionDescription: String
     private let refreshAction: () -> Void
     private let copyIPAddressAction: () -> Void
     private let openNetworkSettingsAction: () -> Void
-    private let checkForUpdatesAction: () -> Void
+    private let checkForUpdatesAction: (() -> Void)?
     private let openSettingsAction: () -> Void
     private let openAboutAction: () -> Void
 
     public init(
         snapshot: DashboardSnapshot,
+        isPublicIPLocationEnabled: Bool,
         versionDescription: String = "",
         refreshAction: @escaping () -> Void,
         copyIPAddressAction: @escaping () -> Void,
         openNetworkSettingsAction: @escaping () -> Void,
-        checkForUpdatesAction: @escaping () -> Void,
+        checkForUpdatesAction: (() -> Void)? = nil,
         openSettingsAction: @escaping () -> Void,
         openAboutAction: @escaping () -> Void
     ) {
         self.snapshot = snapshot
+        self.isPublicIPLocationEnabled = isPublicIPLocationEnabled
         self.versionDescription = versionDescription
         self.refreshAction = refreshAction
         self.copyIPAddressAction = copyIPAddressAction
@@ -59,7 +62,7 @@ public struct DashboardPanelView: View {
                     .font(.system(size: 26, weight: .semibold, design: .rounded))
                     .foregroundStyle(NomadTheme.fog)
 
-                Text(snapshot.travelContext.location.map(locationLine) ?? "Travel-ready system telemetry")
+                Text(snapshot.travelContext.location.flatMap(formattedLocation) ?? "Travel-ready system telemetry")
                     .font(.subheadline)
                     .foregroundStyle(Color.white.opacity(0.68))
 
@@ -78,8 +81,10 @@ public struct DashboardPanelView: View {
                         openNetworkSettingsAction()
                     }
 
-                    Button("Check for Updates", systemImage: "sparkles") {
-                        checkForUpdatesAction()
+                    if let checkForUpdatesAction {
+                        Button("Check for Updates", systemImage: "sparkles") {
+                            checkForUpdatesAction()
+                        }
                     }
 
                     Divider()
@@ -188,7 +193,7 @@ public struct DashboardPanelView: View {
             badge: travelBadge,
             accessory: AnyView(
                 InlineActionButton(
-                    title: "Copy IP",
+                    title: "Copy Public IP",
                     systemImage: "document.on.document",
                     isEnabled: snapshot.travelContext.publicIP != nil,
                     action: copyIPAddressAction
@@ -201,7 +206,7 @@ public struct DashboardPanelView: View {
                 DetailRow(label: "Signal", value: signalDescription(snapshot.travelContext.wifi))
                 DetailRow(label: "VPN", value: vpnDescription)
                 DetailRow(label: "Time Zone", value: snapshot.travelContext.timeZoneIdentifier)
-                DetailRow(label: "Country", value: countryValue)
+                DetailRow(label: "Location", value: locationValue)
             }
         }
     }
@@ -315,8 +320,9 @@ public struct DashboardPanelView: View {
     }
 
     private var travelSubtitle: String {
-        if let location = snapshot.travelContext.location {
-            return locationLine(location)
+        if let location = snapshot.travelContext.location,
+           let formattedLocation = formattedLocation(location) {
+            return formattedLocation
         }
 
         if let ssid = snapshot.travelContext.wifi?.ssid {
@@ -362,16 +368,21 @@ public struct DashboardPanelView: View {
         return "Inactive"
     }
 
-    private var countryValue: String {
-        if let country = snapshot.travelContext.location?.country {
-            return country
+    private var locationValue: String {
+        if let location = snapshot.travelContext.location,
+           let formattedLocation = formattedLocation(location) {
+            return formattedLocation
         }
 
         if snapshot.appState.issues.contains(.ipLocationUnavailable) {
             return "Lookup unavailable"
         }
 
-        return "IP geolocation off"
+        if isPublicIPLocationEnabled == false {
+            return "Location off"
+        }
+
+        return "Refreshing…"
     }
 
     private var weatherBadge: PillBadge {
@@ -422,10 +433,22 @@ public struct DashboardPanelView: View {
         return formatter(value)
     }
 
-    private func locationLine(_ location: IPLocationSnapshot) -> String {
-        [location.city, location.country]
-            .compactMap { $0 }
-            .joined(separator: ", ")
+    private func formattedLocation(_ location: IPLocationSnapshot) -> String? {
+        let parts = [location.city, location.country]
+            .compactMap { value -> String? in
+                guard let value else {
+                    return nil
+                }
+
+                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+
+        guard parts.isEmpty == false else {
+            return nil
+        }
+
+        return parts.joined(separator: ", ")
     }
 
     private func temperatureRangeText(for summary: WeatherDaySummary) -> String {

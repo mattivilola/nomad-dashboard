@@ -37,6 +37,65 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func refreshSkipsLocationLookupWhenGeolocationIsDisabled() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.publicIPGeolocationEnabled = false
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let locationProvider = RecordingLocationProvider()
+        let dependencies = DashboardDependencies(
+            throughputMonitor: FixedThroughputMonitor(),
+            latencyProbe: FixedLatencyProbe(),
+            powerMonitor: FixedPowerMonitor(),
+            wifiMonitor: FixedWiFiMonitor(),
+            vpnStatusProvider: FixedVPNProvider(),
+            publicIPProvider: FixedPublicIPProvider(),
+            publicIPLocationProvider: locationProvider,
+            weatherProvider: FixedWeatherProvider(),
+            historyStore: InMemoryHistoryStore(),
+            updateCoordinator: NoopUpdateCoordinator()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.travelContext.publicIP?.address == "198.51.100.12")
+        #expect(store.snapshot.travelContext.location == nil)
+        #expect(store.snapshot.travelContext.timeZoneIdentifier == TimeZone.current.identifier)
+        #expect(await locationProvider.callCount() == 0)
+        #expect(store.snapshot.appState.issues.contains(.ipLocationUnavailable) == false)
+    }
+
+    @Test
+    func refreshKeepsPublicIPWhenLocationLookupFails() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.publicIPGeolocationEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let dependencies = DashboardDependencies(
+            throughputMonitor: FixedThroughputMonitor(),
+            latencyProbe: FixedLatencyProbe(),
+            powerMonitor: FixedPowerMonitor(),
+            wifiMonitor: FixedWiFiMonitor(),
+            vpnStatusProvider: FixedVPNProvider(),
+            publicIPProvider: FixedPublicIPProvider(),
+            publicIPLocationProvider: FailingLocationProvider(),
+            weatherProvider: FixedWeatherProvider(),
+            historyStore: InMemoryHistoryStore(),
+            updateCoordinator: NoopUpdateCoordinator()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.travelContext.publicIP?.address == "198.51.100.12")
+        #expect(store.snapshot.travelContext.location == nil)
+        #expect(store.snapshot.appState.issues.contains(.ipLocationUnavailable))
+    }
+
+    @Test
     func refreshMarksWeatherLocationRequirementWhenCoordinateIsMissing() async throws {
         let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
         let dependencies = DashboardDependencies(
@@ -241,6 +300,25 @@ private struct FixedLocationProvider: PublicIPLocationProvider {
             provider: "test",
             fetchedAt: .now
         )
+    }
+}
+
+private actor RecordingLocationProvider: PublicIPLocationProvider {
+    private var requestedAddresses: [String] = []
+
+    func currentLocation(for ipAddress: String, forceRefresh: Bool) async throws -> IPLocationSnapshot {
+        requestedAddresses.append(ipAddress)
+        return try await FixedLocationProvider().currentLocation(for: ipAddress, forceRefresh: forceRefresh)
+    }
+
+    func callCount() -> Int {
+        requestedAddresses.count
+    }
+}
+
+private struct FailingLocationProvider: PublicIPLocationProvider {
+    func currentLocation(for ipAddress: String, forceRefresh: Bool) async throws -> IPLocationSnapshot {
+        throw ProviderError.invalidResponse
     }
 }
 

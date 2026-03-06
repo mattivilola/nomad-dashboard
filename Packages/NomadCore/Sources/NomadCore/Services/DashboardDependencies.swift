@@ -42,14 +42,16 @@ public struct DashboardDependencies: Sendable {
         historyRetentionHours: Int = 24,
         updateCoordinator: any UpdateCoordinator
     ) -> DashboardDependencies {
+        let publicIPClient = CachedFreeIPAPIClient()
+
         DashboardDependencies(
             throughputMonitor: LiveThroughputMonitor(),
             latencyProbe: LiveLatencyProbe(endpoints: latencyHosts.compactMap(LatencyEndpoint.from(hostString:))),
             powerMonitor: LivePowerMonitor(),
             wifiMonitor: LiveWiFiMonitor(),
             vpnStatusProvider: LiveVPNStatusProvider(),
-            publicIPProvider: CachedPublicIPProvider(),
-            publicIPLocationProvider: CachedIPLocationProvider(),
+            publicIPProvider: CachedPublicIPProvider(client: publicIPClient),
+            publicIPLocationProvider: CachedIPLocationProvider(client: publicIPClient),
             weatherProvider: LiveWeatherProvider(),
             historyStore: FileMetricHistoryStore(
                 fileURL: applicationSupportDirectory.appendingPathComponent("metric-history.json"),

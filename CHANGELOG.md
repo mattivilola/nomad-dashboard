@@ -13,7 +13,7 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- _Nothing yet_
+- Temporarily disabled in-app update checks until the signed release and appcast publishing pipeline is in place.
 
 ### Fixed
 

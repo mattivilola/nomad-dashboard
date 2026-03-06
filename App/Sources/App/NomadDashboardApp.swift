@@ -14,9 +14,14 @@ struct NomadDashboardApp: App {
         let persistedSettings = settingsStore.settings
         let applicationSupportDirectory = (try? FileManager.default.nomadApplicationSupportDirectory())
             ?? FileManager.default.temporaryDirectory.appendingPathComponent("Nomad Dashboard", isDirectory: true)
-        let updateCoordinator = SparkleUpdateCoordinator(
-            automaticChecksEnabled: persistedSettings.automaticUpdateChecksEnabled
-        )
+        let updateCoordinator: any UpdateCoordinator
+
+        if UpdateFeatureConfiguration.isEnabled {
+            updateCoordinator = SparkleUpdateCoordinator(automaticChecksEnabled: persistedSettings.automaticUpdateChecksEnabled)
+        } else {
+            updateCoordinator = PausedUpdateCoordinator()
+        }
+
         let dependencies = DashboardDependencies.live(
             applicationSupportDirectory: applicationSupportDirectory,
             latencyHosts: persistedSettings.latencyHosts,
@@ -41,7 +46,8 @@ struct NomadDashboardApp: App {
                 snapshotStore: snapshotStore,
                 settingsStore: settingsStore,
                 locationStore: locationStore,
-                launchAtLoginController: launchAtLoginController
+                launchAtLoginController: launchAtLoginController,
+                updatesEnabled: UpdateFeatureConfiguration.isEnabled
             )
         } label: {
             MenuBarStatusLabel(snapshot: snapshotStore.snapshot)
@@ -53,7 +59,8 @@ struct NomadDashboardApp: App {
                 settingsStore: settingsStore,
                 snapshotStore: snapshotStore,
                 locationStore: locationStore,
-                launchAtLoginController: launchAtLoginController
+                launchAtLoginController: launchAtLoginController,
+                updatesEnabled: UpdateFeatureConfiguration.isEnabled
             )
         }
 
