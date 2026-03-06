@@ -2,7 +2,7 @@ import Foundation
 
 public actor FileMetricHistoryStore: MetricHistoryStore {
     private let fileURL: URL
-    private let retentionHours: Int
+    private var retentionHours: Int
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
@@ -12,19 +12,11 @@ public actor FileMetricHistoryStore: MetricHistoryStore {
     }
 
     public func loadAll() async throws -> [MetricSeriesKind: [MetricPoint]] {
-        try ensureDirectory()
-
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            return [:]
-        }
-
-        let data = try Data(contentsOf: fileURL)
-        let decoded = try decoder.decode([MetricSeriesKind: [MetricPoint]].self, from: data)
-        return trim(decoded)
+        trim(try loadPersistedHistory())
     }
 
     public func append(_ point: MetricPoint, to series: MetricSeriesKind) async throws {
-        var history = try await loadAll()
+        var history = trim(try loadPersistedHistory())
         history[series, default: []].append(point)
         history = trim(history)
         try persist(history)
@@ -35,6 +27,12 @@ public actor FileMetricHistoryStore: MetricHistoryStore {
         if FileManager.default.fileExists(atPath: fileURL.path) {
             try FileManager.default.removeItem(at: fileURL)
         }
+    }
+
+    public func setRetentionHours(_ retentionHours: Int) async throws {
+        self.retentionHours = retentionHours
+        let trimmedHistory = trim(try loadPersistedHistory())
+        try persist(trimmedHistory)
     }
 
     private func trim(_ history: [MetricSeriesKind: [MetricPoint]]) -> [MetricSeriesKind: [MetricPoint]] {
@@ -52,6 +50,17 @@ public actor FileMetricHistoryStore: MetricHistoryStore {
         try data.write(to: fileURL, options: [.atomic])
     }
 
+    private func loadPersistedHistory() throws -> [MetricSeriesKind: [MetricPoint]] {
+        try ensureDirectory()
+
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return [:]
+        }
+
+        let data = try Data(contentsOf: fileURL)
+        return try decoder.decode([MetricSeriesKind: [MetricPoint]].self, from: data)
+    }
+
     private func ensureDirectory() throws {
         try FileManager.default.createDirectory(
             at: fileURL.deletingLastPathComponent(),
@@ -59,4 +68,3 @@ public actor FileMetricHistoryStore: MetricHistoryStore {
         )
     }
 }
-

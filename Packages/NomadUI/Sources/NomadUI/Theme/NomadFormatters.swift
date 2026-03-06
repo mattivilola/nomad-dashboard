@@ -28,7 +28,7 @@ public enum NomadFormatters {
     }
 
     public static func minutes(_ value: Int?) -> String {
-        guard let value else { return "n/a" }
+        guard let value, value >= 0 else { return "n/a" }
         let hours = value / 60
         let minutes = value % 60
 
@@ -51,4 +51,3 @@ public enum NomadFormatters {
         return value.formatted(date: .omitted, time: .shortened)
     }
 }
-

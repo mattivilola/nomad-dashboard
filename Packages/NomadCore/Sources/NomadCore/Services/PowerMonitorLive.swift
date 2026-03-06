@@ -37,7 +37,9 @@ public struct LivePowerMonitor: PowerMonitor {
             state = .unknown
         }
 
-        let minutes = (description[kIOPSTimeToEmptyKey] as? NSNumber)?.intValue
+        let minutes = Self.normalizedTimeRemainingMinutes(
+            (description[kIOPSTimeToEmptyKey] as? NSNumber)?.intValue
+        )
         let amperageMilliAmps = (description[kIOPSCurrentKey] as? NSNumber)?.doubleValue
         let voltageMilliVolts = (description[kIOPSVoltageKey] as? NSNumber)?.doubleValue
         let dischargeRateWatts = { () -> Double? in
@@ -64,5 +66,13 @@ public struct LivePowerMonitor: PowerMonitor {
             adapterWatts: adapterWatts,
             collectedAt: Date()
         )
+    }
+
+    static func normalizedTimeRemainingMinutes(_ rawValue: Int?) -> Int? {
+        guard let rawValue, rawValue >= 0 else {
+            return nil
+        }
+
+        return rawValue
     }
 }

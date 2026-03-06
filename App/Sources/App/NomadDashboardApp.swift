@@ -11,19 +11,28 @@ struct NomadDashboardApp: App {
 
     init() {
         let settingsStore = AppSettingsStore()
+        let persistedSettings = settingsStore.settings
         let applicationSupportDirectory = (try? FileManager.default.nomadApplicationSupportDirectory())
             ?? FileManager.default.temporaryDirectory.appendingPathComponent("Nomad Dashboard", isDirectory: true)
-        let updateCoordinator = SparkleUpdateCoordinator()
+        let updateCoordinator = SparkleUpdateCoordinator(
+            automaticChecksEnabled: persistedSettings.automaticUpdateChecksEnabled
+        )
         let dependencies = DashboardDependencies.live(
             applicationSupportDirectory: applicationSupportDirectory,
-            latencyHosts: settingsStore.settings.latencyHosts,
+            latencyHosts: persistedSettings.latencyHosts,
+            historyRetentionHours: persistedSettings.historyRetentionHours,
             updateCoordinator: updateCoordinator
         )
+        let launchAtLoginController = LaunchAtLoginController(initialEnabled: persistedSettings.launchAtLoginEnabled)
+
+        if settingsStore.settings.launchAtLoginEnabled != launchAtLoginController.isEnabled {
+            settingsStore.settings.launchAtLoginEnabled = launchAtLoginController.isEnabled
+        }
 
         _settingsStore = StateObject(wrappedValue: settingsStore)
         _snapshotStore = StateObject(wrappedValue: DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies))
         _locationStore = StateObject(wrappedValue: CurrentLocationStore())
-        _launchAtLoginController = StateObject(wrappedValue: LaunchAtLoginController(initialEnabled: settingsStore.settings.launchAtLoginEnabled))
+        _launchAtLoginController = StateObject(wrappedValue: launchAtLoginController)
     }
 
     var body: some Scene {
@@ -42,6 +51,7 @@ struct NomadDashboardApp: App {
         Settings {
             SettingsView(
                 settingsStore: settingsStore,
+                snapshotStore: snapshotStore,
                 locationStore: locationStore,
                 launchAtLoginController: launchAtLoginController
             )
@@ -53,4 +63,3 @@ struct NomadDashboardApp: App {
         .windowResizability(.contentSize)
     }
 }
-

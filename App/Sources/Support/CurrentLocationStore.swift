@@ -1,6 +1,7 @@
 import Combine
 import CoreLocation
 import Foundation
+import NomadCore
 
 @MainActor
 final class CurrentLocationStore: NSObject, ObservableObject {
@@ -72,6 +73,6 @@ extension CurrentLocationStore: @preconcurrency CLLocationManagerDelegate {
 
 private extension CurrentLocationStore {
     var isAuthorized: Bool {
-        authorizationStatus == .authorizedAlways
+        authorizationStatus.isNomadWeatherAuthorized
     }
 }

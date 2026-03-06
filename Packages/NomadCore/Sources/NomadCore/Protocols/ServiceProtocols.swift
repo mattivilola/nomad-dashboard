@@ -47,9 +47,11 @@ public protocol MetricHistoryStore: Sendable {
     func loadAll() async throws -> [MetricSeriesKind: [MetricPoint]]
     func append(_ point: MetricPoint, to series: MetricSeriesKind) async throws
     func reset() async throws
+    func setRetentionHours(_ retentionHours: Int) async throws
 }
 
 public protocol UpdateCoordinator: Sendable {
     func currentState() async -> UpdateStateSnapshot
     func checkForUpdates() async
+    func setAutomaticChecksEnabled(_ isEnabled: Bool) async
 }

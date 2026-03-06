@@ -116,10 +116,12 @@ public struct WiFiSnapshot: Equatable, Sendable {
 public struct VPNStatusSnapshot: Equatable, Sendable {
     public let isActive: Bool
     public let interfaceNames: [String]
+    public let serviceNames: [String]
 
-    public init(isActive: Bool, interfaceNames: [String]) {
+    public init(isActive: Bool, interfaceNames: [String], serviceNames: [String] = []) {
         self.isActive = isActive
         self.interfaceNames = interfaceNames
+        self.serviceNames = serviceNames
     }
 }
 
@@ -369,7 +371,7 @@ public extension DashboardSnapshot {
         power: PowerSectionSnapshot(snapshot: nil, chargeHistory: [], dischargeHistory: []),
         travelContext: TravelContextSnapshot(
             wifi: nil,
-            vpn: VPNStatusSnapshot(isActive: false, interfaceNames: []),
+            vpn: VPNStatusSnapshot(isActive: false, interfaceNames: [], serviceNames: []),
             timeZoneIdentifier: TimeZone.current.identifier,
             publicIP: nil,
             location: nil
@@ -421,7 +423,7 @@ public extension DashboardSnapshot {
         ),
         travelContext: TravelContextSnapshot(
             wifi: WiFiSnapshot(interfaceName: "en0", ssid: "Nomad Hub", rssi: -56, noise: -91, transmitRateMbps: 720),
-            vpn: VPNStatusSnapshot(isActive: true, interfaceNames: ["utun5"]),
+            vpn: VPNStatusSnapshot(isActive: true, interfaceNames: [], serviceNames: ["Nomad VPN"]),
             timeZoneIdentifier: "Europe/Madrid",
             publicIP: PublicIPSnapshot(address: "203.0.113.42", provider: "preview", fetchedAt: .now),
             location: IPLocationSnapshot(

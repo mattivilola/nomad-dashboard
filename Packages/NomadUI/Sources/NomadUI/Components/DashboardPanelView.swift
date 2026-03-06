@@ -348,7 +348,15 @@ public struct DashboardPanelView: View {
 
     private var vpnDescription: String {
         if snapshot.travelContext.vpn?.isActive == true {
-            return snapshot.travelContext.vpn?.interfaceNames.joined(separator: ", ") ?? "Active"
+            if let serviceNames = snapshot.travelContext.vpn?.serviceNames, serviceNames.isEmpty == false {
+                return serviceNames.joined(separator: ", ")
+            }
+
+            if let interfaceNames = snapshot.travelContext.vpn?.interfaceNames, interfaceNames.isEmpty == false {
+                return interfaceNames.joined(separator: ", ")
+            }
+
+            return "Active"
         }
 
         return "Inactive"

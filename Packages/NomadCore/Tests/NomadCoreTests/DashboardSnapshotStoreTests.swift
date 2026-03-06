@@ -59,21 +59,117 @@ struct DashboardSnapshotStoreTests {
         #expect(store.snapshot.weather == nil)
         #expect(store.snapshot.appState.issues.contains(.weatherLocationRequired))
     }
+
+    @Test
+    func settingsChangesPropagateAutomaticUpdateChecks() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.automaticUpdateChecksEnabled = false
+        let updateCoordinator = RecordingUpdateCoordinator()
+        let dependencies = DashboardDependencies(
+            throughputMonitor: FixedThroughputMonitor(),
+            latencyProbe: FixedLatencyProbe(),
+            powerMonitor: FixedPowerMonitor(),
+            wifiMonitor: FixedWiFiMonitor(),
+            vpnStatusProvider: FixedVPNProvider(),
+            publicIPProvider: FixedPublicIPProvider(),
+            publicIPLocationProvider: FixedLocationProvider(),
+            weatherProvider: FixedWeatherProvider(),
+            historyStore: InMemoryHistoryStore(),
+            updateCoordinator: updateCoordinator
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        try await waitForSettingsPropagation()
+        #expect(await updateCoordinator.automaticChecksHistory() == [false])
+
+        settingsStore.settings.automaticUpdateChecksEnabled = true
+
+        try await waitForSettingsPropagation()
+        #expect(await updateCoordinator.automaticChecksHistory() == [false, true])
+        _ = store
+    }
+
+    @Test
+    func changingHistoryRetentionPrunesSnapshotHistoryImmediately() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.historyRetentionHours = 24
+
+        let now = Date()
+        let seededHistoryStore = InMemoryHistoryStore(
+            values: [
+                .downloadMbps: [
+                    MetricPoint(timestamp: now.addingTimeInterval(-12 * 3_600), value: 18),
+                    MetricPoint(timestamp: now.addingTimeInterval(-2 * 3_600), value: 22)
+                ]
+            ],
+            retentionHours: 24
+        )
+
+        let dependencies = DashboardDependencies(
+            throughputMonitor: NilThroughputMonitor(),
+            latencyProbe: FixedLatencyProbe(),
+            powerMonitor: FixedPowerMonitor(),
+            wifiMonitor: FixedWiFiMonitor(),
+            vpnStatusProvider: FixedVPNProvider(),
+            publicIPProvider: FixedPublicIPProvider(),
+            publicIPLocationProvider: FixedLocationProvider(),
+            weatherProvider: FixedWeatherProvider(),
+            historyStore: seededHistoryStore,
+            updateCoordinator: NoopUpdateCoordinator()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+        #expect(store.snapshot.network.downloadHistory.count == 2)
+
+        settingsStore.settings.historyRetentionHours = 6
+
+        try await waitForSettingsPropagation()
+        #expect(store.snapshot.network.downloadHistory.count == 1)
+        #expect(store.snapshot.network.downloadHistory.first?.value == 22)
+    }
+
+    private func waitForSettingsPropagation() async throws {
+        try await Task.sleep(for: .milliseconds(50))
+    }
 }
 
 private actor InMemoryHistoryStore: MetricHistoryStore {
-    private var values: [MetricSeriesKind: [MetricPoint]] = [:]
+    private var values: [MetricSeriesKind: [MetricPoint]]
+    private var retentionHours: Int
+
+    init(values: [MetricSeriesKind: [MetricPoint]] = [:], retentionHours: Int = 24) {
+        self.values = values
+        self.retentionHours = retentionHours
+    }
 
     func loadAll() async throws -> [MetricSeriesKind: [MetricPoint]] {
-        values
+        trim(values)
     }
 
     func append(_ point: MetricPoint, to series: MetricSeriesKind) async throws {
         values[series, default: []].append(point)
+        values = trim(values)
     }
 
     func reset() async throws {
         values = [:]
+    }
+
+    func setRetentionHours(_ retentionHours: Int) async throws {
+        self.retentionHours = retentionHours
+        values = trim(values)
+    }
+
+    private func trim(_ history: [MetricSeriesKind: [MetricPoint]]) -> [MetricSeriesKind: [MetricPoint]] {
+        let earliestTimestamp = Date().addingTimeInterval(TimeInterval(-retentionHours * 3_600))
+        return history.mapValues { points in
+            points
+                .filter { $0.timestamp >= earliestTimestamp }
+                .sorted { $0.timestamp < $1.timestamp }
+        }
     }
 }
 
@@ -85,6 +181,12 @@ private struct FixedThroughputMonitor: ThroughputMonitor {
             activeInterface: "en0",
             collectedAt: .now
         )
+    }
+}
+
+private struct NilThroughputMonitor: ThroughputMonitor {
+    func currentSample() async -> NetworkThroughputSample? {
+        nil
     }
 }
 
@@ -116,7 +218,7 @@ private struct FixedWiFiMonitor: WiFiMonitor {
 
 private struct FixedVPNProvider: VPNStatusProvider {
     func currentStatus() async -> VPNStatusSnapshot {
-        VPNStatusSnapshot(isActive: true, interfaceNames: ["utun3"])
+        VPNStatusSnapshot(isActive: true, interfaceNames: [], serviceNames: ["Nomad VPN"])
     }
 }
 
@@ -167,5 +269,23 @@ private struct FixedWeatherProvider: WeatherProvider {
 private struct MissingCoordinateWeatherProvider: WeatherProvider {
     func weather(for coordinate: CLLocationCoordinate2D?) async throws -> WeatherSnapshot {
         throw ProviderError.missingCoordinate
+    }
+}
+
+private actor RecordingUpdateCoordinator: UpdateCoordinator {
+    private var history: [Bool] = []
+
+    func currentState() async -> UpdateStateSnapshot {
+        UpdateStateSnapshot(kind: .idle, detail: "Testing", lastCheckedAt: nil)
+    }
+
+    func checkForUpdates() async {}
+
+    func setAutomaticChecksEnabled(_ isEnabled: Bool) async {
+        history.append(isEnabled)
+    }
+
+    func automaticChecksHistory() -> [Bool] {
+        history
     }
 }

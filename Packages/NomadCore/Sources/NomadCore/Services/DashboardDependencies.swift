@@ -39,6 +39,7 @@ public struct DashboardDependencies: Sendable {
     public static func live(
         applicationSupportDirectory: URL,
         latencyHosts: [String] = ["1.1.1.1:443", "8.8.8.8:443"],
+        historyRetentionHours: Int = 24,
         updateCoordinator: any UpdateCoordinator
     ) -> DashboardDependencies {
         DashboardDependencies(
@@ -52,7 +53,7 @@ public struct DashboardDependencies: Sendable {
             weatherProvider: LiveWeatherProvider(),
             historyStore: FileMetricHistoryStore(
                 fileURL: applicationSupportDirectory.appendingPathComponent("metric-history.json"),
-                retentionHours: 24
+                retentionHours: historyRetentionHours
             ),
             updateCoordinator: updateCoordinator
         )

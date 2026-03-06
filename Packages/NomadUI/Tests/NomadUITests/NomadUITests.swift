@@ -7,4 +7,9 @@ struct NomadUITests {
     func previewFixtureExposesDashboardSnapshot() {
         #expect(PreviewFixtures.snapshot.network.downloadHistory.isEmpty == false)
     }
+
+    @Test
+    func negativeMinutesFormatAsUnavailable() {
+        #expect(NomadFormatters.minutes(-1) == "n/a")
+    }
 }

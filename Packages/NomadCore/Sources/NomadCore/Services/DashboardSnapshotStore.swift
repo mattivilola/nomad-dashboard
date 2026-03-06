@@ -10,6 +10,8 @@ public final class DashboardSnapshotStore: ObservableObject {
 
     private let dependencies: DashboardDependencies
     private var refreshTask: Task<Void, Never>?
+    private var settingsObservation: AnyCancellable?
+    private var appliedSettings: AppSettings
     private var currentCoordinate: CLLocationCoordinate2D?
     private var lastSlowRefresh: Date?
 
@@ -17,6 +19,11 @@ public final class DashboardSnapshotStore: ObservableObject {
         self.settingsStore = settingsStore
         self.dependencies = dependencies
         self.snapshot = initialSnapshot
+        self.appliedSettings = settingsStore.settings
+        configureSettingsObservation()
+        Task { [weak self] in
+            await self?.applyInitialSettings()
+        }
     }
 
     deinit {
@@ -169,6 +176,54 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         return now.timeIntervalSince(lastSlowRefresh) >= interval
+    }
+
+    private func configureSettingsObservation() {
+        settingsObservation = settingsStore.$settings
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] newSettings in
+                guard let self else {
+                    return
+                }
+
+                let previousSettings = self.appliedSettings
+                self.appliedSettings = newSettings
+
+                Task { [weak self] in
+                    await self?.applySettingsChange(from: previousSettings, to: newSettings)
+                }
+            }
+    }
+
+    private func applyInitialSettings() async {
+        try? await dependencies.historyStore.setRetentionHours(appliedSettings.historyRetentionHours)
+        await dependencies.updateCoordinator.setAutomaticChecksEnabled(appliedSettings.automaticUpdateChecksEnabled)
+    }
+
+    private func applySettingsChange(from previousSettings: AppSettings, to newSettings: AppSettings) async {
+        if previousSettings.automaticUpdateChecksEnabled != newSettings.automaticUpdateChecksEnabled {
+            await dependencies.updateCoordinator.setAutomaticChecksEnabled(newSettings.automaticUpdateChecksEnabled)
+        }
+
+        var needsManualRefresh = false
+
+        if previousSettings.historyRetentionHours != newSettings.historyRetentionHours {
+            try? await dependencies.historyStore.setRetentionHours(newSettings.historyRetentionHours)
+            needsManualRefresh = true
+        }
+
+        if previousSettings.publicIPGeolocationEnabled != newSettings.publicIPGeolocationEnabled {
+            needsManualRefresh = true
+        }
+
+        if previousSettings.useCurrentLocationForWeather != newSettings.useCurrentLocationForWeather {
+            needsManualRefresh = true
+        }
+
+        if needsManualRefresh {
+            await refresh(manual: true)
+        }
     }
 
     private func appendHistory(from throughputSample: NetworkThroughputSample) async {
