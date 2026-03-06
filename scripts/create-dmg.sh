@@ -65,6 +65,32 @@ end tell
 EOF
 }
 
+configure_mounted_window() {
+  osascript <<EOF
+set backgroundAlias to POSIX file "$MOUNT_DIR/.background/background.tiff" as alias
+set mountedFolder to POSIX file "$MOUNT_DIR" as alias
+tell application "Finder"
+  open mountedFolder
+  activate
+  delay 1
+  set dmgWindow to front Finder window
+  set current view of dmgWindow to icon view
+  set toolbar visible of dmgWindow to false
+  set statusbar visible of dmgWindow to false
+  set the bounds of dmgWindow to $WINDOW_BOUNDS
+  set viewOptions to the icon view options of dmgWindow
+  set arrangement of viewOptions to not arranged
+  set icon size of viewOptions to 144
+  set text size of viewOptions to 14
+  set background picture of viewOptions to backgroundAlias
+  set position of item "Nomad Dashboard.app" of dmgWindow to $APP_POSITION
+  set position of item "Applications" of dmgWindow to $APPLICATIONS_POSITION
+  delay 1
+  close dmgWindow
+end tell
+EOF
+}
+
 trap cleanup EXIT INT TERM
 
 cd "$REPO_ROOT"
@@ -130,6 +156,7 @@ for hidden_path in "$MOUNT_DIR/.background" "$MOUNT_DIR/.background/background.t
   SetFile -a V "$hidden_path"
 done
 SetFile -a C "$MOUNT_DIR"
+configure_mounted_window
 sync
 sleep 1
 
