@@ -19,3 +19,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 - _Nothing yet_
 
+
+## [0.1.2] - 2026-03-06
+
+### Changed
+
+- Initial commit
+- feat: Set up initial Nomad Dashboard project and core features
+- feat: Add make commands to open, run, and rerun the app
+- feat: Implement automated release workflow and centralized versioning
