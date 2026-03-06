@@ -43,6 +43,22 @@ public protocol WeatherProvider: Sendable {
     func weather(for coordinate: CLLocationCoordinate2D?) async throws -> WeatherSnapshot
 }
 
+public protocol NeighborCountryResolver: Sendable {
+    func neighboringCountryCodes(for countryCode: String) -> [String]
+}
+
+public protocol TravelAdvisoryProvider: Sendable {
+    func advisory(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot
+}
+
+public protocol TravelWeatherAlertsProvider: Sendable {
+    func alerts(for coordinate: CLLocationCoordinate2D?, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot
+}
+
+public protocol RegionalSecurityProvider: Sendable {
+    func security(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot
+}
+
 public protocol MetricHistoryStore: Sendable {
     func loadAll() async throws -> [MetricSeriesKind: [MetricPoint]]
     func append(_ point: MetricPoint, to series: MetricSeriesKind) async throws

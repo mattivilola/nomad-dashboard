@@ -328,6 +328,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
     public let network: NetworkSectionSnapshot
     public let power: PowerSectionSnapshot
     public let travelContext: TravelContextSnapshot
+    public let travelAlerts: TravelAlertsSnapshot?
     public let weather: WeatherSnapshot?
     public let appState: AppStatusSnapshot
     public let healthSummary: DashboardHealthSummary
@@ -336,6 +337,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         network: NetworkSectionSnapshot,
         power: PowerSectionSnapshot,
         travelContext: TravelContextSnapshot,
+        travelAlerts: TravelAlertsSnapshot? = nil,
         weather: WeatherSnapshot?,
         appState: AppStatusSnapshot,
         healthSummary: DashboardHealthSummary? = nil
@@ -343,6 +345,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         self.network = network
         self.power = power
         self.travelContext = travelContext
+        self.travelAlerts = travelAlerts
         self.weather = weather
         self.appState = appState
         self.healthSummary = healthSummary ?? DashboardHealthEvaluator.makeSummary(
@@ -375,6 +378,14 @@ public extension DashboardSnapshot {
             timeZoneIdentifier: TimeZone.current.identifier,
             publicIP: nil,
             location: nil
+        ),
+        travelAlerts: TravelAlertsSnapshot(
+            enabledKinds: [.advisory],
+            primaryCountryCode: nil,
+            primaryCountryName: nil,
+            coverageCountryCodes: [],
+            signals: [],
+            fetchedAt: nil
         ),
         weather: nil,
         appState: AppStatusSnapshot(lastRefresh: nil, updateState: .idle, issues: [])
@@ -437,6 +448,46 @@ public extension DashboardSnapshot {
                 provider: "preview",
                 fetchedAt: .now
             )
+        ),
+        travelAlerts: TravelAlertsSnapshot(
+            enabledKinds: [.advisory, .weather, .security],
+            primaryCountryCode: "ES",
+            primaryCountryName: "Spain",
+            coverageCountryCodes: ["ES", "FR", "PT", "AD", "MA"],
+            signals: [
+                TravelAlertSignalSnapshot(
+                    kind: .advisory,
+                    severity: .caution,
+                    title: "Travel advisory",
+                    summary: "France remains at a higher caution level nearby.",
+                    sourceName: "Smartraveller",
+                    sourceURL: URL(string: "https://www.smartraveller.gov.au"),
+                    updatedAt: .now,
+                    affectedCountryCodes: ["FR"]
+                ),
+                TravelAlertSignalSnapshot(
+                    kind: .weather,
+                    severity: .clear,
+                    title: "Weather alerts",
+                    summary: "No severe weather alerts near Valencia.",
+                    sourceName: "WeatherKit",
+                    sourceURL: URL(string: "https://developer.apple.com/weatherkit/"),
+                    updatedAt: .now,
+                    affectedCountryCodes: ["ES"]
+                ),
+                TravelAlertSignalSnapshot(
+                    kind: .security,
+                    severity: .info,
+                    title: "Regional security",
+                    summary: "One recent security bulletin was published nearby.",
+                    sourceName: "ReliefWeb",
+                    sourceURL: URL(string: "https://reliefweb.int"),
+                    updatedAt: .now,
+                    affectedCountryCodes: ["MA"],
+                    itemCount: 1
+                )
+            ],
+            fetchedAt: .now
         ),
         weather: WeatherSnapshot(
             currentTemperatureCelsius: 19,

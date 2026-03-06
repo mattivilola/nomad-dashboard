@@ -5,6 +5,12 @@ public enum DashboardIssue: String, Codable, CaseIterable, Equatable, Sendable {
     case ipLocationUnavailable
     case weatherLocationRequired
     case weatherUnavailable
+    case travelAdvisoryCountryRequired
+    case travelAdvisoryUnavailable
+    case travelWeatherAlertsLocationRequired
+    case travelWeatherAlertsUnavailable
+    case regionalSecurityCountryRequired
+    case regionalSecurityUnavailable
 }
 
 public enum HealthLevel: String, Codable, CaseIterable, Equatable, Sendable {

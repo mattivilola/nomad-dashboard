@@ -3,6 +3,8 @@ import Foundation
 public enum ProviderError: Error {
     case invalidResponse
     case missingCoordinate
+    case missingCountryCode
+    case missingConfiguration
 }
 
 public actor CachedPublicIPProvider: PublicIPProvider {

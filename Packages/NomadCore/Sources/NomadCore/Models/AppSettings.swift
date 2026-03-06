@@ -9,6 +9,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var automaticUpdateChecksEnabled: Bool
     public var launchAtLoginEnabled: Bool
     public var useCurrentLocationForWeather: Bool
+    public var travelAdvisoryEnabled: Bool
+    public var travelWeatherAlertsEnabled: Bool
+    public var regionalSecurityEnabled: Bool
     public var latencyHosts: [String]
 
     public init(
@@ -20,6 +23,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         automaticUpdateChecksEnabled: Bool = true,
         launchAtLoginEnabled: Bool = false,
         useCurrentLocationForWeather: Bool = true,
+        travelAdvisoryEnabled: Bool = true,
+        travelWeatherAlertsEnabled: Bool = false,
+        regionalSecurityEnabled: Bool = false,
         latencyHosts: [String] = ["1.1.1.1:443", "8.8.8.8:443"]
     ) {
         self.appearanceMode = appearanceMode
@@ -30,6 +36,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.automaticUpdateChecksEnabled = automaticUpdateChecksEnabled
         self.launchAtLoginEnabled = launchAtLoginEnabled
         self.useCurrentLocationForWeather = useCurrentLocationForWeather
+        self.travelAdvisoryEnabled = travelAdvisoryEnabled
+        self.travelWeatherAlertsEnabled = travelWeatherAlertsEnabled
+        self.regionalSecurityEnabled = regionalSecurityEnabled
         self.latencyHosts = latencyHosts
     }
 
@@ -42,6 +51,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case automaticUpdateChecksEnabled
         case launchAtLoginEnabled
         case useCurrentLocationForWeather
+        case travelAdvisoryEnabled
+        case travelWeatherAlertsEnabled
+        case regionalSecurityEnabled
         case latencyHosts
     }
 
@@ -56,6 +68,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         automaticUpdateChecksEnabled = try container.decode(Bool.self, forKey: .automaticUpdateChecksEnabled)
         launchAtLoginEnabled = try container.decode(Bool.self, forKey: .launchAtLoginEnabled)
         useCurrentLocationForWeather = try container.decode(Bool.self, forKey: .useCurrentLocationForWeather)
+        travelAdvisoryEnabled = try container.decodeIfPresent(Bool.self, forKey: .travelAdvisoryEnabled) ?? true
+        travelWeatherAlertsEnabled = try container.decodeIfPresent(Bool.self, forKey: .travelWeatherAlertsEnabled) ?? false
+        regionalSecurityEnabled = try container.decodeIfPresent(Bool.self, forKey: .regionalSecurityEnabled) ?? false
         latencyHosts = try container.decode([String].self, forKey: .latencyHosts)
     }
 }
