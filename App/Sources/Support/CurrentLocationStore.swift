@@ -6,15 +6,18 @@ import NomadCore
 @MainActor
 final class CurrentLocationStore: NSObject, ObservableObject {
     @Published private(set) var authorizationStatus: CLAuthorizationStatus
+    @Published private(set) var currentLocation: CLLocation?
     @Published private(set) var currentCoordinate: CLLocationCoordinate2D?
 
     private let manager: CLLocationManager
 
     override init() {
         let manager = CLLocationManager()
+        let initialLocation = manager.location
         self.manager = manager
         self.authorizationStatus = manager.authorizationStatus
-        self.currentCoordinate = manager.location?.coordinate
+        self.currentLocation = initialLocation
+        self.currentCoordinate = initialLocation?.coordinate
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
@@ -65,7 +68,9 @@ extension CurrentLocationStore: @preconcurrency CLLocationManagerDelegate {
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        currentCoordinate = locations.last?.coordinate
+        let latestLocation = locations.last
+        currentLocation = latestLocation
+        currentCoordinate = latestLocation?.coordinate
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}

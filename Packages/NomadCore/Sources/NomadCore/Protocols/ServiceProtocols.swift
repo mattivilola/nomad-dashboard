@@ -39,6 +39,10 @@ public protocol PublicIPLocationProvider: Sendable {
     func currentLocation(for ipAddress: String, forceRefresh: Bool) async throws -> IPLocationSnapshot
 }
 
+public protocol ReverseGeocodingProvider: Sendable {
+    func details(for location: CLLocation) async throws -> ReverseGeocodedLocation
+}
+
 public protocol WeatherProvider: Sendable {
     func weather(for coordinate: CLLocationCoordinate2D?) async throws -> WeatherSnapshot
 }
@@ -48,15 +52,24 @@ public protocol NeighborCountryResolver: Sendable {
 }
 
 public protocol TravelAdvisoryProvider: Sendable {
+    var sourceDescriptor: TravelAlertSourceDescriptor { get }
     func advisory(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot
 }
 
 public protocol TravelWeatherAlertsProvider: Sendable {
+    var sourceDescriptor: TravelAlertSourceDescriptor { get }
     func alerts(for coordinate: CLLocationCoordinate2D?, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot
 }
 
 public protocol RegionalSecurityProvider: Sendable {
+    var sourceDescriptor: TravelAlertSourceDescriptor { get }
     func security(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot
+}
+
+public protocol VisitedPlacesStore: Sendable {
+    func loadAll() async throws -> [VisitedPlace]
+    func record(_ input: VisitedPlaceInput) async throws
+    func reset() async throws
 }
 
 public protocol MetricHistoryStore: Sendable {

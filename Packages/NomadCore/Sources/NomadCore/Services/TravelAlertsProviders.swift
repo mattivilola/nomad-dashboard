@@ -30,6 +30,11 @@ public struct BundledNeighborCountryResolver: NeighborCountryResolver {
 }
 
 public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
+    nonisolated public let sourceDescriptor = TravelAlertSourceDescriptor(
+        name: "Smartraveller",
+        url: URL(string: "https://www.smartraveller.gov.au")
+    )
+
     private let session: URLSession
     private let ttl: TimeInterval
     private let endpoint: URL
@@ -229,6 +234,11 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
 }
 
 public actor WeatherKitAlertProvider: TravelWeatherAlertsProvider {
+    nonisolated public let sourceDescriptor = TravelAlertSourceDescriptor(
+        name: "WeatherKit",
+        url: URL(string: "https://developer.apple.com/weatherkit/")
+    )
+
     private let service: WeatherService
     private let ttl: TimeInterval
     private var cache: (key: String, signal: TravelAlertSignalSnapshot)?
@@ -320,6 +330,11 @@ public actor WeatherKitAlertProvider: TravelWeatherAlertsProvider {
 }
 
 public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
+    nonisolated public let sourceDescriptor = TravelAlertSourceDescriptor(
+        name: "ReliefWeb",
+        url: URL(string: "https://reliefweb.int")
+    )
+
     private let session: URLSession
     private let ttl: TimeInterval
     private let endpoint: URL

@@ -23,19 +23,21 @@ struct DashboardRootView: View {
             refreshAction: refresh,
             toggleAppearanceAction: toggleAppearance,
             copyIPAddressAction: copyIPAddress,
+            openVisitedMapAction: openVisitedMap,
             openNetworkSettingsAction: openNetworkSettings,
             checkForUpdatesAction: checkForUpdatesAction,
             openSettingsAction: openSettings,
             openAboutAction: openAbout
         )
         .task {
+            snapshotStore.setCurrentLocation(locationStore.currentLocation)
             snapshotStore.start()
             if settingsStore.settings.usesDeviceLocation {
                 locationStore.prepareForWeather()
             }
         }
-        .onReceive(locationStore.$currentCoordinate) { coordinate in
-            snapshotStore.setWeatherCoordinate(coordinate)
+        .onReceive(locationStore.$currentLocation) { location in
+            snapshotStore.setCurrentLocation(location)
             Task {
                 await snapshotStore.refresh(manual: true)
             }
@@ -77,6 +79,10 @@ struct DashboardRootView: View {
 
     private func openAbout() {
         openAppWindow(id: "about")
+    }
+
+    private func openVisitedMap() {
+        openAppWindow(id: "visited-map")
     }
 
     private func openAppWindow(id: String) {

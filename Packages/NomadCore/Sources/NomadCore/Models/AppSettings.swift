@@ -9,6 +9,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var automaticUpdateChecksEnabled: Bool
     public var launchAtLoginEnabled: Bool
     public var useCurrentLocationForWeather: Bool
+    public var visitedPlacesEnabled: Bool
     public var travelAdvisoryEnabled: Bool
     public var travelWeatherAlertsEnabled: Bool
     public var regionalSecurityEnabled: Bool
@@ -23,6 +24,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         automaticUpdateChecksEnabled: Bool = true,
         launchAtLoginEnabled: Bool = false,
         useCurrentLocationForWeather: Bool = true,
+        visitedPlacesEnabled: Bool = true,
         travelAdvisoryEnabled: Bool = true,
         travelWeatherAlertsEnabled: Bool = false,
         regionalSecurityEnabled: Bool = false,
@@ -36,6 +38,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.automaticUpdateChecksEnabled = automaticUpdateChecksEnabled
         self.launchAtLoginEnabled = launchAtLoginEnabled
         self.useCurrentLocationForWeather = useCurrentLocationForWeather
+        self.visitedPlacesEnabled = visitedPlacesEnabled
         self.travelAdvisoryEnabled = travelAdvisoryEnabled
         self.travelWeatherAlertsEnabled = travelWeatherAlertsEnabled
         self.regionalSecurityEnabled = regionalSecurityEnabled
@@ -51,6 +54,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case automaticUpdateChecksEnabled
         case launchAtLoginEnabled
         case useCurrentLocationForWeather
+        case visitedPlacesEnabled
         case travelAdvisoryEnabled
         case travelWeatherAlertsEnabled
         case regionalSecurityEnabled
@@ -68,6 +72,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         automaticUpdateChecksEnabled = try container.decode(Bool.self, forKey: .automaticUpdateChecksEnabled)
         launchAtLoginEnabled = try container.decode(Bool.self, forKey: .launchAtLoginEnabled)
         useCurrentLocationForWeather = try container.decode(Bool.self, forKey: .useCurrentLocationForWeather)
+        visitedPlacesEnabled = try container.decodeIfPresent(Bool.self, forKey: .visitedPlacesEnabled) ?? false
         travelAdvisoryEnabled = try container.decodeIfPresent(Bool.self, forKey: .travelAdvisoryEnabled) ?? true
         travelWeatherAlertsEnabled = try container.decodeIfPresent(Bool.self, forKey: .travelWeatherAlertsEnabled) ?? false
         regionalSecurityEnabled = try container.decodeIfPresent(Bool.self, forKey: .regionalSecurityEnabled) ?? false

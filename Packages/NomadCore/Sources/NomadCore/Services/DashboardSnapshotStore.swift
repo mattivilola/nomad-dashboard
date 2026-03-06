@@ -5,6 +5,7 @@ import Foundation
 @MainActor
 public final class DashboardSnapshotStore: ObservableObject {
     @Published public private(set) var snapshot: DashboardSnapshot
+    @Published public private(set) var visitedPlaces: [VisitedPlace] = []
 
     public let settingsStore: AppSettingsStore
 
@@ -12,7 +13,9 @@ public final class DashboardSnapshotStore: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var settingsObservation: AnyCancellable?
     private var appliedSettings: AppSettings
+    private var currentLocation: CLLocation?
     private var currentCoordinate: CLLocationCoordinate2D?
+    private var pendingVisitedDeviceLocation: CLLocation?
     private var lastSlowRefresh: Date?
 
     public init(settingsStore: AppSettingsStore, dependencies: DashboardDependencies, initialSnapshot: DashboardSnapshot = .placeholder) {
@@ -20,6 +23,13 @@ public final class DashboardSnapshotStore: ObservableObject {
         self.dependencies = dependencies
         self.snapshot = initialSnapshot
         self.appliedSettings = settingsStore.settings
+        self.snapshot = self.snapshot.replacingTravelAlerts(
+            synchronizedTravelAlertsSnapshot(
+                previous: initialSnapshot.travelAlerts,
+                settings: settingsStore.settings,
+                locationSnapshot: initialSnapshot.travelContext.location
+            )
+        )
         configureSettingsObservation()
         Task { [weak self] in
             await self?.applyInitialSettings()
@@ -59,6 +69,27 @@ public final class DashboardSnapshotStore: ObservableObject {
         currentCoordinate = coordinate
     }
 
+    public func setCurrentLocation(_ location: CLLocation?) {
+        currentLocation = location
+        currentCoordinate = location?.coordinate
+        pendingVisitedDeviceLocation = location
+    }
+
+    public var visitedPlaceSummary: VisitedPlaceSummary {
+        visitedPlaces.visitedPlaceSummary
+    }
+
+    public func clearVisitedPlaces() {
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            try? await dependencies.visitedPlacesStore.reset()
+            await loadVisitedPlaces()
+        }
+    }
+
     public func checkForUpdates() {
         Task {
             await dependencies.updateCoordinator.checkForUpdates()
@@ -84,8 +115,13 @@ public final class DashboardSnapshotStore: ObservableObject {
         var vpnSnapshot = snapshot.travelContext.vpn
         var publicIPSnapshot = snapshot.travelContext.publicIP
         var locationSnapshot = snapshot.travelContext.location
-        var travelAlertsSnapshot = snapshot.travelAlerts
+        var travelAlertsSnapshot = synchronizedTravelAlertsSnapshot(
+            previous: snapshot.travelAlerts,
+            settings: settings,
+            locationSnapshot: locationSnapshot
+        )
         var weatherSnapshot = snapshot.weather
+        var didUpdateVisitedPlaces = false
 
         if includeSlowMetrics {
             latencySample = await dependencies.latencyProbe.currentSample()
@@ -135,15 +171,34 @@ public final class DashboardSnapshotStore: ObservableObject {
                 weatherSnapshot = nil
             }
 
+            if settings.visitedPlacesEnabled {
+                if let locationSnapshot {
+                    didUpdateVisitedPlaces = await recordVisitedPlace(from: locationSnapshot, visitedAt: now) || didUpdateVisitedPlaces
+                }
+
+                didUpdateVisitedPlaces = await recordPendingDeviceLocation(visitedAt: now) || didUpdateVisitedPlaces
+            } else {
+                pendingVisitedDeviceLocation = nil
+            }
+
+            travelAlertsSnapshot = synchronizedTravelAlertsSnapshot(
+                previous: travelAlertsSnapshot,
+                settings: settings,
+                locationSnapshot: locationSnapshot
+            )
             travelAlertsSnapshot = await refreshTravelAlerts(
                 settings: settings,
                 locationSnapshot: locationSnapshot,
-                issues: &issues,
+                previousSnapshot: travelAlertsSnapshot,
                 manual: manual,
                 now: now
             )
 
             lastSlowRefresh = now
+        }
+
+        if didUpdateVisitedPlaces {
+            await loadVisitedPlaces()
         }
 
         let history = (try? await dependencies.historyStore.loadAll()) ?? [:]
@@ -209,6 +264,7 @@ public final class DashboardSnapshotStore: ObservableObject {
     private func applyInitialSettings() async {
         try? await dependencies.historyStore.setRetentionHours(appliedSettings.historyRetentionHours)
         await dependencies.updateCoordinator.setAutomaticChecksEnabled(appliedSettings.automaticUpdateChecksEnabled)
+        await loadVisitedPlaces()
     }
 
     private func applySettingsChange(from previousSettings: AppSettings, to newSettings: AppSettings) async {
@@ -231,6 +287,10 @@ public final class DashboardSnapshotStore: ObservableObject {
             needsManualRefresh = true
         }
 
+        if previousSettings.visitedPlacesEnabled != newSettings.visitedPlacesEnabled {
+            needsManualRefresh = true
+        }
+
         if previousSettings.travelAdvisoryEnabled != newSettings.travelAdvisoryEnabled {
             needsManualRefresh = true
         }
@@ -243,8 +303,76 @@ public final class DashboardSnapshotStore: ObservableObject {
             needsManualRefresh = true
         }
 
+        if previousSettings.travelAlertPreferences != newSettings.travelAlertPreferences {
+            snapshot = snapshot.replacingTravelAlerts(
+                synchronizedTravelAlertsSnapshot(
+                    previous: snapshot.travelAlerts,
+                    settings: newSettings,
+                    locationSnapshot: snapshot.travelContext.location
+                )
+            )
+        }
+
         if needsManualRefresh {
             await refresh(manual: true)
+        }
+    }
+
+    private func loadVisitedPlaces() async {
+        visitedPlaces = (try? await dependencies.visitedPlacesStore.loadAll()) ?? []
+    }
+
+    private func recordVisitedPlace(from snapshot: IPLocationSnapshot, visitedAt: Date) async -> Bool {
+        guard let country = normalizedValue(snapshot.country) else {
+            return false
+        }
+
+        let input = VisitedPlaceInput(
+            city: normalizedValue(snapshot.city),
+            region: normalizedValue(snapshot.region),
+            country: country,
+            countryCode: normalizedValue(snapshot.countryCode)?.uppercased(),
+            latitude: snapshot.latitude,
+            longitude: snapshot.longitude,
+            source: .publicIPGeolocation,
+            visitedAt: visitedAt
+        )
+
+        do {
+            try await dependencies.visitedPlacesStore.record(input)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func recordPendingDeviceLocation(visitedAt: Date) async -> Bool {
+        guard let pendingVisitedDeviceLocation else {
+            return false
+        }
+
+        self.pendingVisitedDeviceLocation = nil
+
+        do {
+            let details = try await dependencies.reverseGeocodingProvider.details(for: pendingVisitedDeviceLocation)
+            guard let country = normalizedValue(details.country) else {
+                return false
+            }
+
+            let input = VisitedPlaceInput(
+                city: normalizedValue(details.city),
+                region: normalizedValue(details.region),
+                country: country,
+                countryCode: normalizedValue(details.countryCode)?.uppercased(),
+                latitude: pendingVisitedDeviceLocation.coordinate.latitude,
+                longitude: pendingVisitedDeviceLocation.coordinate.longitude,
+                source: .deviceLocation,
+                visitedAt: visitedAt
+            )
+            try await dependencies.visitedPlacesStore.record(input)
+            return true
+        } catch {
+            return false
         }
     }
 
@@ -284,7 +412,7 @@ public final class DashboardSnapshotStore: ObservableObject {
     private func refreshTravelAlerts(
         settings: AppSettings,
         locationSnapshot: IPLocationSnapshot?,
-        issues: inout [DashboardIssue],
+        previousSnapshot: TravelAlertsSnapshot?,
         manual: Bool,
         now: Date
     ) async -> TravelAlertsSnapshot {
@@ -293,58 +421,79 @@ public final class DashboardSnapshotStore: ObservableObject {
         let primaryCountryCode = locationSnapshot?.countryCode?.uppercased()
         let primaryCountryName = locationSnapshot?.country
         let coverageCountryCodes = coverageCountryCodes(for: primaryCountryCode)
-        var signals: [TravelAlertSignalSnapshot] = []
+        var states: [TravelAlertSignalState] = []
+
+        guard enabledKinds.isEmpty == false else {
+            return TravelAlertsSnapshot(
+                enabledKinds: [],
+                primaryCountryCode: primaryCountryCode,
+                primaryCountryName: primaryCountryName,
+                coverageCountryCodes: coverageCountryCodes,
+                states: [],
+                fetchedAt: nil
+            )
+        }
 
         if preferences.advisoryEnabled {
-            if let primaryCountryCode {
-                do {
-                    let signal = try await dependencies.travelAdvisoryProvider.advisory(
+            states.append(
+                await refreshAlertState(
+                    kind: .advisory,
+                    previous: previousSnapshot?.state(for: .advisory),
+                    source: dependencies.travelAdvisoryProvider.sourceDescriptor,
+                    attemptedAt: now,
+                    prerequisiteFailure: primaryCountryCode == nil ? .countryRequired : nil
+                ) {
+                    guard let primaryCountryCode else {
+                        throw ProviderError.missingCountryCode
+                    }
+
+                    return try await dependencies.travelAdvisoryProvider.advisory(
                         for: coverageCountryCodes,
                         primaryCountryCode: primaryCountryCode,
                         forceRefresh: manual
                     )
-                    signals.append(signal)
-                } catch {
-                    issues.append(.travelAdvisoryUnavailable)
                 }
-            } else {
-                issues.append(.travelAdvisoryCountryRequired)
-            }
+            )
         }
 
         if preferences.weatherEnabled {
             let weatherAlertCoordinate = currentCoordinate ?? locationSnapshot?.coordinate
-
-            do {
-                let signal = try await dependencies.travelWeatherAlertsProvider.alerts(
-                    for: weatherAlertCoordinate,
-                    forceRefresh: manual
-                )
-                signals.append(signal)
-            } catch ProviderError.missingCoordinate {
-                issues.append(.travelWeatherAlertsLocationRequired)
-            } catch {
-                issues.append(.travelWeatherAlertsUnavailable)
-            }
+            states.append(
+                await refreshAlertState(
+                    kind: .weather,
+                    previous: previousSnapshot?.state(for: .weather),
+                    source: dependencies.travelWeatherAlertsProvider.sourceDescriptor,
+                    attemptedAt: now,
+                    prerequisiteFailure: weatherAlertCoordinate == nil ? .locationRequired : nil
+                ) {
+                    try await dependencies.travelWeatherAlertsProvider.alerts(
+                        for: weatherAlertCoordinate,
+                        forceRefresh: manual
+                    )
+                }
+            )
         }
 
         if preferences.securityEnabled {
-            if let primaryCountryCode {
-                do {
-                    let signal = try await dependencies.regionalSecurityProvider.security(
+            states.append(
+                await refreshAlertState(
+                    kind: .security,
+                    previous: previousSnapshot?.state(for: .security),
+                    source: dependencies.regionalSecurityProvider.sourceDescriptor,
+                    attemptedAt: now,
+                    prerequisiteFailure: primaryCountryCode == nil ? .countryRequired : nil
+                ) {
+                    guard let primaryCountryCode else {
+                        throw ProviderError.missingCountryCode
+                    }
+
+                    return try await dependencies.regionalSecurityProvider.security(
                         for: coverageCountryCodes,
                         primaryCountryCode: primaryCountryCode,
                         forceRefresh: manual
                     )
-                    signals.append(signal)
-                } catch ProviderError.missingConfiguration {
-                    issues.append(.regionalSecurityUnavailable)
-                } catch {
-                    issues.append(.regionalSecurityUnavailable)
                 }
-            } else {
-                issues.append(.regionalSecurityCountryRequired)
-            }
+            )
         }
 
         return TravelAlertsSnapshot(
@@ -352,9 +501,134 @@ public final class DashboardSnapshotStore: ObservableObject {
             primaryCountryCode: primaryCountryCode,
             primaryCountryName: primaryCountryName,
             coverageCountryCodes: coverageCountryCodes,
-            signals: signals,
-            fetchedAt: enabledKinds.isEmpty ? nil : now
+            states: states,
+            fetchedAt: now
         )
+    }
+
+    private func synchronizedTravelAlertsSnapshot(
+        previous: TravelAlertsSnapshot?,
+        settings: AppSettings,
+        locationSnapshot: IPLocationSnapshot?
+    ) -> TravelAlertsSnapshot {
+        let enabledKinds = settings.travelAlertPreferences.enabledKinds
+        let primaryCountryCode = locationSnapshot?.countryCode?.uppercased()
+        let primaryCountryName = locationSnapshot?.country
+        let coverageCountryCodes = coverageCountryCodes(for: primaryCountryCode)
+
+        return TravelAlertsSnapshot(
+            enabledKinds: enabledKinds,
+            primaryCountryCode: primaryCountryCode,
+            primaryCountryName: primaryCountryName,
+            coverageCountryCodes: coverageCountryCodes,
+            states: enabledKinds.map { kind in
+                previous?.state(for: kind) ?? checkingAlertState(for: kind)
+            },
+            fetchedAt: enabledKinds.isEmpty ? nil : previous?.fetchedAt
+        )
+    }
+
+    private func checkingAlertState(for kind: TravelAlertKind) -> TravelAlertSignalState {
+        let source = sourceDescriptor(for: kind)
+        return TravelAlertSignalState(
+            kind: kind,
+            status: .checking,
+            signal: nil,
+            reason: nil,
+            sourceName: source.name,
+            sourceURL: source.url,
+            lastAttemptedAt: nil,
+            lastSuccessAt: nil
+        )
+    }
+
+    private func refreshAlertState(
+        kind: TravelAlertKind,
+        previous: TravelAlertSignalState?,
+        source: TravelAlertSourceDescriptor,
+        attemptedAt: Date,
+        prerequisiteFailure: TravelAlertUnavailableReason?,
+        fetch: () async throws -> TravelAlertSignalSnapshot
+    ) async -> TravelAlertSignalState {
+        let retainedSourceName = previous?.sourceName ?? source.name
+        let retainedSourceURL = previous?.sourceURL ?? source.url
+
+        if let prerequisiteFailure {
+            return TravelAlertSignalState(
+                kind: kind,
+                status: .unavailable,
+                signal: nil,
+                reason: prerequisiteFailure,
+                sourceName: retainedSourceName,
+                sourceURL: retainedSourceURL,
+                lastAttemptedAt: attemptedAt,
+                lastSuccessAt: previous?.lastSuccessAt
+            )
+        }
+
+        do {
+            let signal = try await fetch()
+            return TravelAlertSignalState(
+                kind: kind,
+                status: .ready,
+                signal: signal,
+                reason: nil,
+                sourceName: signal.sourceName.isEmpty ? retainedSourceName : signal.sourceName,
+                sourceURL: signal.sourceURL ?? retainedSourceURL,
+                lastAttemptedAt: attemptedAt,
+                lastSuccessAt: attemptedAt
+            )
+        } catch {
+            let reason = unavailableReason(for: error)
+
+            if let previousSignal = previous?.signal {
+                return TravelAlertSignalState(
+                    kind: kind,
+                    status: .stale,
+                    signal: previousSignal,
+                    reason: reason,
+                    sourceName: retainedSourceName,
+                    sourceURL: retainedSourceURL,
+                    lastAttemptedAt: attemptedAt,
+                    lastSuccessAt: previous?.lastSuccessAt
+                )
+            }
+
+            return TravelAlertSignalState(
+                kind: kind,
+                status: .unavailable,
+                signal: nil,
+                reason: reason,
+                sourceName: retainedSourceName,
+                sourceURL: retainedSourceURL,
+                lastAttemptedAt: attemptedAt,
+                lastSuccessAt: previous?.lastSuccessAt
+            )
+        }
+    }
+
+    private func sourceDescriptor(for kind: TravelAlertKind) -> TravelAlertSourceDescriptor {
+        switch kind {
+        case .advisory:
+            dependencies.travelAdvisoryProvider.sourceDescriptor
+        case .weather:
+            dependencies.travelWeatherAlertsProvider.sourceDescriptor
+        case .security:
+            dependencies.regionalSecurityProvider.sourceDescriptor
+        }
+    }
+
+    private func unavailableReason(for error: Error) -> TravelAlertUnavailableReason {
+        switch error {
+        case ProviderError.missingCountryCode:
+            .countryRequired
+        case ProviderError.missingCoordinate:
+            .locationRequired
+        case ProviderError.missingConfiguration:
+            .sourceConfigurationRequired
+        default:
+            .sourceUnavailable
+        }
     }
 
     private func coverageCountryCodes(for primaryCountryCode: String?) -> [String] {
@@ -369,5 +643,13 @@ public final class DashboardSnapshotStore: ObservableObject {
                     result.append(countryCode)
                 }
             }
+    }
+
+    private func normalizedValue(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), value.isEmpty == false else {
+            return nil
+        }
+
+        return value
     }
 }

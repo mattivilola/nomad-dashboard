@@ -8,11 +8,13 @@ public struct DashboardDependencies: Sendable {
     public let vpnStatusProvider: any VPNStatusProvider
     public let publicIPProvider: any PublicIPProvider
     public let publicIPLocationProvider: any PublicIPLocationProvider
+    public let reverseGeocodingProvider: any ReverseGeocodingProvider
     public let weatherProvider: any WeatherProvider
     public let neighborCountryResolver: any NeighborCountryResolver
     public let travelAdvisoryProvider: any TravelAdvisoryProvider
     public let travelWeatherAlertsProvider: any TravelWeatherAlertsProvider
     public let regionalSecurityProvider: any RegionalSecurityProvider
+    public let visitedPlacesStore: any VisitedPlacesStore
     public let historyStore: any MetricHistoryStore
     public let updateCoordinator: any UpdateCoordinator
 
@@ -24,11 +26,13 @@ public struct DashboardDependencies: Sendable {
         vpnStatusProvider: any VPNStatusProvider,
         publicIPProvider: any PublicIPProvider,
         publicIPLocationProvider: any PublicIPLocationProvider,
+        reverseGeocodingProvider: any ReverseGeocodingProvider,
         weatherProvider: any WeatherProvider,
         neighborCountryResolver: any NeighborCountryResolver,
         travelAdvisoryProvider: any TravelAdvisoryProvider,
         travelWeatherAlertsProvider: any TravelWeatherAlertsProvider,
         regionalSecurityProvider: any RegionalSecurityProvider,
+        visitedPlacesStore: any VisitedPlacesStore,
         historyStore: any MetricHistoryStore,
         updateCoordinator: any UpdateCoordinator
     ) {
@@ -39,11 +43,13 @@ public struct DashboardDependencies: Sendable {
         self.vpnStatusProvider = vpnStatusProvider
         self.publicIPProvider = publicIPProvider
         self.publicIPLocationProvider = publicIPLocationProvider
+        self.reverseGeocodingProvider = reverseGeocodingProvider
         self.weatherProvider = weatherProvider
         self.neighborCountryResolver = neighborCountryResolver
         self.travelAdvisoryProvider = travelAdvisoryProvider
         self.travelWeatherAlertsProvider = travelWeatherAlertsProvider
         self.regionalSecurityProvider = regionalSecurityProvider
+        self.visitedPlacesStore = visitedPlacesStore
         self.historyStore = historyStore
         self.updateCoordinator = updateCoordinator
     }
@@ -65,11 +71,15 @@ public struct DashboardDependencies: Sendable {
             vpnStatusProvider: LiveVPNStatusProvider(),
             publicIPProvider: CachedPublicIPProvider(client: publicIPClient),
             publicIPLocationProvider: CachedIPLocationProvider(client: publicIPClient),
+            reverseGeocodingProvider: CachedReverseGeocodingProvider(),
             weatherProvider: LiveWeatherProvider(),
             neighborCountryResolver: BundledNeighborCountryResolver(),
             travelAdvisoryProvider: SmartravellerAdvisoryProvider(),
             travelWeatherAlertsProvider: WeatherKitAlertProvider(),
             regionalSecurityProvider: ReliefWebSecurityProvider(appName: reliefWebAppName),
+            visitedPlacesStore: FileVisitedPlacesStore(
+                fileURL: applicationSupportDirectory.appendingPathComponent("visited-places.json")
+            ),
             historyStore: FileMetricHistoryStore(
                 fileURL: applicationSupportDirectory.appendingPathComponent("metric-history.json"),
                 retentionHours: historyRetentionHours

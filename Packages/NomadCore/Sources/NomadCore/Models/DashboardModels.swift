@@ -384,7 +384,18 @@ public extension DashboardSnapshot {
             primaryCountryCode: nil,
             primaryCountryName: nil,
             coverageCountryCodes: [],
-            signals: [],
+            states: [
+                TravelAlertSignalState(
+                    kind: .advisory,
+                    status: .checking,
+                    signal: nil,
+                    reason: nil,
+                    sourceName: "Smartraveller",
+                    sourceURL: URL(string: "https://www.smartraveller.gov.au"),
+                    lastAttemptedAt: nil,
+                    lastSuccessAt: nil
+                )
+            ],
             fetchedAt: nil
         ),
         weather: nil,
@@ -454,37 +465,64 @@ public extension DashboardSnapshot {
             primaryCountryCode: "ES",
             primaryCountryName: "Spain",
             coverageCountryCodes: ["ES", "FR", "PT", "AD", "MA"],
-            signals: [
-                TravelAlertSignalSnapshot(
+            states: [
+                TravelAlertSignalState(
                     kind: .advisory,
-                    severity: .caution,
-                    title: "Travel advisory",
-                    summary: "France remains at a higher caution level nearby.",
+                    status: .ready,
+                    signal: TravelAlertSignalSnapshot(
+                        kind: .advisory,
+                        severity: .caution,
+                        title: "Travel advisory",
+                        summary: "France remains at a higher caution level nearby.",
+                        sourceName: "Smartraveller",
+                        sourceURL: URL(string: "https://www.smartraveller.gov.au"),
+                        updatedAt: .now,
+                        affectedCountryCodes: ["FR"]
+                    ),
+                    reason: nil,
                     sourceName: "Smartraveller",
                     sourceURL: URL(string: "https://www.smartraveller.gov.au"),
-                    updatedAt: .now,
-                    affectedCountryCodes: ["FR"]
+                    lastAttemptedAt: .now,
+                    lastSuccessAt: .now
                 ),
-                TravelAlertSignalSnapshot(
+                TravelAlertSignalState(
                     kind: .weather,
-                    severity: .clear,
-                    title: "Weather alerts",
-                    summary: "No severe weather alerts near Valencia.",
+                    status: .ready,
+                    signal: TravelAlertSignalSnapshot(
+                        kind: .weather,
+                        severity: .clear,
+                        title: "Weather alerts",
+                        summary: "No severe weather alerts near Valencia.",
+                        sourceName: "WeatherKit",
+                        sourceURL: URL(string: "https://developer.apple.com/weatherkit/"),
+                        updatedAt: .now,
+                        affectedCountryCodes: ["ES"]
+                    ),
+                    reason: nil,
                     sourceName: "WeatherKit",
                     sourceURL: URL(string: "https://developer.apple.com/weatherkit/"),
-                    updatedAt: .now,
-                    affectedCountryCodes: ["ES"]
+                    lastAttemptedAt: .now,
+                    lastSuccessAt: .now
                 ),
-                TravelAlertSignalSnapshot(
+                TravelAlertSignalState(
                     kind: .security,
-                    severity: .info,
-                    title: "Regional security",
-                    summary: "One recent security bulletin was published nearby.",
+                    status: .stale,
+                    signal: TravelAlertSignalSnapshot(
+                        kind: .security,
+                        severity: .info,
+                        title: "Regional security",
+                        summary: "One recent security bulletin was published nearby.",
+                        sourceName: "ReliefWeb",
+                        sourceURL: URL(string: "https://reliefweb.int"),
+                        updatedAt: .now,
+                        affectedCountryCodes: ["MA"],
+                        itemCount: 1
+                    ),
+                    reason: .sourceUnavailable,
                     sourceName: "ReliefWeb",
                     sourceURL: URL(string: "https://reliefweb.int"),
-                    updatedAt: .now,
-                    affectedCountryCodes: ["MA"],
-                    itemCount: 1
+                    lastAttemptedAt: .now,
+                    lastSuccessAt: Date().addingTimeInterval(-900)
                 )
             ],
             fetchedAt: .now
@@ -512,4 +550,16 @@ public extension DashboardSnapshot {
             issues: []
         )
     )
+
+    func replacingTravelAlerts(_ travelAlerts: TravelAlertsSnapshot?) -> DashboardSnapshot {
+        DashboardSnapshot(
+            network: network,
+            power: power,
+            travelContext: travelContext,
+            travelAlerts: travelAlerts,
+            weather: weather,
+            appState: appState,
+            healthSummary: healthSummary
+        )
+    }
 }

@@ -11,22 +11,7 @@ struct DashboardSnapshotStoreTests {
         settingsStore.settings.publicIPGeolocationEnabled = true
 
         let historyStore = InMemoryHistoryStore()
-        let dependencies = DashboardDependencies(
-            throughputMonitor: FixedThroughputMonitor(),
-            latencyProbe: FixedLatencyProbe(),
-            powerMonitor: FixedPowerMonitor(),
-            wifiMonitor: FixedWiFiMonitor(),
-            vpnStatusProvider: FixedVPNProvider(),
-            publicIPProvider: FixedPublicIPProvider(),
-            publicIPLocationProvider: FixedLocationProvider(),
-            weatherProvider: FixedWeatherProvider(),
-            neighborCountryResolver: FixedNeighborCountryResolver(),
-            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
-            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
-            regionalSecurityProvider: FixedRegionalSecurityProvider(),
-            historyStore: historyStore,
-            updateCoordinator: NoopUpdateCoordinator()
-        )
+        let dependencies = makeDependencies(historyStore: historyStore)
 
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
         store.setWeatherCoordinate(CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384))
@@ -41,27 +26,52 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func refreshStoresUniqueVisitedPlaceFromIPAndDeviceLocation() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.publicIPGeolocationEnabled = true
+        settingsStore.settings.visitedPlacesEnabled = true
+
+        let dependencies = makeDependencies()
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        store.setCurrentLocation(CLLocation(latitude: 60.1699, longitude: 24.9384))
+
+        await store.refresh(manual: true)
+
+        #expect(store.visitedPlaces.count == 1)
+        #expect(store.visitedPlaces.first?.city == "Helsinki")
+        #expect(store.visitedPlaces.first?.countryCode == "FI")
+        #expect(Set(store.visitedPlaces.first?.sources ?? []) == Set([.publicIPGeolocation, .deviceLocation]))
+        #expect(store.visitedPlaceSummary.citiesVisited == 1)
+        #expect(store.visitedPlaceSummary.countriesVisited == 1)
+    }
+
+    @Test
+    func refreshSkipsVisitedPlaceCaptureWhenHistoryIsDisabled() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.publicIPGeolocationEnabled = true
+        settingsStore.settings.visitedPlacesEnabled = false
+
+        let dependencies = makeDependencies()
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        store.setCurrentLocation(CLLocation(latitude: 60.1699, longitude: 24.9384))
+
+        await store.refresh(manual: true)
+
+        #expect(store.visitedPlaces.isEmpty)
+        #expect(store.visitedPlaceSummary.citiesVisited == 0)
+        #expect(store.visitedPlaceSummary.countriesVisited == 0)
+    }
+
+    @Test
     func refreshSkipsLocationLookupWhenGeolocationIsDisabled() async throws {
         let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
         settingsStore.settings.publicIPGeolocationEnabled = false
         settingsStore.settings.useCurrentLocationForWeather = false
 
         let locationProvider = RecordingLocationProvider()
-        let dependencies = DashboardDependencies(
-            throughputMonitor: FixedThroughputMonitor(),
-            latencyProbe: FixedLatencyProbe(),
-            powerMonitor: FixedPowerMonitor(),
-            wifiMonitor: FixedWiFiMonitor(),
-            vpnStatusProvider: FixedVPNProvider(),
-            publicIPProvider: FixedPublicIPProvider(),
+        let dependencies = makeDependencies(
             publicIPLocationProvider: locationProvider,
-            weatherProvider: FixedWeatherProvider(),
-            neighborCountryResolver: FixedNeighborCountryResolver(),
-            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
-            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
-            regionalSecurityProvider: FixedRegionalSecurityProvider(),
-            historyStore: InMemoryHistoryStore(),
-            updateCoordinator: NoopUpdateCoordinator()
+            historyStore: InMemoryHistoryStore()
         )
 
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
@@ -81,21 +91,9 @@ struct DashboardSnapshotStoreTests {
         settingsStore.settings.publicIPGeolocationEnabled = true
         settingsStore.settings.useCurrentLocationForWeather = false
 
-        let dependencies = DashboardDependencies(
-            throughputMonitor: FixedThroughputMonitor(),
-            latencyProbe: FixedLatencyProbe(),
-            powerMonitor: FixedPowerMonitor(),
-            wifiMonitor: FixedWiFiMonitor(),
-            vpnStatusProvider: FixedVPNProvider(),
-            publicIPProvider: FixedPublicIPProvider(),
+        let dependencies = makeDependencies(
             publicIPLocationProvider: FailingLocationProvider(),
-            weatherProvider: FixedWeatherProvider(),
-            neighborCountryResolver: FixedNeighborCountryResolver(),
-            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
-            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
-            regionalSecurityProvider: FixedRegionalSecurityProvider(),
-            historyStore: InMemoryHistoryStore(),
-            updateCoordinator: NoopUpdateCoordinator()
+            historyStore: InMemoryHistoryStore()
         )
 
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
@@ -110,21 +108,9 @@ struct DashboardSnapshotStoreTests {
     @Test
     func refreshMarksWeatherLocationRequirementWhenCoordinateIsMissing() async throws {
         let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
-        let dependencies = DashboardDependencies(
-            throughputMonitor: FixedThroughputMonitor(),
-            latencyProbe: FixedLatencyProbe(),
-            powerMonitor: FixedPowerMonitor(),
-            wifiMonitor: FixedWiFiMonitor(),
-            vpnStatusProvider: FixedVPNProvider(),
-            publicIPProvider: FixedPublicIPProvider(),
-            publicIPLocationProvider: FixedLocationProvider(),
+        let dependencies = makeDependencies(
             weatherProvider: MissingCoordinateWeatherProvider(),
-            neighborCountryResolver: FixedNeighborCountryResolver(),
-            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
-            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
-            regionalSecurityProvider: FixedRegionalSecurityProvider(),
-            historyStore: InMemoryHistoryStore(),
-            updateCoordinator: NoopUpdateCoordinator()
+            historyStore: InMemoryHistoryStore()
         )
 
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
@@ -143,22 +129,7 @@ struct DashboardSnapshotStoreTests {
         settingsStore.settings.travelWeatherAlertsEnabled = true
         settingsStore.settings.regionalSecurityEnabled = true
 
-        let dependencies = DashboardDependencies(
-            throughputMonitor: FixedThroughputMonitor(),
-            latencyProbe: FixedLatencyProbe(),
-            powerMonitor: FixedPowerMonitor(),
-            wifiMonitor: FixedWiFiMonitor(),
-            vpnStatusProvider: FixedVPNProvider(),
-            publicIPProvider: FixedPublicIPProvider(),
-            publicIPLocationProvider: FixedLocationProvider(),
-            weatherProvider: FixedWeatherProvider(),
-            neighborCountryResolver: FixedNeighborCountryResolver(),
-            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
-            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
-            regionalSecurityProvider: FixedRegionalSecurityProvider(),
-            historyStore: InMemoryHistoryStore(),
-            updateCoordinator: NoopUpdateCoordinator()
-        )
+        let dependencies = makeDependencies(historyStore: InMemoryHistoryStore())
 
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
         store.setWeatherCoordinate(CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384))
@@ -179,22 +150,7 @@ struct DashboardSnapshotStoreTests {
         settingsStore.settings.useCurrentLocationForWeather = false
         settingsStore.settings.travelWeatherAlertsEnabled = true
 
-        let dependencies = DashboardDependencies(
-            throughputMonitor: FixedThroughputMonitor(),
-            latencyProbe: FixedLatencyProbe(),
-            powerMonitor: FixedPowerMonitor(),
-            wifiMonitor: FixedWiFiMonitor(),
-            vpnStatusProvider: FixedVPNProvider(),
-            publicIPProvider: FixedPublicIPProvider(),
-            publicIPLocationProvider: FixedLocationProvider(),
-            weatherProvider: FixedWeatherProvider(),
-            neighborCountryResolver: FixedNeighborCountryResolver(),
-            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
-            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
-            regionalSecurityProvider: FixedRegionalSecurityProvider(),
-            historyStore: InMemoryHistoryStore(),
-            updateCoordinator: NoopUpdateCoordinator()
-        )
+        let dependencies = makeDependencies(historyStore: InMemoryHistoryStore())
 
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
 
@@ -211,21 +167,9 @@ struct DashboardSnapshotStoreTests {
         settingsStore.settings.travelAdvisoryEnabled = false
         let advisoryProvider = RecordingTravelAdvisoryProvider()
 
-        let dependencies = DashboardDependencies(
-            throughputMonitor: FixedThroughputMonitor(),
-            latencyProbe: FixedLatencyProbe(),
-            powerMonitor: FixedPowerMonitor(),
-            wifiMonitor: FixedWiFiMonitor(),
-            vpnStatusProvider: FixedVPNProvider(),
-            publicIPProvider: FixedPublicIPProvider(),
-            publicIPLocationProvider: FixedLocationProvider(),
-            weatherProvider: FixedWeatherProvider(),
-            neighborCountryResolver: FixedNeighborCountryResolver(),
+        let dependencies = makeDependencies(
             travelAdvisoryProvider: advisoryProvider,
-            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
-            regionalSecurityProvider: FixedRegionalSecurityProvider(),
-            historyStore: InMemoryHistoryStore(),
-            updateCoordinator: NoopUpdateCoordinator()
+            historyStore: InMemoryHistoryStore()
         )
 
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
@@ -244,19 +188,7 @@ struct DashboardSnapshotStoreTests {
         let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
         settingsStore.settings.automaticUpdateChecksEnabled = false
         let updateCoordinator = RecordingUpdateCoordinator()
-        let dependencies = DashboardDependencies(
-            throughputMonitor: FixedThroughputMonitor(),
-            latencyProbe: FixedLatencyProbe(),
-            powerMonitor: FixedPowerMonitor(),
-            wifiMonitor: FixedWiFiMonitor(),
-            vpnStatusProvider: FixedVPNProvider(),
-            publicIPProvider: FixedPublicIPProvider(),
-            publicIPLocationProvider: FixedLocationProvider(),
-            weatherProvider: FixedWeatherProvider(),
-            neighborCountryResolver: FixedNeighborCountryResolver(),
-            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
-            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
-            regionalSecurityProvider: FixedRegionalSecurityProvider(),
+        let dependencies = makeDependencies(
             historyStore: InMemoryHistoryStore(),
             updateCoordinator: updateCoordinator
         )
@@ -289,21 +221,9 @@ struct DashboardSnapshotStoreTests {
             retentionHours: 24
         )
 
-        let dependencies = DashboardDependencies(
+        let dependencies = makeDependencies(
             throughputMonitor: NilThroughputMonitor(),
-            latencyProbe: FixedLatencyProbe(),
-            powerMonitor: FixedPowerMonitor(),
-            wifiMonitor: FixedWiFiMonitor(),
-            vpnStatusProvider: FixedVPNProvider(),
-            publicIPProvider: FixedPublicIPProvider(),
-            publicIPLocationProvider: FixedLocationProvider(),
-            weatherProvider: FixedWeatherProvider(),
-            neighborCountryResolver: FixedNeighborCountryResolver(),
-            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
-            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
-            regionalSecurityProvider: FixedRegionalSecurityProvider(),
-            historyStore: seededHistoryStore,
-            updateCoordinator: NoopUpdateCoordinator()
+            historyStore: seededHistoryStore
         )
 
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
@@ -321,6 +241,44 @@ struct DashboardSnapshotStoreTests {
     private func waitForSettingsPropagation() async throws {
         try await Task.sleep(for: .milliseconds(50))
     }
+}
+
+private func makeDependencies(
+    throughputMonitor: any ThroughputMonitor = FixedThroughputMonitor(),
+    latencyProbe: any LatencyProbe = FixedLatencyProbe(),
+    powerMonitor: any PowerMonitor = FixedPowerMonitor(),
+    wifiMonitor: any WiFiMonitor = FixedWiFiMonitor(),
+    vpnStatusProvider: any VPNStatusProvider = FixedVPNProvider(),
+    publicIPProvider: any PublicIPProvider = FixedPublicIPProvider(),
+    publicIPLocationProvider: any PublicIPLocationProvider = FixedLocationProvider(),
+    reverseGeocodingProvider: any ReverseGeocodingProvider = FixedReverseGeocodingProvider(),
+    weatherProvider: any WeatherProvider = FixedWeatherProvider(),
+    neighborCountryResolver: any NeighborCountryResolver = FixedNeighborCountryResolver(),
+    travelAdvisoryProvider: any TravelAdvisoryProvider = FixedTravelAdvisoryProvider(),
+    travelWeatherAlertsProvider: any TravelWeatherAlertsProvider = FixedTravelWeatherAlertsProvider(),
+    regionalSecurityProvider: any RegionalSecurityProvider = FixedRegionalSecurityProvider(),
+    visitedPlacesStore: any VisitedPlacesStore = InMemoryVisitedPlacesStore(),
+    historyStore: any MetricHistoryStore = InMemoryHistoryStore(),
+    updateCoordinator: any UpdateCoordinator = NoopUpdateCoordinator()
+) -> DashboardDependencies {
+    DashboardDependencies(
+        throughputMonitor: throughputMonitor,
+        latencyProbe: latencyProbe,
+        powerMonitor: powerMonitor,
+        wifiMonitor: wifiMonitor,
+        vpnStatusProvider: vpnStatusProvider,
+        publicIPProvider: publicIPProvider,
+        publicIPLocationProvider: publicIPLocationProvider,
+        reverseGeocodingProvider: reverseGeocodingProvider,
+        weatherProvider: weatherProvider,
+        neighborCountryResolver: neighborCountryResolver,
+        travelAdvisoryProvider: travelAdvisoryProvider,
+        travelWeatherAlertsProvider: travelWeatherAlertsProvider,
+        regionalSecurityProvider: regionalSecurityProvider,
+        visitedPlacesStore: visitedPlacesStore,
+        historyStore: historyStore,
+        updateCoordinator: updateCoordinator
+    )
 }
 
 private actor InMemoryHistoryStore: MetricHistoryStore {
@@ -357,6 +315,67 @@ private actor InMemoryHistoryStore: MetricHistoryStore {
                 .filter { $0.timestamp >= earliestTimestamp }
                 .sorted { $0.timestamp < $1.timestamp }
         }
+    }
+}
+
+private actor InMemoryVisitedPlacesStore: VisitedPlacesStore {
+    private var values: [VisitedPlace] = []
+
+    func loadAll() async throws -> [VisitedPlace] {
+        values.sorted { $0.lastVisitedAt > $1.lastVisitedAt }
+    }
+
+    func record(_ input: VisitedPlaceInput) async throws {
+        let candidate = VisitedPlace(
+            city: normalizedValue(input.city),
+            region: normalizedValue(input.region),
+            country: input.country.trimmingCharacters(in: .whitespacesAndNewlines),
+            countryCode: normalizedValue(input.countryCode)?.uppercased(),
+            latitude: input.latitude,
+            longitude: input.longitude,
+            firstVisitedAt: input.visitedAt,
+            lastVisitedAt: input.visitedAt,
+            sources: [input.source]
+        )
+
+        guard candidate.country.isEmpty == false else {
+            return
+        }
+
+        if let index = values.firstIndex(where: { $0.id == candidate.id }) {
+            let existing = values[index]
+            let preferReplacement = input.source == .deviceLocation || existing.coordinate == nil
+            values[index] = VisitedPlace(
+                city: candidate.city ?? existing.city,
+                region: candidate.region ?? existing.region,
+                country: candidate.country.isEmpty == false ? candidate.country : existing.country,
+                countryCode: candidate.countryCode ?? existing.countryCode,
+                latitude: preferReplacement ? candidate.latitude ?? existing.latitude : existing.latitude ?? candidate.latitude,
+                longitude: preferReplacement ? candidate.longitude ?? existing.longitude : existing.longitude ?? candidate.longitude,
+                firstVisitedAt: min(existing.firstVisitedAt, input.visitedAt),
+                lastVisitedAt: max(existing.lastVisitedAt, input.visitedAt),
+                sources: uniquedSources(existing.sources + [input.source])
+            )
+        } else {
+            values.append(candidate)
+        }
+    }
+
+    func reset() async throws {
+        values = []
+    }
+
+    private func normalizedValue(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), value.isEmpty == false else {
+            return nil
+        }
+
+        return value
+    }
+
+    private func uniquedSources(_ values: [VisitedPlaceSource]) -> [VisitedPlaceSource] {
+        var seen = Set<VisitedPlaceSource>()
+        return values.filter { seen.insert($0).inserted }
     }
 }
 
@@ -431,6 +450,18 @@ private struct FixedLocationProvider: PublicIPLocationProvider {
     }
 }
 
+private struct FixedReverseGeocodingProvider: ReverseGeocodingProvider {
+    func details(for location: CLLocation) async throws -> ReverseGeocodedLocation {
+        ReverseGeocodedLocation(
+            city: "Helsinki",
+            region: "Uusimaa",
+            country: "Finland",
+            countryCode: "FI",
+            timeZoneIdentifier: "Europe/Helsinki"
+        )
+    }
+}
+
 private struct FixedNeighborCountryResolver: NeighborCountryResolver {
     func neighboringCountryCodes(for countryCode: String) -> [String] {
         switch countryCode {
@@ -445,6 +476,11 @@ private struct FixedNeighborCountryResolver: NeighborCountryResolver {
 }
 
 private actor RecordingTravelAdvisoryProvider: TravelAdvisoryProvider {
+    nonisolated let sourceDescriptor = TravelAlertSourceDescriptor(
+        name: "Smartraveller",
+        url: URL(string: "https://www.smartraveller.gov.au")
+    )
+
     private var calls = 0
 
     func advisory(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
@@ -458,6 +494,11 @@ private actor RecordingTravelAdvisoryProvider: TravelAdvisoryProvider {
 }
 
 private struct FixedTravelAdvisoryProvider: TravelAdvisoryProvider {
+    let sourceDescriptor = TravelAlertSourceDescriptor(
+        name: "Smartraveller",
+        url: URL(string: "https://www.smartraveller.gov.au")
+    )
+
     func advisory(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
         TravelAlertSignalSnapshot(
             kind: .advisory,
@@ -473,6 +514,11 @@ private struct FixedTravelAdvisoryProvider: TravelAdvisoryProvider {
 }
 
 private struct FixedTravelWeatherAlertsProvider: TravelWeatherAlertsProvider {
+    let sourceDescriptor = TravelAlertSourceDescriptor(
+        name: "WeatherKit",
+        url: URL(string: "https://developer.apple.com/weatherkit/")
+    )
+
     func alerts(for coordinate: CLLocationCoordinate2D?, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
         guard coordinate != nil else {
             throw ProviderError.missingCoordinate
@@ -493,6 +539,11 @@ private struct FixedTravelWeatherAlertsProvider: TravelWeatherAlertsProvider {
 }
 
 private struct FixedRegionalSecurityProvider: RegionalSecurityProvider {
+    let sourceDescriptor = TravelAlertSourceDescriptor(
+        name: "ReliefWeb",
+        url: URL(string: "https://reliefweb.int")
+    )
+
     func security(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
         TravelAlertSignalSnapshot(
             kind: .security,

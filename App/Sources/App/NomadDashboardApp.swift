@@ -79,6 +79,14 @@ struct NomadDashboardApp: App {
                 .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
         .windowResizability(.contentSize)
+
+        Window("Visited Map", id: "visited-map") {
+            VisitedMapWindowView(
+                snapshotStore: snapshotStore,
+                settingsStore: settingsStore
+            )
+            .modifier(SceneAppearanceSync(settingsStore: settingsStore))
+        }
     }
 }
 

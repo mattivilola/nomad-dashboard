@@ -50,6 +50,7 @@ struct SettingsView: View {
                 Section {
                     Toggle("Use current location for weather", isOn: weatherLocationBinding)
                     Toggle("Show external IP location", isOn: binding(\.publicIPGeolocationEnabled))
+                    Toggle("Save visited places locally", isOn: visitedPlacesBinding)
 
                     LabeledContent("Location status") {
                         Text(locationStore.authorizationSummary)
@@ -62,7 +63,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Privacy & Location")
                 } footer: {
-                    Text("Weather and local weather alerts use device location only when you opt in. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs.")
+                    Text("Weather and local weather alerts use device location only when you opt in. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs. Visited places stay on this Mac until you clear them.")
                 }
 
                 Section {
@@ -118,6 +119,10 @@ struct SettingsView: View {
                     Button("About Nomad Dashboard") {
                         openWindow(id: "about")
                     }
+
+                    Button("Open Visited Map") {
+                        openWindow(id: "visited-map")
+                    }
                 } header: {
                     Text("Support")
                 }
@@ -126,8 +131,8 @@ struct SettingsView: View {
         }
         .padding(20)
         .frame(width: 560, height: 520, alignment: .topLeading)
-        .onReceive(locationStore.$currentCoordinate) { coordinate in
-            snapshotStore.setWeatherCoordinate(coordinate)
+        .onReceive(locationStore.$currentLocation) { location in
+            snapshotStore.setCurrentLocation(location)
 
             guard settingsStore.settings.usesDeviceLocation else {
                 return
@@ -161,7 +166,7 @@ struct SettingsView: View {
             get: { settingsStore.settings.useCurrentLocationForWeather },
             set: { isEnabled in
                 settingsStore.settings.useCurrentLocationForWeather = isEnabled
-                snapshotStore.setWeatherCoordinate(locationStore.currentCoordinate)
+                snapshotStore.setCurrentLocation(locationStore.currentLocation)
 
                 if settingsStore.settings.usesDeviceLocation {
                     locationStore.prepareForWeather()
@@ -175,7 +180,21 @@ struct SettingsView: View {
             get: { settingsStore.settings.travelWeatherAlertsEnabled },
             set: { isEnabled in
                 settingsStore.settings.travelWeatherAlertsEnabled = isEnabled
-                snapshotStore.setWeatherCoordinate(locationStore.currentCoordinate)
+                snapshotStore.setCurrentLocation(locationStore.currentLocation)
+
+                if settingsStore.settings.usesDeviceLocation {
+                    locationStore.prepareForWeather()
+                }
+            }
+        )
+    }
+
+    private var visitedPlacesBinding: Binding<Bool> {
+        Binding(
+            get: { settingsStore.settings.visitedPlacesEnabled },
+            set: { isEnabled in
+                settingsStore.settings.visitedPlacesEnabled = isEnabled
+                snapshotStore.setCurrentLocation(locationStore.currentLocation)
 
                 if settingsStore.settings.usesDeviceLocation {
                     locationStore.prepareForWeather()
@@ -226,7 +245,7 @@ struct SettingsView: View {
         case .denied, .restricted:
             openLocationSettings()
         case .authorizedAlways, .authorizedWhenInUse:
-            snapshotStore.setWeatherCoordinate(locationStore.currentCoordinate)
+            snapshotStore.setCurrentLocation(locationStore.currentLocation)
             locationStore.refreshLocation()
         @unknown default:
             openLocationSettings()

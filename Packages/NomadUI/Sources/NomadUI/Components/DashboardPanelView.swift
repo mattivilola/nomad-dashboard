@@ -10,6 +10,7 @@ public struct DashboardPanelView: View {
     private let refreshAction: () -> Void
     private let toggleAppearanceAction: () -> Void
     private let copyIPAddressAction: () -> Void
+    private let openVisitedMapAction: () -> Void
     private let openNetworkSettingsAction: () -> Void
     private let checkForUpdatesAction: (() -> Void)?
     private let openSettingsAction: () -> Void
@@ -25,6 +26,7 @@ public struct DashboardPanelView: View {
         refreshAction: @escaping () -> Void,
         toggleAppearanceAction: @escaping () -> Void,
         copyIPAddressAction: @escaping () -> Void,
+        openVisitedMapAction: @escaping () -> Void,
         openNetworkSettingsAction: @escaping () -> Void,
         checkForUpdatesAction: (() -> Void)? = nil,
         openSettingsAction: @escaping () -> Void,
@@ -37,6 +39,7 @@ public struct DashboardPanelView: View {
         self.refreshAction = refreshAction
         self.toggleAppearanceAction = toggleAppearanceAction
         self.copyIPAddressAction = copyIPAddressAction
+        self.openVisitedMapAction = openVisitedMapAction
         self.openNetworkSettingsAction = openNetworkSettingsAction
         self.checkForUpdatesAction = checkForUpdatesAction
         self.openSettingsAction = openSettingsAction
@@ -88,6 +91,12 @@ public struct DashboardPanelView: View {
                 HeaderIconButton(systemImage: "info.circle", title: "About", action: openAboutAction)
 
                 Menu {
+                    Button("Open Visited Map", systemImage: "globe.europe.africa.fill") {
+                        openVisitedMapAction()
+                    }
+
+                    Divider()
+
                     Button("Open Network Settings", systemImage: "gearshape.2") {
                         openNetworkSettingsAction()
                     }
@@ -203,12 +212,21 @@ public struct DashboardPanelView: View {
             subtitle: travelSubtitle,
             badge: travelBadge,
             accessory: AnyView(
-                InlineActionButton(
-                    title: "Copy Public IP",
-                    systemImage: "document.on.document",
-                    isEnabled: snapshot.travelContext.publicIP != nil,
-                    action: copyIPAddressAction
-                )
+                HStack(spacing: 8) {
+                    InlineActionButton(
+                        title: "Visited Map",
+                        systemImage: "globe.europe.africa.fill",
+                        isEnabled: true,
+                        action: openVisitedMapAction
+                    )
+
+                    InlineActionButton(
+                        title: "Copy Public IP",
+                        systemImage: "document.on.document",
+                        isEnabled: snapshot.travelContext.publicIP != nil,
+                        action: copyIPAddressAction
+                    )
+                }
             )
         ) {
             VStack(alignment: .leading, spacing: 10) {

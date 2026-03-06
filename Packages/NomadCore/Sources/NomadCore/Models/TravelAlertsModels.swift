@@ -33,6 +33,30 @@ public enum TravelAlertSeverity: String, Codable, CaseIterable, Equatable, Senda
     }
 }
 
+public enum TravelAlertSignalStatus: String, Codable, CaseIterable, Equatable, Sendable {
+    case checking
+    case ready
+    case stale
+    case unavailable
+}
+
+public enum TravelAlertUnavailableReason: String, Codable, CaseIterable, Equatable, Sendable {
+    case countryRequired
+    case locationRequired
+    case sourceUnavailable
+    case sourceConfigurationRequired
+}
+
+public struct TravelAlertSourceDescriptor: Codable, Equatable, Sendable {
+    public let name: String
+    public let url: URL?
+
+    public init(name: String, url: URL?) {
+        self.name = name
+        self.url = url
+    }
+}
+
 public struct TravelAlertSignalSnapshot: Codable, Equatable, Sendable, Identifiable {
     public let kind: TravelAlertKind
     public let severity: TravelAlertSeverity
@@ -69,12 +93,58 @@ public struct TravelAlertSignalSnapshot: Codable, Equatable, Sendable, Identifia
     }
 }
 
+public struct TravelAlertSignalState: Codable, Equatable, Sendable, Identifiable {
+    public let kind: TravelAlertKind
+    public let status: TravelAlertSignalStatus
+    public let signal: TravelAlertSignalSnapshot?
+    public let reason: TravelAlertUnavailableReason?
+    public let sourceName: String
+    public let sourceURL: URL?
+    public let lastAttemptedAt: Date?
+    public let lastSuccessAt: Date?
+
+    public var id: TravelAlertKind { kind }
+
+    public init(
+        kind: TravelAlertKind,
+        status: TravelAlertSignalStatus,
+        signal: TravelAlertSignalSnapshot?,
+        reason: TravelAlertUnavailableReason?,
+        sourceName: String,
+        sourceURL: URL?,
+        lastAttemptedAt: Date?,
+        lastSuccessAt: Date?
+    ) {
+        self.kind = kind
+        self.status = status
+        self.signal = signal
+        self.reason = reason
+        self.sourceName = sourceName
+        self.sourceURL = sourceURL
+        self.lastAttemptedAt = lastAttemptedAt
+        self.lastSuccessAt = lastSuccessAt
+    }
+
+    public var resolvedSignal: TravelAlertSignalSnapshot? {
+        switch status {
+        case .ready, .stale:
+            signal
+        case .checking, .unavailable:
+            nil
+        }
+    }
+
+    public var highestSeverity: TravelAlertSeverity? {
+        resolvedSignal?.severity
+    }
+}
+
 public struct TravelAlertsSnapshot: Codable, Equatable, Sendable {
     public let enabledKinds: [TravelAlertKind]
     public let primaryCountryCode: String?
     public let primaryCountryName: String?
     public let coverageCountryCodes: [String]
-    public let signals: [TravelAlertSignalSnapshot]
+    public let states: [TravelAlertSignalState]
     public let fetchedAt: Date?
 
     public init(
@@ -82,23 +152,41 @@ public struct TravelAlertsSnapshot: Codable, Equatable, Sendable {
         primaryCountryCode: String?,
         primaryCountryName: String?,
         coverageCountryCodes: [String],
-        signals: [TravelAlertSignalSnapshot],
+        states: [TravelAlertSignalState],
         fetchedAt: Date?
     ) {
         self.enabledKinds = enabledKinds
         self.primaryCountryCode = primaryCountryCode
         self.primaryCountryName = primaryCountryName
         self.coverageCountryCodes = coverageCountryCodes
-        self.signals = signals.sorted { $0.kind.sortOrder < $1.kind.sortOrder }
+        self.states = states.sorted { $0.kind.sortOrder < $1.kind.sortOrder }
         self.fetchedAt = fetchedAt
     }
 
+    public func state(for kind: TravelAlertKind) -> TravelAlertSignalState? {
+        states.first { $0.kind == kind }
+    }
+
     public func signal(for kind: TravelAlertKind) -> TravelAlertSignalSnapshot? {
-        signals.first { $0.kind == kind }
+        state(for: kind)?.resolvedSignal
     }
 
     public var highestSeverity: TravelAlertSeverity {
-        signals.map(\.severity).max() ?? .clear
+        states.compactMap(\.highestSeverity).max() ?? .clear
+    }
+
+    public var hasStaleStates: Bool {
+        states.contains { $0.status == .stale }
+    }
+
+    public var hasUnavailableStates: Bool {
+        states.contains { $0.status == .unavailable }
+    }
+
+    public var allResolvedClear: Bool {
+        enabledKinds.isEmpty == false
+            && states.count == enabledKinds.count
+            && states.allSatisfy { $0.status == .ready && $0.signal?.severity == .clear }
     }
 }
 
