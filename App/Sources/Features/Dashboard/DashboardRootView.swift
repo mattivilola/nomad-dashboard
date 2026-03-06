@@ -11,6 +11,7 @@ struct DashboardRootView: View {
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
     let updatesEnabled: Bool
 
+    @Environment(\.openSettings) private var openSettingsWindow
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -64,7 +65,7 @@ struct DashboardRootView: View {
     }
 
     private func openSettings() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        openSettingsWindow()
     }
 
     private var checkForUpdatesAction: (() -> Void)? {
