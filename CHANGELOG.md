@@ -20,6 +20,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.4] - 2026-03-06
+
+### Added
+
+- Enhance release notes generation by merging and categorizing entries
+- Introduce comprehensive travel alerts feature
+- Introduce Visited Map for tracking travel history
+- Add world map rendering for visited places
+- Improve travel alert UI to reflect diverse states
+
 ## [0.1.3] - 2026-03-06
 
 ### Added
