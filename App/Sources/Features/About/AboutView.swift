@@ -14,7 +14,7 @@ struct AboutView: View {
             LabeledContent("Maintainer", value: "Matti Vilola")
             LabeledContent("Contributor", value: "ILO APPLICATIONS SL")
             LabeledContent("Website", value: "iloapps.dev")
-            LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")
+            LabeledContent("Version", value: AppRuntimeInfo.versionDescription)
 
             HStack {
                 Link("Project Site", destination: URL(string: "https://iloapps.dev")!)
@@ -26,4 +26,3 @@ struct AboutView: View {
         .frame(width: 420)
     }
 }
-

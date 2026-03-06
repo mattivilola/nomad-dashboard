@@ -18,8 +18,6 @@ settings:
     PRODUCT_NAME: Nomad Dashboard
     PRODUCT_BUNDLE_IDENTIFIER: com.iloapps.NomadDashboard
     DEVELOPMENT_TEAM: ""
-    CURRENT_PROJECT_VERSION: 1
-    MARKETING_VERSION: 0.1.0
     SWIFT_VERSION: 6.0
     MACOSX_DEPLOYMENT_TARGET: 14.0
     ENABLE_HARDENED_RUNTIME: YES
@@ -40,6 +38,8 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: Nomad Dashboard
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSUIElement: true
         NSLocationWhenInUseUsageDescription: Nomad Dashboard uses your location to show local weather and travel context.
         SUEnableAutomaticChecks: true

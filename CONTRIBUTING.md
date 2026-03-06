@@ -20,6 +20,15 @@ Thanks for contributing to Nomad Dashboard.
 5. Run `make run`
 6. Run `make test`
 
+## Changelog And Releases
+
+- Add user-visible changes to `## [Unreleased]` in `CHANGELOG.md`
+- Keep the git working tree clean before running any release command
+- Prepare releases with `make release-patch`, `make release-minor`, or
+  `make release-major`
+- Release preparation updates the centralized version file, refreshes the
+  changelog, creates a release commit, and creates a git tag
+
 ## Pull Requests
 
 - Keep changes focused and coherent.

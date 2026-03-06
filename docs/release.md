@@ -12,13 +12,27 @@ Nomad Dashboard is intended for direct distribution outside the Mac App Store.
 
 ## Planned Release Steps
 
-1. Configure signing identities and Sparkle keys locally.
-2. Generate the Xcode project.
-3. Archive the app in Release mode.
-4. Sign and notarize the archive.
-5. Create the DMG payload for first-time installs.
-6. Publish the archive and appcast for Sparkle updates.
+1. Keep `CHANGELOG.md` updated under `## [Unreleased]`.
+2. Make sure `git status --short` is empty.
+3. Run one of:
+   `make release-patch`
+   `make release-minor`
+   `make release-major`
+4. Push the resulting release commit and `vX.Y.Z` tag.
+5. Configure signing identities and Sparkle keys locally.
+6. Generate the Xcode project.
+7. Archive the app in Release mode.
+8. Sign and notarize the archive.
+9. Create the DMG payload for first-time installs.
+10. Publish the archive and appcast for Sparkle updates.
 
 The scripts in `scripts/` support dry-run usage until real release credentials
 are available.
 
+## Notes
+
+- Version metadata lives in `Config/Version.xcconfig`.
+- Release tags use the exact format `vX.Y.Z`.
+- If `Unreleased` is empty, the release-preparation script drafts notes from git
+  commit subjects since the latest `v*` tag.
+- The release-preparation command aborts on a dirty git tree.

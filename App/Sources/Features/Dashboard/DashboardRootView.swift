@@ -15,6 +15,7 @@ struct DashboardRootView: View {
     var body: some View {
         DashboardPanelView(
             snapshot: snapshotStore.snapshot,
+            versionDescription: AppRuntimeInfo.versionDescription,
             refreshAction: refresh,
             copyIPAddressAction: copyIPAddress,
             openNetworkSettingsAction: openNetworkSettings,

@@ -2,7 +2,7 @@ APP_NAME := NomadDashboard
 SCHEME := NomadDashboard
 PROJECT := $(APP_NAME).xcodeproj
 
-.PHONY: bootstrap generate open build run rerun test lint archive dmg release-dry-run clean
+.PHONY: bootstrap generate open build run rerun test lint archive dmg release-patch release-minor release-major release-dry-run clean
 
 bootstrap:
 	./scripts/bootstrap.sh
@@ -33,6 +33,15 @@ archive:
 
 dmg:
 	./scripts/create-dmg.sh
+
+release-patch:
+	./scripts/prepare-release.sh patch
+
+release-minor:
+	./scripts/prepare-release.sh minor
+
+release-major:
+	./scripts/prepare-release.sh major
 
 release-dry-run:
 	./scripts/sign-and-notarize.sh --dry-run

@@ -68,6 +68,8 @@ docs/                   Architecture, UX, release, roadmap, privacy notes
    `make rerun`
 7. Run the tests:
    `make test`
+8. Prepare a versioned release:
+   `make release-patch`
 
 The generated `.xcodeproj` is intentionally not committed. `project.yml` is the
 source of truth.
@@ -82,6 +84,19 @@ to quit the current menu bar instance first.
 `make rerun` quits the current dev instance, rebuilds, and launches the latest
 app again.
 
+## Release Workflow
+
+- Keep upcoming release notes under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md)
+- Ensure the git working tree is clean before preparing a release
+- Use one of:
+  `make release-patch`
+  `make release-minor`
+  `make release-major`
+- The release command bumps the app version and build number, updates
+  `CHANGELOG.md`, creates a `Release vX.Y.Z` commit, and creates a `vX.Y.Z` tag
+- After that, push the branch and tags, then continue with archive/DMG/update
+  publishing
+
 ## Development Notes
 
 - The app is a menu bar utility with `LSUIElement=1`, so it should not appear in
@@ -91,6 +106,7 @@ app again.
 - Release automation is local-first. Signing, notarization, DMG packaging, and
   Sparkle publishing are wired through scripts and documented in
   [docs/release.md](docs/release.md).
+- Version metadata is centralized in `Config/Version.xcconfig`.
 
 ## Open Source Collaboration
 
@@ -98,6 +114,7 @@ app again.
 - Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Agent instructions: [AGENTS.md](AGENTS.md)
 - Claude instructions: [CLAUDE.md](CLAUDE.md)
+- Changelog: [CHANGELOG.md](CHANGELOG.md)
 
 ## Roadmap
 

@@ -4,6 +4,7 @@ import SwiftUI
 
 public struct DashboardPanelView: View {
     private let snapshot: DashboardSnapshot
+    private let versionDescription: String
     private let refreshAction: () -> Void
     private let copyIPAddressAction: () -> Void
     private let openNetworkSettingsAction: () -> Void
@@ -13,6 +14,7 @@ public struct DashboardPanelView: View {
 
     public init(
         snapshot: DashboardSnapshot,
+        versionDescription: String,
         refreshAction: @escaping () -> Void,
         copyIPAddressAction: @escaping () -> Void,
         openNetworkSettingsAction: @escaping () -> Void,
@@ -21,6 +23,7 @@ public struct DashboardPanelView: View {
         openAboutAction: @escaping () -> Void
     ) {
         self.snapshot = snapshot
+        self.versionDescription = versionDescription
         self.refreshAction = refreshAction
         self.copyIPAddressAction = copyIPAddressAction
         self.openNetworkSettingsAction = openNetworkSettingsAction
@@ -182,9 +185,17 @@ public struct DashboardPanelView: View {
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(snapshot.appState.updateState.detail ?? "Update channel idle")
-                .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.62))
+            HStack(alignment: .firstTextBaseline) {
+                Text(snapshot.appState.updateState.detail ?? "Update channel idle")
+                    .font(.caption)
+                    .foregroundStyle(Color.white.opacity(0.62))
+
+                Spacer()
+
+                Text(versionDescription)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(Color.white.opacity(0.48))
+            }
 
             if snapshot.appState.issues.isEmpty == false {
                 Text(snapshot.appState.issues.joined(separator: " · "))
@@ -364,4 +375,3 @@ private struct MiniTrendChart: View {
         )
     }
 }
-
