@@ -15,8 +15,10 @@ Thanks for contributing to Nomad Dashboard.
 
 1. Run `make bootstrap`
 2. Run `make generate`
-3. Run `make build`
-4. Run `make test`
+3. Run `make open`
+4. Run `make build`
+5. Run `make run`
+6. Run `make test`
 
 ## Pull Requests
 
@@ -31,4 +33,3 @@ Thanks for contributing to Nomad Dashboard.
 - Keep system integrations isolated in `NomadCore`.
 - Reuse theme tokens and dashboard components from `NomadUI`.
 - Use `make lint` before opening a PR when `swiftformat` is installed.
-

@@ -8,10 +8,9 @@ if [[ ! -d "$PROJECT" ]]; then
   ./scripts/generate-project.sh
 fi
 
-xcodebuild \
+./scripts/xcodebuild-pretty.sh \
   -project "$PROJECT" \
   -scheme "$SCHEME" \
   -configuration Debug \
   -derivedDataPath DerivedData \
   build
-

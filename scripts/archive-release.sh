@@ -11,10 +11,9 @@ if [[ ! -d "$PROJECT" ]]; then
   ./scripts/generate-project.sh
 fi
 
-xcodebuild \
+./scripts/xcodebuild-pretty.sh \
   -project "$PROJECT" \
   -scheme "$SCHEME" \
   -configuration Release \
   -archivePath "$ARCHIVE_PATH" \
   archive
-

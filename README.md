@@ -58,13 +58,29 @@ docs/                   Architecture, UX, release, roadmap, privacy notes
    `make bootstrap`
 2. Generate the Xcode project:
    `make generate`
-3. Build the app:
+3. Open the project in Xcode:
+   `make open`
+4. Build the app:
    `make build`
-4. Run the tests:
+5. Launch the menu bar app:
+   `make run`
+6. Quit and relaunch the latest dev build:
+   `make rerun`
+7. Run the tests:
    `make test`
 
 The generated `.xcodeproj` is intentionally not committed. `project.yml` is the
 source of truth.
+
+`make build`, `make run`, and `make archive` use `xcbeautify` automatically when
+it is installed, and fall back to `xcodebuild -quiet` otherwise.
+
+`make run` builds the latest debug app and launches it from
+`DerivedData/Build/Products/Debug/`. If the app is already running, it asks you
+to quit the current menu bar instance first.
+
+`make rerun` quits the current dev instance, rebuilds, and launches the latest
+app again.
 
 ## Development Notes
 
@@ -88,4 +104,3 @@ source of truth.
 The first milestone is the public bootstrap: a working menu bar shell, live and
 sample data pipelines, local persistence, release helpers, and contributor-ready
 documentation. See [docs/roadmap.md](docs/roadmap.md) for the staged plan.
-
