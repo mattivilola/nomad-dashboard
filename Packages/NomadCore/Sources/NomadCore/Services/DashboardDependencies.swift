@@ -44,7 +44,7 @@ public struct DashboardDependencies: Sendable {
     ) -> DashboardDependencies {
         let publicIPClient = CachedFreeIPAPIClient()
 
-        DashboardDependencies(
+        return DashboardDependencies(
             throughputMonitor: LiveThroughputMonitor(),
             latencyProbe: LiveLatencyProbe(endpoints: latencyHosts.compactMap(LatencyEndpoint.from(hostString:))),
             powerMonitor: LivePowerMonitor(),

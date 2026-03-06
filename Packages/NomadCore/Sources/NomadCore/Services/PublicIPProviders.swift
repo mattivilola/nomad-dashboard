@@ -157,9 +157,9 @@ struct FreeIPAPIResponse: Decodable {
         latitude = try container.decodeIfPresent(Double.self, forKey: .latitude)
         longitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
 
-        if let values = try container.decodeIfPresent([String].self, forKey: .timeZones) {
+        if let values = try? container.decodeIfPresent([String].self, forKey: .timeZones) {
             timeZones = values
-        } else if let value = try container.decodeIfPresent(String.self, forKey: .timeZones) {
+        } else if let value = try? container.decode(String.self, forKey: .timeZones) {
             timeZones = [value]
         } else {
             timeZones = nil
