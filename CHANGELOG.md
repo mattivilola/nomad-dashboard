@@ -13,12 +13,24 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Temporarily disabled in-app update checks until the signed release and appcast publishing pipeline is in place.
+- _Nothing yet_
 
 ### Fixed
 
 - _Nothing yet_
 
+
+## [0.1.3] - 2026-03-06
+
+
+### Added
+
+
+### Changed
+
+- Temporarily disabled in-app update checks until the signed release and appcast publishing pipeline is in place.
+
+### Fixed
 
 ## [0.1.2] - 2026-03-06
 
