@@ -27,7 +27,8 @@ struct DashboardRootView: View {
             openNetworkSettingsAction: openNetworkSettings,
             checkForUpdatesAction: checkForUpdatesAction,
             openSettingsAction: openSettings,
-            openAboutAction: openAbout
+            openAboutAction: openAbout,
+            quitAction: quitApplication
         )
         .task {
             snapshotStore.setCurrentLocation(locationStore.currentLocation)
@@ -83,6 +84,10 @@ struct DashboardRootView: View {
 
     private func openVisitedMap() {
         openAppWindow(id: "visited-map")
+    }
+
+    private func quitApplication() {
+        NSApp.terminate(nil)
     }
 
     private func openAppWindow(id: String) {

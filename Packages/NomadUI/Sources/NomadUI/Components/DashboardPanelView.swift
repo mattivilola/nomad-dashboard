@@ -15,6 +15,7 @@ public struct DashboardPanelView: View {
     private let checkForUpdatesAction: (() -> Void)?
     private let openSettingsAction: () -> Void
     private let openAboutAction: () -> Void
+    private let quitAction: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -30,7 +31,8 @@ public struct DashboardPanelView: View {
         openNetworkSettingsAction: @escaping () -> Void,
         checkForUpdatesAction: (() -> Void)? = nil,
         openSettingsAction: @escaping () -> Void,
-        openAboutAction: @escaping () -> Void
+        openAboutAction: @escaping () -> Void,
+        quitAction: @escaping () -> Void
     ) {
         self.snapshot = snapshot
         self.isPublicIPLocationEnabled = isPublicIPLocationEnabled
@@ -44,6 +46,7 @@ public struct DashboardPanelView: View {
         self.checkForUpdatesAction = checkForUpdatesAction
         self.openSettingsAction = openSettingsAction
         self.openAboutAction = openAboutAction
+        self.quitAction = quitAction
     }
 
     public var body: some View {
@@ -74,31 +77,41 @@ public struct DashboardPanelView: View {
                     .font(.system(size: 26, weight: .semibold, design: .rounded))
                     .foregroundStyle(NomadTheme.primaryText)
 
-                Text(snapshot.travelContext.location.flatMap(formattedLocation) ?? "Travel-ready system telemetry")
-                    .font(.subheadline)
-                    .foregroundStyle(NomadTheme.secondaryText)
+                HStack(alignment: .lastTextBaseline, spacing: 12) {
+                    Text(snapshot.travelContext.location.flatMap(formattedLocation) ?? "Travel-ready system telemetry")
+                        .font(.subheadline)
+                        .foregroundStyle(NomadTheme.secondaryText)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
 
-                Text("Last refresh \(NomadFormatters.relativeDate(snapshot.appState.lastRefresh))")
-                    .font(.caption)
-                    .foregroundStyle(NomadTheme.tertiaryText)
+                    Spacer(minLength: 12)
+
+                    Text("Last refresh \(NomadFormatters.relativeDate(snapshot.appState.lastRefresh))")
+                        .font(.caption)
+                        .foregroundStyle(NomadTheme.tertiaryText)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 8) {
                 HeaderIconButton(systemImage: "arrow.clockwise", title: "Refresh", action: refreshAction)
                 HeaderIconButton(systemImage: appearanceToggleSystemImage, title: appearanceToggleTitle, action: toggleAppearanceAction)
-                HeaderIconButton(systemImage: "slider.horizontal.3", title: "Settings", action: openSettingsAction)
-                HeaderIconButton(systemImage: "info.circle", title: "About", action: openAboutAction)
 
                 Menu {
                     Button("Open Visited Map", systemImage: "globe.europe.africa.fill") {
                         openVisitedMapAction()
                     }
 
-                    Divider()
-
                     Button("Open Network Settings", systemImage: "gearshape.2") {
                         openNetworkSettingsAction()
+                    }
+
+                    Divider()
+
+                    Button("Settings", systemImage: "slider.horizontal.3") {
+                        openSettingsAction()
                     }
 
                     if let checkForUpdatesAction {
@@ -107,10 +120,14 @@ public struct DashboardPanelView: View {
                         }
                     }
 
-                    Divider()
-
                     Button("About Nomad Dashboard", systemImage: "info.circle") {
                         openAboutAction()
+                    }
+
+                    Divider()
+
+                    Button("Quit Nomad Dashboard", systemImage: "power") {
+                        quitAction()
                     }
                 } label: {
                     HeaderActionIcon(systemImage: "ellipsis")
@@ -210,32 +227,33 @@ public struct DashboardPanelView: View {
         DashboardCard(
             title: "Travel Context",
             subtitle: travelSubtitle,
-            badge: travelBadge,
-            accessory: AnyView(
-                HStack(spacing: 8) {
-                    InlineActionButton(
-                        title: "Visited Map",
-                        systemImage: "globe.europe.africa.fill",
-                        isEnabled: true,
-                        action: openVisitedMapAction
-                    )
-
-                    InlineActionButton(
+            badge: travelBadge
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                DetailRow(
+                    label: "Public IP",
+                    value: publicIPValue,
+                    action: DetailRowAction(
                         title: "Copy Public IP",
                         systemImage: "document.on.document",
                         isEnabled: snapshot.travelContext.publicIP != nil,
                         action: copyIPAddressAction
                     )
-                }
-            )
-        ) {
-            VStack(alignment: .leading, spacing: 10) {
-                DetailRow(label: "Public IP", value: publicIPValue)
+                )
                 DetailRow(label: "Wi-Fi", value: snapshot.travelContext.wifi?.ssid ?? "Not connected")
                 DetailRow(label: "Signal", value: signalDescription(snapshot.travelContext.wifi))
                 DetailRow(label: "VPN", value: vpnDescription)
                 DetailRow(label: "Time Zone", value: snapshot.travelContext.timeZoneIdentifier)
-                DetailRow(label: "Location", value: locationValue)
+                DetailRow(
+                    label: "Location",
+                    value: locationValue,
+                    action: DetailRowAction(
+                        title: "Open Visited Map",
+                        systemImage: "map",
+                        isEnabled: true,
+                        action: openVisitedMapAction
+                    )
+                )
             }
         }
     }
@@ -769,6 +787,13 @@ private struct MetricBlock: View {
 private struct DetailRow: View {
     let label: String
     let value: String
+    let action: DetailRowAction?
+
+    init(label: String, value: String, action: DetailRowAction? = nil) {
+        self.label = label
+        self.value = value
+        self.action = action
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -778,12 +803,50 @@ private struct DetailRow: View {
 
             Spacer(minLength: 12)
 
-            Text(value)
-                .font(.caption)
-                .foregroundStyle(NomadTheme.primaryText)
-                .multilineTextAlignment(.trailing)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top, spacing: 6) {
+                Text(value)
+                    .font(.caption)
+                    .foregroundStyle(NomadTheme.primaryText)
+                    .multilineTextAlignment(.trailing)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let action {
+                    DetailRowActionButton(action: action)
+                }
+            }
         }
+    }
+}
+
+private struct DetailRowAction {
+    let title: String
+    let systemImage: String
+    let isEnabled: Bool
+    let action: () -> Void
+}
+
+private struct DetailRowActionButton: View {
+    let action: DetailRowAction
+
+    var body: some View {
+        Button(action: action.action) {
+            Image(systemName: action.systemImage)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(NomadTheme.actionIconForeground.opacity(action.isEnabled ? 1 : 0.55))
+                .frame(width: 22, height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(NomadTheme.inlineButtonBackground.opacity(action.isEnabled ? 1 : 0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .stroke(NomadTheme.cardBorder.opacity(action.isEnabled ? 1 : 0.7), lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(action.isEnabled == false)
+        .help(action.title)
+        .accessibilityLabel(action.title)
     }
 }
 
@@ -998,33 +1061,6 @@ private extension TravelAlertRowModel {
                 status: .unavailable
             )
         }
-    }
-}
-
-private struct InlineActionButton: View {
-    let title: String
-    let systemImage: String
-    let isEnabled: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .foregroundStyle(NomadTheme.primaryText.opacity(isEnabled ? 1 : 0.55))
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(NomadTheme.inlineButtonBackground.opacity(isEnabled ? 1 : 0.7))
-                        .overlay(
-                            Capsule(style: .continuous)
-                                .stroke(NomadTheme.cardBorder.opacity(isEnabled ? 1 : 0.7), lineWidth: 1)
-                        )
-                )
-        }
-        .buttonStyle(.plain)
-        .disabled(isEnabled == false)
     }
 }
 
