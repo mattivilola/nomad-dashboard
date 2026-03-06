@@ -33,6 +33,31 @@ struct DashboardSnapshotStoreTests {
         #expect(store.snapshot.travelContext.location?.country == "Finland")
         #expect(store.snapshot.weather?.conditionDescription == "Clear")
         #expect(store.snapshot.network.downloadHistory.isEmpty == false)
+        #expect(store.snapshot.healthSummary.overall.level == .ready)
+    }
+
+    @Test
+    func refreshMarksWeatherLocationRequirementWhenCoordinateIsMissing() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let dependencies = DashboardDependencies(
+            throughputMonitor: FixedThroughputMonitor(),
+            latencyProbe: FixedLatencyProbe(),
+            powerMonitor: FixedPowerMonitor(),
+            wifiMonitor: FixedWiFiMonitor(),
+            vpnStatusProvider: FixedVPNProvider(),
+            publicIPProvider: FixedPublicIPProvider(),
+            publicIPLocationProvider: FixedLocationProvider(),
+            weatherProvider: MissingCoordinateWeatherProvider(),
+            historyStore: InMemoryHistoryStore(),
+            updateCoordinator: NoopUpdateCoordinator()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.weather == nil)
+        #expect(store.snapshot.appState.issues.contains(.weatherLocationRequired))
     }
 }
 
@@ -136,5 +161,11 @@ private struct FixedWeatherProvider: WeatherProvider {
             ),
             fetchedAt: .now
         )
+    }
+}
+
+private struct MissingCoordinateWeatherProvider: WeatherProvider {
+    func weather(for coordinate: CLLocationCoordinate2D?) async throws -> WeatherSnapshot {
+        throw ProviderError.missingCoordinate
     }
 }

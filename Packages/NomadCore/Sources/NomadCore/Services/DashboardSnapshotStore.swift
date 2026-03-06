@@ -63,7 +63,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         let now = Date()
         let settings = settingsStore.settings
         let includeSlowMetrics = manual || shouldRefreshSlowMetrics(now: now, interval: settings.slowRefreshIntervalSeconds)
-        var issues: [String] = []
+        var issues: [DashboardIssue] = []
 
         let throughputSample = await dependencies.throughputMonitor.currentSample()
 
@@ -99,7 +99,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             do {
                 publicIPSnapshot = try await dependencies.publicIPProvider.currentIP(forceRefresh: manual)
             } catch {
-                issues.append("Public IP lookup unavailable")
+                issues.append(.publicIPLookupUnavailable)
             }
 
             if settings.publicIPGeolocationEnabled, let publicIPSnapshot {
@@ -109,7 +109,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                         forceRefresh: manual
                     )
                 } catch {
-                    issues.append("IP location unavailable")
+                    issues.append(.ipLocationUnavailable)
                 }
             } else {
                 locationSnapshot = nil
@@ -118,8 +118,10 @@ public final class DashboardSnapshotStore: ObservableObject {
             if settings.useCurrentLocationForWeather {
                 do {
                     weatherSnapshot = try await dependencies.weatherProvider.weather(for: currentCoordinate)
+                } catch ProviderError.missingCoordinate {
+                    issues.append(.weatherLocationRequired)
                 } catch {
-                    issues.append("Weather unavailable until location is granted")
+                    issues.append(.weatherUnavailable)
                 }
             } else {
                 weatherSnapshot = nil
@@ -202,4 +204,3 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
     }
 }
-

@@ -313,9 +313,9 @@ public struct TravelContextSnapshot: Equatable, Sendable {
 public struct AppStatusSnapshot: Equatable, Sendable {
     public let lastRefresh: Date?
     public let updateState: UpdateStateSnapshot
-    public let issues: [String]
+    public let issues: [DashboardIssue]
 
-    public init(lastRefresh: Date?, updateState: UpdateStateSnapshot, issues: [String]) {
+    public init(lastRefresh: Date?, updateState: UpdateStateSnapshot, issues: [DashboardIssue]) {
         self.lastRefresh = lastRefresh
         self.updateState = updateState
         self.issues = issues
@@ -328,19 +328,27 @@ public struct DashboardSnapshot: Equatable, Sendable {
     public let travelContext: TravelContextSnapshot
     public let weather: WeatherSnapshot?
     public let appState: AppStatusSnapshot
+    public let healthSummary: DashboardHealthSummary
 
     public init(
         network: NetworkSectionSnapshot,
         power: PowerSectionSnapshot,
         travelContext: TravelContextSnapshot,
         weather: WeatherSnapshot?,
-        appState: AppStatusSnapshot
+        appState: AppStatusSnapshot,
+        healthSummary: DashboardHealthSummary? = nil
     ) {
         self.network = network
         self.power = power
         self.travelContext = travelContext
         self.weather = weather
         self.appState = appState
+        self.healthSummary = healthSummary ?? DashboardHealthEvaluator.makeSummary(
+            network: network,
+            power: power,
+            travelContext: travelContext,
+            appState: appState
+        )
     }
 }
 
@@ -452,4 +460,3 @@ public extension DashboardSnapshot {
         )
     )
 }
-
