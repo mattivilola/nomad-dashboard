@@ -14,6 +14,9 @@ struct AppSettingsStoreTests {
 
         #expect(store.settings.appearanceMode == .system)
         #expect(store.settings.publicIPGeolocationEnabled == true)
+        #expect(store.settings.travelAdvisoryEnabled == true)
+        #expect(store.settings.travelWeatherAlertsEnabled == false)
+        #expect(store.settings.regionalSecurityEnabled == false)
     }
 
     @Test
@@ -46,6 +49,23 @@ struct AppSettingsStoreTests {
     }
 
     @Test
+    func persistsTravelAlertPreferencesToUserDefaults() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.settings.travelAdvisoryEnabled = false
+        store.settings.travelWeatherAlertsEnabled = true
+        store.settings.regionalSecurityEnabled = true
+
+        let reloaded = AppSettingsStore(defaults: defaults)
+        #expect(reloaded.settings.travelAdvisoryEnabled == false)
+        #expect(reloaded.settings.travelWeatherAlertsEnabled == true)
+        #expect(reloaded.settings.regionalSecurityEnabled == true)
+    }
+
+    @Test
     func decodesLegacyPayloadWithoutAppearanceMode() throws {
         let suiteName = UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -74,6 +94,9 @@ struct AppSettingsStoreTests {
         #expect(store.settings.automaticUpdateChecksEnabled == false)
         #expect(store.settings.launchAtLoginEnabled == true)
         #expect(store.settings.useCurrentLocationForWeather == false)
+        #expect(store.settings.travelAdvisoryEnabled == true)
+        #expect(store.settings.travelWeatherAlertsEnabled == false)
+        #expect(store.settings.regionalSecurityEnabled == false)
         #expect(store.settings.latencyHosts == ["example.com:443"])
     }
 }

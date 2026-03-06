@@ -15,7 +15,10 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "NomadCore"
+            name: "NomadCore",
+            resources: [
+                .process("Resources")
+            ]
         ),
         .testTarget(
             name: "NomadCoreTests",
@@ -23,4 +26,3 @@ let package = Package(
         )
     ]
 )
-

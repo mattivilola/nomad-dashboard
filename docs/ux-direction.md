@@ -12,7 +12,15 @@ Nomad Dashboard should feel like a compact travel instrument panel:
 - Connectivity
 - Power
 - Travel Context
+- Travel Alerts
 - Weather
+
+## Travel Alerts
+
+- Travel risk stays in one condensed `Travel Alerts` card.
+- The menu bar panel must not expand into a multi-panel alert center.
+- Show one overall badge and short per-signal summaries instead of long lists or drill-downs.
+- Detailed source links or deeper investigation belong in a separate window later, not in the main dashboard panel.
 
 ## Quick Actions
 
@@ -22,4 +30,3 @@ Nomad Dashboard should feel like a compact travel instrument panel:
 - Check for updates
 - Open Settings
 - Open About
-

@@ -9,6 +9,10 @@ public struct DashboardDependencies: Sendable {
     public let publicIPProvider: any PublicIPProvider
     public let publicIPLocationProvider: any PublicIPLocationProvider
     public let weatherProvider: any WeatherProvider
+    public let neighborCountryResolver: any NeighborCountryResolver
+    public let travelAdvisoryProvider: any TravelAdvisoryProvider
+    public let travelWeatherAlertsProvider: any TravelWeatherAlertsProvider
+    public let regionalSecurityProvider: any RegionalSecurityProvider
     public let historyStore: any MetricHistoryStore
     public let updateCoordinator: any UpdateCoordinator
 
@@ -21,6 +25,10 @@ public struct DashboardDependencies: Sendable {
         publicIPProvider: any PublicIPProvider,
         publicIPLocationProvider: any PublicIPLocationProvider,
         weatherProvider: any WeatherProvider,
+        neighborCountryResolver: any NeighborCountryResolver,
+        travelAdvisoryProvider: any TravelAdvisoryProvider,
+        travelWeatherAlertsProvider: any TravelWeatherAlertsProvider,
+        regionalSecurityProvider: any RegionalSecurityProvider,
         historyStore: any MetricHistoryStore,
         updateCoordinator: any UpdateCoordinator
     ) {
@@ -32,6 +40,10 @@ public struct DashboardDependencies: Sendable {
         self.publicIPProvider = publicIPProvider
         self.publicIPLocationProvider = publicIPLocationProvider
         self.weatherProvider = weatherProvider
+        self.neighborCountryResolver = neighborCountryResolver
+        self.travelAdvisoryProvider = travelAdvisoryProvider
+        self.travelWeatherAlertsProvider = travelWeatherAlertsProvider
+        self.regionalSecurityProvider = regionalSecurityProvider
         self.historyStore = historyStore
         self.updateCoordinator = updateCoordinator
     }
@@ -40,6 +52,7 @@ public struct DashboardDependencies: Sendable {
         applicationSupportDirectory: URL,
         latencyHosts: [String] = ["1.1.1.1:443", "8.8.8.8:443"],
         historyRetentionHours: Int = 24,
+        reliefWebAppName: String? = nil,
         updateCoordinator: any UpdateCoordinator
     ) -> DashboardDependencies {
         let publicIPClient = CachedFreeIPAPIClient()
@@ -53,6 +66,10 @@ public struct DashboardDependencies: Sendable {
             publicIPProvider: CachedPublicIPProvider(client: publicIPClient),
             publicIPLocationProvider: CachedIPLocationProvider(client: publicIPClient),
             weatherProvider: LiveWeatherProvider(),
+            neighborCountryResolver: BundledNeighborCountryResolver(),
+            travelAdvisoryProvider: SmartravellerAdvisoryProvider(),
+            travelWeatherAlertsProvider: WeatherKitAlertProvider(),
+            regionalSecurityProvider: ReliefWebSecurityProvider(appName: reliefWebAppName),
             historyStore: FileMetricHistoryStore(
                 fileURL: applicationSupportDirectory.appendingPathComponent("metric-history.json"),
                 retentionHours: historyRetentionHours

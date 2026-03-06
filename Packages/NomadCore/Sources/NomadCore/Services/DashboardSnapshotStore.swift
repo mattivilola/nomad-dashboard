@@ -84,6 +84,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         var vpnSnapshot = snapshot.travelContext.vpn
         var publicIPSnapshot = snapshot.travelContext.publicIP
         var locationSnapshot = snapshot.travelContext.location
+        var travelAlertsSnapshot = snapshot.travelAlerts
         var weatherSnapshot = snapshot.weather
 
         if includeSlowMetrics {
@@ -134,6 +135,14 @@ public final class DashboardSnapshotStore: ObservableObject {
                 weatherSnapshot = nil
             }
 
+            travelAlertsSnapshot = await refreshTravelAlerts(
+                settings: settings,
+                locationSnapshot: locationSnapshot,
+                issues: &issues,
+                manual: manual,
+                now: now
+            )
+
             lastSlowRefresh = now
         }
 
@@ -161,6 +170,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                 publicIP: publicIPSnapshot,
                 location: locationSnapshot
             ),
+            travelAlerts: travelAlertsSnapshot,
             weather: weatherSnapshot,
             appState: AppStatusSnapshot(
                 lastRefresh: now,
@@ -221,6 +231,18 @@ public final class DashboardSnapshotStore: ObservableObject {
             needsManualRefresh = true
         }
 
+        if previousSettings.travelAdvisoryEnabled != newSettings.travelAdvisoryEnabled {
+            needsManualRefresh = true
+        }
+
+        if previousSettings.travelWeatherAlertsEnabled != newSettings.travelWeatherAlertsEnabled {
+            needsManualRefresh = true
+        }
+
+        if previousSettings.regionalSecurityEnabled != newSettings.regionalSecurityEnabled {
+            needsManualRefresh = true
+        }
+
         if needsManualRefresh {
             await refresh(manual: true)
         }
@@ -257,5 +279,95 @@ public final class DashboardSnapshotStore: ObservableObject {
                 to: .batteryDischargeWatts
             )
         }
+    }
+
+    private func refreshTravelAlerts(
+        settings: AppSettings,
+        locationSnapshot: IPLocationSnapshot?,
+        issues: inout [DashboardIssue],
+        manual: Bool,
+        now: Date
+    ) async -> TravelAlertsSnapshot {
+        let preferences = settings.travelAlertPreferences
+        let enabledKinds = preferences.enabledKinds
+        let primaryCountryCode = locationSnapshot?.countryCode?.uppercased()
+        let primaryCountryName = locationSnapshot?.country
+        let coverageCountryCodes = coverageCountryCodes(for: primaryCountryCode)
+        var signals: [TravelAlertSignalSnapshot] = []
+
+        if preferences.advisoryEnabled {
+            if let primaryCountryCode {
+                do {
+                    let signal = try await dependencies.travelAdvisoryProvider.advisory(
+                        for: coverageCountryCodes,
+                        primaryCountryCode: primaryCountryCode,
+                        forceRefresh: manual
+                    )
+                    signals.append(signal)
+                } catch {
+                    issues.append(.travelAdvisoryUnavailable)
+                }
+            } else {
+                issues.append(.travelAdvisoryCountryRequired)
+            }
+        }
+
+        if preferences.weatherEnabled {
+            let weatherAlertCoordinate = currentCoordinate ?? locationSnapshot?.coordinate
+
+            do {
+                let signal = try await dependencies.travelWeatherAlertsProvider.alerts(
+                    for: weatherAlertCoordinate,
+                    forceRefresh: manual
+                )
+                signals.append(signal)
+            } catch ProviderError.missingCoordinate {
+                issues.append(.travelWeatherAlertsLocationRequired)
+            } catch {
+                issues.append(.travelWeatherAlertsUnavailable)
+            }
+        }
+
+        if preferences.securityEnabled {
+            if let primaryCountryCode {
+                do {
+                    let signal = try await dependencies.regionalSecurityProvider.security(
+                        for: coverageCountryCodes,
+                        primaryCountryCode: primaryCountryCode,
+                        forceRefresh: manual
+                    )
+                    signals.append(signal)
+                } catch ProviderError.missingConfiguration {
+                    issues.append(.regionalSecurityUnavailable)
+                } catch {
+                    issues.append(.regionalSecurityUnavailable)
+                }
+            } else {
+                issues.append(.regionalSecurityCountryRequired)
+            }
+        }
+
+        return TravelAlertsSnapshot(
+            enabledKinds: enabledKinds,
+            primaryCountryCode: primaryCountryCode,
+            primaryCountryName: primaryCountryName,
+            coverageCountryCodes: coverageCountryCodes,
+            signals: signals,
+            fetchedAt: enabledKinds.isEmpty ? nil : now
+        )
+    }
+
+    private func coverageCountryCodes(for primaryCountryCode: String?) -> [String] {
+        guard let primaryCountryCode else {
+            return []
+        }
+
+        return ([primaryCountryCode] + dependencies.neighborCountryResolver.neighboringCountryCodes(for: primaryCountryCode))
+            .map { $0.uppercased() }
+            .reduce(into: [String]()) { result, countryCode in
+                if result.contains(countryCode) == false {
+                    result.append(countryCode)
+                }
+            }
     }
 }

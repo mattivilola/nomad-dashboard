@@ -62,7 +62,17 @@ struct SettingsView: View {
                 } header: {
                     Text("Privacy & Location")
                 } footer: {
-                    Text("Weather uses device location only when you opt in. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs.")
+                    Text("Weather and local weather alerts use device location only when you opt in. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs.")
+                }
+
+                Section {
+                    Toggle("Travel advisory", isOn: binding(\.travelAdvisoryEnabled))
+                    Toggle("Weather alerts", isOn: travelWeatherAlertsBinding)
+                    Toggle("Regional security", isOn: binding(\.regionalSecurityEnabled))
+                } header: {
+                    Text("Travel Alerts")
+                } footer: {
+                    Text("Travel advisory uses Smartraveller by default and starts enabled. Regional security uses ReliefWeb, and weather alerts use WeatherKit. Advisory and security check your current country plus bordering countries; weather alerts use your current location when available.")
                 }
 
                 Section {
@@ -119,7 +129,7 @@ struct SettingsView: View {
         .onReceive(locationStore.$currentCoordinate) { coordinate in
             snapshotStore.setWeatherCoordinate(coordinate)
 
-            guard settingsStore.settings.useCurrentLocationForWeather else {
+            guard settingsStore.settings.usesDeviceLocation else {
                 return
             }
 
@@ -153,7 +163,21 @@ struct SettingsView: View {
                 settingsStore.settings.useCurrentLocationForWeather = isEnabled
                 snapshotStore.setWeatherCoordinate(locationStore.currentCoordinate)
 
-                if isEnabled {
+                if settingsStore.settings.usesDeviceLocation {
+                    locationStore.prepareForWeather()
+                }
+            }
+        )
+    }
+
+    private var travelWeatherAlertsBinding: Binding<Bool> {
+        Binding(
+            get: { settingsStore.settings.travelWeatherAlertsEnabled },
+            set: { isEnabled in
+                settingsStore.settings.travelWeatherAlertsEnabled = isEnabled
+                snapshotStore.setWeatherCoordinate(locationStore.currentCoordinate)
+
+                if settingsStore.settings.usesDeviceLocation {
                     locationStore.prepareForWeather()
                 }
             }

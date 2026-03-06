@@ -20,6 +20,10 @@ struct DashboardSnapshotStoreTests {
             publicIPProvider: FixedPublicIPProvider(),
             publicIPLocationProvider: FixedLocationProvider(),
             weatherProvider: FixedWeatherProvider(),
+            neighborCountryResolver: FixedNeighborCountryResolver(),
+            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
+            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
+            regionalSecurityProvider: FixedRegionalSecurityProvider(),
             historyStore: historyStore,
             updateCoordinator: NoopUpdateCoordinator()
         )
@@ -52,6 +56,10 @@ struct DashboardSnapshotStoreTests {
             publicIPProvider: FixedPublicIPProvider(),
             publicIPLocationProvider: locationProvider,
             weatherProvider: FixedWeatherProvider(),
+            neighborCountryResolver: FixedNeighborCountryResolver(),
+            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
+            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
+            regionalSecurityProvider: FixedRegionalSecurityProvider(),
             historyStore: InMemoryHistoryStore(),
             updateCoordinator: NoopUpdateCoordinator()
         )
@@ -82,6 +90,10 @@ struct DashboardSnapshotStoreTests {
             publicIPProvider: FixedPublicIPProvider(),
             publicIPLocationProvider: FailingLocationProvider(),
             weatherProvider: FixedWeatherProvider(),
+            neighborCountryResolver: FixedNeighborCountryResolver(),
+            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
+            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
+            regionalSecurityProvider: FixedRegionalSecurityProvider(),
             historyStore: InMemoryHistoryStore(),
             updateCoordinator: NoopUpdateCoordinator()
         )
@@ -107,6 +119,10 @@ struct DashboardSnapshotStoreTests {
             publicIPProvider: FixedPublicIPProvider(),
             publicIPLocationProvider: FixedLocationProvider(),
             weatherProvider: MissingCoordinateWeatherProvider(),
+            neighborCountryResolver: FixedNeighborCountryResolver(),
+            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
+            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
+            regionalSecurityProvider: FixedRegionalSecurityProvider(),
             historyStore: InMemoryHistoryStore(),
             updateCoordinator: NoopUpdateCoordinator()
         )
@@ -117,6 +133,110 @@ struct DashboardSnapshotStoreTests {
 
         #expect(store.snapshot.weather == nil)
         #expect(store.snapshot.appState.issues.contains(.weatherLocationRequired))
+    }
+
+    @Test
+    func refreshBuildsTravelAlertsFromEnabledProviders() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.publicIPGeolocationEnabled = true
+        settingsStore.settings.travelAdvisoryEnabled = true
+        settingsStore.settings.travelWeatherAlertsEnabled = true
+        settingsStore.settings.regionalSecurityEnabled = true
+
+        let dependencies = DashboardDependencies(
+            throughputMonitor: FixedThroughputMonitor(),
+            latencyProbe: FixedLatencyProbe(),
+            powerMonitor: FixedPowerMonitor(),
+            wifiMonitor: FixedWiFiMonitor(),
+            vpnStatusProvider: FixedVPNProvider(),
+            publicIPProvider: FixedPublicIPProvider(),
+            publicIPLocationProvider: FixedLocationProvider(),
+            weatherProvider: FixedWeatherProvider(),
+            neighborCountryResolver: FixedNeighborCountryResolver(),
+            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
+            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
+            regionalSecurityProvider: FixedRegionalSecurityProvider(),
+            historyStore: InMemoryHistoryStore(),
+            updateCoordinator: NoopUpdateCoordinator()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        store.setWeatherCoordinate(CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384))
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.travelAlerts?.enabledKinds == [.advisory, .weather, .security])
+        #expect(store.snapshot.travelAlerts?.coverageCountryCodes == ["FI", "SE", "NO"])
+        #expect(store.snapshot.travelAlerts?.signal(for: .advisory)?.severity == .caution)
+        #expect(store.snapshot.travelAlerts?.signal(for: .weather)?.severity == .warning)
+        #expect(store.snapshot.travelAlerts?.signal(for: .security)?.severity == .info)
+    }
+
+    @Test
+    func refreshMarksTravelWeatherAlertsLocationRequirementWhenCoordinateIsMissing() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.publicIPGeolocationEnabled = false
+        settingsStore.settings.useCurrentLocationForWeather = false
+        settingsStore.settings.travelWeatherAlertsEnabled = true
+
+        let dependencies = DashboardDependencies(
+            throughputMonitor: FixedThroughputMonitor(),
+            latencyProbe: FixedLatencyProbe(),
+            powerMonitor: FixedPowerMonitor(),
+            wifiMonitor: FixedWiFiMonitor(),
+            vpnStatusProvider: FixedVPNProvider(),
+            publicIPProvider: FixedPublicIPProvider(),
+            publicIPLocationProvider: FixedLocationProvider(),
+            weatherProvider: FixedWeatherProvider(),
+            neighborCountryResolver: FixedNeighborCountryResolver(),
+            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
+            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
+            regionalSecurityProvider: FixedRegionalSecurityProvider(),
+            historyStore: InMemoryHistoryStore(),
+            updateCoordinator: NoopUpdateCoordinator()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.travelAlerts?.signal(for: .weather) == nil)
+        #expect(store.snapshot.appState.issues.contains(.travelWeatherAlertsLocationRequired))
+    }
+
+    @Test
+    func settingsChangesRefreshTravelAlertsImmediately() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.publicIPGeolocationEnabled = true
+        settingsStore.settings.travelAdvisoryEnabled = false
+        let advisoryProvider = RecordingTravelAdvisoryProvider()
+
+        let dependencies = DashboardDependencies(
+            throughputMonitor: FixedThroughputMonitor(),
+            latencyProbe: FixedLatencyProbe(),
+            powerMonitor: FixedPowerMonitor(),
+            wifiMonitor: FixedWiFiMonitor(),
+            vpnStatusProvider: FixedVPNProvider(),
+            publicIPProvider: FixedPublicIPProvider(),
+            publicIPLocationProvider: FixedLocationProvider(),
+            weatherProvider: FixedWeatherProvider(),
+            neighborCountryResolver: FixedNeighborCountryResolver(),
+            travelAdvisoryProvider: advisoryProvider,
+            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
+            regionalSecurityProvider: FixedRegionalSecurityProvider(),
+            historyStore: InMemoryHistoryStore(),
+            updateCoordinator: NoopUpdateCoordinator()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        await store.refresh(manual: true)
+        #expect(await advisoryProvider.callCount() == 0)
+
+        settingsStore.settings.travelAdvisoryEnabled = true
+
+        try await waitForSettingsPropagation()
+        #expect(await advisoryProvider.callCount() == 1)
+        _ = store
     }
 
     @Test
@@ -133,6 +253,10 @@ struct DashboardSnapshotStoreTests {
             publicIPProvider: FixedPublicIPProvider(),
             publicIPLocationProvider: FixedLocationProvider(),
             weatherProvider: FixedWeatherProvider(),
+            neighborCountryResolver: FixedNeighborCountryResolver(),
+            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
+            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
+            regionalSecurityProvider: FixedRegionalSecurityProvider(),
             historyStore: InMemoryHistoryStore(),
             updateCoordinator: updateCoordinator
         )
@@ -174,6 +298,10 @@ struct DashboardSnapshotStoreTests {
             publicIPProvider: FixedPublicIPProvider(),
             publicIPLocationProvider: FixedLocationProvider(),
             weatherProvider: FixedWeatherProvider(),
+            neighborCountryResolver: FixedNeighborCountryResolver(),
+            travelAdvisoryProvider: FixedTravelAdvisoryProvider(),
+            travelWeatherAlertsProvider: FixedTravelWeatherAlertsProvider(),
+            regionalSecurityProvider: FixedRegionalSecurityProvider(),
             historyStore: seededHistoryStore,
             updateCoordinator: NoopUpdateCoordinator()
         )
@@ -299,6 +427,83 @@ private struct FixedLocationProvider: PublicIPLocationProvider {
             timeZone: "Europe/Helsinki",
             provider: "test",
             fetchedAt: .now
+        )
+    }
+}
+
+private struct FixedNeighborCountryResolver: NeighborCountryResolver {
+    func neighboringCountryCodes(for countryCode: String) -> [String] {
+        switch countryCode {
+        case "FI":
+            ["SE", "NO"]
+        case "ES":
+            ["FR", "PT"]
+        default:
+            []
+        }
+    }
+}
+
+private actor RecordingTravelAdvisoryProvider: TravelAdvisoryProvider {
+    private var calls = 0
+
+    func advisory(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
+        calls += 1
+        return try await FixedTravelAdvisoryProvider().advisory(for: countryCodes, primaryCountryCode: primaryCountryCode, forceRefresh: forceRefresh)
+    }
+
+    func callCount() -> Int {
+        calls
+    }
+}
+
+private struct FixedTravelAdvisoryProvider: TravelAdvisoryProvider {
+    func advisory(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
+        TravelAlertSignalSnapshot(
+            kind: .advisory,
+            severity: .caution,
+            title: "Travel advisory",
+            summary: "Sweden is at Level 2 nearby.",
+            sourceName: "Smartraveller",
+            sourceURL: URL(string: "https://www.smartraveller.gov.au"),
+            updatedAt: .now,
+            affectedCountryCodes: ["SE"]
+        )
+    }
+}
+
+private struct FixedTravelWeatherAlertsProvider: TravelWeatherAlertsProvider {
+    func alerts(for coordinate: CLLocationCoordinate2D?, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
+        guard coordinate != nil else {
+            throw ProviderError.missingCoordinate
+        }
+
+        return TravelAlertSignalSnapshot(
+            kind: .weather,
+            severity: .warning,
+            title: "Weather alerts",
+            summary: "2 active weather alerts. Flood warning.",
+            sourceName: "WeatherKit",
+            sourceURL: URL(string: "https://developer.apple.com/weatherkit/"),
+            updatedAt: .now,
+            affectedCountryCodes: ["FI"],
+            itemCount: 2
+        )
+    }
+}
+
+private struct FixedRegionalSecurityProvider: RegionalSecurityProvider {
+    func security(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
+        TravelAlertSignalSnapshot(
+            kind: .security,
+            severity: .info,
+            title: "Regional security",
+            summary: "A nearby security bulletin was published within the last 72 hours.",
+            sourceName: "ReliefWeb",
+            sourceURL: URL(string: "https://reliefweb.int"),
+            updatedAt: .now,
+            affectedCountryCodes: ["SE"],
+            itemCount: 1
         )
     }
 }

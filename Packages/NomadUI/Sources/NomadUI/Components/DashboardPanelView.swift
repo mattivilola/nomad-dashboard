@@ -5,6 +5,7 @@ import SwiftUI
 public struct DashboardPanelView: View {
     private let snapshot: DashboardSnapshot
     private let isPublicIPLocationEnabled: Bool
+    private let travelAlertPreferences: TravelAlertPreferences
     private let versionDescription: String
     private let refreshAction: () -> Void
     private let toggleAppearanceAction: () -> Void
@@ -19,6 +20,7 @@ public struct DashboardPanelView: View {
     public init(
         snapshot: DashboardSnapshot,
         isPublicIPLocationEnabled: Bool,
+        travelAlertPreferences: TravelAlertPreferences,
         versionDescription: String = "",
         refreshAction: @escaping () -> Void,
         toggleAppearanceAction: @escaping () -> Void,
@@ -30,6 +32,7 @@ public struct DashboardPanelView: View {
     ) {
         self.snapshot = snapshot
         self.isPublicIPLocationEnabled = isPublicIPLocationEnabled
+        self.travelAlertPreferences = travelAlertPreferences
         self.versionDescription = versionDescription
         self.refreshAction = refreshAction
         self.toggleAppearanceAction = toggleAppearanceAction
@@ -51,6 +54,7 @@ public struct DashboardPanelView: View {
                     connectivitySection
                     powerSection
                     travelSection
+                    travelAlertsSection
                     weatherSection
                     footer
                 }
@@ -270,6 +274,50 @@ public struct DashboardPanelView: View {
         }
     }
 
+    private var travelAlertsSection: some View {
+        DashboardCard(
+            title: "Travel Alerts",
+            subtitle: travelAlertsSubtitle,
+            badge: travelAlertsBadge
+        ) {
+            if travelAlertPreferences.enabledKinds.isEmpty {
+                WeatherEmptyState(
+                    title: "Alerts Off",
+                    systemImage: "bell.slash.fill",
+                    message: "Enable traveller alerts in Settings."
+                )
+            } else if shouldShowTravelAlertsAllClearRow {
+                CompactAlertRow(
+                    title: "No current alerts",
+                    summary: "Advisory, weather, and security look clear.",
+                    sourceName: "Nomad",
+                    count: nil,
+                    tint: NomadTheme.teal,
+                    symbolName: "checkmark.circle.fill"
+                )
+            } else if travelAlertRows.isEmpty {
+                WeatherEmptyState(
+                    title: "Checking alerts",
+                    systemImage: "clock.badge.exclamationmark",
+                    message: "Checking alerts…"
+                )
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(travelAlertRows) { row in
+                        CompactAlertRow(
+                            title: row.title,
+                            summary: row.summary,
+                            sourceName: row.sourceName,
+                            count: row.count,
+                            tint: row.tint,
+                            symbolName: row.symbolName
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     private var footer: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(snapshot.appState.updateState.detail ?? "Update channel idle")
@@ -430,6 +478,125 @@ public struct DashboardPanelView: View {
         }
 
         return "Weather data is not available yet."
+    }
+
+    private var travelAlertsSubtitle: String {
+        guard travelAlertPreferences.enabledKinds.isEmpty == false else {
+            return "Traveller risk signals are disabled"
+        }
+
+        guard let alertsSnapshot = snapshot.travelAlerts else {
+            return "Current country + bordering countries"
+        }
+
+        if let primaryCountryName = alertsSnapshot.primaryCountryName {
+            let neighborCount = max(alertsSnapshot.coverageCountryCodes.count - 1, 0)
+            if neighborCount > 0 {
+                let label = neighborCount == 1 ? "bordering country" : "bordering countries"
+                return "\(primaryCountryName) + \(neighborCount) \(label)"
+            }
+
+            return primaryCountryName
+        }
+
+        return "Current country unavailable"
+    }
+
+    private var travelAlertsBadge: PillBadge {
+        guard travelAlertPreferences.enabledKinds.isEmpty == false else {
+            return PillBadge(title: "Off", symbolName: "bell.slash.fill", tint: NomadTheme.primaryText)
+        }
+
+        if travelAlertRows.contains(where: \.isUnavailable) {
+            return PillBadge(title: "Limited", symbolName: "exclamationmark.triangle.fill", tint: NomadTheme.sand)
+        }
+
+        let highestSeverity = snapshot.travelAlerts?.highestSeverity ?? .info
+        return PillBadge(
+            title: highestSeverity.badgeTitle,
+            symbolName: highestSeverity.symbolName,
+            tint: highestSeverity.tint
+        )
+    }
+
+    private var shouldShowTravelAlertsAllClearRow: Bool {
+        travelAlertRows.isEmpty == false
+            && travelAlertRows.allSatisfy { $0.severity == .clear && $0.isUnavailable == false }
+    }
+
+    private var travelAlertRows: [TravelAlertRowModel] {
+        travelAlertPreferences.enabledKinds.compactMap { kind in
+            travelAlertRow(for: kind)
+        }
+    }
+
+    private func travelAlertRow(for kind: TravelAlertKind) -> TravelAlertRowModel? {
+        if let signal = snapshot.travelAlerts?.signal(for: kind) {
+            return TravelAlertRowModel(
+                id: kind,
+                title: kind.displayName,
+                summary: signal.summary,
+                sourceName: signal.sourceName,
+                count: signal.itemCount,
+                severity: signal.severity,
+                tint: signal.severity.tint,
+                symbolName: signal.severity.symbolName,
+                isUnavailable: false
+            )
+        }
+
+        switch kind {
+        case .advisory:
+            if snapshot.appState.issues.contains(.travelAdvisoryCountryRequired) {
+                return unavailableAlertRow(for: kind, summary: "Current country unavailable")
+            }
+
+            if snapshot.appState.issues.contains(.travelAdvisoryUnavailable) {
+                return unavailableAlertRow(for: kind, summary: "Advisory source unavailable")
+            }
+        case .weather:
+            if snapshot.appState.issues.contains(.travelWeatherAlertsLocationRequired) {
+                return unavailableAlertRow(for: kind, summary: "Location needed for local alerts")
+            }
+
+            if snapshot.appState.issues.contains(.travelWeatherAlertsUnavailable) {
+                return unavailableAlertRow(for: kind, summary: "Weather alerts unavailable")
+            }
+        case .security:
+            if snapshot.appState.issues.contains(.regionalSecurityCountryRequired) {
+                return unavailableAlertRow(for: kind, summary: "Current country unavailable")
+            }
+
+            if snapshot.appState.issues.contains(.regionalSecurityUnavailable) {
+                return unavailableAlertRow(for: kind, summary: "Security source unavailable")
+            }
+        }
+
+        return TravelAlertRowModel(
+            id: kind,
+            title: kind.displayName,
+            summary: "Checking alerts…",
+            sourceName: "Nomad",
+            count: nil,
+            severity: .info,
+            tint: NomadTheme.secondaryText,
+            symbolName: "clock.fill",
+            isUnavailable: false
+        )
+    }
+
+    private func unavailableAlertRow(for kind: TravelAlertKind, summary: String) -> TravelAlertRowModel {
+        TravelAlertRowModel(
+            id: kind,
+            title: kind.displayName,
+            summary: summary,
+            sourceName: kind.sourceLabel,
+            count: nil,
+            severity: .info,
+            tint: NomadTheme.sand,
+            symbolName: "exclamationmark.triangle.fill",
+            isUnavailable: true
+        )
     }
 
     private func badge(for health: SectionHealth) -> PillBadge {
@@ -678,6 +845,69 @@ private struct DetailRow: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
+}
+
+private struct CompactAlertRow: View {
+    let title: String
+    let summary: String
+    let sourceName: String
+    let count: Int?
+    let tint: Color
+    let symbolName: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: symbolName)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 18, alignment: .center)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NomadTheme.primaryText)
+
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(NomadTheme.secondaryText)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 12)
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(sourceName)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(NomadTheme.tertiaryText)
+                    .lineLimit(1)
+
+                if let count, count > 1 {
+                    Text("\(count)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(tint)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(tint.opacity(0.12))
+                        )
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+private struct TravelAlertRowModel: Identifiable {
+    let id: TravelAlertKind
+    let title: String
+    let summary: String
+    let sourceName: String
+    let count: Int?
+    let severity: TravelAlertSeverity
+    let tint: Color
+    let symbolName: String
+    let isUnavailable: Bool
 }
 
 private struct InlineActionButton: View {
@@ -982,6 +1212,77 @@ private extension HealthLevel {
             NomadTheme.coral
         case .unavailable:
             NomadTheme.primaryText
+        }
+    }
+}
+
+private extension TravelAlertSeverity {
+    var tint: Color {
+        switch self {
+        case .clear:
+            NomadTheme.teal
+        case .info:
+            NomadTheme.primaryText
+        case .caution:
+            NomadTheme.sand
+        case .warning:
+            NomadTheme.coral
+        case .critical:
+            .red
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .clear:
+            "checkmark.circle.fill"
+        case .info:
+            "info.circle.fill"
+        case .caution:
+            "exclamationmark.circle.fill"
+        case .warning:
+            "exclamationmark.triangle.fill"
+        case .critical:
+            "exclamationmark.octagon.fill"
+        }
+    }
+
+    var badgeTitle: String {
+        switch self {
+        case .clear:
+            "Clear"
+        case .info:
+            "Info"
+        case .caution:
+            "Caution"
+        case .warning:
+            "Warning"
+        case .critical:
+            "Critical"
+        }
+    }
+}
+
+private extension TravelAlertKind {
+    var displayName: String {
+        switch self {
+        case .advisory:
+            "Travel Advisory"
+        case .weather:
+            "Weather Alerts"
+        case .security:
+            "Regional Security"
+        }
+    }
+
+    var sourceLabel: String {
+        switch self {
+        case .advisory:
+            "Smartraveller"
+        case .weather:
+            "WeatherKit"
+        case .security:
+            "ReliefWeb"
         }
     }
 }

@@ -18,6 +18,7 @@ struct DashboardRootView: View {
         DashboardPanelView(
             snapshot: snapshotStore.snapshot,
             isPublicIPLocationEnabled: settingsStore.settings.publicIPGeolocationEnabled,
+            travelAlertPreferences: settingsStore.settings.travelAlertPreferences,
             versionDescription: AppRuntimeInfo.versionDescription,
             refreshAction: refresh,
             toggleAppearanceAction: toggleAppearance,
@@ -29,7 +30,7 @@ struct DashboardRootView: View {
         )
         .task {
             snapshotStore.start()
-            if settingsStore.settings.useCurrentLocationForWeather {
+            if settingsStore.settings.usesDeviceLocation {
                 locationStore.prepareForWeather()
             }
         }
@@ -42,7 +43,7 @@ struct DashboardRootView: View {
     }
 
     private func refresh() {
-        if settingsStore.settings.useCurrentLocationForWeather {
+        if settingsStore.settings.usesDeviceLocation {
             locationStore.refreshLocation()
         }
 

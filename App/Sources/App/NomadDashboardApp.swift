@@ -28,6 +28,7 @@ struct NomadDashboardApp: App {
             applicationSupportDirectory: applicationSupportDirectory,
             latencyHosts: persistedSettings.latencyHosts,
             historyRetentionHours: persistedSettings.historyRetentionHours,
+            reliefWebAppName: ProcessInfo.processInfo.environment["RELIEFWEB_APPNAME"] ?? Bundle.main.bundleIdentifier,
             updateCoordinator: updateCoordinator
         )
         let launchAtLoginController = LaunchAtLoginController(initialEnabled: persistedSettings.launchAtLoginEnabled)
