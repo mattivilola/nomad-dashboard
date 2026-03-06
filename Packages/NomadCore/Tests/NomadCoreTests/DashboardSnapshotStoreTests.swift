@@ -134,10 +134,17 @@ struct DashboardSnapshotStoreTests {
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
         store.setWeatherCoordinate(CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384))
 
+        #expect(store.snapshot.travelAlerts?.state(for: .advisory)?.status == .checking)
+        #expect(store.snapshot.travelAlerts?.state(for: .weather)?.status == .checking)
+        #expect(store.snapshot.travelAlerts?.state(for: .security)?.status == .checking)
+
         await store.refresh(manual: true)
 
         #expect(store.snapshot.travelAlerts?.enabledKinds == [.advisory, .weather, .security])
         #expect(store.snapshot.travelAlerts?.coverageCountryCodes == ["FI", "SE", "NO"])
+        #expect(store.snapshot.travelAlerts?.state(for: .advisory)?.status == .ready)
+        #expect(store.snapshot.travelAlerts?.state(for: .weather)?.status == .ready)
+        #expect(store.snapshot.travelAlerts?.state(for: .security)?.status == .ready)
         #expect(store.snapshot.travelAlerts?.signal(for: .advisory)?.severity == .caution)
         #expect(store.snapshot.travelAlerts?.signal(for: .weather)?.severity == .warning)
         #expect(store.snapshot.travelAlerts?.signal(for: .security)?.severity == .info)
@@ -159,6 +166,97 @@ struct DashboardSnapshotStoreTests {
         #expect(store.snapshot.travelAlerts?.signal(for: .weather) == nil)
         #expect(store.snapshot.travelAlerts?.state(for: .weather)?.status == .unavailable)
         #expect(store.snapshot.travelAlerts?.state(for: .weather)?.reason == .locationRequired)
+        #expect(store.snapshot.travelAlerts?.state(for: .weather)?.sourceName == "WeatherKit")
+    }
+
+    @Test
+    func refreshMarksRegionalSecurityConfigurationRequirementWhenSourceNeedsSetup() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.publicIPGeolocationEnabled = true
+        settingsStore.settings.regionalSecurityEnabled = true
+
+        let dependencies = makeDependencies(
+            regionalSecurityProvider: MissingConfigurationRegionalSecurityProvider(),
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.travelAlerts?.signal(for: .security) == nil)
+        #expect(store.snapshot.travelAlerts?.state(for: .security)?.status == .unavailable)
+        #expect(store.snapshot.travelAlerts?.state(for: .security)?.reason == .sourceConfigurationRequired)
+        #expect(store.snapshot.travelAlerts?.state(for: .security)?.sourceName == "ReliefWeb")
+        #expect(store.snapshot.travelAlerts?.state(for: .security)?.sourceURL == URL(string: "https://reliefweb.int"))
+    }
+
+    @Test
+    func refreshPreservesLastKnownTravelAlertWhenSourceFailsAfterSuccess() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.publicIPGeolocationEnabled = true
+        settingsStore.settings.travelWeatherAlertsEnabled = true
+
+        let travelWeatherAlertsProvider = SequenceTravelWeatherAlertsProvider(
+            responses: [
+                .success(
+                    TravelAlertSignalSnapshot(
+                        kind: .weather,
+                        severity: .warning,
+                        title: "Weather alerts",
+                        summary: "2 active weather alerts. Flood warning.",
+                        sourceName: "WeatherKit",
+                        sourceURL: URL(string: "https://developer.apple.com/weatherkit/"),
+                        updatedAt: .now,
+                        affectedCountryCodes: ["FI"],
+                        itemCount: 2
+                    )
+                ),
+                .failure(.invalidResponse)
+            ]
+        )
+
+        let dependencies = makeDependencies(
+            travelWeatherAlertsProvider: travelWeatherAlertsProvider,
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        store.setWeatherCoordinate(CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384))
+
+        await store.refresh(manual: true)
+
+        let readyState = store.snapshot.travelAlerts?.state(for: .weather)
+        #expect(readyState?.status == .ready)
+        #expect(readyState?.signal?.severity == .warning)
+
+        await store.refresh(manual: true)
+
+        let staleState = store.snapshot.travelAlerts?.state(for: .weather)
+        #expect(staleState?.status == .stale)
+        #expect(staleState?.reason == .sourceUnavailable)
+        #expect(staleState?.signal?.summary == "2 active weather alerts. Flood warning.")
+        #expect(staleState?.lastSuccessAt != nil)
+    }
+
+    @Test
+    func fastRefreshPreservesResolvedTravelAlertState() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.publicIPGeolocationEnabled = false
+        settingsStore.settings.useCurrentLocationForWeather = false
+        settingsStore.settings.travelWeatherAlertsEnabled = true
+
+        let dependencies = makeDependencies(historyStore: InMemoryHistoryStore())
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+        let unresolvedState = store.snapshot.travelAlerts?.state(for: .weather)
+
+        await store.refresh(manual: false)
+
+        let preservedState = store.snapshot.travelAlerts?.state(for: .weather)
+        #expect(unresolvedState == preservedState)
     }
 
     @Test
@@ -181,6 +279,7 @@ struct DashboardSnapshotStoreTests {
 
         try await waitForSettingsPropagation()
         #expect(await advisoryProvider.callCount() == 1)
+        #expect(store.snapshot.travelAlerts?.state(for: .advisory)?.status == .ready)
         _ = store
     }
 
@@ -557,6 +656,53 @@ private struct FixedRegionalSecurityProvider: RegionalSecurityProvider {
             affectedCountryCodes: ["SE"],
             itemCount: 1
         )
+    }
+}
+
+private struct MissingConfigurationRegionalSecurityProvider: RegionalSecurityProvider {
+    let sourceDescriptor = TravelAlertSourceDescriptor(
+        name: "ReliefWeb",
+        url: URL(string: "https://reliefweb.int")
+    )
+
+    func security(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
+        throw ProviderError.missingConfiguration
+    }
+}
+
+private actor SequenceTravelWeatherAlertsProvider: TravelWeatherAlertsProvider {
+    enum Response: Sendable {
+        case success(TravelAlertSignalSnapshot)
+        case failure(ProviderError)
+    }
+
+    nonisolated let sourceDescriptor = TravelAlertSourceDescriptor(
+        name: "WeatherKit",
+        url: URL(string: "https://developer.apple.com/weatherkit/")
+    )
+
+    private var responses: [Response]
+
+    init(responses: [Response]) {
+        self.responses = responses
+    }
+
+    func alerts(for coordinate: CLLocationCoordinate2D?, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
+        guard coordinate != nil else {
+            throw ProviderError.missingCoordinate
+        }
+
+        guard responses.isEmpty == false else {
+            throw ProviderError.invalidResponse
+        }
+
+        let response = responses.removeFirst()
+        switch response {
+        case let .success(snapshot):
+            return snapshot
+        case let .failure(error):
+            throw error
+        }
     }
 }
 

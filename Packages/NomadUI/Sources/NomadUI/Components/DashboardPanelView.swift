@@ -307,7 +307,7 @@ public struct DashboardPanelView: View {
             } else if shouldShowTravelAlertsAllClearRow {
                 CompactAlertRow(
                     title: "No current alerts",
-                    summary: "Advisory, weather, and security look clear.",
+                    summary: "No elevated alerts across enabled travel signals.",
                     sourceName: "Nomad",
                     count: nil,
                     tint: NomadTheme.teal,
@@ -521,99 +521,21 @@ public struct DashboardPanelView: View {
     }
 
     private var travelAlertsBadge: PillBadge {
-        guard travelAlertPreferences.enabledKinds.isEmpty == false else {
-            return PillBadge(title: "Off", symbolName: "bell.slash.fill", tint: NomadTheme.primaryText)
-        }
-
-        if travelAlertRows.contains(where: \.isUnavailable) {
-            return PillBadge(title: "Limited", symbolName: "exclamationmark.triangle.fill", tint: NomadTheme.sand)
-        }
-
-        let highestSeverity = snapshot.travelAlerts?.highestSeverity ?? .info
-        return PillBadge(
-            title: highestSeverity.badgeTitle,
-            symbolName: highestSeverity.symbolName,
-            tint: highestSeverity.tint
-        )
+        travelAlertsPresentation.badge.pillBadge
     }
 
     private var shouldShowTravelAlertsAllClearRow: Bool {
-        travelAlertRows.isEmpty == false
-            && travelAlertRows.allSatisfy { $0.severity == .clear && $0.isUnavailable == false }
+        travelAlertsPresentation.showsAllClearRow
     }
 
     private var travelAlertRows: [TravelAlertRowModel] {
-        travelAlertPreferences.enabledKinds.compactMap { kind in
-            travelAlertRow(for: kind)
-        }
+        travelAlertsPresentation.rows
     }
 
-    private func travelAlertRow(for kind: TravelAlertKind) -> TravelAlertRowModel? {
-        if let signal = snapshot.travelAlerts?.signal(for: kind) {
-            return TravelAlertRowModel(
-                id: kind,
-                title: kind.displayName,
-                summary: signal.summary,
-                sourceName: signal.sourceName,
-                count: signal.itemCount,
-                severity: signal.severity,
-                tint: signal.severity.tint,
-                symbolName: signal.severity.symbolName,
-                isUnavailable: false
-            )
-        }
-
-        switch kind {
-        case .advisory:
-            if snapshot.appState.issues.contains(.travelAdvisoryCountryRequired) {
-                return unavailableAlertRow(for: kind, summary: "Current country unavailable")
-            }
-
-            if snapshot.appState.issues.contains(.travelAdvisoryUnavailable) {
-                return unavailableAlertRow(for: kind, summary: "Advisory source unavailable")
-            }
-        case .weather:
-            if snapshot.appState.issues.contains(.travelWeatherAlertsLocationRequired) {
-                return unavailableAlertRow(for: kind, summary: "Location needed for local alerts")
-            }
-
-            if snapshot.appState.issues.contains(.travelWeatherAlertsUnavailable) {
-                return unavailableAlertRow(for: kind, summary: "Weather alerts unavailable")
-            }
-        case .security:
-            if snapshot.appState.issues.contains(.regionalSecurityCountryRequired) {
-                return unavailableAlertRow(for: kind, summary: "Current country unavailable")
-            }
-
-            if snapshot.appState.issues.contains(.regionalSecurityUnavailable) {
-                return unavailableAlertRow(for: kind, summary: "Security source unavailable")
-            }
-        }
-
-        return TravelAlertRowModel(
-            id: kind,
-            title: kind.displayName,
-            summary: "Checking alerts…",
-            sourceName: "Nomad",
-            count: nil,
-            severity: .info,
-            tint: NomadTheme.secondaryText,
-            symbolName: "clock.fill",
-            isUnavailable: false
-        )
-    }
-
-    private func unavailableAlertRow(for kind: TravelAlertKind, summary: String) -> TravelAlertRowModel {
-        TravelAlertRowModel(
-            id: kind,
-            title: kind.displayName,
-            summary: summary,
-            sourceName: kind.sourceLabel,
-            count: nil,
-            severity: .info,
-            tint: NomadTheme.sand,
-            symbolName: "exclamationmark.triangle.fill",
-            isUnavailable: true
+    private var travelAlertsPresentation: TravelAlertsCardPresentation {
+        TravelAlertsCardPresentation(
+            preferences: travelAlertPreferences,
+            snapshot: snapshot.travelAlerts
         )
     }
 
@@ -916,7 +838,7 @@ private struct CompactAlertRow: View {
     }
 }
 
-private struct TravelAlertRowModel: Identifiable {
+struct TravelAlertRowModel: Identifiable, Equatable {
     let id: TravelAlertKind
     let title: String
     let summary: String
@@ -925,7 +847,158 @@ private struct TravelAlertRowModel: Identifiable {
     let severity: TravelAlertSeverity
     let tint: Color
     let symbolName: String
-    let isUnavailable: Bool
+    let status: TravelAlertSignalStatus
+
+    static func == (lhs: TravelAlertRowModel, rhs: TravelAlertRowModel) -> Bool {
+        lhs.id == rhs.id
+            && lhs.title == rhs.title
+            && lhs.summary == rhs.summary
+            && lhs.sourceName == rhs.sourceName
+            && lhs.count == rhs.count
+            && lhs.severity == rhs.severity
+            && lhs.symbolName == rhs.symbolName
+            && lhs.status == rhs.status
+    }
+}
+
+struct TravelAlertsCardPresentation: Equatable {
+    let badge: TravelAlertsBadgePresentation
+    let rows: [TravelAlertRowModel]
+    let showsAllClearRow: Bool
+
+    init(preferences: TravelAlertPreferences, snapshot: TravelAlertsSnapshot?) {
+        guard preferences.enabledKinds.isEmpty == false else {
+            self.badge = .off
+            self.rows = []
+            self.showsAllClearRow = false
+            return
+        }
+
+        guard let snapshot else {
+            self.badge = .checking
+            self.rows = []
+            self.showsAllClearRow = false
+            return
+        }
+
+        self.rows = preferences.enabledKinds.compactMap { kind in
+            guard let state = snapshot.state(for: kind) else {
+                return nil
+            }
+
+            return TravelAlertRowModel(state: state)
+        }
+
+        self.showsAllClearRow = snapshot.allResolvedClear
+        self.badge = TravelAlertsBadgePresentation.resolve(for: snapshot)
+    }
+}
+
+enum TravelAlertsBadgePresentation: Equatable {
+    case off
+    case checking
+    case limited
+    case stale
+    case severity(TravelAlertSeverity)
+
+    fileprivate var pillBadge: PillBadge {
+        switch self {
+        case .off:
+            PillBadge(title: "Off", symbolName: "bell.slash.fill", tint: NomadTheme.primaryText)
+        case .checking:
+            PillBadge(title: "Checking", symbolName: "clock.fill", tint: NomadTheme.secondaryText)
+        case .limited:
+            PillBadge(title: "Limited", symbolName: "exclamationmark.triangle.fill", tint: NomadTheme.sand)
+        case .stale:
+            PillBadge(title: "Stale", symbolName: "clock.arrow.circlepath", tint: NomadTheme.primaryText)
+        case let .severity(severity):
+            PillBadge(title: severity.badgeTitle, symbolName: severity.symbolName, tint: severity.tint)
+        }
+    }
+
+    fileprivate static func resolve(for snapshot: TravelAlertsSnapshot) -> TravelAlertsBadgePresentation {
+        let highestSeverity = snapshot.states.compactMap(\.highestSeverity).max()
+
+        if let highestSeverity, highestSeverity >= .warning {
+            return .severity(highestSeverity)
+        }
+
+        if snapshot.hasStaleStates {
+            return .stale
+        }
+
+        if snapshot.hasUnavailableStates {
+            return .limited
+        }
+
+        if let highestSeverity {
+            return .severity(highestSeverity)
+        }
+
+        return .checking
+    }
+}
+
+private extension TravelAlertRowModel {
+    init(state: TravelAlertSignalState) {
+        let title = state.kind.displayName
+        let sourceName = state.signal?.sourceName ?? state.sourceName
+
+        switch state.status {
+        case .checking:
+            self.init(
+                id: state.kind,
+                title: title,
+                summary: "Checking alerts…",
+                sourceName: sourceName,
+                count: nil,
+                severity: .info,
+                tint: NomadTheme.secondaryText,
+                symbolName: "clock.fill",
+                status: .checking
+            )
+        case .ready:
+            let signal = state.signal
+            self.init(
+                id: state.kind,
+                title: title,
+                summary: signal?.summary ?? "No current alerts.",
+                sourceName: sourceName,
+                count: signal?.itemCount,
+                severity: signal?.severity ?? .clear,
+                tint: (signal?.severity ?? .clear).tint,
+                symbolName: (signal?.severity ?? .clear).symbolName,
+                status: .ready
+            )
+        case .stale:
+            let signal = state.signal
+            let severity = signal?.severity ?? .info
+            let summary = signal.map { "Last known: \($0.summary)" } ?? "Last known alert status unavailable."
+            self.init(
+                id: state.kind,
+                title: title,
+                summary: summary,
+                sourceName: sourceName,
+                count: signal?.itemCount,
+                severity: severity,
+                tint: severity.tint,
+                symbolName: severity.symbolName,
+                status: .stale
+            )
+        case .unavailable:
+            self.init(
+                id: state.kind,
+                title: title,
+                summary: state.reason?.summary ?? "Source unavailable",
+                sourceName: sourceName,
+                count: nil,
+                severity: .info,
+                tint: NomadTheme.sand,
+                symbolName: "exclamationmark.triangle.fill",
+                status: .unavailable
+            )
+        }
+    }
 }
 
 private struct InlineActionButton: View {
@@ -1292,15 +1365,19 @@ private extension TravelAlertKind {
             "Regional Security"
         }
     }
+}
 
-    var sourceLabel: String {
+private extension TravelAlertUnavailableReason {
+    var summary: String {
         switch self {
-        case .advisory:
-            "Smartraveller"
-        case .weather:
-            "WeatherKit"
-        case .security:
-            "ReliefWeb"
+        case .countryRequired:
+            "Country needed for nearby alerts"
+        case .locationRequired:
+            "Location needed for local alerts"
+        case .sourceUnavailable:
+            "Source unavailable"
+        case .sourceConfigurationRequired:
+            "Source setup required"
         }
     }
 }
