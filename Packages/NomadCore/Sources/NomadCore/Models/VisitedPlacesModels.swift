@@ -98,7 +98,7 @@ public struct VisitedPlace: Codable, Equatable, Sendable, Identifiable {
         city?.isEmpty == false && coordinate != nil
     }
 
-    init(merging input: VisitedPlaceInput) -> VisitedPlace {
+    func merging(input: VisitedPlaceInput) -> VisitedPlace {
         let normalizedInput = Self.normalized(input)
         let sources = (self.sources + [normalizedInput.source]).uniqued()
         let preferredReplacement = normalizedInput.source == .deviceLocation || coordinate == nil
@@ -144,7 +144,7 @@ public struct VisitedPlace: Codable, Equatable, Sendable, Identifiable {
             return "\(normalizedCountryCode)|\(normalizedCity)"
         }
 
-        return "\(normalizedCountry)|\(normalizedCity)"
+        return "\((normalizedCountry ?? "__unknown__"))|\(normalizedCity)"
     }
 
     private static func normalized(_ input: VisitedPlaceInput) -> VisitedPlaceInput {

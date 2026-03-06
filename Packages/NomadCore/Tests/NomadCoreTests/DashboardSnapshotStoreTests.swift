@@ -157,7 +157,8 @@ struct DashboardSnapshotStoreTests {
         await store.refresh(manual: true)
 
         #expect(store.snapshot.travelAlerts?.signal(for: .weather) == nil)
-        #expect(store.snapshot.appState.issues.contains(.travelWeatherAlertsLocationRequired))
+        #expect(store.snapshot.travelAlerts?.state(for: .weather)?.status == .unavailable)
+        #expect(store.snapshot.travelAlerts?.state(for: .weather)?.reason == .locationRequired)
     }
 
     @Test

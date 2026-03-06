@@ -225,7 +225,7 @@ public extension AppSettings {
     }
 
     var usesDeviceLocation: Bool {
-        useCurrentLocationForWeather || travelWeatherAlertsEnabled
+        useCurrentLocationForWeather || travelWeatherAlertsEnabled || visitedPlacesEnabled
     }
 }
 

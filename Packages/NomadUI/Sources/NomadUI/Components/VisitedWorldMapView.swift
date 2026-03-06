@@ -160,6 +160,7 @@ private struct CountryOverlayRecord {
     let overlay: any MKOverlay
 }
 
+@MainActor
 private enum CountryGeometryLoader {
     static let records = load()
 

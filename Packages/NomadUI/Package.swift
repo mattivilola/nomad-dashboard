@@ -21,6 +21,9 @@ let package = Package(
             name: "NomadUI",
             dependencies: [
                 .product(name: "NomadCore", package: "NomadCore")
+            ],
+            resources: [
+                .process("Resources")
             ]
         ),
         .testTarget(
@@ -29,4 +32,3 @@ let package = Package(
         )
     ]
 )
-
