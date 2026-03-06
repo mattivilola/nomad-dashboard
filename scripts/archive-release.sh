@@ -4,6 +4,7 @@ set -euo pipefail
 PROJECT="NomadDashboard.xcodeproj"
 SCHEME="NomadDashboard"
 ARCHIVE_PATH="artifacts/NomadDashboard.xcarchive"
+DESTINATION="generic/platform=macOS"
 
 mkdir -p artifacts
 
@@ -15,5 +16,6 @@ fi
   -project "$PROJECT" \
   -scheme "$SCHEME" \
   -configuration Release \
+  -destination "$DESTINATION" \
   -archivePath "$ARCHIVE_PATH" \
   archive

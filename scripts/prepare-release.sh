@@ -78,8 +78,13 @@ read_xcconfig_value() {
 }
 
 assert_clean_worktree() {
-  if [[ -n "$(git status --porcelain)" ]]; then
+  local dirty_status
+  dirty_status="$(git status --short)"
+
+  if [[ -n "$dirty_status" ]]; then
     echo "Release preparation requires a clean git working tree." >&2
+    echo "Dirty paths:" >&2
+    printf '%s\n' "$dirty_status" >&2
     echo "Commit, stash, or discard your changes, then run the command again." >&2
     exit 1
   fi
