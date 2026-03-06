@@ -20,6 +20,21 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.5] - 2026-03-06
+
+### Added
+
+- Streamline Dashboard UI and add application quit option
+- Centralize window routing and ensure opened windows are focused
+- Close current dashboard window when opening a new destination
+- Introduce programmatic branding asset generation and a styled DMG
+- Display application icon in settings and dashboard
+- Enhance DMG installer styling and update branding assets
+
+### Changed
+
+- Prepare app for distribution and streamline build process
+
 ## [0.1.4] - 2026-03-06
 
 ### Added
