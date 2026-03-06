@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest an improvement for Nomad Dashboard
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    attributes:
+      label: Problem
+      description: What user problem or travel workflow should this solve?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposal
+      description: Describe the change you want to see.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Extra context
+      description: Add screenshots, references, or related ideas.
+
