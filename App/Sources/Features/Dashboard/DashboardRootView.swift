@@ -75,25 +75,27 @@ struct DashboardRootView: View {
     }
 
     private func openSettings() {
-        openAppWindow(id: "settings")
+        openDashboardWindow(.settings)
     }
 
     private func openAbout() {
-        openAppWindow(id: "about")
+        openDashboardWindow(.about)
     }
 
     private func openVisitedMap() {
-        openAppWindow(id: "visited-map")
+        openDashboardWindow(.visitedMap)
     }
 
     private func quitApplication() {
         NSApp.terminate(nil)
     }
 
-    private func openAppWindow(id: String) {
+    private func openDashboardWindow(_ destination: AppWindowDestination) {
+        let sourceWindow = NSApp.keyWindow
+        openAndActivateWindow(destination, with: openWindow)
+
         DispatchQueue.main.async {
-            openWindow(id: id)
-            NSApp.activate(ignoringOtherApps: true)
+            sourceWindow?.close()
         }
     }
 
