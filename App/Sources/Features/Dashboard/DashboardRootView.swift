@@ -11,7 +11,6 @@ struct DashboardRootView: View {
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
     let updatesEnabled: Bool
 
-    @Environment(\.openSettings) private var openSettingsWindow
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -24,7 +23,7 @@ struct DashboardRootView: View {
             openNetworkSettingsAction: openNetworkSettings,
             checkForUpdatesAction: checkForUpdatesAction,
             openSettingsAction: openSettings,
-            openAboutAction: { openWindow(id: "about") }
+            openAboutAction: openAbout
         )
         .task {
             snapshotStore.start()
@@ -65,7 +64,18 @@ struct DashboardRootView: View {
     }
 
     private func openSettings() {
-        openSettingsWindow()
+        openAppWindow(id: "settings")
+    }
+
+    private func openAbout() {
+        openAppWindow(id: "about")
+    }
+
+    private func openAppWindow(id: String) {
+        DispatchQueue.main.async {
+            openWindow(id: id)
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     private var checkForUpdatesAction: (() -> Void)? {

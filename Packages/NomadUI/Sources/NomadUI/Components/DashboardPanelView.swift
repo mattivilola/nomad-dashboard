@@ -75,6 +75,7 @@ public struct DashboardPanelView: View {
             HStack(spacing: 8) {
                 HeaderIconButton(systemImage: "arrow.clockwise", title: "Refresh", action: refreshAction)
                 HeaderIconButton(systemImage: "slider.horizontal.3", title: "Settings", action: openSettingsAction)
+                HeaderIconButton(systemImage: "info.circle", title: "About", action: openAboutAction)
 
                 Menu {
                     Button("Open Network Settings", systemImage: "gearshape.2") {

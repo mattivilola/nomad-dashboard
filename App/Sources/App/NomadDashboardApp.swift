@@ -54,7 +54,7 @@ struct NomadDashboardApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Settings {
+        Window("Settings", id: "settings") {
             SettingsView(
                 settingsStore: settingsStore,
                 snapshotStore: snapshotStore,
@@ -63,6 +63,7 @@ struct NomadDashboardApp: App {
                 updatesEnabled: UpdateFeatureConfiguration.isEnabled
             )
         }
+        .windowResizability(.contentSize)
 
         Window("About Nomad Dashboard", id: "about") {
             AboutView()
