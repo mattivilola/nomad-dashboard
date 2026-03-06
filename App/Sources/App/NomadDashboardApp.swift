@@ -1,3 +1,5 @@
+import AppKit
+import Combine
 import NomadCore
 import NomadUI
 import SwiftUI
@@ -34,6 +36,10 @@ struct NomadDashboardApp: App {
             settingsStore.settings.launchAtLoginEnabled = launchAtLoginController.isEnabled
         }
 
+        DispatchQueue.main.async {
+            applyAppAppearance(persistedSettings.appearanceMode)
+        }
+
         _settingsStore = StateObject(wrappedValue: settingsStore)
         _snapshotStore = StateObject(wrappedValue: DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies))
         _locationStore = StateObject(wrappedValue: CurrentLocationStore())
@@ -49,6 +55,7 @@ struct NomadDashboardApp: App {
                 launchAtLoginController: launchAtLoginController,
                 updatesEnabled: UpdateFeatureConfiguration.isEnabled
             )
+            .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         } label: {
             MenuBarStatusLabel(snapshot: snapshotStore.snapshot)
         }
@@ -62,12 +69,39 @@ struct NomadDashboardApp: App {
                 launchAtLoginController: launchAtLoginController,
                 updatesEnabled: UpdateFeatureConfiguration.isEnabled
             )
+            .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
         .windowResizability(.contentSize)
 
         Window("About Nomad Dashboard", id: "about") {
             AboutView()
+                .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
         .windowResizability(.contentSize)
+    }
+}
+
+@MainActor
+private func applyAppAppearance(_ appearanceMode: AppAppearanceMode) {
+    let appearance = appearanceMode.appKitAppearance
+    NSApp.appearance = appearance
+
+    for window in NSApp.windows {
+        window.appearance = appearance
+    }
+}
+
+private struct SceneAppearanceSync: ViewModifier {
+    @ObservedObject var settingsStore: AppSettingsStore
+
+    func body(content: Content) -> some View {
+        content
+            .preferredColorScheme(settingsStore.settings.appearanceMode.preferredColorScheme)
+            .task {
+                applyAppAppearance(settingsStore.settings.appearanceMode)
+            }
+            .onReceive(settingsStore.$settings.map(\.appearanceMode).removeDuplicates()) { appearanceMode in
+                applyAppAppearance(appearanceMode)
+            }
     }
 }

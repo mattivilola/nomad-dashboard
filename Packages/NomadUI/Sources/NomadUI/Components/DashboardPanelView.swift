@@ -7,17 +7,21 @@ public struct DashboardPanelView: View {
     private let isPublicIPLocationEnabled: Bool
     private let versionDescription: String
     private let refreshAction: () -> Void
+    private let toggleAppearanceAction: () -> Void
     private let copyIPAddressAction: () -> Void
     private let openNetworkSettingsAction: () -> Void
     private let checkForUpdatesAction: (() -> Void)?
     private let openSettingsAction: () -> Void
     private let openAboutAction: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     public init(
         snapshot: DashboardSnapshot,
         isPublicIPLocationEnabled: Bool,
         versionDescription: String = "",
         refreshAction: @escaping () -> Void,
+        toggleAppearanceAction: @escaping () -> Void,
         copyIPAddressAction: @escaping () -> Void,
         openNetworkSettingsAction: @escaping () -> Void,
         checkForUpdatesAction: (() -> Void)? = nil,
@@ -28,6 +32,7 @@ public struct DashboardPanelView: View {
         self.isPublicIPLocationEnabled = isPublicIPLocationEnabled
         self.versionDescription = versionDescription
         self.refreshAction = refreshAction
+        self.toggleAppearanceAction = toggleAppearanceAction
         self.copyIPAddressAction = copyIPAddressAction
         self.openNetworkSettingsAction = openNetworkSettingsAction
         self.checkForUpdatesAction = checkForUpdatesAction
@@ -60,20 +65,21 @@ public struct DashboardPanelView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Nomad Dashboard")
                     .font(.system(size: 26, weight: .semibold, design: .rounded))
-                    .foregroundStyle(NomadTheme.fog)
+                    .foregroundStyle(NomadTheme.primaryText)
 
                 Text(snapshot.travelContext.location.flatMap(formattedLocation) ?? "Travel-ready system telemetry")
                     .font(.subheadline)
-                    .foregroundStyle(Color.white.opacity(0.68))
+                    .foregroundStyle(NomadTheme.secondaryText)
 
                 Text("Last refresh \(NomadFormatters.relativeDate(snapshot.appState.lastRefresh))")
                     .font(.caption)
-                    .foregroundStyle(Color.white.opacity(0.58))
+                    .foregroundStyle(NomadTheme.tertiaryText)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 8) {
                 HeaderIconButton(systemImage: "arrow.clockwise", title: "Refresh", action: refreshAction)
+                HeaderIconButton(systemImage: appearanceToggleSystemImage, title: appearanceToggleTitle, action: toggleAppearanceAction)
                 HeaderIconButton(systemImage: "slider.horizontal.3", title: "Settings", action: openSettingsAction)
                 HeaderIconButton(systemImage: "info.circle", title: "About", action: openAboutAction)
 
@@ -147,7 +153,7 @@ public struct DashboardPanelView: View {
 
                 Text(jitterDescription)
                     .font(.caption)
-                    .foregroundStyle(Color.white.opacity(0.62))
+                    .foregroundStyle(NomadTheme.secondaryText)
             }
         }
     }
@@ -239,16 +245,16 @@ public struct DashboardPanelView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Tomorrow")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color.white.opacity(0.72))
+                                .foregroundStyle(NomadTheme.secondaryText)
 
                             HStack(alignment: .top, spacing: 10) {
                                 Label(tomorrow.summary, systemImage: tomorrow.symbolName)
-                                    .foregroundStyle(NomadTheme.fog)
+                                    .foregroundStyle(NomadTheme.primaryText)
 
                                 Spacer()
 
                                 Text(temperatureRangeText(for: tomorrow))
-                                    .foregroundStyle(Color.white.opacity(0.72))
+                                    .foregroundStyle(NomadTheme.secondaryText)
                                     .multilineTextAlignment(.trailing)
                             }
                         }
@@ -268,14 +274,22 @@ public struct DashboardPanelView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(snapshot.appState.updateState.detail ?? "Update channel idle")
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.62))
+                .foregroundStyle(NomadTheme.secondaryText)
 
             if versionDescription.isEmpty == false {
                 Text(versionDescription)
                     .font(.caption2)
-                    .foregroundStyle(Color.white.opacity(0.44))
+                    .foregroundStyle(NomadTheme.quaternaryText)
             }
         }
+    }
+
+    private var appearanceToggleSystemImage: String {
+        colorScheme == .dark ? "sun.max.fill" : "moon.fill"
+    }
+
+    private var appearanceToggleTitle: String {
+        colorScheme == .dark ? "Switch to Light Appearance" : "Switch to Dark Appearance"
     }
 
     private var jitterDescription: String {
@@ -335,10 +349,10 @@ public struct DashboardPanelView: View {
 
     private var travelBadge: PillBadge {
         if snapshot.travelContext.vpn?.isActive == true {
-            return PillBadge(title: "VPN On", symbolName: "lock.shield.fill", tint: NomadTheme.fog)
+            return PillBadge(title: "VPN On", symbolName: "lock.shield.fill", tint: NomadTheme.primaryText)
         }
 
-        return PillBadge(title: "VPN Off", symbolName: "lock.open.fill", tint: NomadTheme.fog)
+        return PillBadge(title: "VPN Off", symbolName: "lock.open.fill", tint: NomadTheme.primaryText)
     }
 
     private var publicIPValue: String {
@@ -395,7 +409,7 @@ public struct DashboardPanelView: View {
             return PillBadge(title: "Location Needed", symbolName: "location.slash.fill", tint: NomadTheme.sand)
         }
 
-        return PillBadge(title: "Unavailable", symbolName: "cloud.slash.fill", tint: NomadTheme.fog)
+        return PillBadge(title: "Unavailable", symbolName: "cloud.slash.fill", tint: NomadTheme.primaryText)
     }
 
     private var weatherSubtitle: String {
@@ -514,11 +528,11 @@ private struct DashboardCard<Content: View>: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
                         .font(.system(size: 18, weight: .semibold, design: .rounded))
-                        .foregroundStyle(NomadTheme.fog)
+                        .foregroundStyle(NomadTheme.primaryText)
 
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(Color.white.opacity(0.64))
+                        .foregroundStyle(NomadTheme.secondaryText)
                 }
 
                 Spacer(minLength: 12)
@@ -568,11 +582,15 @@ private struct HeaderActionIcon: View {
     var body: some View {
         Image(systemName: systemImage)
             .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(Color.white.opacity(0.88))
+            .foregroundStyle(NomadTheme.actionIconForeground)
             .frame(width: 34, height: 34)
             .background(
                 Circle()
-                    .fill(Color.white.opacity(0.10))
+                    .fill(NomadTheme.actionIconBackground)
+                    .overlay(
+                        Circle()
+                            .stroke(NomadTheme.actionIconBorder, lineWidth: 1)
+                    )
             )
     }
 }
@@ -585,7 +603,7 @@ private struct SummaryTile: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title.uppercased())
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(Color.white.opacity(0.48))
+                .foregroundStyle(NomadTheme.tertiaryText)
 
             Label(health.label, systemImage: health.symbolName)
                 .font(.caption.weight(.semibold))
@@ -594,17 +612,17 @@ private struct SummaryTile: View {
 
             Text(health.reason)
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.74))
+                .foregroundStyle(NomadTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.08))
+                .fill(NomadTheme.tileBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(health.level.tint.opacity(0.16), lineWidth: 1)
+                        .stroke(health.level.tint.opacity(0.18), lineWidth: 1)
                 )
         )
     }
@@ -618,7 +636,7 @@ private struct MetricBlock: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title.uppercased())
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(Color.white.opacity(0.5))
+                .foregroundStyle(NomadTheme.tertiaryText)
 
             Text(value)
                 .font(.system(size: 22, weight: .semibold, design: .rounded))
@@ -632,11 +650,11 @@ private struct MetricBlock: View {
     private var metricTint: Color {
         switch title {
         case "Down", "Time Left", "Current":
-            return NomadTheme.teal
+            NomadTheme.teal
         case "Up", "Battery", "Feels Like":
-            return NomadTheme.sand
+            NomadTheme.sand
         default:
-            return NomadTheme.coral
+            NomadTheme.coral
         }
     }
 }
@@ -649,13 +667,13 @@ private struct DetailRow: View {
         HStack(alignment: .top, spacing: 12) {
             Text(label)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.white.opacity(0.55))
+                .foregroundStyle(NomadTheme.tertiaryText)
 
             Spacer(minLength: 12)
 
             Text(value)
                 .font(.caption)
-                .foregroundStyle(NomadTheme.fog)
+                .foregroundStyle(NomadTheme.primaryText)
                 .multilineTextAlignment(.trailing)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -674,10 +692,14 @@ private struct InlineActionButton: View {
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .foregroundStyle(Color.white.opacity(isEnabled ? 0.84 : 0.42))
+                .foregroundStyle(NomadTheme.primaryText.opacity(isEnabled ? 1 : 0.55))
                 .background(
                     Capsule(style: .continuous)
-                        .fill(Color.white.opacity(isEnabled ? 0.09 : 0.05))
+                        .fill(NomadTheme.inlineButtonBackground.opacity(isEnabled ? 1 : 0.7))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(NomadTheme.cardBorder.opacity(isEnabled ? 1 : 0.7), lineWidth: 1)
+                        )
                 )
         }
         .buttonStyle(.plain)
@@ -717,7 +739,7 @@ private struct ThroughputTrendChart: View {
             HStack {
                 Text("Throughput")
                     .font(.caption2)
-                    .foregroundStyle(Color.white.opacity(0.5))
+                    .foregroundStyle(NomadTheme.tertiaryText)
 
                 Spacer()
 
@@ -780,10 +802,16 @@ private struct ThroughputTrendChart: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.black.opacity(0.14))
-        )
+        .background(chartContainerBackground)
+    }
+
+    private var chartContainerBackground: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(NomadTheme.chartBackground)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+            )
     }
 }
 
@@ -800,7 +828,7 @@ private struct MiniTrendChart: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(yLabel)
                 .font(.caption2)
-                .foregroundStyle(Color.white.opacity(0.5))
+                .foregroundStyle(NomadTheme.tertiaryText)
 
             if let series {
                 Chart(series) {
@@ -834,10 +862,16 @@ private struct MiniTrendChart: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.black.opacity(0.14))
-        )
+        .background(chartContainerBackground)
+    }
+
+    private var chartContainerBackground: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(NomadTheme.chartBackground)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+            )
     }
 }
 
@@ -850,16 +884,16 @@ private struct WeatherEmptyState: View {
         HStack(spacing: 12) {
             Image(systemName: systemImage)
                 .font(.system(size: 22))
-                .foregroundStyle(Color.white.opacity(0.56))
+                .foregroundStyle(NomadTheme.tertiaryText)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(NomadTheme.fog)
+                    .foregroundStyle(NomadTheme.primaryText)
 
                 Text(message)
                     .font(.caption)
-                    .foregroundStyle(Color.white.opacity(0.64))
+                    .foregroundStyle(NomadTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -867,7 +901,11 @@ private struct WeatherEmptyState: View {
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.black.opacity(0.12))
+                .fill(NomadTheme.chartBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+                )
         )
     }
 }
@@ -880,13 +918,13 @@ private struct ChartPlaceholder: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(unitLabel)
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.white.opacity(0.5))
+                .foregroundStyle(NomadTheme.tertiaryText)
 
             Spacer()
 
             Text(message)
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.58))
+                .foregroundStyle(NomadTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
@@ -908,7 +946,7 @@ private struct TrendLegendItem: View {
 
             Text(title)
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(Color.white.opacity(0.56))
+                .foregroundStyle(NomadTheme.secondaryText)
         }
     }
 }
@@ -943,7 +981,7 @@ private extension HealthLevel {
         case .attention:
             NomadTheme.coral
         case .unavailable:
-            NomadTheme.fog
+            NomadTheme.primaryText
         }
     }
 }

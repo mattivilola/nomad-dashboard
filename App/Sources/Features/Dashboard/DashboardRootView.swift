@@ -12,6 +12,7 @@ struct DashboardRootView: View {
     let updatesEnabled: Bool
 
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         DashboardPanelView(
@@ -19,6 +20,7 @@ struct DashboardRootView: View {
             isPublicIPLocationEnabled: settingsStore.settings.publicIPGeolocationEnabled,
             versionDescription: AppRuntimeInfo.versionDescription,
             refreshAction: refresh,
+            toggleAppearanceAction: toggleAppearance,
             copyIPAddressAction: copyIPAddress,
             openNetworkSettingsAction: openNetworkSettings,
             checkForUpdatesAction: checkForUpdatesAction,
@@ -47,6 +49,11 @@ struct DashboardRootView: View {
         Task {
             await snapshotStore.refresh(manual: true)
         }
+    }
+
+    private func toggleAppearance() {
+        settingsStore.settings.appearanceMode = settingsStore.settings.appearanceMode
+            .toggled(resolvedSystemAppearanceIsDark: colorScheme == .dark)
     }
 
     private func copyIPAddress() {

@@ -23,6 +23,14 @@ struct SettingsView: View {
 
             Form {
                 Section {
+                    Picker("Appearance", selection: binding(\.appearanceMode)) {
+                        ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
+                            Text(mode.displayName)
+                                .tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
                     Toggle("Launch at login", isOn: launchAtLoginBinding)
 
                     if updatesEnabled {
@@ -36,7 +44,7 @@ struct SettingsView: View {
                 } header: {
                     Text("General")
                 } footer: {
-                    Text(updatesEnabled ? "Nomad Dashboard stays menu-bar-first and keeps these preferences across relaunches." : "Nomad Dashboard stays menu-bar-first and keeps these preferences across relaunches. In-app update checks stay paused until the release pipeline is ready.")
+                    Text(updatesEnabled ? "System follows your macOS appearance. The dashboard header button flips quickly between dark and light, and all preferences stay across relaunches." : "System follows your macOS appearance. The dashboard header button flips quickly between dark and light, and all preferences stay across relaunches. In-app update checks stay paused until the release pipeline is ready.")
                 }
 
                 Section {

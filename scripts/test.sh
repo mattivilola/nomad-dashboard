@@ -1,7 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 
-CACHE_ROOT="${TMPDIR:-/tmp}/nomad-dashboard-swiftpm"
+CACHE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nomad-dashboard-swiftpm.XXXXXX")"
 mkdir -p "$CACHE_ROOT/clang-module-cache" "$CACHE_ROOT/module-cache"
 
 export CLANG_MODULE_CACHE_PATH="$CACHE_ROOT/clang-module-cache"
