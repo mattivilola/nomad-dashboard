@@ -134,6 +134,39 @@ run_minor_release_test() {
   assert_equals "$tag_name" "v0.2.0" "minor release should create a matching tag"
 }
 
+run_merge_manual_and_git_notes_test() {
+  local repo_path="$TEST_ROOT/merged-notes-release"
+
+  bootstrap_repo "$repo_path" "0.1.0" "1" $'### Added\n\n- _Nothing yet_\n\n### Changed\n\n- Document the release cutover checklist\n\n### Fixed\n\n- _Nothing yet_'
+
+  (
+    cd "$repo_path"
+    git tag -a v0.1.0 -m "Release v0.1.0" >/dev/null
+    echo "battery" > battery.txt
+    git add battery.txt
+    git commit -qm "feat: Add battery trend insights"
+    echo "timezone" > timezone.txt
+    git add timezone.txt
+    git commit -qm "fix: Handle timezone arrays from upstream geolocation responses"
+    ./scripts/prepare-release.sh patch >/dev/null
+  )
+
+  local changelog latest_commit tag_name
+  changelog="$(cat "$repo_path/CHANGELOG.md")"
+  latest_commit="$(git -C "$repo_path" log -1 --pretty=%s)"
+  tag_name="$(git -C "$repo_path" tag --list 'v0.1.1')"
+
+  assert_contains "$changelog" "## [0.1.1] - $RELEASE_DATE" "merged notes release should add a dated changelog section"
+  assert_contains "$changelog" "### Added" "merged notes release should keep feature commits under Added"
+  assert_contains "$changelog" "- Add battery trend insights" "merged notes release should strip the conventional prefix from feature commits"
+  assert_contains "$changelog" "### Changed" "merged notes release should keep curated notes under Changed"
+  assert_contains "$changelog" "- Document the release cutover checklist" "merged notes release should preserve curated Unreleased notes"
+  assert_contains "$changelog" "### Fixed" "merged notes release should keep fix commits under Fixed"
+  assert_contains "$changelog" "- Handle timezone arrays from upstream geolocation responses" "merged notes release should strip the conventional prefix from fix commits"
+  assert_equals "$latest_commit" "Release v0.1.1" "merged notes release should create a release commit"
+  assert_equals "$tag_name" "v0.1.1" "merged notes release should create a matching tag"
+}
+
 run_major_release_test() {
   local repo_path="$TEST_ROOT/major-release"
 
@@ -193,8 +226,8 @@ run_dirty_tree_test() {
 
 run_patch_release_test
 run_minor_release_test
+run_merge_manual_and_git_notes_test
 run_major_release_test
 run_dirty_tree_test
 
 echo "release workflow tests passed"
-

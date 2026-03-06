@@ -18,7 +18,7 @@ Nomad Dashboard is intended for direct distribution outside the Mac App Store.
 
 ## Planned Release Steps
 
-1. Keep `CHANGELOG.md` updated under `## [Unreleased]`.
+1. Keep `CHANGELOG.md` updated under `## [Unreleased]` with the clearest user-facing notes you have.
 2. Make sure `git status --short` is empty.
 3. Run one of:
    `make release-patch`
@@ -39,6 +39,9 @@ are available.
 
 - Version metadata lives in `Config/Version.xcconfig`.
 - Release tags use the exact format `vX.Y.Z`.
-- If `Unreleased` is empty, the release-preparation script drafts notes from git
-  commit subjects since the latest `v*` tag.
+- The release-preparation script always drafts notes from commits since the
+  latest `v*` tag, groups them into `Added`, `Changed`, and `Fixed`, and then
+  merges in any curated `Unreleased` notes.
+- Curated `Unreleased` notes still matter. They are the place to tighten or
+  override wording when commit subjects are too implementation-focused.
 - The release-preparation command aborts on a dirty git tree.

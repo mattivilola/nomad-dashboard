@@ -93,7 +93,9 @@ app again.
   `make release-minor`
   `make release-major`
 - The release command bumps the app version and build number, updates
-  `CHANGELOG.md`, creates a `Release vX.Y.Z` commit, and creates a `vX.Y.Z` tag
+  `CHANGELOG.md`, merges curated `Unreleased` notes with categorized commit
+  history since the latest tag, creates a `Release vX.Y.Z` commit, and creates
+  a `vX.Y.Z` tag
 - After that, push the branch and tags, then continue with archive/DMG/update
   publishing
 

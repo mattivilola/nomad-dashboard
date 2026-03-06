@@ -124,24 +124,96 @@ sanitize_release_body() {
   sed '/^[[:space:]]*-[[:space:]]*_Nothing yet_[[:space:]]*$/d'
 }
 
-unreleased_has_content() {
-  local body="$1"
-  local normalized
+extract_section_items() {
+  local heading="$1"
+  local body="$2"
 
-  normalized="$(
-    printf '%s\n' "$body" |
-      sed \
-        -e '/^[[:space:]]*$/d' \
-        -e '/^[[:space:]]*###[[:space:]].*$/d' \
-        -e '/^[[:space:]]*-[[:space:]]*_Nothing yet_[[:space:]]*$/d'
-  )"
-
-  [[ -n "$normalized" ]]
+  printf '%s\n' "$body" |
+    awk -v heading="$heading" '
+      $0 == "### " heading {in_section=1; next}
+      /^### / && in_section {exit}
+      in_section {print}
+    ' |
+    sanitize_release_body |
+    sed '/^[[:space:]]*$/d'
 }
 
-draft_release_body_from_git() {
+normalize_note_line() {
+  local line="$1"
+
+  line="$(printf '%s' "$line" | sed -E 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  [[ -n "$line" ]] || return 0
+
+  if [[ "$line" != -\ * ]]; then
+    line="- $line"
+  fi
+
+  printf '%s\n' "$line"
+}
+
+canonicalize_note() {
+  printf '%s' "$1" |
+    sed -E \
+      -e 's/^[[:space:]]*-[[:space:]]*//' \
+      -e 's/[[:space:]]+$//' \
+      -e 's/[[:punct:]]+$//' |
+    tr '[:upper:]' '[:lower:]'
+}
+
+dedupe_note_lines() {
+  local note_lines="$1"
+  local line normalized canonical
+  local -A seen=()
+
+  while IFS= read -r line; do
+    normalized="$(normalize_note_line "$line")"
+    [[ -n "$normalized" ]] || continue
+
+    canonical="$(canonicalize_note "$normalized")"
+    [[ -n "$canonical" ]] || continue
+
+    if [[ -z "${seen[$canonical]-}" ]]; then
+      seen[$canonical]=1
+      printf '%s\n' "$normalized"
+    fi
+  done <<< "$note_lines"
+}
+
+section_for_commit_subject() {
+  local subject="$1"
+
+  case "$subject" in
+    feat:*|feat\(*\):*)
+      printf 'Added\n'
+      ;;
+    fix:*|fix\(*\):*)
+      printf 'Fixed\n'
+      ;;
+    *)
+      printf 'Changed\n'
+      ;;
+  esac
+}
+
+format_commit_subject() {
+  local subject="$1"
+
+  subject="$(
+    printf '%s' "$subject" |
+      sed -E 's/^(feat|fix|docs|chore|refactor|perf|test|ci|build|style)(\([^)]+\))?!?:[[:space:]]*//'
+  )"
+
+  printf '%s\n' "$subject"
+}
+
+draft_release_sections_from_git() {
   local latest_tag
   local -a commit_subjects
+  local subject section note
+
+  GIT_ADDED_ITEMS=""
+  GIT_CHANGED_ITEMS=""
+  GIT_FIXED_ITEMS=""
 
   latest_tag="$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)"
 
@@ -151,18 +223,76 @@ draft_release_body_from_git() {
     commit_subjects=("${(@f)$(git log --format='%s' --reverse)}")
   fi
 
-  printf '### Changed\n\n'
-
   if ((${#commit_subjects[@]} == 0)); then
-    printf '%s\n' "- Maintenance release."
+    GIT_CHANGED_ITEMS="- Maintenance release."
     return
   fi
 
-  local subject
   for subject in "${commit_subjects[@]}"; do
     [[ -n "$subject" ]] || continue
-    printf -- '- %s\n' "$subject"
+
+    note="$(format_commit_subject "$subject")"
+    section="$(section_for_commit_subject "$subject")"
+
+    case "$section" in
+      Added)
+        if [[ -n "$GIT_ADDED_ITEMS" ]]; then
+          GIT_ADDED_ITEMS+=$'\n'
+        fi
+        GIT_ADDED_ITEMS+="$note"
+        ;;
+      Changed)
+        if [[ -n "$GIT_CHANGED_ITEMS" ]]; then
+          GIT_CHANGED_ITEMS+=$'\n'
+        fi
+        GIT_CHANGED_ITEMS+="$note"
+        ;;
+      Fixed)
+        if [[ -n "$GIT_FIXED_ITEMS" ]]; then
+          GIT_FIXED_ITEMS+=$'\n'
+        fi
+        GIT_FIXED_ITEMS+="$note"
+        ;;
+    esac
   done
+}
+
+build_release_body() {
+  local unreleased_body="$1"
+  local manual_added manual_changed manual_fixed
+  local combined_added combined_changed combined_fixed
+
+  draft_release_sections_from_git
+
+  manual_added="$(extract_section_items "Added" "$unreleased_body")"
+  manual_changed="$(extract_section_items "Changed" "$unreleased_body")"
+  manual_fixed="$(extract_section_items "Fixed" "$unreleased_body")"
+
+  combined_added="$(dedupe_note_lines "$(printf '%s\n%s\n' "$manual_added" "$GIT_ADDED_ITEMS")")"
+  combined_changed="$(dedupe_note_lines "$(printf '%s\n%s\n' "$manual_changed" "$GIT_CHANGED_ITEMS")")"
+  combined_fixed="$(dedupe_note_lines "$(printf '%s\n%s\n' "$manual_fixed" "$GIT_FIXED_ITEMS")")"
+
+  if [[ -n "$combined_added" ]]; then
+    printf '### Added\n\n%s\n' "$combined_added"
+  fi
+
+  if [[ -n "$combined_changed" ]]; then
+    if [[ -n "$combined_added" ]]; then
+      printf '\n'
+    fi
+    printf '### Changed\n\n%s\n' "$combined_changed"
+  fi
+
+  if [[ -n "$combined_fixed" ]]; then
+    if [[ -n "$combined_added$combined_changed" ]]; then
+      printf '\n'
+    fi
+    printf '### Fixed\n\n%s\n' "$combined_fixed"
+  fi
+
+  if [[ -z "$combined_added$combined_changed$combined_fixed" ]]; then
+    printf '### Changed\n\n- Maintenance release.\n'
+  fi
 }
 
 write_version_file() {
@@ -247,12 +377,7 @@ fi
 CHANGELOG_HEADER="$(extract_header)"
 UNRELEASED_BODY="$(extract_unreleased_body)"
 RELEASED_SECTIONS="$(extract_released_sections)"
-
-if unreleased_has_content "$UNRELEASED_BODY"; then
-  RELEASE_BODY="$(printf '%s\n' "$UNRELEASED_BODY" | sanitize_release_body)"
-else
-  RELEASE_BODY="$(draft_release_body_from_git)"
-fi
+RELEASE_BODY="$(build_release_body "$UNRELEASED_BODY")"
 
 [[ -n "${RELEASE_BODY//[$'\n\r\t ']}" ]] || RELEASE_BODY=$'### Changed\n\n- Maintenance release.'
 
@@ -273,4 +398,3 @@ Next steps:
   make dmg
   make release-dry-run
 EOF
-
