@@ -1,3 +1,4 @@
+import AppKit
 import Charts
 import NomadCore
 import SwiftUI
@@ -7,6 +8,7 @@ public struct DashboardPanelView: View {
     private let isPublicIPLocationEnabled: Bool
     private let travelAlertPreferences: TravelAlertPreferences
     private let versionDescription: String
+    private let appIcon: NSImage?
     private let refreshAction: () -> Void
     private let toggleAppearanceAction: () -> Void
     private let copyIPAddressAction: () -> Void
@@ -24,6 +26,7 @@ public struct DashboardPanelView: View {
         isPublicIPLocationEnabled: Bool,
         travelAlertPreferences: TravelAlertPreferences,
         versionDescription: String = "",
+        appIcon: NSImage? = nil,
         refreshAction: @escaping () -> Void,
         toggleAppearanceAction: @escaping () -> Void,
         copyIPAddressAction: @escaping () -> Void,
@@ -38,6 +41,7 @@ public struct DashboardPanelView: View {
         self.isPublicIPLocationEnabled = isPublicIPLocationEnabled
         self.travelAlertPreferences = travelAlertPreferences
         self.versionDescription = versionDescription
+        self.appIcon = appIcon
         self.refreshAction = refreshAction
         self.toggleAppearanceAction = toggleAppearanceAction
         self.copyIPAddressAction = copyIPAddressAction
@@ -355,15 +359,28 @@ public struct DashboardPanelView: View {
     }
 
     private var footer: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(snapshot.appState.updateState.detail ?? "Update channel idle")
-                .font(.caption)
-                .foregroundStyle(NomadTheme.secondaryText)
+        HStack(alignment: .bottom, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(snapshot.appState.updateState.detail ?? "Update channel idle")
+                    .font(.caption)
+                    .foregroundStyle(NomadTheme.secondaryText)
 
-            if versionDescription.isEmpty == false {
-                Text(versionDescription)
-                    .font(.caption2)
-                    .foregroundStyle(NomadTheme.quaternaryText)
+                if versionDescription.isEmpty == false {
+                    Text(versionDescription)
+                        .font(.caption2)
+                        .foregroundStyle(NomadTheme.quaternaryText)
+                }
+            }
+
+            Spacer(minLength: 12)
+
+            if let appIcon {
+                Image(nsImage: appIcon)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 28, height: 28)
+                    .shadow(color: .black.opacity(0.14), radius: 8, y: 4)
+                    .accessibilityHidden(true)
             }
         }
     }

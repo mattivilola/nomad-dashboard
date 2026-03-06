@@ -1,3 +1,4 @@
+import AppKit
 import CoreLocation
 import NomadCore
 import SwiftUI
@@ -13,12 +14,23 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Settings")
-                    .font(.title2.weight(.semibold))
+            HStack(alignment: .top, spacing: 18) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Settings")
+                        .font(.title2.weight(.semibold))
 
-                Text("Manage startup behavior, privacy, and refresh cadence for Nomad Dashboard.")
-                    .foregroundStyle(.secondary)
+                    Text("Manage startup behavior, privacy, and refresh cadence for Nomad Dashboard.")
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 16)
+
+                Image(nsImage: AppRuntimeInfo.applicationIconImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 72, height: 72)
+                    .shadow(color: .black.opacity(0.14), radius: 14, y: 8)
+                    .accessibilityHidden(true)
             }
 
             Form {

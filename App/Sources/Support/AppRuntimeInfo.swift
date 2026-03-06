@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 enum AppRuntimeInfo {
@@ -12,5 +13,10 @@ enum AppRuntimeInfo {
     static var versionDescription: String {
         "v\(marketingVersion) (\(buildNumber))"
     }
-}
 
+    static var applicationIconImage: NSImage {
+        let image = NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
+        image.size = NSSize(width: 512, height: 512)
+        return image
+    }
+}

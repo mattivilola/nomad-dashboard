@@ -20,6 +20,7 @@ struct DashboardRootView: View {
             isPublicIPLocationEnabled: settingsStore.settings.publicIPGeolocationEnabled,
             travelAlertPreferences: settingsStore.settings.travelAlertPreferences,
             versionDescription: AppRuntimeInfo.versionDescription,
+            appIcon: AppRuntimeInfo.applicationIconImage,
             refreshAction: refresh,
             toggleAppearanceAction: toggleAppearance,
             copyIPAddressAction: copyIPAddress,
