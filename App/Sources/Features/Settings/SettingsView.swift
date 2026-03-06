@@ -117,11 +117,11 @@ struct SettingsView: View {
                     }
 
                     Button("About Nomad Dashboard") {
-                        openWindow(id: "about")
+                        openAndActivateWindow(.about, with: openWindow)
                     }
 
                     Button("Open Visited Map") {
-                        openWindow(id: "visited-map")
+                        openAndActivateWindow(.visitedMap, with: openWindow)
                     }
                 } header: {
                     Text("Support")

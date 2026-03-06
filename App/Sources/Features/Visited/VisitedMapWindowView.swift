@@ -49,7 +49,7 @@ struct VisitedMapWindowView: View {
                 actionButton(
                     title: "Settings",
                     systemImage: "slider.horizontal.3",
-                    action: { openWindow(id: "settings") }
+                    action: { openAndActivateWindow(.settings, with: openWindow) }
                 )
 
                 actionButton(
@@ -132,7 +132,7 @@ struct VisitedMapWindowView: View {
                 actionButton(
                     title: "Open Settings",
                     systemImage: "slider.horizontal.3",
-                    action: { openWindow(id: "settings") }
+                    action: { openAndActivateWindow(.settings, with: openWindow) }
                 )
             }
         }
@@ -154,7 +154,7 @@ struct VisitedMapWindowView: View {
                     actionButton(
                         title: "Open Settings",
                         systemImage: "slider.horizontal.3",
-                        action: { openWindow(id: "settings") }
+                        action: { openAndActivateWindow(.settings, with: openWindow) }
                     )
 
                     actionButton(
