@@ -366,7 +366,13 @@ public struct DashboardPanelView: View {
         return DashboardCard(
             title: "Fuel Prices",
             subtitle: presentation.subtitle,
-            badge: presentation.badge
+            badge: presentation.badge,
+            backgroundDecoration: AnyView(
+                FuelCardBackdrop(
+                    visualMode: presentation.visualMode,
+                    badgeTint: presentation.badge.tint
+                )
+            )
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 if presentation.rows.isEmpty == false {
@@ -781,6 +787,7 @@ private struct DashboardCard<Content: View>: View {
     let subtitle: String
     let badge: PillBadge?
     let accessory: AnyView?
+    let backgroundDecoration: AnyView?
     let content: Content
 
     init(
@@ -788,16 +795,20 @@ private struct DashboardCard<Content: View>: View {
         subtitle: String,
         badge: PillBadge? = nil,
         accessory: AnyView? = nil,
+        backgroundDecoration: AnyView? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.subtitle = subtitle
         self.badge = badge
         self.accessory = accessory
+        self.backgroundDecoration = backgroundDecoration
         self.content = content()
     }
 
     var body: some View {
+        let cardShape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -827,12 +838,18 @@ private struct DashboardCard<Content: View>: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(NomadTheme.cardBackground)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(NomadTheme.cardBorder, lineWidth: 1)
-                )
+            ZStack {
+                cardShape
+                    .fill(NomadTheme.cardBackground)
+
+                if let backgroundDecoration {
+                    backgroundDecoration
+                        .clipShape(cardShape)
+                }
+
+                cardShape
+                    .stroke(NomadTheme.cardBorder, lineWidth: 1)
+            }
         )
     }
 }
@@ -1134,12 +1151,391 @@ private struct FuelPriceRow: View {
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(NomadTheme.chartBackground)
+                .fill(NomadTheme.chartBackground.opacity(0.95))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
                 )
         )
+    }
+}
+
+enum FuelCardVisualMode: Equatable {
+    case animatedCamper
+    case ambient
+    case staticScene
+}
+
+private struct FuelCardBackdrop: View {
+    let visualMode: FuelCardVisualMode
+    let badgeTint: Color
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GeometryReader { geometry in
+            TimelineView(.animation) { context in
+                let phase = effectivePhase(for: context.date)
+
+                ZStack {
+                    FuelCardGlowLayer(phase: phase, visualMode: visualMode, badgeTint: badgeTint)
+
+                    VStack {
+                        Spacer(minLength: 0)
+
+                        ZStack(alignment: .bottomLeading) {
+                            FuelRoadScene(phase: phase, visualMode: visualMode)
+
+                            if shouldShowCamper {
+                                FuelCamperTrack(
+                                    phase: phase,
+                                    width: geometry.size.width
+                                )
+                                .transition(.opacity)
+                            }
+                        }
+                        .frame(height: geometry.size.height * 0.34)
+                    }
+
+                    FuelAtmosphereLayer(phase: phase, visualMode: visualMode)
+                        .allowsHitTesting(false)
+                }
+                .mask(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                )
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var shouldShowCamper: Bool {
+        visualMode == .animatedCamper && reduceMotion == false
+    }
+
+    private func effectivePhase(for date: Date) -> Double {
+        guard reduceMotion == false else {
+            return 0.18
+        }
+
+        switch visualMode {
+        case .animatedCamper, .ambient:
+            return date.timeIntervalSinceReferenceDate
+        case .staticScene:
+            return 0.18
+        }
+    }
+}
+
+private struct FuelCardGlowLayer: View {
+    let phase: Double
+    let visualMode: FuelCardVisualMode
+    let badgeTint: Color
+
+    var body: some View {
+        ZStack {
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            NomadTheme.fuelGlow.opacity(visualMode == .staticScene ? 0.08 : 0.12),
+                            badgeTint.opacity(0.05),
+                            .clear
+                        ],
+                        center: .center,
+                        startRadius: 6,
+                        endRadius: 120
+                    )
+                )
+                .frame(width: 180, height: 88)
+                .offset(x: 78, y: 44)
+                .blur(radius: 10)
+
+            Ellipse()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            badgeTint.opacity(visualMode == .ambient ? 0.05 : 0.07),
+                            .clear
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: 220, height: 52)
+                .offset(x: CGFloat(sin(phase / 4.7)) * 18, y: 10)
+                .blur(radius: 12)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct FuelAtmosphereLayer: View {
+    let phase: Double
+    let visualMode: FuelCardVisualMode
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<3, id: \.self) { index in
+                let drift = visualMode == .staticScene ? 0 : sin(phase / (6.5 + Double(index)))
+                Capsule(style: .continuous)
+                    .fill(index == 1 ? NomadTheme.teal.opacity(0.06) : NomadTheme.fuelGlow.opacity(0.05))
+                    .frame(width: 42 - CGFloat(index * 8), height: 7)
+                    .rotationEffect(.degrees(Double(index * 6) - 7))
+                    .offset(
+                        x: CGFloat(-116 + (index * 76)) + CGFloat(drift) * 12,
+                        y: CGFloat(-48 + (index * 10))
+                    )
+                    .blur(radius: 1.2)
+            }
+        }
+    }
+}
+
+private struct FuelRoadScene: View {
+    let phase: Double
+    let visualMode: FuelCardVisualMode
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            .clear,
+                            NomadTheme.fuelRoad.opacity(0.38),
+                            NomadTheme.fuelRoad.opacity(0.62)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(height: 66)
+                .offset(y: 14)
+
+            Capsule(style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            .clear,
+                            NomadTheme.cardBorder.opacity(0.22),
+                            .clear
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: 84, height: 3)
+                .offset(x: laneOffset, y: -16)
+                .blur(radius: 0.6)
+
+            HStack(spacing: 18) {
+                ForEach(0..<7, id: \.self) { _ in
+                    Capsule(style: .continuous)
+                        .fill(NomadTheme.cardBorder.opacity(0.24))
+                        .frame(width: 18, height: 2)
+                }
+            }
+            .offset(x: laneOffset * 0.8, y: -16)
+
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            .clear,
+                            NomadTheme.cardBackground.opacity(0.08),
+                            .clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(height: 22)
+                .offset(y: -40)
+        }
+        .mask(horizontalSoftMask)
+    }
+
+    private var laneOffset: CGFloat {
+        guard visualMode != .staticScene else {
+            return 0
+        }
+
+        let loop = phase.truncatingRemainder(dividingBy: 8.5) / 8.5
+        return CGFloat((loop - 0.5) * 150)
+    }
+
+    private var horizontalSoftMask: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .black, location: 0.08),
+                .init(color: .black, location: 0.92),
+                .init(color: .clear, location: 1)
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+}
+
+private struct FuelCamperTrack: View {
+    let phase: Double
+    let width: CGFloat
+
+    var body: some View {
+        let loopDuration = 12.4
+        let loop = phase.truncatingRemainder(dividingBy: loopDuration) / loopDuration
+        let x = (width + 92) * CGFloat(loop) - 70
+        let bounce = sin(loop * .pi * 10) * 1.2
+
+        FuelCamperVan()
+            .frame(width: 66, height: 32)
+            .offset(x: x, y: CGFloat(-10 + bounce))
+            .shadow(color: NomadTheme.primaryText.opacity(0.08), radius: 6, y: 2)
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: 0.1),
+                        .init(color: .black, location: 0.9),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+    }
+}
+
+private struct FuelCamperVan: View {
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            FuelCamperShadow()
+                .offset(y: 9)
+
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            NomadTheme.cardBackground.opacity(0.92),
+                            NomadTheme.cardBackground.opacity(0.62)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(NomadTheme.cardBorder.opacity(0.7), lineWidth: 1)
+                )
+                .frame(width: 42, height: 18)
+                .offset(x: 12, y: -7)
+
+            FuelCamperCabShape()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            NomadTheme.fuelGlow.opacity(0.95),
+                            NomadTheme.sand.opacity(0.82)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 24, height: 18)
+                .offset(x: 34, y: -7)
+
+            FuelCamperStripe()
+                .fill(
+                    LinearGradient(
+                        colors: [NomadTheme.teal.opacity(0.78), NomadTheme.coral.opacity(0.52)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: 30, height: 4)
+                .offset(x: 16, y: -1)
+
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(NomadTheme.primaryText.opacity(0.9))
+                    .frame(width: 10, height: 10)
+                    .overlay(
+                        Circle()
+                            .stroke(NomadTheme.cardBackground.opacity(0.85), lineWidth: 1.8)
+                    )
+                Circle()
+                    .fill(NomadTheme.primaryText.opacity(0.9))
+                    .frame(width: 10, height: 10)
+                    .overlay(
+                        Circle()
+                            .stroke(NomadTheme.cardBackground.opacity(0.85), lineWidth: 1.8)
+                    )
+            }
+            .offset(x: 18, y: 6)
+
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(NomadTheme.teal.opacity(0.22))
+                .frame(width: 12, height: 7)
+                .offset(x: 18, y: -10)
+
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(NomadTheme.teal.opacity(0.18))
+                .frame(width: 8, height: 7)
+                .offset(x: 41, y: -10)
+
+            Circle()
+                .fill(NomadTheme.fuelGlow.opacity(0.42))
+                .frame(width: 3, height: 3)
+                .offset(x: 56, y: -2)
+                .blur(radius: 0.6)
+        }
+        .frame(width: 66, height: 32)
+    }
+}
+
+private struct FuelCamperShadow: View {
+    var body: some View {
+        Capsule(style: .continuous)
+            .fill(NomadTheme.primaryText.opacity(0.12))
+            .frame(width: 38, height: 6)
+            .blur(radius: 2)
+    }
+}
+
+private struct FuelCamperCabShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + rect.width * 0.04, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.04, y: rect.minY + rect.height * 0.42))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.4, y: rect.minY + rect.height * 0.08),
+            control: CGPoint(x: rect.minX + rect.width * 0.12, y: rect.minY + rect.height * 0.1)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.16, y: rect.minY + rect.height * 0.08))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.44),
+            control: CGPoint(x: rect.maxX - rect.width * 0.04, y: rect.minY + rect.height * 0.1)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct FuelCamperStripe: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.midY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.midY - 1),
+            control: CGPoint(x: rect.midX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -1574,6 +1970,7 @@ struct WeatherSectionPresentation {
 
 struct FuelPricesSectionPresentation {
     let badge: PillBadge
+    let visualMode: FuelCardVisualMode
     let subtitle: String
     let rows: [FuelPriceRowModel]
     let emptyTitle: String
@@ -1589,6 +1986,7 @@ struct FuelPricesSectionPresentation {
     ) {
         guard settings.fuelPricesEnabled else {
             badge = PillBadge(title: "Off", symbolName: "fuelpump.slash.fill", tint: NomadTheme.primaryText)
+            visualMode = .staticScene
             subtitle = "Nearby fuel prices are disabled"
             rows = []
             emptyTitle = "Fuel Prices Off"
@@ -1601,6 +1999,7 @@ struct FuelPricesSectionPresentation {
 
         guard let fuelPrices = snapshot.fuelPrices else {
             badge = PillBadge(title: "Checking", symbolName: "fuelpump.fill", tint: NomadTheme.secondaryText)
+            visualMode = .ambient
             subtitle = "Looking for nearby prices"
             rows = []
             emptyTitle = "Checking Fuel Prices"
@@ -1616,6 +2015,7 @@ struct FuelPricesSectionPresentation {
         switch fuelPrices.status {
         case .ready:
             badge = FuelPricesSectionPresentation.readyBadge(for: fuelPrices)
+            visualMode = .animatedCamper
             subtitle = fuelPrices.countryName.map { "\($0) · within \(Int(fuelPrices.searchRadiusKilometers)) km" }
                 ?? "Within \(Int(fuelPrices.searchRadiusKilometers)) km"
             rows = [fuelPrices.diesel, fuelPrices.gasoline].compactMap { station in
@@ -1639,6 +2039,7 @@ struct FuelPricesSectionPresentation {
             emptyActionTitle = nil
         case .unsupported:
             badge = PillBadge(title: "Unsupported", symbolName: "globe.badge.chevron.backward", tint: NomadTheme.primaryText)
+            visualMode = .staticScene
             subtitle = fuelPrices.countryName ?? "Unsupported country"
             rows = []
             emptyTitle = "Country Unsupported"
@@ -1647,6 +2048,7 @@ struct FuelPricesSectionPresentation {
             emptyActionTitle = nil
         case .locationRequired:
             badge = PillBadge(title: "Location Needed", symbolName: "location.slash.fill", tint: NomadTheme.sand)
+            visualMode = .staticScene
             subtitle = "Precise location is required"
             rows = []
             emptyTitle = "Current Location Needed"
@@ -1655,6 +2057,7 @@ struct FuelPricesSectionPresentation {
             emptyActionTitle = "Open Settings"
         case .configurationRequired:
             badge = PillBadge(title: "Setup", symbolName: "key.fill", tint: NomadTheme.sand)
+            visualMode = .staticScene
             subtitle = fuelPrices.sourceName
             rows = []
             emptyTitle = "Source Setup Needed"
@@ -1663,6 +2066,7 @@ struct FuelPricesSectionPresentation {
             emptyActionTitle = "Open Settings"
         case .unavailable:
             badge = PillBadge(title: "Unavailable", symbolName: "wifi.exclamationmark", tint: NomadTheme.primaryText)
+            visualMode = .staticScene
             subtitle = fuelPrices.sourceName
             rows = []
             emptyTitle = "Fuel Prices Unavailable"
@@ -1671,6 +2075,7 @@ struct FuelPricesSectionPresentation {
             emptyActionTitle = nil
         case .noStationsFound:
             badge = PillBadge(title: "No Matches", symbolName: "mappin.slash", tint: NomadTheme.primaryText)
+            visualMode = .staticScene
             subtitle = fuelPrices.countryName.map { "\($0) · within \(Int(fuelPrices.searchRadiusKilometers)) km" }
                 ?? "Within \(Int(fuelPrices.searchRadiusKilometers)) km"
             rows = []

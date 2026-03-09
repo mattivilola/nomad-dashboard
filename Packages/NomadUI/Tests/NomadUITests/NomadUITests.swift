@@ -334,8 +334,35 @@ struct NomadUITests {
         )
 
         #expect(presentation.badge.title == "Live")
+        #expect(presentation.visualMode == .animatedCamper)
         #expect(presentation.rows.count == 2)
         #expect(presentation.rows.first?.title == "Diesel")
+    }
+
+    @Test
+    func fuelPricesSectionPresentationUsesAmbientModeWhileChecking() {
+        var settings = AppSettings()
+        settings.fuelPricesEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            fuelPrices: nil,
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = FuelPricesSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.visualMode == .ambient)
+        #expect(presentation.emptyTitle == "Checking Fuel Prices")
     }
 
     @Test
@@ -372,6 +399,7 @@ struct NomadUITests {
         )
 
         #expect(presentation.badge.title == "Location Needed")
+        #expect(presentation.visualMode == .staticScene)
         #expect(presentation.emptyMessage == "Allow location access to use current fuel prices.")
     }
 
@@ -409,6 +437,7 @@ struct NomadUITests {
         )
 
         #expect(presentation.badge.title == "Unsupported")
+        #expect(presentation.visualMode == .staticScene)
         #expect(presentation.emptyMessage == "Fuel prices are not supported in Finland yet.")
     }
 }
