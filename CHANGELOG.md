@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.10] - 2026-03-09
+
+### Changed
+
+- Add location services support for macOS
+
 ## [0.1.9] - 2026-03-09
 
 ### Changed
