@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 
 public struct AppSettings: Codable, Equatable, Sendable {
@@ -13,6 +14,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var travelAdvisoryEnabled: Bool
     public var travelWeatherAlertsEnabled: Bool
     public var regionalSecurityEnabled: Bool
+    public var surfSpotName: String
+    public var surfSpotLatitude: Double?
+    public var surfSpotLongitude: Double?
     public var latencyHosts: [String]
 
     public init(
@@ -28,6 +32,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         travelAdvisoryEnabled: Bool = true,
         travelWeatherAlertsEnabled: Bool = false,
         regionalSecurityEnabled: Bool = false,
+        surfSpotName: String = "",
+        surfSpotLatitude: Double? = nil,
+        surfSpotLongitude: Double? = nil,
         latencyHosts: [String] = ["1.1.1.1:443", "8.8.8.8:443"]
     ) {
         self.appearanceMode = appearanceMode
@@ -42,6 +49,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.travelAdvisoryEnabled = travelAdvisoryEnabled
         self.travelWeatherAlertsEnabled = travelWeatherAlertsEnabled
         self.regionalSecurityEnabled = regionalSecurityEnabled
+        self.surfSpotName = surfSpotName
+        self.surfSpotLatitude = surfSpotLatitude
+        self.surfSpotLongitude = surfSpotLongitude
         self.latencyHosts = latencyHosts
     }
 
@@ -58,6 +68,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case travelAdvisoryEnabled
         case travelWeatherAlertsEnabled
         case regionalSecurityEnabled
+        case surfSpotName
+        case surfSpotLatitude
+        case surfSpotLongitude
         case latencyHosts
     }
 
@@ -76,6 +89,71 @@ public struct AppSettings: Codable, Equatable, Sendable {
         travelAdvisoryEnabled = try container.decodeIfPresent(Bool.self, forKey: .travelAdvisoryEnabled) ?? true
         travelWeatherAlertsEnabled = try container.decodeIfPresent(Bool.self, forKey: .travelWeatherAlertsEnabled) ?? false
         regionalSecurityEnabled = try container.decodeIfPresent(Bool.self, forKey: .regionalSecurityEnabled) ?? false
+        surfSpotName = try container.decodeIfPresent(String.self, forKey: .surfSpotName) ?? ""
+        surfSpotLatitude = try container.decodeIfPresent(Double.self, forKey: .surfSpotLatitude)
+        surfSpotLongitude = try container.decodeIfPresent(Double.self, forKey: .surfSpotLongitude)
         latencyHosts = try container.decode([String].self, forKey: .latencyHosts)
+    }
+}
+
+public struct SurfSpotConfiguration: Sendable, Equatable {
+    public let name: String?
+    public let latitude: Double?
+    public let longitude: Double?
+    public let coordinate: CLLocationCoordinate2D?
+    public let isConfigured: Bool
+    public let isValid: Bool
+
+    public init(
+        name: String?,
+        latitude: Double?,
+        longitude: Double?,
+        coordinate: CLLocationCoordinate2D?,
+        isConfigured: Bool,
+        isValid: Bool
+    ) {
+        self.name = name
+        self.latitude = latitude
+        self.longitude = longitude
+        self.coordinate = coordinate
+        self.isConfigured = isConfigured
+        self.isValid = isValid
+    }
+
+    public static func == (lhs: SurfSpotConfiguration, rhs: SurfSpotConfiguration) -> Bool {
+        lhs.name == rhs.name
+            && lhs.latitude == rhs.latitude
+            && lhs.longitude == rhs.longitude
+            && lhs.coordinate?.latitude == rhs.coordinate?.latitude
+            && lhs.coordinate?.longitude == rhs.coordinate?.longitude
+            && lhs.isConfigured == rhs.isConfigured
+            && lhs.isValid == rhs.isValid
+    }
+}
+
+public extension AppSettings {
+    var surfSpotConfiguration: SurfSpotConfiguration {
+        let normalizedName = surfSpotName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedName = normalizedName.isEmpty ? nil : normalizedName
+        let hasAnyInput = resolvedName != nil || surfSpotLatitude != nil || surfSpotLongitude != nil
+        let hasValidLatitude = surfSpotLatitude.map { (-90.0...90.0).contains($0) } ?? false
+        let hasValidLongitude = surfSpotLongitude.map { (-180.0...180.0).contains($0) } ?? false
+        let isValid = resolvedName != nil && hasValidLatitude && hasValidLongitude
+        let coordinate: CLLocationCoordinate2D?
+
+        if isValid, let surfSpotLatitude, let surfSpotLongitude {
+            coordinate = CLLocationCoordinate2D(latitude: surfSpotLatitude, longitude: surfSpotLongitude)
+        } else {
+            coordinate = nil
+        }
+
+        return SurfSpotConfiguration(
+            name: resolvedName,
+            latitude: surfSpotLatitude,
+            longitude: surfSpotLongitude,
+            coordinate: coordinate,
+            isConfigured: hasAnyInput,
+            isValid: isValid
+        )
     }
 }

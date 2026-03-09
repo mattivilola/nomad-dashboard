@@ -122,6 +122,77 @@ struct NomadUITests {
         #expect(presentation.rows.contains { $0.status == TravelAlertSignalStatus.checking } == false)
         #expect(presentation.rows.contains { $0.summary == "Checking alerts…" } == false)
     }
+
+    @Test
+    func surfSectionPresentationShowsWeatherOnlyStateWhenSpotIsNotConfigured() {
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            marine: nil,
+            appState: DashboardSnapshot.preview.appState
+        )
+        let presentation = SurfSectionPresentation(settings: AppSettings(), snapshot: snapshot)
+
+        #expect(presentation.state == .notConfigured)
+        #expect(presentation.marine == nil)
+        #expect(presentation.emptyMessage == "Add a surf spot in Settings.")
+    }
+
+    @Test
+    func surfSectionPresentationShowsMarineMetricsWhenSpotAndMarineDataExist() {
+        var settings = AppSettings()
+        settings.surfSpotName = "El Saler"
+        settings.surfSpotLatitude = 39.355
+        settings.surfSpotLongitude = -0.314
+
+        let presentation = SurfSectionPresentation(settings: settings, snapshot: DashboardSnapshot.preview)
+
+        #expect(presentation.state == .ready)
+        #expect(presentation.spotName == "El Saler")
+        #expect(presentation.waveSummary == "1.6 m · 11 s")
+        #expect(presentation.swellSummary == "1.2 m · E")
+        #expect(presentation.windSummary == "18 km/h · NW")
+        #expect(presentation.forecastSlots.count == 4)
+        #expect(presentation.forecastSlots.first?.title == "Now")
+    }
+
+    @Test
+    func surfSectionPresentationShowsInvalidSpotState() {
+        var settings = AppSettings()
+        settings.surfSpotName = "Broken Spot"
+        settings.surfSpotLatitude = 120
+        settings.surfSpotLongitude = -0.314
+
+        let presentation = SurfSectionPresentation(settings: settings, snapshot: DashboardSnapshot.placeholder)
+
+        #expect(presentation.state == .invalid)
+        #expect(presentation.emptyMessage == "Fix surf spot coordinates in Settings.")
+    }
+
+    @Test
+    func surfSectionPresentationShowsUnavailableStateForConfiguredSpotWithoutMarineData() {
+        var settings = AppSettings()
+        settings.surfSpotName = "El Saler"
+        settings.surfSpotLatitude = 39.355
+        settings.surfSpotLongitude = -0.314
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            marine: nil,
+            appState: DashboardSnapshot.preview.appState
+        )
+        let presentation = SurfSectionPresentation(settings: settings, snapshot: snapshot)
+
+        #expect(presentation.state == .unavailable)
+        #expect(presentation.emptyMessage == "Surf check unavailable.")
+    }
 }
 
 private func makeTravelAlertsSnapshot(

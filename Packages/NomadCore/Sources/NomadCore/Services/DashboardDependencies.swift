@@ -10,6 +10,7 @@ public struct DashboardDependencies: Sendable {
     public let publicIPLocationProvider: any PublicIPLocationProvider
     public let reverseGeocodingProvider: any ReverseGeocodingProvider
     public let weatherProvider: any WeatherProvider
+    public let marineProvider: any MarineProvider
     public let neighborCountryResolver: any NeighborCountryResolver
     public let travelAdvisoryProvider: any TravelAdvisoryProvider
     public let travelWeatherAlertsProvider: any TravelWeatherAlertsProvider
@@ -28,6 +29,7 @@ public struct DashboardDependencies: Sendable {
         publicIPLocationProvider: any PublicIPLocationProvider,
         reverseGeocodingProvider: any ReverseGeocodingProvider,
         weatherProvider: any WeatherProvider,
+        marineProvider: any MarineProvider,
         neighborCountryResolver: any NeighborCountryResolver,
         travelAdvisoryProvider: any TravelAdvisoryProvider,
         travelWeatherAlertsProvider: any TravelWeatherAlertsProvider,
@@ -45,6 +47,7 @@ public struct DashboardDependencies: Sendable {
         self.publicIPLocationProvider = publicIPLocationProvider
         self.reverseGeocodingProvider = reverseGeocodingProvider
         self.weatherProvider = weatherProvider
+        self.marineProvider = marineProvider
         self.neighborCountryResolver = neighborCountryResolver
         self.travelAdvisoryProvider = travelAdvisoryProvider
         self.travelWeatherAlertsProvider = travelWeatherAlertsProvider
@@ -73,6 +76,7 @@ public struct DashboardDependencies: Sendable {
             publicIPLocationProvider: CachedIPLocationProvider(client: publicIPClient),
             reverseGeocodingProvider: CachedReverseGeocodingProvider(),
             weatherProvider: LiveWeatherProvider(),
+            marineProvider: LiveOpenMeteoMarineProvider(),
             neighborCountryResolver: BundledNeighborCountryResolver(),
             travelAdvisoryProvider: SmartravellerAdvisoryProvider(),
             travelWeatherAlertsProvider: WeatherKitAlertProvider(),

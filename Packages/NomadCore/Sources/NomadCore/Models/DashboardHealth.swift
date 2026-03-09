@@ -5,6 +5,9 @@ public enum DashboardIssue: String, Codable, CaseIterable, Equatable, Sendable {
     case ipLocationUnavailable
     case weatherLocationRequired
     case weatherUnavailable
+    case marineSpotNotConfigured
+    case marineSpotInvalid
+    case marineUnavailable
     case travelAdvisoryCountryRequired
     case travelAdvisoryUnavailable
     case travelWeatherAlertsLocationRequired

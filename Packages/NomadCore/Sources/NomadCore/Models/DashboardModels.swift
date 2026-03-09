@@ -235,6 +235,113 @@ public struct WeatherSnapshot: Equatable, Sendable {
     }
 }
 
+public struct MarineSpot: Equatable, Sendable {
+    public let name: String
+    public let coordinate: CLLocationCoordinate2D
+
+    public init(name: String, coordinate: CLLocationCoordinate2D) {
+        self.name = name
+        self.coordinate = coordinate
+    }
+
+    public static func == (lhs: MarineSpot, rhs: MarineSpot) -> Bool {
+        lhs.name == rhs.name
+            && lhs.coordinate.latitude == rhs.coordinate.latitude
+            && lhs.coordinate.longitude == rhs.coordinate.longitude
+    }
+}
+
+public struct MarineForecastSlot: Equatable, Sendable, Identifiable {
+    public let date: Date
+    public let waveHeightMeters: Double?
+    public let swellHeightMeters: Double?
+    public let windSpeedKph: Double?
+    public let windDirectionDegrees: Double?
+
+    public var id: Date { date }
+
+    public init(
+        date: Date,
+        waveHeightMeters: Double?,
+        swellHeightMeters: Double?,
+        windSpeedKph: Double?,
+        windDirectionDegrees: Double?
+    ) {
+        self.date = date
+        self.waveHeightMeters = waveHeightMeters
+        self.swellHeightMeters = swellHeightMeters
+        self.windSpeedKph = windSpeedKph
+        self.windDirectionDegrees = windDirectionDegrees
+    }
+}
+
+public struct MarineSnapshot: Equatable, Sendable {
+    public let spotName: String
+    public let coordinate: CLLocationCoordinate2D
+    public let sourceName: String
+    public let waveHeightMeters: Double?
+    public let wavePeriodSeconds: Double?
+    public let swellHeightMeters: Double?
+    public let swellPeriodSeconds: Double?
+    public let swellDirectionDegrees: Double?
+    public let windSpeedKph: Double?
+    public let windGustKph: Double?
+    public let windDirectionDegrees: Double?
+    public let seaSurfaceTemperatureCelsius: Double?
+    public let forecastSlots: [MarineForecastSlot]
+    public let fetchedAt: Date
+
+    public init(
+        spotName: String,
+        coordinate: CLLocationCoordinate2D,
+        sourceName: String,
+        waveHeightMeters: Double?,
+        wavePeriodSeconds: Double?,
+        swellHeightMeters: Double?,
+        swellPeriodSeconds: Double?,
+        swellDirectionDegrees: Double?,
+        windSpeedKph: Double?,
+        windGustKph: Double?,
+        windDirectionDegrees: Double?,
+        seaSurfaceTemperatureCelsius: Double?,
+        forecastSlots: [MarineForecastSlot],
+        fetchedAt: Date
+    ) {
+        self.spotName = spotName
+        self.coordinate = coordinate
+        self.sourceName = sourceName
+        self.waveHeightMeters = waveHeightMeters
+        self.wavePeriodSeconds = wavePeriodSeconds
+        self.swellHeightMeters = swellHeightMeters
+        self.swellPeriodSeconds = swellPeriodSeconds
+        self.swellDirectionDegrees = swellDirectionDegrees
+        self.windSpeedKph = windSpeedKph
+        self.windGustKph = windGustKph
+        self.windDirectionDegrees = windDirectionDegrees
+        self.seaSurfaceTemperatureCelsius = seaSurfaceTemperatureCelsius
+        self.forecastSlots = forecastSlots
+        self.fetchedAt = fetchedAt
+    }
+
+    public static func == (lhs: MarineSnapshot, rhs: MarineSnapshot) -> Bool {
+        lhs.spotName == rhs.spotName
+            && lhs.coordinate.latitude == rhs.coordinate.latitude
+            && lhs.coordinate.longitude == rhs.coordinate.longitude
+            && lhs.sourceName == rhs.sourceName
+            && lhs.waveHeightMeters == rhs.waveHeightMeters
+            && lhs.wavePeriodSeconds == rhs.wavePeriodSeconds
+            && lhs.swellHeightMeters == rhs.swellHeightMeters
+            && lhs.swellPeriodSeconds == rhs.swellPeriodSeconds
+            && lhs.swellDirectionDegrees == rhs.swellDirectionDegrees
+            && lhs.windSpeedKph == rhs.windSpeedKph
+            && lhs.windGustKph == rhs.windGustKph
+            && lhs.windDirectionDegrees == rhs.windDirectionDegrees
+            && lhs.seaSurfaceTemperatureCelsius == rhs.seaSurfaceTemperatureCelsius
+            && lhs.forecastSlots == rhs.forecastSlots
+            && lhs.fetchedAt == rhs.fetchedAt
+    }
+}
+
 public enum UpdateStateKind: String, Codable, Equatable, Sendable {
     case idle
     case checking
@@ -330,6 +437,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
     public let travelContext: TravelContextSnapshot
     public let travelAlerts: TravelAlertsSnapshot?
     public let weather: WeatherSnapshot?
+    public let marine: MarineSnapshot?
     public let appState: AppStatusSnapshot
     public let healthSummary: DashboardHealthSummary
 
@@ -339,6 +447,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         travelContext: TravelContextSnapshot,
         travelAlerts: TravelAlertsSnapshot? = nil,
         weather: WeatherSnapshot?,
+        marine: MarineSnapshot? = nil,
         appState: AppStatusSnapshot,
         healthSummary: DashboardHealthSummary? = nil
     ) {
@@ -347,6 +456,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         self.travelContext = travelContext
         self.travelAlerts = travelAlerts
         self.weather = weather
+        self.marine = marine
         self.appState = appState
         self.healthSummary = healthSummary ?? DashboardHealthEvaluator.makeSummary(
             network: network,
@@ -399,6 +509,7 @@ public extension DashboardSnapshot {
             fetchedAt: nil
         ),
         weather: nil,
+        marine: nil,
         appState: AppStatusSnapshot(lastRefresh: nil, updateState: .idle, issues: [])
     )
 
@@ -544,6 +655,27 @@ public extension DashboardSnapshot {
             ),
             fetchedAt: .now
         ),
+        marine: MarineSnapshot(
+            spotName: "El Saler",
+            coordinate: CLLocationCoordinate2D(latitude: 39.355, longitude: -0.314),
+            sourceName: "Open-Meteo",
+            waveHeightMeters: 1.6,
+            wavePeriodSeconds: 11,
+            swellHeightMeters: 1.2,
+            swellPeriodSeconds: 10,
+            swellDirectionDegrees: 67.5,
+            windSpeedKph: 18,
+            windGustKph: 24,
+            windDirectionDegrees: 315,
+            seaSurfaceTemperatureCelsius: 17,
+            forecastSlots: [
+                MarineForecastSlot(date: .now, waveHeightMeters: 1.6, swellHeightMeters: 1.2, windSpeedKph: 18, windDirectionDegrees: 315),
+                MarineForecastSlot(date: Date().addingTimeInterval(3 * 3_600), waveHeightMeters: 1.5, swellHeightMeters: 1.1, windSpeedKph: 16, windDirectionDegrees: 300),
+                MarineForecastSlot(date: Date().addingTimeInterval(6 * 3_600), waveHeightMeters: 1.3, swellHeightMeters: 1.0, windSpeedKph: 14, windDirectionDegrees: 290),
+                MarineForecastSlot(date: Date().addingTimeInterval(12 * 3_600), waveHeightMeters: 1.1, swellHeightMeters: 0.9, windSpeedKph: 11, windDirectionDegrees: 270)
+            ],
+            fetchedAt: .now
+        ),
         appState: AppStatusSnapshot(
             lastRefresh: .now,
             updateState: UpdateStateSnapshot(kind: .idle, detail: "Up to date", lastCheckedAt: .now),
@@ -558,6 +690,7 @@ public extension DashboardSnapshot {
             travelContext: travelContext,
             travelAlerts: travelAlerts,
             weather: weather,
+            marine: marine,
             appState: appState,
             healthSummary: healthSummary
         )

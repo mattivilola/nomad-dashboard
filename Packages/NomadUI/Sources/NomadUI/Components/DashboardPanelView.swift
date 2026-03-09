@@ -5,6 +5,7 @@ import SwiftUI
 
 public struct DashboardPanelView: View {
     private let snapshot: DashboardSnapshot
+    private let settings: AppSettings
     private let isPublicIPLocationEnabled: Bool
     private let travelAlertPreferences: TravelAlertPreferences
     private let versionDescription: String
@@ -23,6 +24,7 @@ public struct DashboardPanelView: View {
 
     public init(
         snapshot: DashboardSnapshot,
+        settings: AppSettings,
         isPublicIPLocationEnabled: Bool,
         travelAlertPreferences: TravelAlertPreferences,
         versionDescription: String = "",
@@ -38,6 +40,7 @@ public struct DashboardPanelView: View {
         quitAction: @escaping () -> Void
     ) {
         self.snapshot = snapshot
+        self.settings = settings
         self.isPublicIPLocationEnabled = isPublicIPLocationEnabled
         self.travelAlertPreferences = travelAlertPreferences
         self.versionDescription = versionDescription
@@ -268,48 +271,59 @@ public struct DashboardPanelView: View {
             subtitle: weatherSubtitle,
             badge: weatherBadge
         ) {
-            if let weather = snapshot.weather {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 12) {
-                        MetricBlock(
-                            title: "Current",
-                            value: metricValue(weather.currentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating")
-                        )
-                        MetricBlock(
-                            title: "Feels Like",
-                            value: metricValue(weather.apparentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating")
-                        )
-                        MetricBlock(
-                            title: "Rain",
-                            value: weather.precipitationChance.map { NomadFormatters.precipitation($0) } ?? "Estimating"
-                        )
-                    }
+            VStack(alignment: .leading, spacing: 12) {
+                if let weather = snapshot.weather {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 12) {
+                            MetricBlock(
+                                title: "Current",
+                                value: metricValue(weather.currentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating")
+                            )
+                            MetricBlock(
+                                title: "Feels Like",
+                                value: metricValue(weather.apparentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating")
+                            )
+                            MetricBlock(
+                                title: "Rain",
+                                value: weather.precipitationChance.map { NomadFormatters.precipitation($0) } ?? "Estimating"
+                            )
+                        }
 
-                    if let tomorrow = weather.tomorrow {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Tomorrow")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(NomadTheme.secondaryText)
-
-                            HStack(alignment: .top, spacing: 10) {
-                                Label(tomorrow.summary, systemImage: tomorrow.symbolName)
-                                    .foregroundStyle(NomadTheme.primaryText)
-
-                                Spacer()
-
-                                Text(temperatureRangeText(for: tomorrow))
+                        if let tomorrow = weather.tomorrow {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Tomorrow")
+                                    .font(.caption.weight(.semibold))
                                     .foregroundStyle(NomadTheme.secondaryText)
-                                    .multilineTextAlignment(.trailing)
+
+                                HStack(alignment: .top, spacing: 10) {
+                                    Label(tomorrow.summary, systemImage: tomorrow.symbolName)
+                                        .foregroundStyle(NomadTheme.primaryText)
+
+                                    Spacer()
+
+                                    Text(temperatureRangeText(for: tomorrow))
+                                        .foregroundStyle(NomadTheme.secondaryText)
+                                        .multilineTextAlignment(.trailing)
+                                }
                             }
                         }
                     }
+                } else {
+                    WeatherEmptyState(
+                        title: weatherBadge.title,
+                        systemImage: weatherBadge.symbolName,
+                        message: weatherEmptyMessage
+                    )
                 }
-            } else {
-                WeatherEmptyState(
-                    title: weatherBadge.title,
-                    systemImage: weatherBadge.symbolName,
-                    message: weatherEmptyMessage
-                )
+
+                Divider()
+                    .overlay(NomadTheme.cardBorder.opacity(0.9))
+
+                surfSection
+
+                Text(weatherAttributionLine)
+                    .font(.caption2)
+                    .foregroundStyle(NomadTheme.tertiaryText)
             }
         }
     }
@@ -531,6 +545,68 @@ public struct DashboardPanelView: View {
         }
 
         return "Weather data is not available yet."
+    }
+
+    private var surfSection: some View {
+        let presentation = surfSectionPresentation
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Surf Spot")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NomadTheme.primaryText)
+
+                    Text(presentation.spotName ?? "One saved break for wave, swell, and wind.")
+                        .font(.caption)
+                        .foregroundStyle(NomadTheme.secondaryText)
+                }
+
+                Spacer(minLength: 12)
+
+                BadgeView(badge: presentation.badge)
+            }
+
+            if let marine = presentation.marine {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        MetricBlock(title: "Wave", value: presentation.waveSummary)
+                        MetricBlock(title: "Swell", value: presentation.swellSummary)
+                        MetricBlock(title: "Wind", value: presentation.windSummary)
+                    }
+
+                    HStack(spacing: 8) {
+                        ForEach(presentation.forecastSlots) { slot in
+                            MarineForecastChip(model: slot)
+                        }
+                    }
+
+                    if let seaSurfaceTemperature = marine.seaSurfaceTemperatureCelsius {
+                        Text("Sea \(NomadFormatters.celsius(seaSurfaceTemperature))")
+                            .font(.caption)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                    }
+                }
+            } else {
+                WeatherEmptyState(
+                    title: presentation.emptyTitle,
+                    systemImage: presentation.emptySystemImage,
+                    message: presentation.emptyMessage
+                )
+            }
+        }
+    }
+
+    private var surfSectionPresentation: SurfSectionPresentation {
+        SurfSectionPresentation(settings: settings, snapshot: snapshot)
+    }
+
+    private var weatherAttributionLine: String {
+        if settings.surfSpotConfiguration.isConfigured || snapshot.marine != nil {
+            return "Weather: WeatherKit · Surf: Open-Meteo"
+        }
+
+        return "Weather: WeatherKit"
     }
 
     private var travelAlertsSubtitle: String {
@@ -791,9 +867,9 @@ private struct MetricBlock: View {
 
     private var metricTint: Color {
         switch title {
-        case "Down", "Time Left", "Current":
+        case "Down", "Time Left", "Current", "Wave":
             NomadTheme.teal
-        case "Up", "Battery", "Feels Like":
+        case "Up", "Battery", "Feels Like", "Swell":
             NomadTheme.sand
         default:
             NomadTheme.coral
@@ -1284,6 +1360,155 @@ private struct WeatherEmptyState: View {
     }
 }
 
+struct SurfSectionPresentation {
+    enum State: Equatable {
+        case notConfigured
+        case invalid
+        case unavailable
+        case ready
+    }
+
+    let state: State
+    let spotName: String?
+    let badge: PillBadge
+    let marine: MarineSnapshot?
+    let waveSummary: String
+    let swellSummary: String
+    let windSummary: String
+    let forecastSlots: [SurfForecastSlotPresentation]
+    let emptyTitle: String
+    let emptySystemImage: String
+    let emptyMessage: String
+
+    init(settings: AppSettings, snapshot: DashboardSnapshot) {
+        let surfConfiguration = settings.surfSpotConfiguration
+
+        if let marine = snapshot.marine {
+            state = .ready
+            spotName = marine.spotName
+            badge = PillBadge(
+                title: "\(marine.sourceName) · \(NomadFormatters.compactClockTime(marine.fetchedAt))",
+                symbolName: "water.waves",
+                tint: NomadTheme.teal
+            )
+            self.marine = marine
+            waveSummary = Self.waveSummary(for: marine)
+            swellSummary = Self.swellSummary(for: marine)
+            windSummary = Self.windSummary(for: marine)
+            forecastSlots = marine.forecastSlots.enumerated().map { index, slot in
+                SurfForecastSlotPresentation(index: index, slot: slot)
+            }
+            emptyTitle = ""
+            emptySystemImage = "water.waves"
+            emptyMessage = ""
+            return
+        }
+
+        spotName = surfConfiguration.name
+        marine = nil
+        waveSummary = "n/a"
+        swellSummary = "n/a"
+        windSummary = "n/a"
+        forecastSlots = []
+
+        if surfConfiguration.isConfigured == false {
+            state = .notConfigured
+            badge = PillBadge(title: "Not Set", symbolName: "water.waves.slash", tint: NomadTheme.primaryText)
+            emptyTitle = "Surf Spot"
+            emptySystemImage = "water.waves.slash"
+            emptyMessage = "Add a surf spot in Settings."
+        } else if surfConfiguration.isValid == false {
+            state = .invalid
+            badge = PillBadge(title: "Fix Spot", symbolName: "exclamationmark.triangle.fill", tint: NomadTheme.sand)
+            emptyTitle = "Surf Spot"
+            emptySystemImage = "exclamationmark.triangle.fill"
+            emptyMessage = "Fix surf spot coordinates in Settings."
+        } else {
+            state = .unavailable
+            badge = PillBadge(title: "Unavailable", symbolName: "water.waves.slash", tint: NomadTheme.primaryText)
+            emptyTitle = "Surf Spot"
+            emptySystemImage = "water.waves.slash"
+            emptyMessage = "Surf check unavailable."
+        }
+    }
+
+    private static func waveSummary(for marine: MarineSnapshot) -> String {
+        summary(primary: NomadFormatters.meters(marine.waveHeightMeters), secondary: NomadFormatters.seconds(marine.wavePeriodSeconds))
+    }
+
+    private static func swellSummary(for marine: MarineSnapshot) -> String {
+        summary(primary: NomadFormatters.meters(marine.swellHeightMeters), secondary: NomadFormatters.compassDirection(marine.swellDirectionDegrees))
+    }
+
+    private static func windSummary(for marine: MarineSnapshot) -> String {
+        summary(primary: NomadFormatters.kilometersPerHour(marine.windSpeedKph), secondary: NomadFormatters.compassDirection(marine.windDirectionDegrees))
+    }
+
+    private static func summary(primary: String, secondary: String) -> String {
+        if primary == "n/a" {
+            return secondary
+        }
+
+        if secondary == "n/a" {
+            return primary
+        }
+
+        return "\(primary) · \(secondary)"
+    }
+}
+
+struct SurfForecastSlotPresentation: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let waveValue: String
+    let windValue: String
+
+    init(index: Int, slot: MarineForecastSlot) {
+        self.id = "\(index)-\(slot.date.timeIntervalSinceReferenceDate)"
+        self.title = switch index {
+        case 0: "Now"
+        case 1: "+3h"
+        case 2: "+6h"
+        default: "+12h"
+        }
+        self.waveValue = NomadFormatters.meters(slot.waveHeightMeters)
+        self.windValue = slot.windSpeedKph.map {
+            "\(NomadFormatters.kilometersPerHour($0)) · \(NomadFormatters.compassDirection(slot.windDirectionDegrees))"
+        } ?? "n/a"
+    }
+}
+
+private struct MarineForecastChip: View {
+    let model: SurfForecastSlotPresentation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(model.title)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(NomadTheme.tertiaryText)
+
+            Text(model.waveValue)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(NomadTheme.primaryText)
+
+            Text(model.windValue)
+                .font(.caption2)
+                .foregroundStyle(NomadTheme.secondaryText)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(NomadTheme.chartBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+                )
+        )
+    }
+}
+
 private struct ChartPlaceholder: View {
     let unitLabel: String
     let message: String
@@ -1325,7 +1550,7 @@ private struct TrendLegendItem: View {
     }
 }
 
-private struct PillBadge {
+struct PillBadge {
     let title: String
     let symbolName: String
     let tint: Color

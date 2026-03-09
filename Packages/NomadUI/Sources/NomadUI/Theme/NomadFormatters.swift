@@ -22,6 +22,34 @@ public enum NomadFormatters {
         return String(format: "%.0f C", value)
     }
 
+    public static func kilometersPerHour(_ value: Double?) -> String {
+        guard let value else { return "n/a" }
+        return String(format: "%.0f km/h", value)
+    }
+
+    public static func meters(_ value: Double?) -> String {
+        guard let value else { return "n/a" }
+        return String(format: "%.1f m", value)
+    }
+
+    public static func seconds(_ value: Double?) -> String {
+        guard let value else { return "n/a" }
+        return String(format: "%.0f s", value)
+    }
+
+    public static func compactClockTime(_ value: Date?) -> String {
+        guard let value else { return "n/a" }
+        return value.formatted(date: .omitted, time: .shortened)
+    }
+
+    public static func compassDirection(_ value: Double?) -> String {
+        guard let value else { return "n/a" }
+        let normalized = value.truncatingRemainder(dividingBy: 360)
+        let degrees = normalized >= 0 ? normalized : normalized + 360
+        let index = Int((degrees + 22.5) / 45.0) % 8
+        return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][index]
+    }
+
     public static func watts(_ value: Double?) -> String {
         guard let value else { return "n/a" }
         return String(format: "%.1f W", value)

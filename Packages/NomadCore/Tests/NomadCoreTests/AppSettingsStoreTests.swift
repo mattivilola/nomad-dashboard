@@ -18,6 +18,9 @@ struct AppSettingsStoreTests {
         #expect(store.settings.travelAdvisoryEnabled == true)
         #expect(store.settings.travelWeatherAlertsEnabled == false)
         #expect(store.settings.regionalSecurityEnabled == false)
+        #expect(store.settings.surfSpotName.isEmpty)
+        #expect(store.settings.surfSpotLatitude == nil)
+        #expect(store.settings.surfSpotLongitude == nil)
     }
 
     @Test
@@ -67,6 +70,24 @@ struct AppSettingsStoreTests {
     }
 
     @Test
+    func persistsSurfSpotToUserDefaults() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.settings.surfSpotName = "El Saler"
+        store.settings.surfSpotLatitude = 39.355
+        store.settings.surfSpotLongitude = -0.314
+
+        let reloaded = AppSettingsStore(defaults: defaults)
+        #expect(reloaded.settings.surfSpotName == "El Saler")
+        #expect(reloaded.settings.surfSpotLatitude == 39.355)
+        #expect(reloaded.settings.surfSpotLongitude == -0.314)
+        #expect(reloaded.settings.surfSpotConfiguration.isValid)
+    }
+
+    @Test
     func decodesLegacyPayloadWithoutAppearanceMode() throws {
         let suiteName = UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -99,6 +120,9 @@ struct AppSettingsStoreTests {
         #expect(store.settings.travelAdvisoryEnabled == true)
         #expect(store.settings.travelWeatherAlertsEnabled == false)
         #expect(store.settings.regionalSecurityEnabled == false)
+        #expect(store.settings.surfSpotName.isEmpty)
+        #expect(store.settings.surfSpotLatitude == nil)
+        #expect(store.settings.surfSpotLongitude == nil)
         #expect(store.settings.latencyHosts == ["example.com:443"])
     }
 }

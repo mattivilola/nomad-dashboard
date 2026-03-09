@@ -17,6 +17,7 @@ struct DashboardRootView: View {
     var body: some View {
         DashboardPanelView(
             snapshot: snapshotStore.snapshot,
+            settings: settingsStore.settings,
             isPublicIPLocationEnabled: settingsStore.settings.publicIPGeolocationEnabled,
             travelAlertPreferences: settingsStore.settings.travelAlertPreferences,
             versionDescription: AppRuntimeInfo.versionDescription,
