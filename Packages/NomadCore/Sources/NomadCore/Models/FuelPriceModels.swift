@@ -299,6 +299,88 @@ public struct FuelStationPrice: Equatable, Sendable {
     }
 }
 
+public struct FuelStationMapDestination: Identifiable, Equatable, Sendable {
+    public let fuelType: FuelType
+    public let stationName: String
+    public let address: String?
+    public let locality: String?
+    public let pricePerLiter: Double
+    public let currencyCode: String
+    public let latitude: Double
+    public let longitude: Double
+    public let updatedAt: Date?
+
+    public init(
+        fuelType: FuelType,
+        stationName: String,
+        address: String?,
+        locality: String?,
+        pricePerLiter: Double,
+        currencyCode: String = "EUR",
+        latitude: Double,
+        longitude: Double,
+        updatedAt: Date?
+    ) {
+        self.fuelType = fuelType
+        self.stationName = stationName
+        self.address = address
+        self.locality = locality
+        self.pricePerLiter = pricePerLiter
+        self.currencyCode = currencyCode
+        self.latitude = latitude
+        self.longitude = longitude
+        self.updatedAt = updatedAt
+    }
+
+    public var id: String {
+        "\(fuelType.rawValue)|\(stationName)|\(latitude)|\(longitude)"
+    }
+
+    public var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    public var isCoordinateValid: Bool {
+        CLLocationCoordinate2DIsValid(coordinate)
+    }
+
+    public var addressLine: String? {
+        let combined = [address, locality]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty == false }
+            .joined(separator: ", ")
+        return combined.isEmpty ? nil : combined
+    }
+
+    public var googleMapsURL: URL? {
+        if isCoordinateValid {
+            var components = URLComponents(string: "https://www.google.com/maps/dir/")!
+            components.queryItems = [
+                URLQueryItem(name: "api", value: "1"),
+                URLQueryItem(name: "destination", value: "\(latitude),\(longitude)"),
+                URLQueryItem(name: "travelmode", value: "driving")
+            ]
+            return components.url
+        }
+
+        let fallbackQuery = [stationName, addressLine]
+            .compactMap(\.self)
+            .joined(separator: ", ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard fallbackQuery.isEmpty == false else {
+            return nil
+        }
+
+        var components = URLComponents(string: "https://www.google.com/maps/search/")!
+        components.queryItems = [
+            URLQueryItem(name: "api", value: "1"),
+            URLQueryItem(name: "query", value: fallbackQuery)
+        ]
+        return components.url
+    }
+}
+
 public struct FuelPriceSnapshot: Equatable, Sendable {
     public let status: FuelPriceStatus
     public let sourceName: String

@@ -268,6 +268,46 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func fuelStationMapDestinationBuildsGoogleMapsDirectionsURLFromCoordinates() throws {
+        let destination = FuelStationMapDestination(
+            fuelType: .diesel,
+            stationName: "Cheap Diesel",
+            address: "Harbor Road 12",
+            locality: "Valencia",
+            pricePerLiter: 1.429,
+            latitude: 39.4699,
+            longitude: -0.3763,
+            updatedAt: nil
+        )
+
+        let url = try #require(destination.googleMapsURL)
+
+        #expect(url.absoluteString.contains("https://www.google.com/maps/dir/"))
+        #expect(url.absoluteString.contains("destination=39.4699,-0.3763"))
+        #expect(url.absoluteString.contains("travelmode=driving"))
+    }
+
+    @Test
+    func fuelStationMapDestinationFallsBackToSearchQueryWhenCoordinatesAreInvalid() throws {
+        let destination = FuelStationMapDestination(
+            fuelType: .gasoline,
+            stationName: "Ballenoil Alfafar",
+            address: "Avinguda del Port 3",
+            locality: "Valencia",
+            pricePerLiter: 1.519,
+            latitude: 190,
+            longitude: -500,
+            updatedAt: nil
+        )
+
+        let url = try #require(destination.googleMapsURL)
+
+        #expect(url.absoluteString.contains("https://www.google.com/maps/search/"))
+        #expect(url.absoluteString.contains("Ballenoil"))
+        #expect(destination.isCoordinateValid == false)
+    }
+
+    @Test
     func refreshSkipsMarineLookupWhenSurfSpotIsBlank() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         let marineProvider = RecordingMarineProvider()
