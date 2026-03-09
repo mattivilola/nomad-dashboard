@@ -20,6 +20,28 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.12] - 2026-03-09
+
+### Added
+
+- Introduce distinct "Dev" build flavor and improved diagnostics
+- Enhance travel alert error diagnostics
+- Introduce CLI tool for probing live external data sources
+- Introduce compact typography for MetricBlock
+- Implement ReliefWeb approved app name configuration
+- Introduce time to full charge metric and update ReliefWeb integration
+- Introduce near-term precipitation chance metric
+
+### Changed
+
+- Add surf spot configuration and marine data to dashboard
+- Merge branch 'main' into staging
+- Modernize Swift syntax and streamline developer tooling
+- Set Swift version to 6.0 and establish SwiftFormat configuration
+- Remove generated Xcode log files
+- Simplify DerivedDataValidation .gitignore rules
+- Merge branch 'staging'
+
 ## [0.1.11] - 2026-03-09
 
 ### Changed
