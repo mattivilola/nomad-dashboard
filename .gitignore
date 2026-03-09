@@ -14,5 +14,12 @@ artifacts/
 *.dmg
 *.xcarchive
 Config/Signing.env
+DerivedDataValidation/CompilationCache.noindex/
+DerivedDataValidation/Index.noindex/
+DerivedDataValidation/ModuleCache.noindex/
+DerivedDataValidation/SDKStatCaches.noindex/
+DerivedDataValidation/SourcePackages/
+DerivedDataValidation/info.plist
+DerivedDataValidation/Logs/Package/*.xcactivitylog
 App/Resources/Generated/
 Packages/**/.build/

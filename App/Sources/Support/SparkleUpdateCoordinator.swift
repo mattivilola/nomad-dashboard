@@ -27,17 +27,17 @@ final class SparkleUpdateCoordinator: NSObject, UpdateCoordinator, @unchecked Se
 
         updater.automaticallyChecksForUpdates = automaticChecksEnabled
 
-        var startError: NSError?
-        if updater.startUpdater(&startError) {
+        do {
+            try updater.start()
             state = UpdateStateSnapshot(
                 kind: .idle,
                 detail: automaticChecksEnabled ? "Sparkle ready" : "Automatic update checks disabled",
                 lastCheckedAt: nil
             )
-        } else {
+        } catch {
             state = UpdateStateSnapshot(
                 kind: .unavailable,
-                detail: startError?.localizedDescription ?? "Unable to start Sparkle updater",
+                detail: error.localizedDescription,
                 lastCheckedAt: nil
             )
         }
@@ -67,15 +67,15 @@ final class SparkleUpdateCoordinator: NSObject, UpdateCoordinator, @unchecked Se
         )
     }
 
-    fileprivate func handleUpdateFound(_ item: SUAppcastItem) {
+    fileprivate func handleUpdateFound(version: String) {
         state = UpdateStateSnapshot(
             kind: .updateAvailable,
-            detail: "Update available: \(item.displayVersionString)",
+            detail: "Update available: \(version)",
             lastCheckedAt: Date()
         )
     }
 
-    fileprivate func handleNoUpdateFound(_ error: Error) {
+    fileprivate func handleNoUpdateFound() {
         state = UpdateStateSnapshot(
             kind: .idle,
             detail: "You're up to date",
@@ -83,17 +83,17 @@ final class SparkleUpdateCoordinator: NSObject, UpdateCoordinator, @unchecked Se
         )
     }
 
-    fileprivate func handleUpdateFailure(_ error: Error) {
+    fileprivate func handleUpdateFailure(description: String) {
         state = UpdateStateSnapshot(
             kind: .unavailable,
-            detail: error.localizedDescription,
+            detail: description,
             lastCheckedAt: Date()
         )
     }
 
-    fileprivate func handleFinishedCycle(error: Error?) {
-        if let error {
-            handleUpdateFailure(error)
+    fileprivate func handleFinishedCycle(errorDescription: String?) {
+        if let errorDescription {
+            handleUpdateFailure(description: errorDescription)
             return
         }
 
@@ -109,28 +109,41 @@ final class SparkleUpdateCoordinator: NSObject, UpdateCoordinator, @unchecked Se
     }
 }
 
-@MainActor
 private final class SparkleUpdateDelegateProxy: NSObject, SPUUpdaterDelegate {
     weak var owner: SparkleUpdateCoordinator?
 
     func updater(_ updater: SPUUpdater, didFindValidUpdate item: SUAppcastItem) {
-        owner?.handleUpdateFound(item)
+        let version = item.displayVersionString
+        Task { @MainActor [weak owner] in
+            owner?.handleUpdateFound(version: version)
+        }
     }
 
     func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: Error) {
-        owner?.handleNoUpdateFound(error)
+        Task { @MainActor [weak owner] in
+            owner?.handleNoUpdateFound()
+        }
     }
 
     func updater(_ updater: SPUUpdater, failedToDownloadUpdate item: SUAppcastItem, error: Error) {
-        owner?.handleUpdateFailure(error)
+        let description = error.localizedDescription
+        Task { @MainActor [weak owner] in
+            owner?.handleUpdateFailure(description: description)
+        }
     }
 
     func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
-        owner?.handleUpdateFailure(error)
+        let description = error.localizedDescription
+        Task { @MainActor [weak owner] in
+            owner?.handleUpdateFailure(description: description)
+        }
     }
 
     func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
-        owner?.handleFinishedCycle(error: error)
+        let errorDescription = error?.localizedDescription
+        Task { @MainActor [weak owner] in
+            owner?.handleFinishedCycle(errorDescription: errorDescription)
+        }
     }
 }
 #else

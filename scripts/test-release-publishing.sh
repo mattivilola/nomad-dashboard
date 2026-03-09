@@ -20,7 +20,7 @@ assert_contains() {
   local needle="$2"
   local description="$3"
 
-  [[ "$haystack" == *"$needle"* ]] || fail "$description"
+  printf '%s' "$haystack" | grep -F "$needle" >/dev/null || fail "$description"
 }
 
 bootstrap_repo() {
@@ -102,17 +102,17 @@ run_publish_dry_run_test() {
 run_dirty_tree_rejection_test() {
   local repo_path="$TEST_ROOT/dirty-tree"
   local output
-  local status
+  local exit_code
 
   bootstrap_repo "$repo_path"
   echo "dirty" >> "$repo_path/README.md"
 
   set +e
   output="$(cd "$repo_path" && ./scripts/sign-and-notarize.sh 2>&1)"
-  status=$?
+  exit_code=$?
   set -e
 
-  if [[ "$status" -eq 0 ]]; then
+  if [[ "$exit_code" -eq 0 ]]; then
     fail "sign-and-notarize should reject a dirty working tree"
   fi
 
@@ -122,16 +122,16 @@ run_dirty_tree_rejection_test() {
 run_missing_signing_config_test() {
   local repo_path="$TEST_ROOT/missing-config"
   local output
-  local status
+  local exit_code
 
   bootstrap_repo "$repo_path"
 
   set +e
   output="$(cd "$repo_path" && ./scripts/sign-and-notarize.sh 2>&1)"
-  status=$?
+  exit_code=$?
   set -e
 
-  if [[ "$status" -eq 0 ]]; then
+  if [[ "$exit_code" -eq 0 ]]; then
     fail "sign-and-notarize should fail when signing configuration is missing"
   fi
 
@@ -142,7 +142,7 @@ run_publish_auth_failure_test() {
   local repo_path="$TEST_ROOT/publish-auth-failure"
   local fake_bin="$repo_path/fake-bin"
   local output
-  local status
+  local exit_code
 
   bootstrap_repo "$repo_path"
   mkdir -p "$fake_bin"
@@ -167,12 +167,19 @@ EOF
 
   chmod +x "$repo_path/sparkle-bin/generate_appcast" "$fake_bin/gh"
 
+  (
+    cd "$repo_path"
+    git add Config/Signing.env fake-bin sparkle-bin sparkle_private_key.pem
+    git commit -qm "Add publish prerequisites"
+    git tag -fa v0.1.6 -m "Release v0.1.6" >/dev/null
+  )
+
   set +e
   output="$(cd "$repo_path" && PATH="$fake_bin:$PATH" ./scripts/publish-update.sh 2>&1)"
-  status=$?
+  exit_code=$?
   set -e
 
-  if [[ "$status" -eq 0 ]]; then
+  if [[ "$exit_code" -eq 0 ]]; then
     fail "publish-update should fail when GitHub authentication is invalid"
   fi
 
