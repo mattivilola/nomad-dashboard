@@ -2,6 +2,69 @@ import CoreLocation
 import Foundation
 import WeatherKit
 
+protocol TravelAlertDiagnosticError: Error {
+    var diagnosticSummary: String { get }
+}
+
+enum ReliefWebProviderError: Error, Equatable, TravelAlertDiagnosticError, CustomStringConvertible {
+    case requestFailed(URLError.Code)
+    case appNameApprovalRequired(String?)
+    case appNameMissing(String?)
+    case unexpectedStatus(Int, bodySnippet: String?)
+    case invalidPayload(String)
+
+    var diagnosticSummary: String {
+        switch self {
+        case let .requestFailed(code):
+            switch code {
+            case .notConnectedToInternet:
+                "ReliefWeb request failed: no internet connection."
+            case .timedOut:
+                "ReliefWeb request timed out."
+            case .cannotFindHost, .cannotConnectToHost, .networkConnectionLost, .dnsLookupFailed:
+                "ReliefWeb could not be reached."
+            default:
+                "ReliefWeb request failed before a response was received."
+            }
+        case .appNameApprovalRequired:
+            "ReliefWeb app name approval required."
+        case .appNameMissing:
+            "ReliefWeb app name missing from request."
+        case let .unexpectedStatus(statusCode, _):
+            "ReliefWeb returned HTTP \(statusCode)."
+        case .invalidPayload:
+            "ReliefWeb response format changed."
+        }
+    }
+
+    var description: String {
+        switch self {
+        case let .requestFailed(code):
+            "ReliefWeb request failed with URLError code \(code.rawValue)."
+        case let .appNameApprovalRequired(message):
+            if let message, message.isEmpty == false {
+                "ReliefWeb app name approval required: \(message)"
+            } else {
+                "ReliefWeb app name approval required."
+            }
+        case let .appNameMissing(message):
+            if let message, message.isEmpty == false {
+                "ReliefWeb app name missing from request: \(message)"
+            } else {
+                "ReliefWeb app name missing from request."
+            }
+        case let .unexpectedStatus(statusCode, bodySnippet):
+            if let bodySnippet, bodySnippet.isEmpty == false {
+                "ReliefWeb returned HTTP \(statusCode). Body snippet: \(bodySnippet)"
+            } else {
+                "ReliefWeb returned HTTP \(statusCode)."
+            }
+        case let .invalidPayload(message):
+            "ReliefWeb response format changed: \(message)"
+        }
+    }
+}
+
 public struct BundledNeighborCountryResolver: NeighborCountryResolver {
     private let bordersByCountry: [String: [String]]
 
@@ -15,11 +78,11 @@ public struct BundledNeighborCountryResolver: NeighborCountryResolver {
             let data = try? Data(contentsOf: url),
             let records = try? JSONDecoder().decode([CountryBorderRecord].self, from: data)
         else {
-            self.bordersByCountry = [:]
+            bordersByCountry = [:]
             return
         }
 
-        self.bordersByCountry = Dictionary(
+        bordersByCountry = Dictionary(
             uniqueKeysWithValues: records.map { ($0.cca2.uppercased(), $0.borders.map { $0.uppercased() }) }
         )
     }
@@ -30,7 +93,7 @@ public struct BundledNeighborCountryResolver: NeighborCountryResolver {
 }
 
 public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
-    nonisolated public let sourceDescriptor = TravelAlertSourceDescriptor(
+    public nonisolated let sourceDescriptor = TravelAlertSourceDescriptor(
         name: "Smartraveller",
         url: URL(string: "https://www.smartraveller.gov.au")
     )
@@ -129,14 +192,12 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
         }
 
         let sourceURL = worst.destination.url
-        let summary: String
-
-        if worst.severity == .clear {
-            summary = "No elevated travel advisories across your nearby countries."
+        let summary = if worst.severity == .clear {
+            "No elevated travel advisories across your nearby countries."
         } else if worst.countryCode == primaryCountryCode {
-            summary = "\(worst.countryName) is at \(worst.destination.levelLabel)."
+            "\(worst.countryName) is at \(worst.destination.levelLabel)."
         } else {
-            summary = "\(worst.countryName) is at \(worst.destination.levelLabel) nearby."
+            "\(worst.countryName) is at \(worst.destination.levelLabel) nearby."
         }
 
         return TravelAlertSignalSnapshot(
@@ -157,13 +218,12 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
     static func parseDestinations(from data: Data) throws -> [SmartravellerDestination] {
         let rootObject = try JSONSerialization.jsonObject(with: data)
 
-        let rawItems: [Any]
-        if let array = rootObject as? [Any] {
-            rawItems = array
+        let rawItems: [Any] = if let array = rootObject as? [Any] {
+            array
         } else if let dictionary = rootObject as? [String: Any] {
-            rawItems = (dictionary["data"] as? [Any]) ?? (dictionary["destinations"] as? [Any]) ?? []
+            (dictionary["data"] as? [Any]) ?? (dictionary["destinations"] as? [Any]) ?? []
         } else {
-            rawItems = []
+            []
         }
 
         let destinations = rawItems.compactMap { item -> SmartravellerDestination? in
@@ -234,7 +294,7 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
 }
 
 public actor WeatherKitAlertProvider: TravelWeatherAlertsProvider {
-    nonisolated public let sourceDescriptor = TravelAlertSourceDescriptor(
+    public nonisolated let sourceDescriptor = TravelAlertSourceDescriptor(
         name: "WeatherKit",
         url: URL(string: "https://developer.apple.com/weatherkit/")
     )
@@ -330,7 +390,7 @@ public actor WeatherKitAlertProvider: TravelWeatherAlertsProvider {
 }
 
 public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
-    nonisolated public let sourceDescriptor = TravelAlertSourceDescriptor(
+    public nonisolated let sourceDescriptor = TravelAlertSourceDescriptor(
         name: "ReliefWeb",
         url: URL(string: "https://reliefweb.int")
     )
@@ -345,7 +405,7 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
     public init(
         session: URLSession = .shared,
         ttl: TimeInterval = 3_600,
-        endpoint: URL = URL(string: "https://api.reliefweb.int/v1/reports")!,
+        endpoint: URL = URL(string: "https://api.reliefweb.int/v2/reports")!,
         appName: String? = nil
     ) {
         self.init(
@@ -386,6 +446,7 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
 
         let countryNames = normalizedCountryCodes.compactMap(countryNameResolver.primaryName(for:))
         let reports = try await fetchReports(countryNames: countryNames)
+            .filter { Date().timeIntervalSince($0.date) <= 72 * 3_600 }
         let signal = Self.signal(
             from: reports,
             primaryCountryName: primaryCountryName,
@@ -397,14 +458,24 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
     }
 
     func fetchReports(countryNames: [String]) async throws -> [SecurityReportPayload] {
-        var request = URLRequest(url: endpoint)
+        guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+            throw ProviderError.invalidResponse
+        }
+
+        components.queryItems = (components.queryItems ?? []) + [
+            URLQueryItem(name: "appname", value: appName)
+        ]
+
+        guard let requestURL = components.url else {
+            throw ProviderError.invalidResponse
+        }
+
+        var request = URLRequest(url: requestURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let cutoff = iso8601String(from: Date().addingTimeInterval(-72 * 3_600))
         let body: [String: Any] = [
-            "appname": appName,
-            "limit": 10,
+            "limit": 50,
             "sort": ["date.created:desc"],
             "fields": [
                 "include": [
@@ -423,10 +494,6 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
                 "operator": "AND",
                 "conditions": [
                     [
-                        "field": "date.created",
-                        "value": ["from": cutoff]
-                    ],
-                    [
                         "field": "country.name",
                         "value": countryNames,
                         "operator": "OR"
@@ -436,9 +503,24 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as URLError {
+            throw ReliefWebProviderError.requestFailed(error.code)
+        }
+
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw ProviderError.invalidResponse
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+            let errorMessage = responseErrorMessage(from: data)
+
+            if let configurationError = configurationError(statusCode: statusCode, message: errorMessage) {
+                throw configurationError
+            }
+
+            throw ReliefWebProviderError.unexpectedStatus(statusCode, bodySnippet: responseSnippet(from: data))
         }
 
         return try Self.parseReports(from: data)
@@ -455,34 +537,32 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
         let nearbyReports = reports.filter { CountryNameResolver().normalized($0.primaryCountryName) != primaryNormalizer }
         let currentCountryRecentReports = currentCountryReports.filter { now.timeIntervalSince($0.date) <= 24 * 3_600 }
 
-        let severity: TravelAlertSeverity
-        if currentCountryRecentReports.isEmpty == false {
-            severity = .warning
+        let severity: TravelAlertSeverity = if currentCountryRecentReports.isEmpty == false {
+            .warning
         } else if currentCountryReports.isEmpty == false || nearbyReports.count >= 2 {
-            severity = .caution
+            .caution
         } else if nearbyReports.isEmpty == false {
-            severity = .info
+            .info
         } else {
-            severity = .clear
+            .clear
         }
 
         let latestReport = reports.sorted { $0.date > $1.date }.first
-        let summary: String
-        switch severity {
+        let summary = switch severity {
         case .warning:
-            summary = "\(currentCountryRecentReports.count) recent security bulletin(s) mention \(primaryCountryName)."
+            "\(currentCountryRecentReports.count) recent security bulletin(s) mention \(primaryCountryName)."
         case .caution:
             if currentCountryReports.isEmpty == false {
-                summary = "Security reporting mentions \(primaryCountryName) within the last 72 hours."
+                "Security reporting mentions \(primaryCountryName) within the last 72 hours."
             } else {
-                summary = "\(nearbyReports.count) nearby security bulletins were published recently."
+                "\(nearbyReports.count) nearby security bulletins were published recently."
             }
         case .info:
-            summary = "A nearby security bulletin was published within the last 72 hours."
+            "A nearby security bulletin was published within the last 72 hours."
         case .clear:
-            summary = "No recent security bulletins across \(matchedCountryNames.count) monitored countries."
+            "No recent security bulletins across \(matchedCountryNames.count) monitored countries."
         case .critical:
-            summary = "Regional security conditions require immediate review."
+            "Regional security conditions require immediate review."
         }
 
         let sourceURL = latestReport?.urlAlias.flatMap { alias -> URL? in
@@ -507,11 +587,24 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
     }
 
     static func parseReports(from data: Data) throws -> [SecurityReportPayload] {
+        let rootObject: [String: Any]
+
+        do {
+            guard let decoded = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw ReliefWebProviderError.invalidPayload("Top-level response was not a JSON object.")
+            }
+
+            rootObject = decoded
+        } catch let error as ReliefWebProviderError {
+            throw error
+        } catch {
+            throw ReliefWebProviderError.invalidPayload("Response body was not valid JSON.")
+        }
+
         guard
-            let rootObject = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             let items = rootObject["data"] as? [[String: Any]]
         else {
-            throw ProviderError.invalidResponse
+            throw ReliefWebProviderError.invalidPayload("Missing top-level data array.")
         }
 
         return items.compactMap { item in
@@ -547,9 +640,51 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
     private static func normalizedCountryCodes(_ countryCodes: [String]) -> [String] {
         countryCodes.map { $0.uppercased() }.uniqued()
     }
+
+    private func responseSnippet(from data: Data) -> String? {
+        guard
+            let text = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            text.isEmpty == false
+        else {
+            return nil
+        }
+
+        return String(text.prefix(160))
+    }
+
+    private func responseErrorMessage(from data: Data) -> String? {
+        guard
+            let rootObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let errorObject = rootObject["error"] as? [String: Any],
+            let message = errorObject["message"] as? String
+        else {
+            return nil
+        }
+
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func configurationError(statusCode: Int, message: String?) -> ReliefWebProviderError? {
+        guard let message else {
+            return nil
+        }
+
+        let normalizedMessage = message.lowercased()
+        if statusCode == 403, normalizedMessage.contains("approved appname") {
+            return .appNameApprovalRequired(message)
+        }
+
+        if normalizedMessage.contains("missing appname parameter") {
+            return .appNameMissing(message)
+        }
+
+        return nil
+    }
 }
 
-struct CountryNameResolver: Sendable {
+struct CountryNameResolver {
     private let locale = Locale(identifier: "en_US_POSIX")
 
     func primaryName(for countryCode: String) -> String? {
@@ -579,14 +714,14 @@ struct CountryNameResolver: Sendable {
     }
 }
 
-struct WeatherAlertPayload: Sendable {
+struct WeatherAlertPayload {
     let detailsURL: URL
     let source: String
     let summary: String
     let severity: WeatherSeverity
 }
 
-struct SecurityReportPayload: Sendable {
+struct SecurityReportPayload {
     let title: String
     let date: Date
     let primaryCountryName: String
@@ -594,7 +729,7 @@ struct SecurityReportPayload: Sendable {
     let urlAlias: String?
 }
 
-struct AdvisoryMatch: Sendable {
+struct AdvisoryMatch {
     let countryCode: String
     let countryName: String
     let destination: SmartravellerDestination
@@ -604,7 +739,7 @@ struct AdvisoryMatch: Sendable {
     }
 }
 
-struct SmartravellerDestination: Sendable {
+struct SmartravellerDestination {
     let name: String
     let level: Int
     let url: URL?
@@ -674,10 +809,4 @@ private func parseISO8601Date(_ value: String) -> Date? {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime]
     return formatter.date(from: value)
-}
-
-private func iso8601String(from date: Date) -> String {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime]
-    return formatter.string(from: date)
 }

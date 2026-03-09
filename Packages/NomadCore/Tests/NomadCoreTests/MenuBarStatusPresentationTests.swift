@@ -109,6 +109,7 @@ private func makeSnapshot(
                 chargePercent: chargePercent,
                 state: .battery,
                 timeRemainingMinutes: 180,
+                timeToFullChargeMinutes: nil,
                 isLowPowerModeEnabled: false,
                 dischargeRateWatts: 9.3,
                 adapterWatts: nil,

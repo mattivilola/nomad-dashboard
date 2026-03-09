@@ -8,26 +8,36 @@ struct SettingsView: View {
     @ObservedObject var snapshotStore: DashboardSnapshotStore
     @ObservedObject var locationStore: CurrentLocationStore
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
+    @ObservedObject var settingsNavigationController: SettingsNavigationController
     let updatesEnabled: Bool
 
     @State private var surfSpotNameText: String
     @State private var surfSpotLatitudeText: String
     @State private var surfSpotLongitudeText: String
+    @State private var pendingSurfSpotFillFromLocation = false
+
+    @FocusState private var focusedField: FocusField?
 
     @Environment(\.openURL) private var openURL
     @Environment(\.openWindow) private var openWindow
+
+    private enum FocusField: Hashable {
+        case surfSpotName
+    }
 
     init(
         settingsStore: AppSettingsStore,
         snapshotStore: DashboardSnapshotStore,
         locationStore: CurrentLocationStore,
         launchAtLoginController: LaunchAtLoginController,
+        settingsNavigationController: SettingsNavigationController,
         updatesEnabled: Bool
     ) {
         self.settingsStore = settingsStore
         self.snapshotStore = snapshotStore
         self.locationStore = locationStore
         self.launchAtLoginController = launchAtLoginController
+        self.settingsNavigationController = settingsNavigationController
         self.updatesEnabled = updatesEnabled
         _surfSpotNameText = State(initialValue: settingsStore.settings.surfSpotName)
         _surfSpotLatitudeText = State(initialValue: Self.coordinateText(for: settingsStore.settings.surfSpotLatitude))
@@ -55,144 +65,175 @@ struct SettingsView: View {
                     .accessibilityHidden(true)
             }
 
-            Form {
-                Section {
-                    Picker("Appearance", selection: binding(\.appearanceMode)) {
-                        ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
-                            Text(mode.displayName)
-                                .tag(mode)
+            ScrollViewReader { proxy in
+                Form {
+                    Section {
+                        Picker("Appearance", selection: binding(\.appearanceMode)) {
+                            ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
+                                Text(mode.displayName)
+                                    .tag(mode)
+                            }
                         }
+                        .pickerStyle(.segmented)
+
+                        Toggle("Launch at login", isOn: launchAtLoginBinding)
+
+                        if updatesEnabled {
+                            Toggle("Check for updates automatically", isOn: binding(\.automaticUpdateChecksEnabled))
+                        } else {
+                            LabeledContent("Updates") {
+                                Text("Paused")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    } header: {
+                        Text("General")
+                    } footer: {
+                        Text(updatesEnabled ? "System follows your macOS appearance. The dashboard header button flips quickly between dark and light, and all preferences stay across relaunches." : "System follows your macOS appearance. The dashboard header button flips quickly between dark and light, and all preferences stay across relaunches. In-app update checks only become available in signed release builds that include Sparkle metadata.")
                     }
-                    .pickerStyle(.segmented)
 
-                    Toggle("Launch at login", isOn: launchAtLoginBinding)
+                    Section {
+                        Toggle("Use current location for weather", isOn: weatherLocationBinding)
+                        Toggle("Show external IP location", isOn: binding(\.publicIPGeolocationEnabled))
+                        Toggle("Save visited places locally", isOn: visitedPlacesBinding)
 
-                    if updatesEnabled {
-                        Toggle("Check for updates automatically", isOn: binding(\.automaticUpdateChecksEnabled))
-                    } else {
-                        LabeledContent("Updates") {
-                            Text("Paused")
+                        LabeledContent("Location status") {
+                            Text(locationStore.authorizationSummary)
                                 .foregroundStyle(.secondary)
                         }
+
+                        if let detail = locationStore.diagnostics.detailText {
+                            Text(detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Button(locationActionTitle) {
+                            handleLocationAction()
+                        }
+                        .disabled(locationStore.diagnostics.isRequestInProgress)
+                    } header: {
+                        Text("Privacy & Location")
+                    } footer: {
+                        Text("Weather and local weather alerts use device location only when you opt in. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs. Visited places stay on this Mac until you clear them.")
                     }
-                } header: {
-                    Text("General")
-                } footer: {
-                    Text(updatesEnabled ? "System follows your macOS appearance. The dashboard header button flips quickly between dark and light, and all preferences stay across relaunches." : "System follows your macOS appearance. The dashboard header button flips quickly between dark and light, and all preferences stay across relaunches. In-app update checks only become available in signed release builds that include Sparkle metadata.")
-                }
 
-                Section {
-                    Toggle("Use current location for weather", isOn: weatherLocationBinding)
-                    Toggle("Show external IP location", isOn: binding(\.publicIPGeolocationEnabled))
-                    Toggle("Save visited places locally", isOn: visitedPlacesBinding)
-
-                    LabeledContent("Location status") {
-                        Text(locationStore.authorizationSummary)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Button(locationActionTitle) {
-                        handleLocationAction()
-                    }
-                } header: {
-                    Text("Privacy & Location")
-                } footer: {
-                    Text("Weather and local weather alerts use device location only when you opt in. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs. Visited places stay on this Mac until you clear them.")
-                }
-
-                Section {
-                    TextField("Spot name", text: surfSpotNameBinding)
-                        .textFieldStyle(.roundedBorder)
-
-                    HStack(spacing: 12) {
-                        TextField("Latitude", text: surfSpotLatitudeBinding)
+                    Section {
+                        TextField("Spot name", text: surfSpotNameBinding)
                             .textFieldStyle(.roundedBorder)
+                            .focused($focusedField, equals: .surfSpotName)
+                            .id(SettingsFocusTarget.surfSpot.rawValue)
 
-                        TextField("Longitude", text: surfSpotLongitudeBinding)
-                            .textFieldStyle(.roundedBorder)
-                    }
+                        HStack(spacing: 12) {
+                            TextField("Latitude", text: surfSpotLatitudeBinding)
+                                .textFieldStyle(.roundedBorder)
 
-                    HStack {
-                        Spacer()
-
-                        Button("Use Current Location") {
-                            useCurrentLocationForSurfSpot()
+                            TextField("Longitude", text: surfSpotLongitudeBinding)
+                                .textFieldStyle(.roundedBorder)
                         }
+
+                        HStack {
+                            Spacer()
+
+                            Button("Use Current Location") {
+                                useCurrentLocationForSurfSpot()
+                            }
+                            .disabled(locationStore.diagnostics.isRequestInProgress)
+                        }
+
+                        if let surfSpotValidationMessage {
+                            Text(surfSpotValidationMessage)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+
+                        if pendingSurfSpotFillFromLocation, let detail = locationStore.diagnostics.detailText {
+                            Text(detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } header: {
+                        Text("Surf Spot")
+                    } footer: {
+                        Text("Add one surf spot for wave, swell, wind, and sea-surface context. Surf data uses Open-Meteo; local weather and alerts continue to use WeatherKit.")
                     }
 
-                    if let surfSpotValidationMessage {
-                        Text(surfSpotValidationMessage)
-                            .font(.caption)
-                            .foregroundStyle(.orange)
+                    Section {
+                        Toggle("Travel advisory", isOn: binding(\.travelAdvisoryEnabled))
+                        Toggle("Weather alerts", isOn: travelWeatherAlertsBinding)
+                        Toggle("Regional security", isOn: binding(\.regionalSecurityEnabled))
+                    } header: {
+                        Text("Travel Alerts")
+                    } footer: {
+                        Text("Travel advisory uses Smartraveller by default and starts enabled. Regional security uses ReliefWeb, and weather alerts use WeatherKit. Advisory and security check your current country plus bordering countries; weather alerts use your current location when available.")
                     }
-                } header: {
-                    Text("Surf Spot")
-                } footer: {
-                    Text("Add one surf spot for wave, swell, wind, and sea-surface context. Surf data uses Open-Meteo; local weather and alerts continue to use WeatherKit.")
+
+                    Section {
+                        Stepper(value: fastRefreshBinding, in: 2...10) {
+                            LabeledContent("Fast refresh") {
+                                Text("\(fastRefreshValue) seconds")
+                                    .monospacedDigit()
+                            }
+                        }
+
+                        Stepper(value: slowRefreshBinding, in: 30...300, step: 15) {
+                            LabeledContent("Slow refresh") {
+                                Text("\(slowRefreshValue) seconds")
+                                    .monospacedDigit()
+                            }
+                        }
+
+                        Stepper(value: binding(\.historyRetentionHours), in: 6...72) {
+                            LabeledContent("Metric retention") {
+                                Text("\(settingsStore.settings.historyRetentionHours) hours")
+                                    .monospacedDigit()
+                            }
+                        }
+                    } header: {
+                        Text("Refresh & History")
+                    } footer: {
+                        Text("Fast refresh controls lightweight polling. Slow refresh covers heavier network, power, location, and weather lookups.")
+                    }
+
+                    Section {
+                        LabeledContent("Version", value: AppRuntimeInfo.versionDescription)
+
+                        if updatesEnabled {
+                            Button("Check for Updates") {
+                                snapshotStore.checkForUpdates()
+                            }
+                        } else {
+                            Text(UpdateFeatureConfiguration.pausedReason)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Button("About Nomad Dashboard") {
+                            openAndActivateWindow(.about, with: openWindow)
+                        }
+
+                        Button("Open Visited Map") {
+                            openAndActivateWindow(.visitedMap, with: openWindow)
+                        }
+                    } header: {
+                        Text("Support")
+                    }
                 }
-
-                Section {
-                    Toggle("Travel advisory", isOn: binding(\.travelAdvisoryEnabled))
-                    Toggle("Weather alerts", isOn: travelWeatherAlertsBinding)
-                    Toggle("Regional security", isOn: binding(\.regionalSecurityEnabled))
-                } header: {
-                    Text("Travel Alerts")
-                } footer: {
-                    Text("Travel advisory uses Smartraveller by default and starts enabled. Regional security uses ReliefWeb, and weather alerts use WeatherKit. Advisory and security check your current country plus bordering countries; weather alerts use your current location when available.")
-                }
-
-                Section {
-                    Stepper(value: fastRefreshBinding, in: 2...10) {
-                        LabeledContent("Fast refresh") {
-                            Text("\(fastRefreshValue) seconds")
-                                .monospacedDigit()
-                        }
+                .formStyle(.grouped)
+                .onReceive(settingsNavigationController.$focusRequest.compactMap(\.self)) { request in
+                    guard request.target == .surfSpot else {
+                        return
                     }
 
-                    Stepper(value: slowRefreshBinding, in: 30...300, step: 15) {
-                        LabeledContent("Slow refresh") {
-                            Text("\(slowRefreshValue) seconds")
-                                .monospacedDigit()
-                        }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        proxy.scrollTo(SettingsFocusTarget.surfSpot.rawValue, anchor: .top)
                     }
 
-                    Stepper(value: binding(\.historyRetentionHours), in: 6...72) {
-                        LabeledContent("Metric retention") {
-                            Text("\(settingsStore.settings.historyRetentionHours) hours")
-                                .monospacedDigit()
-                        }
+                    DispatchQueue.main.async {
+                        focusedField = .surfSpotName
                     }
-                } header: {
-                    Text("Refresh & History")
-                } footer: {
-                    Text("Fast refresh controls lightweight polling. Slow refresh covers heavier network, power, location, and weather lookups.")
-                }
-
-                Section {
-                    LabeledContent("Version", value: AppRuntimeInfo.versionDescription)
-
-                    if updatesEnabled {
-                        Button("Check for Updates") {
-                            snapshotStore.checkForUpdates()
-                        }
-                    } else {
-                        Text(UpdateFeatureConfiguration.pausedReason)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Button("About Nomad Dashboard") {
-                        openAndActivateWindow(.about, with: openWindow)
-                    }
-
-                    Button("Open Visited Map") {
-                        openAndActivateWindow(.visitedMap, with: openWindow)
-                    }
-                } header: {
-                    Text("Support")
                 }
             }
-            .formStyle(.grouped)
         }
         .padding(20)
         .frame(width: 560, height: 520, alignment: .topLeading)
@@ -201,6 +242,11 @@ struct SettingsView: View {
         }
         .onReceive(locationStore.$currentLocation) { location in
             snapshotStore.setCurrentLocation(location)
+
+            if pendingSurfSpotFillFromLocation, let location {
+                applySurfSpotCoordinate(from: location)
+                pendingSurfSpotFillFromLocation = false
+            }
 
             guard settingsStore.settings.usesDeviceLocation else {
                 return
@@ -294,7 +340,15 @@ struct SettingsView: View {
     }
 
     private var locationActionTitle: String {
-        switch locationStore.authorizationStatus {
+        if locationStore.diagnostics.isRequestInProgress {
+            return "Requesting Location…"
+        }
+
+        if locationStore.diagnostics.isLocationServicesEnabled == false {
+            return "Open Location Settings"
+        }
+
+        return switch locationStore.authorizationStatus {
         case .notDetermined:
             "Request Location Access"
         case .denied, .restricted:
@@ -307,6 +361,11 @@ struct SettingsView: View {
     }
 
     private func handleLocationAction() {
+        if locationStore.diagnostics.isLocationServicesEnabled == false {
+            openLocationSettings()
+            return
+        }
+
         switch locationStore.authorizationStatus {
         case .notDetermined:
             locationStore.requestAuthorization()
@@ -314,7 +373,7 @@ struct SettingsView: View {
             openLocationSettings()
         case .authorizedAlways, .authorizedWhenInUse:
             snapshotStore.setCurrentLocation(locationStore.currentLocation)
-            locationStore.refreshLocation()
+            locationStore.requestCurrentLocation()
         @unknown default:
             openLocationSettings()
         }
@@ -388,12 +447,18 @@ struct SettingsView: View {
     private func useCurrentLocationForSurfSpot() {
         guard let location = locationStore.currentLocation else {
             snapshotStore.setCurrentLocation(locationStore.currentLocation)
+            pendingSurfSpotFillFromLocation = true
+
+            if locationStore.diagnostics.isLocationServicesEnabled == false {
+                openLocationSettings()
+                return
+            }
 
             switch locationStore.authorizationStatus {
-            case .authorizedAlways, .authorizedWhenInUse:
-                locationStore.refreshLocation()
             case .notDetermined:
                 locationStore.requestAuthorization()
+            case .authorizedAlways, .authorizedWhenInUse:
+                locationStore.requestCurrentLocation()
             case .denied, .restricted:
                 openLocationSettings()
             @unknown default:
@@ -403,6 +468,10 @@ struct SettingsView: View {
             return
         }
 
+        applySurfSpotCoordinate(from: location)
+    }
+
+    private func applySurfSpotCoordinate(from location: CLLocation) {
         if surfSpotNameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             surfSpotNameText = "Current Spot"
             settingsStore.settings.surfSpotName = surfSpotNameText

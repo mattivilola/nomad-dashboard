@@ -1,5 +1,12 @@
 #include "Version.xcconfig"
+#include? "AppConfig.local.xcconfig"
+#include? "Signing.debug.local.xcconfig"
 
-PRODUCT_BUNDLE_IDENTIFIER = com.iloapps.NomadDashboard
+PRODUCT_NAME = Nomad Dashboard Dev
+APP_DISPLAY_NAME = Nomad Dashboard Dev
+PRODUCT_BUNDLE_IDENTIFIER = com.iloapps.NomadDashboard.dev
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIconDebug
+CODE_SIGN_ENTITLEMENTS = $(DEBUG_CODE_SIGN_ENTITLEMENTS)
 SPARKLE_FEED_URL =
 SPARKLE_PUBLIC_ED_KEY =
+RELIEFWEB_APPNAME =

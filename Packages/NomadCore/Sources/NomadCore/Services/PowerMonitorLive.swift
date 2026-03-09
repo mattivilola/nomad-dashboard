@@ -8,7 +8,8 @@ public struct LivePowerMonitor: PowerMonitor {
         guard let blob = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
               let sources = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef],
               let source = sources.first,
-              let description = IOPSGetPowerSourceDescription(blob, source)?.takeUnretainedValue() as? [String: Any] else {
+              let description = IOPSGetPowerSourceDescription(blob, source)?.takeUnretainedValue() as? [String: Any]
+        else {
             return nil
         }
 
@@ -24,22 +25,35 @@ public struct LivePowerMonitor: PowerMonitor {
 
         let isCharging = (description[kIOPSIsChargingKey] as? Bool) ?? false
         let powerSource = (description[kIOPSPowerSourceStateKey] as? String) ?? ""
-        let state: PowerSourceState
-
-        switch (powerSource, isCharging) {
+        let state: PowerSourceState = switch (powerSource, isCharging) {
         case (kIOPSACPowerValue, true):
-            state = .charging
+            .charging
         case (kIOPSACPowerValue, false):
-            state = .charged
+            .charged
         case (kIOPSBatteryPowerValue, _):
-            state = .battery
+            .battery
         default:
-            state = .unknown
+            .unknown
         }
 
-        let minutes = Self.normalizedTimeRemainingMinutes(
-            (description[kIOPSTimeToEmptyKey] as? NSNumber)?.intValue
-        )
+        let timeRemainingMinutes: Int?
+        let timeToFullChargeMinutes: Int?
+
+        switch state {
+        case .battery:
+            timeRemainingMinutes = Self.normalizedEstimatedMinutes(
+                (description[kIOPSTimeToEmptyKey] as? NSNumber)?.intValue
+            )
+            timeToFullChargeMinutes = nil
+        case .charging:
+            timeRemainingMinutes = nil
+            timeToFullChargeMinutes = Self.normalizedEstimatedMinutes(
+                (description[kIOPSTimeToFullChargeKey] as? NSNumber)?.intValue
+            )
+        case .charged, .unknown:
+            timeRemainingMinutes = nil
+            timeToFullChargeMinutes = nil
+        }
         let amperageMilliAmps = (description[kIOPSCurrentKey] as? NSNumber)?.doubleValue
         let voltageMilliVolts = (description[kIOPSVoltageKey] as? NSNumber)?.doubleValue
         let dischargeRateWatts = { () -> Double? in
@@ -53,14 +67,16 @@ public struct LivePowerMonitor: PowerMonitor {
         var adapterWatts: Double?
 
         if let adapterDetails = IOPSCopyExternalPowerAdapterDetails()?.takeRetainedValue() as? [String: Any],
-           let watts = adapterDetails[kIOPSPowerAdapterWattsKey] as? NSNumber {
+           let watts = adapterDetails[kIOPSPowerAdapterWattsKey] as? NSNumber
+        {
             adapterWatts = watts.doubleValue
         }
 
         return PowerSnapshot(
             chargePercent: chargePercent,
             state: state,
-            timeRemainingMinutes: minutes,
+            timeRemainingMinutes: timeRemainingMinutes,
+            timeToFullChargeMinutes: timeToFullChargeMinutes,
             isLowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
             dischargeRateWatts: dischargeRateWatts,
             adapterWatts: adapterWatts,
@@ -68,7 +84,7 @@ public struct LivePowerMonitor: PowerMonitor {
         )
     }
 
-    static func normalizedTimeRemainingMinutes(_ rawValue: Int?) -> Int? {
+    static func normalizedEstimatedMinutes(_ rawValue: Int?) -> Int? {
         guard let rawValue, rawValue >= 0 else {
             return nil
         }

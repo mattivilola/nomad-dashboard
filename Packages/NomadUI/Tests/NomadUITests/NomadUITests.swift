@@ -15,6 +15,54 @@ struct NomadUITests {
     }
 
     @Test
+    func powerMetricsPresentationShowsBatteryTimeRemaining() {
+        let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
+            state: .battery,
+            timeRemainingMinutes: 87,
+            timeToFullChargeMinutes: nil
+        ))
+
+        #expect(presentation.drainValue == "11.2 W")
+        #expect(presentation.timeLeftValue == "1h 27m")
+    }
+
+    @Test
+    func powerMetricsPresentationShowsChargingTimeToFull() {
+        let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
+            state: .charging,
+            timeRemainingMinutes: nil,
+            timeToFullChargeMinutes: 13
+        ))
+
+        #expect(presentation.drainValue == "Charging")
+        #expect(presentation.timeLeftValue == "13m")
+    }
+
+    @Test
+    func powerMetricsPresentationFallsBackToPluggedInWhileChargingWithoutEstimate() {
+        let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
+            state: .charging,
+            timeRemainingMinutes: nil,
+            timeToFullChargeMinutes: nil
+        ))
+
+        #expect(presentation.drainValue == "Charging")
+        #expect(presentation.timeLeftValue == "Plugged in")
+    }
+
+    @Test
+    func powerMetricsPresentationShowsPluggedInWhenCharged() {
+        let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
+            state: .charged,
+            timeRemainingMinutes: nil,
+            timeToFullChargeMinutes: nil
+        ))
+
+        #expect(presentation.drainValue == "Plugged in")
+        #expect(presentation.timeLeftValue == "Plugged in")
+    }
+
+    @Test
     func travelAlertsPresentationShowsAllClearState() {
         let presentation = TravelAlertsCardPresentation(
             preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: true, securityEnabled: true),
@@ -96,6 +144,34 @@ struct NomadUITests {
     }
 
     @Test
+    func travelAlertsPresentationPrefersDiagnosticSummaryForUnavailableSource() {
+        let presentation = TravelAlertsCardPresentation(
+            preferences: TravelAlertPreferences(advisoryEnabled: false, weatherEnabled: false, securityEnabled: true),
+            snapshot: makeTravelAlertsSnapshot(
+                enabledKinds: [.security],
+                states: [
+                    TravelAlertSignalState(
+                        kind: .security,
+                        status: .unavailable,
+                        signal: nil,
+                        reason: .sourceUnavailable,
+                        diagnosticSummary: "ReliefWeb returned HTTP 429.",
+                        sourceName: "ReliefWeb",
+                        sourceURL: URL(string: "https://reliefweb.int"),
+                        lastAttemptedAt: .now,
+                        lastSuccessAt: nil
+                    )
+                ]
+            )
+        )
+
+        let row = presentation.rows.first
+        #expect(row?.status == TravelAlertSignalStatus.unavailable)
+        #expect(row?.summary == "ReliefWeb returned HTTP 429.")
+        #expect(row?.sourceName == "ReliefWeb")
+    }
+
+    @Test
     func travelAlertsPresentationDoesNotCollapseMixedResolvedRowsIntoCheckingFallback() {
         let presentation = TravelAlertsCardPresentation(
             preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: true, securityEnabled: true),
@@ -139,6 +215,7 @@ struct NomadUITests {
         #expect(presentation.state == .notConfigured)
         #expect(presentation.marine == nil)
         #expect(presentation.emptyMessage == "Add a surf spot in Settings.")
+        #expect(presentation.emptyActionTitle == "Set Surf Spot")
     }
 
     @Test
@@ -170,6 +247,7 @@ struct NomadUITests {
 
         #expect(presentation.state == .invalid)
         #expect(presentation.emptyMessage == "Fix surf spot coordinates in Settings.")
+        #expect(presentation.emptyActionTitle == "Open Surf Settings")
     }
 
     @Test
@@ -192,6 +270,43 @@ struct NomadUITests {
 
         #expect(presentation.state == .unavailable)
         #expect(presentation.emptyMessage == "Surf check unavailable.")
+        #expect(presentation.emptyActionTitle == nil)
+    }
+
+    @Test
+    func weatherSectionPresentationExplainsBuildIssue() {
+        let presentation = WeatherSectionPresentation(
+            settings: AppSettings(),
+            snapshot: DashboardSnapshot.placeholder,
+            weatherAvailabilityExplanation: "WeatherKit is unavailable in this build because the app is not signed for WeatherKit access.",
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.badge.title == "Build Issue")
+        #expect(presentation.subtitle == "WeatherKit unavailable in this build")
+        #expect(presentation.emptyTitle == "WeatherKit Unavailable")
+    }
+
+    @Test
+    func weatherSectionPresentationUsesLocationDetailWhenWeatherNeedsLocation() {
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: nil,
+            marine: nil,
+            appState: AppStatusSnapshot(lastRefresh: .now, updateState: .idle, issues: [.weatherLocationRequired])
+        )
+        let presentation = WeatherSectionPresentation(
+            settings: AppSettings(),
+            snapshot: snapshot,
+            weatherAvailabilityExplanation: nil,
+            locationStatusDetail: "Allow location access to use current weather."
+        )
+
+        #expect(presentation.badge.title == "Location Needed")
+        #expect(presentation.emptyMessage == "Allow location access to use current weather.")
     }
 }
 
@@ -212,6 +327,23 @@ private func makeTravelAlertsSnapshot(
     )
 }
 
+private func makePowerSnapshot(
+    state: PowerSourceState,
+    timeRemainingMinutes: Int?,
+    timeToFullChargeMinutes: Int?
+) -> PowerSnapshot {
+    PowerSnapshot(
+        chargePercent: 0.72,
+        state: state,
+        timeRemainingMinutes: timeRemainingMinutes,
+        timeToFullChargeMinutes: timeToFullChargeMinutes,
+        isLowPowerModeEnabled: false,
+        dischargeRateWatts: 11.2,
+        adapterWatts: nil,
+        collectedAt: .now
+    )
+}
+
 private func makeState(
     kind: TravelAlertKind,
     status: TravelAlertSignalStatus,
@@ -220,7 +352,7 @@ private func makeState(
     sourceName: String? = nil,
     count: Int? = nil
 ) -> TravelAlertSignalState {
-    let defaultSourceName: String = switch kind {
+    let defaultSourceName = switch kind {
     case .advisory:
         "Smartraveller"
     case .weather:

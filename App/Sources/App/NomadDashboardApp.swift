@@ -10,25 +10,24 @@ struct NomadDashboardApp: App {
     @StateObject private var snapshotStore: DashboardSnapshotStore
     @StateObject private var locationStore: CurrentLocationStore
     @StateObject private var launchAtLoginController: LaunchAtLoginController
+    @StateObject private var settingsNavigationController: SettingsNavigationController
 
     init() {
         let settingsStore = AppSettingsStore()
         let persistedSettings = settingsStore.settings
         let applicationSupportDirectory = (try? FileManager.default.nomadApplicationSupportDirectory())
             ?? FileManager.default.temporaryDirectory.appendingPathComponent("Nomad Dashboard", isDirectory: true)
-        let updateCoordinator: any UpdateCoordinator
-
-        if UpdateFeatureConfiguration.isEnabled {
-            updateCoordinator = SparkleUpdateCoordinator(automaticChecksEnabled: persistedSettings.automaticUpdateChecksEnabled)
+        let updateCoordinator: any UpdateCoordinator = if UpdateFeatureConfiguration.isEnabled {
+            SparkleUpdateCoordinator(automaticChecksEnabled: persistedSettings.automaticUpdateChecksEnabled)
         } else {
-            updateCoordinator = PausedUpdateCoordinator()
+            PausedUpdateCoordinator()
         }
 
         let dependencies = DashboardDependencies.live(
             applicationSupportDirectory: applicationSupportDirectory,
             latencyHosts: persistedSettings.latencyHosts,
             historyRetentionHours: persistedSettings.historyRetentionHours,
-            reliefWebAppName: ProcessInfo.processInfo.environment["RELIEFWEB_APPNAME"] ?? Bundle.main.bundleIdentifier,
+            reliefWebAppName: reliefWebAppName(),
             updateCoordinator: updateCoordinator
         )
         let launchAtLoginController = LaunchAtLoginController(initialEnabled: persistedSettings.launchAtLoginEnabled)
@@ -45,6 +44,7 @@ struct NomadDashboardApp: App {
         _snapshotStore = StateObject(wrappedValue: DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies))
         _locationStore = StateObject(wrappedValue: CurrentLocationStore())
         _launchAtLoginController = StateObject(wrappedValue: launchAtLoginController)
+        _settingsNavigationController = StateObject(wrappedValue: SettingsNavigationController())
     }
 
     var body: some Scene {
@@ -54,6 +54,7 @@ struct NomadDashboardApp: App {
                 settingsStore: settingsStore,
                 locationStore: locationStore,
                 launchAtLoginController: launchAtLoginController,
+                settingsNavigationController: settingsNavigationController,
                 updatesEnabled: UpdateFeatureConfiguration.isEnabled
             )
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
@@ -68,6 +69,7 @@ struct NomadDashboardApp: App {
                 snapshotStore: snapshotStore,
                 locationStore: locationStore,
                 launchAtLoginController: launchAtLoginController,
+                settingsNavigationController: settingsNavigationController,
                 updatesEnabled: UpdateFeatureConfiguration.isEnabled
             )
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
@@ -88,6 +90,24 @@ struct NomadDashboardApp: App {
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
     }
+}
+
+private func reliefWebAppName() -> String? {
+    if let environmentValue = ProcessInfo.processInfo.environment["RELIEFWEB_APPNAME"]?
+        .trimmingCharacters(in: .whitespacesAndNewlines),
+       environmentValue.isEmpty == false
+    {
+        return environmentValue
+    }
+
+    if let plistValue = Bundle.main.object(forInfoDictionaryKey: "ReliefWebAppName") as? String {
+        let trimmedValue = plistValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedValue.isEmpty == false {
+            return trimmedValue
+        }
+    }
+
+    return Bundle.main.bundleIdentifier
 }
 
 @MainActor

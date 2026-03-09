@@ -9,6 +9,9 @@ public struct DashboardPanelView: View {
     private let isPublicIPLocationEnabled: Bool
     private let travelAlertPreferences: TravelAlertPreferences
     private let versionDescription: String
+    private let buildFlavorBadgeTitle: String?
+    private let weatherAvailabilityExplanation: String?
+    private let locationStatusDetail: String?
     private let appIcon: NSImage?
     private let refreshAction: () -> Void
     private let toggleAppearanceAction: () -> Void
@@ -17,6 +20,7 @@ public struct DashboardPanelView: View {
     private let openNetworkSettingsAction: () -> Void
     private let checkForUpdatesAction: (() -> Void)?
     private let openSettingsAction: () -> Void
+    private let openSurfSpotSettingsAction: () -> Void
     private let openAboutAction: () -> Void
     private let quitAction: () -> Void
 
@@ -28,6 +32,9 @@ public struct DashboardPanelView: View {
         isPublicIPLocationEnabled: Bool,
         travelAlertPreferences: TravelAlertPreferences,
         versionDescription: String = "",
+        buildFlavorBadgeTitle: String? = nil,
+        weatherAvailabilityExplanation: String? = nil,
+        locationStatusDetail: String? = nil,
         appIcon: NSImage? = nil,
         refreshAction: @escaping () -> Void,
         toggleAppearanceAction: @escaping () -> Void,
@@ -36,6 +43,7 @@ public struct DashboardPanelView: View {
         openNetworkSettingsAction: @escaping () -> Void,
         checkForUpdatesAction: (() -> Void)? = nil,
         openSettingsAction: @escaping () -> Void,
+        openSurfSpotSettingsAction: @escaping () -> Void,
         openAboutAction: @escaping () -> Void,
         quitAction: @escaping () -> Void
     ) {
@@ -44,6 +52,9 @@ public struct DashboardPanelView: View {
         self.isPublicIPLocationEnabled = isPublicIPLocationEnabled
         self.travelAlertPreferences = travelAlertPreferences
         self.versionDescription = versionDescription
+        self.buildFlavorBadgeTitle = buildFlavorBadgeTitle
+        self.weatherAvailabilityExplanation = weatherAvailabilityExplanation
+        self.locationStatusDetail = locationStatusDetail
         self.appIcon = appIcon
         self.refreshAction = refreshAction
         self.toggleAppearanceAction = toggleAppearanceAction
@@ -52,6 +63,7 @@ public struct DashboardPanelView: View {
         self.openNetworkSettingsAction = openNetworkSettingsAction
         self.checkForUpdatesAction = checkForUpdatesAction
         self.openSettingsAction = openSettingsAction
+        self.openSurfSpotSettingsAction = openSurfSpotSettingsAction
         self.openAboutAction = openAboutAction
         self.quitAction = quitAction
     }
@@ -80,9 +92,21 @@ public struct DashboardPanelView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Nomad Dashboard")
-                    .font(.system(size: 26, weight: .semibold, design: .rounded))
-                    .foregroundStyle(NomadTheme.primaryText)
+                HStack(spacing: 8) {
+                    Text("Nomad Dashboard")
+                        .font(.system(size: 26, weight: .semibold, design: .rounded))
+                        .foregroundStyle(NomadTheme.primaryText)
+
+                    if let buildFlavorBadgeTitle {
+                        BadgeView(
+                            badge: PillBadge(
+                                title: buildFlavorBadgeTitle,
+                                symbolName: "hammer.fill",
+                                tint: NomadTheme.sand
+                            )
+                        )
+                    }
+                }
 
                 HStack(alignment: .lastTextBaseline, spacing: 12) {
                     Text(snapshot.travelContext.location.flatMap(formattedLocation) ?? "Travel-ready system telemetry")
@@ -201,14 +225,16 @@ public struct DashboardPanelView: View {
             subtitle: snapshot.power.snapshot.map(powerSubtitle) ?? "Power source unavailable",
             badge: badge(for: snapshot.healthSummary.power)
         ) {
+            let powerMetrics = PowerMetricsPresentation(snapshot: snapshot.power.snapshot)
+
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
                     MetricBlock(
                         title: "Battery",
                         value: metricValue(snapshot.power.snapshot?.chargePercent.map { $0 * 100 }, formatter: NomadFormatters.percentage, fallback: "Estimating")
                     )
-                    MetricBlock(title: "Drain", value: drainValue)
-                    MetricBlock(title: "Time Left", value: timeLeftValue)
+                    MetricBlock(title: "Drain", value: powerMetrics.drainValue)
+                    MetricBlock(title: "Time Left", value: powerMetrics.timeLeftValue)
                 }
 
                 HStack(spacing: 12) {
@@ -266,10 +292,12 @@ public struct DashboardPanelView: View {
     }
 
     private var weatherSection: some View {
-        DashboardCard(
+        let presentation = weatherSectionPresentation
+
+        return DashboardCard(
             title: "Weather",
-            subtitle: weatherSubtitle,
-            badge: weatherBadge
+            subtitle: presentation.subtitle,
+            badge: presentation.badge
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 if let weather = snapshot.weather {
@@ -277,15 +305,18 @@ public struct DashboardPanelView: View {
                         HStack(spacing: 12) {
                             MetricBlock(
                                 title: "Current",
-                                value: metricValue(weather.currentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating")
+                                value: metricValue(weather.currentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating"),
+                                typography: .compact
                             )
                             MetricBlock(
                                 title: "Feels Like",
-                                value: metricValue(weather.apparentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating")
+                                value: metricValue(weather.apparentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating"),
+                                typography: .compact
                             )
                             MetricBlock(
-                                title: "Rain",
-                                value: weather.precipitationChance.map { NomadFormatters.precipitation($0) } ?? "Estimating"
+                                title: "Rain Chance",
+                                value: weather.precipitationChance.map { NomadFormatters.precipitation($0) } ?? "n/a",
+                                typography: .compact
                             )
                         }
 
@@ -310,9 +341,9 @@ public struct DashboardPanelView: View {
                     }
                 } else {
                     WeatherEmptyState(
-                        title: weatherBadge.title,
-                        systemImage: weatherBadge.symbolName,
-                        message: weatherEmptyMessage
+                        title: presentation.emptyTitle,
+                        systemImage: presentation.emptySystemImage,
+                        message: presentation.emptyMessage
                     )
                 }
 
@@ -415,43 +446,10 @@ public struct DashboardPanelView: View {
         return "Jitter will appear after the next slow refresh"
     }
 
-    private var drainValue: String {
-        guard let powerSnapshot = snapshot.power.snapshot else {
-            return "Estimating"
-        }
-
-        switch powerSnapshot.state {
-        case .charging:
-            return "Charging"
-        case .charged:
-            return "Plugged in"
-        case .battery:
-            return powerSnapshot.dischargeRateWatts.map { NomadFormatters.watts($0) } ?? "Estimating"
-        case .unknown:
-            return "Estimating"
-        }
-    }
-
-    private var timeLeftValue: String {
-        guard let powerSnapshot = snapshot.power.snapshot else {
-            return "Estimating"
-        }
-
-        switch powerSnapshot.state {
-        case .charging:
-            return "Plugged in"
-        case .charged:
-            return "Plugged in"
-        case .battery:
-            return powerSnapshot.timeRemainingMinutes.map { NomadFormatters.minutes($0) } ?? "Estimating"
-        case .unknown:
-            return "Estimating"
-        }
-    }
-
     private var travelSubtitle: String {
         if let location = snapshot.travelContext.location,
-           let formattedLocation = formattedLocation(location) {
+           let formattedLocation = formattedLocation(location)
+        {
             return formattedLocation
         }
 
@@ -500,7 +498,8 @@ public struct DashboardPanelView: View {
 
     private var locationValue: String {
         if let location = snapshot.travelContext.location,
-           let formattedLocation = formattedLocation(location) {
+           let formattedLocation = formattedLocation(location)
+        {
             return formattedLocation
         }
 
@@ -513,38 +512,6 @@ public struct DashboardPanelView: View {
         }
 
         return "Refreshing…"
-    }
-
-    private var weatherBadge: PillBadge {
-        if snapshot.weather != nil {
-            return PillBadge(title: "Live", symbolName: "cloud.sun.fill", tint: NomadTheme.teal)
-        }
-
-        if snapshot.appState.issues.contains(.weatherLocationRequired) {
-            return PillBadge(title: "Location Needed", symbolName: "location.slash.fill", tint: NomadTheme.sand)
-        }
-
-        return PillBadge(title: "Unavailable", symbolName: "cloud.slash.fill", tint: NomadTheme.primaryText)
-    }
-
-    private var weatherSubtitle: String {
-        if let weather = snapshot.weather {
-            return weather.conditionDescription
-        }
-
-        if snapshot.appState.issues.contains(.weatherLocationRequired) {
-            return "Location permission required"
-        }
-
-        return "Weather data unavailable"
-    }
-
-    private var weatherEmptyMessage: String {
-        if snapshot.appState.issues.contains(.weatherLocationRequired) {
-            return "Allow current location to load local weather."
-        }
-
-        return "Weather data is not available yet."
     }
 
     private var surfSection: some View {
@@ -564,15 +531,23 @@ public struct DashboardPanelView: View {
 
                 Spacer(minLength: 12)
 
-                BadgeView(badge: presentation.badge)
+                if presentation.isActionable {
+                    Button(action: openSurfSpotSettingsAction) {
+                        BadgeView(badge: presentation.badge)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open Surf Spot Settings")
+                } else {
+                    BadgeView(badge: presentation.badge)
+                }
             }
 
             if let marine = presentation.marine {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 12) {
-                        MetricBlock(title: "Wave", value: presentation.waveSummary)
-                        MetricBlock(title: "Swell", value: presentation.swellSummary)
-                        MetricBlock(title: "Wind", value: presentation.windSummary)
+                        MetricBlock(title: "Wave", value: presentation.waveSummary, typography: .compact)
+                        MetricBlock(title: "Swell", value: presentation.swellSummary, typography: .compact)
+                        MetricBlock(title: "Wind", value: presentation.windSummary, typography: .compact)
                     }
 
                     HStack(spacing: 8) {
@@ -591,7 +566,9 @@ public struct DashboardPanelView: View {
                 WeatherEmptyState(
                     title: presentation.emptyTitle,
                     systemImage: presentation.emptySystemImage,
-                    message: presentation.emptyMessage
+                    message: presentation.emptyMessage,
+                    actionTitle: presentation.emptyActionTitle,
+                    action: presentation.isActionable ? openSurfSpotSettingsAction : nil
                 )
             }
         }
@@ -599,6 +576,15 @@ public struct DashboardPanelView: View {
 
     private var surfSectionPresentation: SurfSectionPresentation {
         SurfSectionPresentation(settings: settings, snapshot: snapshot)
+    }
+
+    private var weatherSectionPresentation: WeatherSectionPresentation {
+        WeatherSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            weatherAvailabilityExplanation: weatherAvailabilityExplanation,
+            locationStatusDetail: locationStatusDetail
+        )
     }
 
     private var weatherAttributionLine: String {
@@ -693,13 +679,13 @@ public struct DashboardPanelView: View {
     private func powerSubtitle(_ snapshot: PowerSnapshot) -> String {
         switch snapshot.state {
         case .battery:
-            return "Running on battery"
+            "Running on battery"
         case .charging:
-            return "Charging"
+            "Charging"
         case .charged:
-            return "Connected to power"
+            "Connected to power"
         case .unknown:
-            return "Power status unavailable"
+            "Power status unavailable"
         }
     }
 
@@ -714,8 +700,36 @@ public struct DashboardPanelView: View {
             snapshot.transmitRateMbps.map { String(format: "%.0f Mbps", $0) }
         ]
 
-        let description = pieces.compactMap { $0 }.joined(separator: " · ")
+        let description = pieces.compactMap(\.self).joined(separator: " · ")
         return description.isEmpty ? "Connected" : description
+    }
+}
+
+struct PowerMetricsPresentation {
+    let drainValue: String
+    let timeLeftValue: String
+
+    init(snapshot: PowerSnapshot?) {
+        guard let snapshot else {
+            drainValue = "Estimating"
+            timeLeftValue = "Estimating"
+            return
+        }
+
+        switch snapshot.state {
+        case .charging:
+            drainValue = "Charging"
+            timeLeftValue = snapshot.timeToFullChargeMinutes.map { NomadFormatters.minutes($0) } ?? "Plugged in"
+        case .charged:
+            drainValue = "Plugged in"
+            timeLeftValue = "Plugged in"
+        case .battery:
+            drainValue = snapshot.dischargeRateWatts.map { NomadFormatters.watts($0) } ?? "Estimating"
+            timeLeftValue = snapshot.timeRemainingMinutes.map { NomadFormatters.minutes($0) } ?? "Estimating"
+        case .unknown:
+            drainValue = "Estimating"
+            timeLeftValue = "Estimating"
+        }
     }
 }
 
@@ -847,8 +861,41 @@ private struct SummaryTile: View {
 }
 
 private struct MetricBlock: View {
+    enum Typography {
+        case standard
+        case compact
+
+        var font: Font {
+            switch self {
+            case .standard:
+                .system(size: 22, weight: .semibold, design: .rounded)
+            case .compact:
+                .system(size: 20, weight: .semibold, design: .rounded)
+            }
+        }
+
+        var lineLimit: Int {
+            switch self {
+            case .standard:
+                2
+            case .compact:
+                1
+            }
+        }
+
+        var minimumScaleFactor: CGFloat {
+            switch self {
+            case .standard:
+                0.65
+            case .compact:
+                0.75
+            }
+        }
+    }
+
     let title: String
     let value: String
+    var typography: Typography = .standard
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -857,10 +904,10 @@ private struct MetricBlock: View {
                 .foregroundStyle(NomadTheme.tertiaryText)
 
             Text(value)
-                .font(.system(size: 22, weight: .semibold, design: .rounded))
+                .font(typography.font)
                 .foregroundStyle(metricTint)
-                .lineLimit(2)
-                .minimumScaleFactor(0.65)
+                .lineLimit(typography.lineLimit)
+                .minimumScaleFactor(typography.minimumScaleFactor)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -1024,20 +1071,20 @@ struct TravelAlertsCardPresentation: Equatable {
 
     init(preferences: TravelAlertPreferences, snapshot: TravelAlertsSnapshot?) {
         guard preferences.enabledKinds.isEmpty == false else {
-            self.badge = .off
-            self.rows = []
-            self.showsAllClearRow = false
+            badge = .off
+            rows = []
+            showsAllClearRow = false
             return
         }
 
         guard let snapshot else {
-            self.badge = .checking
-            self.rows = []
-            self.showsAllClearRow = false
+            badge = .checking
+            rows = []
+            showsAllClearRow = false
             return
         }
 
-        self.rows = preferences.enabledKinds.compactMap { kind in
+        rows = preferences.enabledKinds.compactMap { kind in
             guard let state = snapshot.state(for: kind) else {
                 return nil
             }
@@ -1045,8 +1092,8 @@ struct TravelAlertsCardPresentation: Equatable {
             return TravelAlertRowModel(state: state)
         }
 
-        self.showsAllClearRow = snapshot.allResolvedClear
-        self.badge = TravelAlertsBadgePresentation.resolve(for: snapshot)
+        showsAllClearRow = snapshot.allResolvedClear
+        badge = TravelAlertsBadgePresentation.resolve(for: snapshot)
     }
 }
 
@@ -1145,7 +1192,7 @@ private extension TravelAlertRowModel {
             self.init(
                 id: state.kind,
                 title: title,
-                summary: state.reason?.summary ?? "Source unavailable",
+                summary: state.diagnosticSummary ?? state.reason?.summary ?? "Source unavailable",
                 sourceName: sourceName,
                 count: nil,
                 severity: .info,
@@ -1329,6 +1376,8 @@ private struct WeatherEmptyState: View {
     let title: String
     let systemImage: String
     let message: String
+    var actionTitle: String?
+    var action: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -1345,6 +1394,12 @@ private struct WeatherEmptyState: View {
                     .font(.caption)
                     .foregroundStyle(NomadTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let actionTitle, let action {
+                    Button(actionTitle, action: action)
+                        .buttonStyle(.link)
+                        .font(.caption.weight(.semibold))
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1357,6 +1412,61 @@ private struct WeatherEmptyState: View {
                         .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
                 )
         )
+    }
+}
+
+struct WeatherSectionPresentation {
+    let badge: PillBadge
+    let subtitle: String
+    let emptyTitle: String
+    let emptySystemImage: String
+    let emptyMessage: String
+
+    init(
+        settings: AppSettings,
+        snapshot: DashboardSnapshot,
+        weatherAvailabilityExplanation: String?,
+        locationStatusDetail: String?
+    ) {
+        if let weather = snapshot.weather {
+            badge = PillBadge(title: "Live", symbolName: "cloud.sun.fill", tint: NomadTheme.teal)
+            subtitle = weather.conditionDescription
+            emptyTitle = ""
+            emptySystemImage = "cloud.sun.fill"
+            emptyMessage = ""
+            return
+        }
+
+        if let weatherAvailabilityExplanation {
+            badge = PillBadge(title: "Build Issue", symbolName: "hammer.fill", tint: NomadTheme.sand)
+            subtitle = "WeatherKit unavailable in this build"
+            emptyTitle = "WeatherKit Unavailable"
+            emptySystemImage = "hammer.fill"
+            emptyMessage = weatherAvailabilityExplanation
+            return
+        }
+
+        if snapshot.appState.issues.contains(.weatherLocationRequired) {
+            badge = PillBadge(title: "Location Needed", symbolName: "location.slash.fill", tint: NomadTheme.sand)
+            subtitle = "Location permission required"
+            emptyTitle = "Location Needed"
+            emptySystemImage = "location.slash.fill"
+            emptyMessage = locationStatusDetail ?? "Allow current location to load local weather."
+            return
+        }
+
+        badge = PillBadge(title: "Unavailable", symbolName: "cloud.slash.fill", tint: NomadTheme.primaryText)
+        subtitle = "Weather data unavailable"
+
+        if settings.useCurrentLocationForWeather, let locationStatusDetail {
+            emptyTitle = "Unavailable"
+            emptySystemImage = "cloud.slash.fill"
+            emptyMessage = locationStatusDetail
+        } else {
+            emptyTitle = "Unavailable"
+            emptySystemImage = "cloud.slash.fill"
+            emptyMessage = "Weather data is not available yet."
+        }
     }
 }
 
@@ -1379,6 +1489,7 @@ struct SurfSectionPresentation {
     let emptyTitle: String
     let emptySystemImage: String
     let emptyMessage: String
+    let emptyActionTitle: String?
 
     init(settings: AppSettings, snapshot: DashboardSnapshot) {
         let surfConfiguration = settings.surfSpotConfiguration
@@ -1401,6 +1512,7 @@ struct SurfSectionPresentation {
             emptyTitle = ""
             emptySystemImage = "water.waves"
             emptyMessage = ""
+            emptyActionTitle = nil
             return
         }
 
@@ -1417,18 +1529,30 @@ struct SurfSectionPresentation {
             emptyTitle = "Surf Spot"
             emptySystemImage = "water.waves.slash"
             emptyMessage = "Add a surf spot in Settings."
+            emptyActionTitle = "Set Surf Spot"
         } else if surfConfiguration.isValid == false {
             state = .invalid
             badge = PillBadge(title: "Fix Spot", symbolName: "exclamationmark.triangle.fill", tint: NomadTheme.sand)
             emptyTitle = "Surf Spot"
             emptySystemImage = "exclamationmark.triangle.fill"
             emptyMessage = "Fix surf spot coordinates in Settings."
+            emptyActionTitle = "Open Surf Settings"
         } else {
             state = .unavailable
             badge = PillBadge(title: "Unavailable", symbolName: "water.waves.slash", tint: NomadTheme.primaryText)
             emptyTitle = "Surf Spot"
             emptySystemImage = "water.waves.slash"
             emptyMessage = "Surf check unavailable."
+            emptyActionTitle = nil
+        }
+    }
+
+    var isActionable: Bool {
+        switch state {
+        case .notConfigured, .invalid:
+            true
+        case .unavailable, .ready:
+            false
         }
     }
 
@@ -1464,15 +1588,15 @@ struct SurfForecastSlotPresentation: Identifiable, Equatable {
     let windValue: String
 
     init(index: Int, slot: MarineForecastSlot) {
-        self.id = "\(index)-\(slot.date.timeIntervalSinceReferenceDate)"
-        self.title = switch index {
+        id = "\(index)-\(slot.date.timeIntervalSinceReferenceDate)"
+        title = switch index {
         case 0: "Now"
         case 1: "+3h"
         case 2: "+6h"
         default: "+12h"
         }
-        self.waveValue = NomadFormatters.meters(slot.waveHeightMeters)
-        self.windValue = slot.windSpeedKph.map {
+        waveValue = NomadFormatters.meters(slot.waveHeightMeters)
+        windValue = slot.windSpeedKph.map {
             "\(NomadFormatters.kilometersPerHour($0)) · \(NomadFormatters.compassDirection(slot.windDirectionDegrees))"
         } ?? "n/a"
     }
@@ -1563,7 +1687,8 @@ private func renderablePoints(_ points: [MetricPoint]) -> [MetricPoint]? {
 
     guard let minimum = points.map(\.value).min(),
           let maximum = points.map(\.value).max(),
-          abs(maximum - minimum) > 0.01 else {
+          abs(maximum - minimum) > 0.01
+    else {
         return nil
     }
 

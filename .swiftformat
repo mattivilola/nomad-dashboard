@@ -1,0 +1,12 @@
+--binary-grouping none
+--decimal-grouping 3,4
+--hex-grouping none
+--ifdef outdent
+--no-space-operators ...,..<
+--octal-grouping none
+--semicolons never
+--strip-unused-args closure-only
+--trailing-commas never
+--wrap-arguments before-first
+--wrap-collections before-first
+--wrap-parameters before-first

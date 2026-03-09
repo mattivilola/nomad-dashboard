@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Nomad Dashboard</string>
+	<string>$(APP_DISPLAY_NAME)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -28,6 +28,8 @@
 	<string>Nomad Dashboard uses your location to show local weather and travel context.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Nomad Dashboard uses your location to show local weather and travel context.</string>
+	<key>ReliefWebAppName</key>
+	<string>$(RELIEFWEB_APPNAME)</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>

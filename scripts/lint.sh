@@ -6,5 +6,10 @@ if ! command -v swiftformat >/dev/null 2>&1; then
   exit 0
 fi
 
-swiftformat --lint App Packages
+SWIFT_VERSION="6.0"
 
+if [[ -f .swift-version ]]; then
+  SWIFT_VERSION="$(< .swift-version)"
+fi
+
+swiftformat App Packages --lint --swift-version "$SWIFT_VERSION" --cache ignore

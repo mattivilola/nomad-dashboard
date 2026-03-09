@@ -13,7 +13,7 @@ public actor CachedPublicIPProvider: PublicIPProvider {
     private var cachedValue: PublicIPSnapshot?
 
     public init(session: URLSession = .shared, ttl: TimeInterval = 900) {
-        self.client = CachedFreeIPAPIClient(session: session)
+        client = CachedFreeIPAPIClient(session: session)
         self.ttl = ttl
     }
 
@@ -39,12 +39,12 @@ public actor CachedIPLocationProvider: PublicIPLocationProvider {
     private let ttl: TimeInterval
     private var cache: [String: IPLocationSnapshot] = [:]
 
-    public init(session: URLSession = .shared, ttl: TimeInterval = 1800) {
-        self.client = CachedFreeIPAPIClient(session: session)
+    public init(session: URLSession = .shared, ttl: TimeInterval = 1_800) {
+        client = CachedFreeIPAPIClient(session: session)
         self.ttl = ttl
     }
 
-    init(client: CachedFreeIPAPIClient, ttl: TimeInterval = 1800) {
+    init(client: CachedFreeIPAPIClient, ttl: TimeInterval = 1_800) {
         self.client = client
         self.ttl = ttl
     }
@@ -52,7 +52,8 @@ public actor CachedIPLocationProvider: PublicIPLocationProvider {
     public func currentLocation(for ipAddress: String, forceRefresh: Bool) async throws -> IPLocationSnapshot {
         if !forceRefresh,
            let cached = cache[ipAddress],
-           abs(cached.fetchedAt.timeIntervalSinceNow) < ttl {
+           abs(cached.fetchedAt.timeIntervalSinceNow) < ttl
+        {
             return cached
         }
 
@@ -90,7 +91,8 @@ actor CachedFreeIPAPIClient {
         if !forceRefresh,
            let currentCache,
            currentCache.response.ipAddress == ipAddress,
-           isFresh(currentCache) {
+           isFresh(currentCache)
+        {
             return currentCache.response
         }
 

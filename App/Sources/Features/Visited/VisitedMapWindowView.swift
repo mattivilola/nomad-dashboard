@@ -227,7 +227,7 @@ struct VisitedMapWindowView: View {
         .disabled(isEnabled == false)
     }
 
-    private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+    private func card(@ViewBuilder content: () -> some View) -> some View {
         content()
             .padding(18)
             .background(
@@ -264,7 +264,7 @@ struct VisitedMapWindowView: View {
         let sources = [
             settingsStore.settings.publicIPGeolocationEnabled ? "IP" : nil,
             settingsStore.settings.usesDeviceLocation ? "Device" : nil
-        ].compactMap { $0 }
+        ].compactMap(\.self)
 
         if sources.isEmpty {
             return "None"

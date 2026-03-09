@@ -68,7 +68,9 @@ public struct TravelAlertSignalSnapshot: Codable, Equatable, Sendable, Identifia
     public let affectedCountryCodes: [String]
     public let itemCount: Int?
 
-    public var id: TravelAlertKind { kind }
+    public var id: TravelAlertKind {
+        kind
+    }
 
     public init(
         kind: TravelAlertKind,
@@ -98,18 +100,22 @@ public struct TravelAlertSignalState: Codable, Equatable, Sendable, Identifiable
     public let status: TravelAlertSignalStatus
     public let signal: TravelAlertSignalSnapshot?
     public let reason: TravelAlertUnavailableReason?
+    public let diagnosticSummary: String?
     public let sourceName: String
     public let sourceURL: URL?
     public let lastAttemptedAt: Date?
     public let lastSuccessAt: Date?
 
-    public var id: TravelAlertKind { kind }
+    public var id: TravelAlertKind {
+        kind
+    }
 
     public init(
         kind: TravelAlertKind,
         status: TravelAlertSignalStatus,
         signal: TravelAlertSignalSnapshot?,
         reason: TravelAlertUnavailableReason?,
+        diagnosticSummary: String? = nil,
         sourceName: String,
         sourceURL: URL?,
         lastAttemptedAt: Date?,
@@ -119,6 +125,7 @@ public struct TravelAlertSignalState: Codable, Equatable, Sendable, Identifiable
         self.status = status
         self.signal = signal
         self.reason = reason
+        self.diagnosticSummary = diagnosticSummary
         self.sourceName = sourceName
         self.sourceURL = sourceURL
         self.lastAttemptedAt = lastAttemptedAt

@@ -1,9 +1,15 @@
 import Combine
 import CoreLocation
 import Foundation
+import OSLog
 
 @MainActor
 public final class DashboardSnapshotStore: ObservableObject {
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "NomadDashboard",
+        category: "TravelAlerts"
+    )
+
     @Published public private(set) var snapshot: DashboardSnapshot
     @Published public private(set) var visitedPlaces: [VisitedPlace] = []
 
@@ -21,9 +27,9 @@ public final class DashboardSnapshotStore: ObservableObject {
     public init(settingsStore: AppSettingsStore, dependencies: DashboardDependencies, initialSnapshot: DashboardSnapshot = .placeholder) {
         self.settingsStore = settingsStore
         self.dependencies = dependencies
-        self.snapshot = initialSnapshot
-        self.appliedSettings = settingsStore.settings
-        self.snapshot = self.snapshot.replacingTravelAlerts(
+        snapshot = initialSnapshot
+        appliedSettings = settingsStore.settings
+        snapshot = snapshot.replacingTravelAlerts(
             synchronizedTravelAlertsSnapshot(
                 previous: initialSnapshot.travelAlerts,
                 settings: settingsStore.settings,
@@ -50,12 +56,12 @@ public final class DashboardSnapshotStore: ObservableObject {
                 return
             }
 
-            await self.refresh(manual: true)
+            await refresh(manual: true)
 
             while !Task.isCancelled {
-                let interval = self.settingsStore.settings.refreshIntervalSeconds
+                let interval = settingsStore.settings.refreshIntervalSeconds
                 try? await Task.sleep(for: .seconds(interval))
-                await self.refresh()
+                await refresh()
             }
         }
     }
@@ -181,7 +187,8 @@ public final class DashboardSnapshotStore: ObservableObject {
 
             if surfSpotConfiguration.isValid,
                let surfSpotName = surfSpotConfiguration.name,
-               let coordinate = surfSpotConfiguration.coordinate {
+               let coordinate = surfSpotConfiguration.coordinate
+            {
                 do {
                     marineSnapshot = try await dependencies.marineProvider.marine(
                         for: MarineSpot(name: surfSpotName, coordinate: coordinate)
@@ -224,7 +231,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             await loadVisitedPlaces()
         }
 
-        let history = (try? await dependencies.historyStore.loadAll()) ?? [:]
+        let history = await (try? dependencies.historyStore.loadAll()) ?? [:]
         let updateState = await dependencies.updateCoordinator.currentState()
         let timeZoneIdentifier = locationSnapshot?.timeZone ?? TimeZone.current.identifier
 
@@ -276,8 +283,8 @@ public final class DashboardSnapshotStore: ObservableObject {
                     return
                 }
 
-                let previousSettings = self.appliedSettings
-                self.appliedSettings = newSettings
+                let previousSettings = appliedSettings
+                appliedSettings = newSettings
 
                 Task { [weak self] in
                     await self?.applySettingsChange(from: previousSettings, to: newSettings)
@@ -313,7 +320,8 @@ public final class DashboardSnapshotStore: ObservableObject {
 
         if previousSettings.surfSpotName != newSettings.surfSpotName
             || previousSettings.surfSpotLatitude != newSettings.surfSpotLatitude
-            || previousSettings.surfSpotLongitude != newSettings.surfSpotLongitude {
+            || previousSettings.surfSpotLongitude != newSettings.surfSpotLongitude
+        {
             needsManualRefresh = true
         }
 
@@ -349,7 +357,7 @@ public final class DashboardSnapshotStore: ObservableObject {
     }
 
     private func loadVisitedPlaces() async {
-        visitedPlaces = (try? await dependencies.visitedPlacesStore.loadAll()) ?? []
+        visitedPlaces = await (try? dependencies.visitedPlacesStore.loadAll()) ?? []
     }
 
     private func recordVisitedPlace(from snapshot: IPLocationSnapshot, visitedAt: Date) async -> Bool {
@@ -465,8 +473,8 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         if preferences.advisoryEnabled {
-            states.append(
-                await refreshAlertState(
+            await states.append(
+                refreshAlertState(
                     kind: .advisory,
                     previous: previousSnapshot?.state(for: .advisory),
                     source: dependencies.travelAdvisoryProvider.sourceDescriptor,
@@ -488,8 +496,8 @@ public final class DashboardSnapshotStore: ObservableObject {
 
         if preferences.weatherEnabled {
             let weatherAlertCoordinate = currentCoordinate ?? locationSnapshot?.coordinate
-            states.append(
-                await refreshAlertState(
+            await states.append(
+                refreshAlertState(
                     kind: .weather,
                     previous: previousSnapshot?.state(for: .weather),
                     source: dependencies.travelWeatherAlertsProvider.sourceDescriptor,
@@ -505,8 +513,8 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         if preferences.securityEnabled {
-            states.append(
-                await refreshAlertState(
+            await states.append(
+                refreshAlertState(
                     kind: .security,
                     previous: previousSnapshot?.state(for: .security),
                     source: dependencies.regionalSecurityProvider.sourceDescriptor,
@@ -589,6 +597,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                 status: .unavailable,
                 signal: nil,
                 reason: prerequisiteFailure,
+                diagnosticSummary: nil,
                 sourceName: retainedSourceName,
                 sourceURL: retainedSourceURL,
                 lastAttemptedAt: attemptedAt,
@@ -603,6 +612,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                 status: .ready,
                 signal: signal,
                 reason: nil,
+                diagnosticSummary: nil,
                 sourceName: signal.sourceName.isEmpty ? retainedSourceName : signal.sourceName,
                 sourceURL: signal.sourceURL ?? retainedSourceURL,
                 lastAttemptedAt: attemptedAt,
@@ -610,6 +620,14 @@ public final class DashboardSnapshotStore: ObservableObject {
             )
         } catch {
             let reason = unavailableReason(for: error)
+            let diagnosticSummary = diagnosticSummary(for: error)
+            logTravelAlertFailure(
+                kind: kind,
+                sourceName: retainedSourceName,
+                reason: reason,
+                diagnosticSummary: diagnosticSummary,
+                error: error
+            )
 
             if let previousSignal = previous?.signal {
                 return TravelAlertSignalState(
@@ -617,6 +635,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                     status: .stale,
                     signal: previousSignal,
                     reason: reason,
+                    diagnosticSummary: diagnosticSummary,
                     sourceName: retainedSourceName,
                     sourceURL: retainedSourceURL,
                     lastAttemptedAt: attemptedAt,
@@ -629,6 +648,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                 status: .unavailable,
                 signal: nil,
                 reason: reason,
+                diagnosticSummary: diagnosticSummary,
                 sourceName: retainedSourceName,
                 sourceURL: retainedSourceURL,
                 lastAttemptedAt: attemptedAt,
@@ -656,8 +676,45 @@ public final class DashboardSnapshotStore: ObservableObject {
             .locationRequired
         case ProviderError.missingConfiguration:
             .sourceConfigurationRequired
+        case ReliefWebProviderError.appNameApprovalRequired, ReliefWebProviderError.appNameMissing:
+            .sourceConfigurationRequired
         default:
             .sourceUnavailable
+        }
+    }
+
+    private func diagnosticSummary(for error: Error) -> String? {
+        switch error {
+        case let error as TravelAlertDiagnosticError:
+            error.diagnosticSummary
+        default:
+            nil
+        }
+    }
+
+    private func logTravelAlertFailure(
+        kind: TravelAlertKind,
+        sourceName: String,
+        reason: TravelAlertUnavailableReason,
+        diagnosticSummary: String?,
+        error: Error
+    ) {
+        let summary = diagnosticSummary ?? unavailableSummary(for: reason)
+        Self.logger.error(
+            "Travel alert fetch failed kind=\(kind.rawValue, privacy: .public) source=\(sourceName, privacy: .public) summary=\(summary, privacy: .public) error=\(String(describing: error), privacy: .public)"
+        )
+    }
+
+    private func unavailableSummary(for reason: TravelAlertUnavailableReason) -> String {
+        switch reason {
+        case .countryRequired:
+            "Country needed for nearby alerts"
+        case .locationRequired:
+            "Location needed for local alerts"
+        case .sourceUnavailable:
+            "Source unavailable"
+        case .sourceConfigurationRequired:
+            "Source setup required"
         }
     }
 

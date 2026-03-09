@@ -12,11 +12,11 @@ public actor FileMetricHistoryStore: MetricHistoryStore {
     }
 
     public func loadAll() async throws -> [MetricSeriesKind: [MetricPoint]] {
-        trim(try loadPersistedHistory())
+        try trim(loadPersistedHistory())
     }
 
     public func append(_ point: MetricPoint, to series: MetricSeriesKind) async throws {
-        var history = trim(try loadPersistedHistory())
+        var history = try trim(loadPersistedHistory())
         history[series, default: []].append(point)
         history = trim(history)
         try persist(history)
@@ -31,7 +31,7 @@ public actor FileMetricHistoryStore: MetricHistoryStore {
 
     public func setRetentionHours(_ retentionHours: Int) async throws {
         self.retentionHours = retentionHours
-        let trimmedHistory = trim(try loadPersistedHistory())
+        let trimmedHistory = try trim(loadPersistedHistory())
         try persist(trimmedHistory)
     }
 

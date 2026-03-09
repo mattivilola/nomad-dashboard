@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install toolchain helpers
-        run: brew install xcodegen swiftformat xcbeautify
+        run: brew bundle --file Brewfile --no-upgrade
 
       - name: Lint Swift sources
         run: ./scripts/lint.sh
@@ -26,4 +26,3 @@ jobs:
 
       - name: Build app
         run: ./scripts/build-dev.sh
-

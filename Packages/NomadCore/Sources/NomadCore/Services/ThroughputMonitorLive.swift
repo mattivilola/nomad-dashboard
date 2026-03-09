@@ -36,7 +36,8 @@ public struct SystemInterfaceCounterReader: InterfaceCounterReading {
             let isLoopback = (interface.ifa_flags & UInt32(IFF_LOOPBACK)) != 0
 
             guard !isLoopback,
-                  let dataPointer = interface.ifa_data?.assumingMemoryBound(to: if_data.self) else {
+                  let dataPointer = interface.ifa_data?.assumingMemoryBound(to: if_data.self)
+            else {
                 continue
             }
 

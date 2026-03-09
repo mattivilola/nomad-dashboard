@@ -10,7 +10,7 @@ public actor LiveOpenMeteoMarineProvider: MarineProvider {
 
     public init(
         session: URLSession = .shared,
-        ttl: TimeInterval = 1800,
+        ttl: TimeInterval = 1_800,
         marineEndpoint: URL = URL(string: "https://marine-api.open-meteo.com/v1/marine")!,
         forecastEndpoint: URL = URL(string: "https://api.open-meteo.com/v1/forecast")!
     ) {
@@ -110,7 +110,8 @@ public actor LiveOpenMeteoMarineProvider: MarineProvider {
         let marineSeries = try MarineSeries(response: marineResponse)
         let forecastSeries = try ForecastSeries(response: forecastResponse)
         guard let currentMarineIndex = Self.nearestIndex(in: marineSeries.times, to: now),
-              let currentForecastIndex = Self.nearestIndex(in: forecastSeries.times, to: now) else {
+              let currentForecastIndex = Self.nearestIndex(in: forecastSeries.times, to: now)
+        else {
             throw ProviderError.invalidResponse
         }
 
@@ -118,7 +119,8 @@ public actor LiveOpenMeteoMarineProvider: MarineProvider {
         let forecastSlots: [MarineForecastSlot] = forecastHourOffsets.compactMap { hourOffset in
             let targetDate = now.addingTimeInterval(TimeInterval(hourOffset * 3_600))
             guard let marineIndex = Self.nearestIndex(in: marineSeries.times, to: targetDate),
-                  let forecastIndex = Self.nearestIndex(in: forecastSeries.times, to: targetDate) else {
+                  let forecastIndex = Self.nearestIndex(in: forecastSeries.times, to: targetDate)
+            else {
                 return nil
             }
 
@@ -230,17 +232,17 @@ private struct MarineSeries {
     let seaSurfaceTemperature: [Double?]
 
     init(response: OpenMeteoMarineResponse) throws {
-        self.times = try Self.parseDates(
+        times = try Self.parseDates(
             response.hourly.time,
             timezoneIdentifier: response.timezone,
             utcOffsetSeconds: response.utcOffsetSeconds
         )
-        self.waveHeight = response.hourly.waveHeight
-        self.wavePeriod = response.hourly.wavePeriod
-        self.swellWaveHeight = response.hourly.swellWaveHeight
-        self.swellWavePeriod = response.hourly.swellWavePeriod
-        self.swellWaveDirection = response.hourly.swellWaveDirection
-        self.seaSurfaceTemperature = response.hourly.seaSurfaceTemperature
+        waveHeight = response.hourly.waveHeight
+        wavePeriod = response.hourly.wavePeriod
+        swellWaveHeight = response.hourly.swellWaveHeight
+        swellWavePeriod = response.hourly.swellWavePeriod
+        swellWaveDirection = response.hourly.swellWaveDirection
+        seaSurfaceTemperature = response.hourly.seaSurfaceTemperature
     }
 }
 
@@ -251,18 +253,18 @@ private struct ForecastSeries {
     let windDirection: [Double?]
 
     init(response: OpenMeteoForecastResponse) throws {
-        self.times = try Self.parseDates(
+        times = try Self.parseDates(
             response.hourly.time,
             timezoneIdentifier: response.timezone,
             utcOffsetSeconds: response.utcOffsetSeconds
         )
-        self.windSpeed = response.hourly.windSpeed
-        self.windGusts = response.hourly.windGusts
-        self.windDirection = response.hourly.windDirection
+        windSpeed = response.hourly.windSpeed
+        windGusts = response.hourly.windGusts
+        windDirection = response.hourly.windDirection
     }
 }
 
-private extension Array where Element == Double? {
+private extension [Double?] {
     func value(at index: Int) -> Double? {
         guard indices.contains(index) else {
             return nil

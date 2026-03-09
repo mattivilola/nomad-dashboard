@@ -2,7 +2,7 @@ APP_NAME := NomadDashboard
 SCHEME := NomadDashboard
 PROJECT := $(APP_NAME).xcodeproj
 
-.PHONY: bootstrap generate open build run rerun test lint archive brand-assets dmg release release-patch release-minor release-major release-dry-run clean
+.PHONY: bootstrap generate open build run rerun test probe-sources lint archive brand-assets dmg release release-patch release-minor release-major release-dry-run clean
 
 bootstrap:
 	./scripts/bootstrap.sh
@@ -24,6 +24,9 @@ rerun:
 
 test:
 	./scripts/test.sh
+
+probe-sources:
+	./scripts/probe-external-sources.sh
 
 lint:
 	./scripts/lint.sh
