@@ -7,8 +7,9 @@ on:
       - main
 
 jobs:
-  validate:
+  lint:
     runs-on: macos-15
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -18,8 +19,29 @@ jobs:
       - name: Lint Swift sources
         run: ./scripts/lint.sh
 
+  test:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain helpers
+        run: brew bundle --file Brewfile --no-upgrade
+
       - name: Test Swift packages
         run: ./scripts/test.sh
+
+  build:
+    runs-on: macos-15
+    timeout-minutes: 25
+    needs:
+      - lint
+      - test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain helpers
+        run: brew bundle --file Brewfile --no-upgrade
 
       - name: Generate Xcode project
         run: ./scripts/generate-project.sh
