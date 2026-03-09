@@ -27,6 +27,7 @@ Nomad Dashboard is distributed directly outside the Mac App Store.
    - `NOMAD_SPARKLE_PRIVATE_KEY_PATH`
    - `NOMAD_SPARKLE_PUBLIC_ED_KEY`
    - optional `NOMAD_SPARKLE_BIN_DIR` if Sparkle CLI tools are not auto-discovered
+6. In the Apple Developer portal, open the App ID for `com.iloapps.NomadDashboard` and enable the WeatherKit capability before shipping a release build.
 
 `Config/Signing.env` is ignored by git and should stay local to the release machine.
 
@@ -60,6 +61,7 @@ Nomad Dashboard is distributed directly outside the Mac App Store.
    - `NomadDashboard-<version>.dmg`
    - `appcast.xml`
 10. Install from the DMG, launch the app, and verify `Check for Updates` reaches the published GitHub appcast.
+11. Verify the installed release can load current weather and WeatherKit-backed travel weather alerts.
 
 ## Commands
 

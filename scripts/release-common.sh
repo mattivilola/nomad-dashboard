@@ -252,6 +252,13 @@ assert_archive_update_configuration() {
   [[ "$actual_key" == "$expected_key" ]] || fail "Archived app has SUPublicEDKey='$actual_key', expected the configured public key."
 }
 
+assert_archive_weatherkit_entitlement() {
+  local entitlements
+
+  entitlements="$(codesign -d --entitlements - "$ARCHIVE_APP_PATH" 2>&1)"
+  [[ "$entitlements" == *"com.apple.developer.weatherkit"* ]] || fail "Archived app is missing the WeatherKit entitlement."
+}
+
 assert_archive_is_not_adhoc() {
   local signature_details
 
