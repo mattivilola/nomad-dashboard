@@ -72,6 +72,16 @@ public enum NomadFormatters {
         return String(format: "%.0f%%", value * 100)
     }
 
+    public static func fuelPricePerLiter(_ value: Double?) -> String {
+        guard let value else { return "n/a" }
+        return String(format: "EUR %.3f/L", value)
+    }
+
+    public static func kilometers(_ value: Double?) -> String {
+        guard let value else { return "n/a" }
+        return String(format: value >= 10 ? "%.0f km" : "%.1f km", value)
+    }
+
     public static func relativeDate(_ value: Date?) -> String {
         guard let value else { return "Waiting for first refresh"
         }

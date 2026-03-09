@@ -10,6 +10,7 @@ public struct DashboardDependencies: Sendable {
     public let publicIPLocationProvider: any PublicIPLocationProvider
     public let reverseGeocodingProvider: any ReverseGeocodingProvider
     public let weatherProvider: any WeatherProvider
+    public let fuelPriceProvider: any FuelPriceProvider
     public let marineProvider: any MarineProvider
     public let neighborCountryResolver: any NeighborCountryResolver
     public let travelAdvisoryProvider: any TravelAdvisoryProvider
@@ -29,6 +30,7 @@ public struct DashboardDependencies: Sendable {
         publicIPLocationProvider: any PublicIPLocationProvider,
         reverseGeocodingProvider: any ReverseGeocodingProvider,
         weatherProvider: any WeatherProvider,
+        fuelPriceProvider: any FuelPriceProvider,
         marineProvider: any MarineProvider,
         neighborCountryResolver: any NeighborCountryResolver,
         travelAdvisoryProvider: any TravelAdvisoryProvider,
@@ -47,6 +49,7 @@ public struct DashboardDependencies: Sendable {
         self.publicIPLocationProvider = publicIPLocationProvider
         self.reverseGeocodingProvider = reverseGeocodingProvider
         self.weatherProvider = weatherProvider
+        self.fuelPriceProvider = fuelPriceProvider
         self.marineProvider = marineProvider
         self.neighborCountryResolver = neighborCountryResolver
         self.travelAdvisoryProvider = travelAdvisoryProvider
@@ -62,6 +65,7 @@ public struct DashboardDependencies: Sendable {
         latencyHosts: [String] = ["1.1.1.1:443", "8.8.8.8:443"],
         historyRetentionHours: Int = 24,
         reliefWebAppName: String? = nil,
+        tankerkonigAPIKey: String? = nil,
         updateCoordinator: any UpdateCoordinator
     ) -> DashboardDependencies {
         let publicIPClient = CachedFreeIPAPIClient()
@@ -76,6 +80,7 @@ public struct DashboardDependencies: Sendable {
             publicIPLocationProvider: CachedIPLocationProvider(client: publicIPClient),
             reverseGeocodingProvider: CachedReverseGeocodingProvider(),
             weatherProvider: LiveWeatherProvider(),
+            fuelPriceProvider: LiveEuropeanFuelPriceProvider(tankerkonigAPIKey: tankerkonigAPIKey),
             marineProvider: LiveOpenMeteoMarineProvider(),
             neighborCountryResolver: BundledNeighborCountryResolver(),
             travelAdvisoryProvider: SmartravellerAdvisoryProvider(),

@@ -10,6 +10,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var automaticUpdateChecksEnabled: Bool
     public var launchAtLoginEnabled: Bool
     public var useCurrentLocationForWeather: Bool
+    public var fuelPricesEnabled: Bool
     public var visitedPlacesEnabled: Bool
     public var travelAdvisoryEnabled: Bool
     public var travelWeatherAlertsEnabled: Bool
@@ -28,6 +29,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         automaticUpdateChecksEnabled: Bool = true,
         launchAtLoginEnabled: Bool = false,
         useCurrentLocationForWeather: Bool = true,
+        fuelPricesEnabled: Bool = false,
         visitedPlacesEnabled: Bool = true,
         travelAdvisoryEnabled: Bool = true,
         travelWeatherAlertsEnabled: Bool = false,
@@ -45,6 +47,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.automaticUpdateChecksEnabled = automaticUpdateChecksEnabled
         self.launchAtLoginEnabled = launchAtLoginEnabled
         self.useCurrentLocationForWeather = useCurrentLocationForWeather
+        self.fuelPricesEnabled = fuelPricesEnabled
         self.visitedPlacesEnabled = visitedPlacesEnabled
         self.travelAdvisoryEnabled = travelAdvisoryEnabled
         self.travelWeatherAlertsEnabled = travelWeatherAlertsEnabled
@@ -64,6 +67,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case automaticUpdateChecksEnabled
         case launchAtLoginEnabled
         case useCurrentLocationForWeather
+        case fuelPricesEnabled
         case visitedPlacesEnabled
         case travelAdvisoryEnabled
         case travelWeatherAlertsEnabled
@@ -85,6 +89,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         automaticUpdateChecksEnabled = try container.decode(Bool.self, forKey: .automaticUpdateChecksEnabled)
         launchAtLoginEnabled = try container.decode(Bool.self, forKey: .launchAtLoginEnabled)
         useCurrentLocationForWeather = try container.decode(Bool.self, forKey: .useCurrentLocationForWeather)
+        fuelPricesEnabled = try container.decodeIfPresent(Bool.self, forKey: .fuelPricesEnabled) ?? false
         visitedPlacesEnabled = try container.decodeIfPresent(Bool.self, forKey: .visitedPlacesEnabled) ?? false
         travelAdvisoryEnabled = try container.decodeIfPresent(Bool.self, forKey: .travelAdvisoryEnabled) ?? true
         travelWeatherAlertsEnabled = try container.decodeIfPresent(Bool.self, forKey: .travelWeatherAlertsEnabled) ?? false

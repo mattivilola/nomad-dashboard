@@ -47,6 +47,10 @@ public protocol WeatherProvider: Sendable {
     func weather(for coordinate: CLLocationCoordinate2D?) async throws -> WeatherSnapshot
 }
 
+public protocol FuelPriceProvider: Sendable {
+    func prices(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot
+}
+
 public protocol MarineProvider: Sendable {
     func marine(for spot: MarineSpot) async throws -> MarineSnapshot
 }

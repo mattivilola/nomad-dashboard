@@ -321,6 +321,96 @@ struct NomadUITests {
         #expect(presentation.badge.title == "Location Needed")
         #expect(presentation.emptyMessage == "Allow location access to use current weather.")
     }
+
+    @Test
+    func fuelPricesSectionPresentationShowsRowsForReadySnapshot() {
+        var settings = AppSettings()
+        settings.fuelPricesEnabled = true
+
+        let presentation = FuelPricesSectionPresentation(
+            settings: settings,
+            snapshot: DashboardSnapshot.preview,
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.badge.title == "Live")
+        #expect(presentation.rows.count == 2)
+        #expect(presentation.rows.first?.title == "Diesel")
+    }
+
+    @Test
+    func fuelPricesSectionPresentationUsesLocationDetailWhenCurrentLocationIsMissing() {
+        var settings = AppSettings()
+        settings.fuelPricesEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            fuelPrices: FuelPriceSnapshot(
+                status: .locationRequired,
+                sourceName: "Nomad Fuel Prices",
+                sourceURL: nil,
+                countryCode: nil,
+                countryName: nil,
+                searchRadiusKilometers: 50,
+                diesel: nil,
+                gasoline: nil,
+                fetchedAt: nil,
+                detail: "Allow current location to look up nearby fuel prices."
+            ),
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = FuelPricesSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: "Allow location access to use current fuel prices."
+        )
+
+        #expect(presentation.badge.title == "Location Needed")
+        #expect(presentation.emptyMessage == "Allow location access to use current fuel prices.")
+    }
+
+    @Test
+    func fuelPricesSectionPresentationExplainsUnsupportedCountry() {
+        var settings = AppSettings()
+        settings.fuelPricesEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            fuelPrices: FuelPriceSnapshot(
+                status: .unsupported,
+                sourceName: "Nomad Fuel Prices",
+                sourceURL: nil,
+                countryCode: "FI",
+                countryName: "Finland",
+                searchRadiusKilometers: 50,
+                diesel: nil,
+                gasoline: nil,
+                fetchedAt: .now,
+                detail: "Fuel prices are not supported in Finland yet."
+            ),
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = FuelPricesSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.badge.title == "Unsupported")
+        #expect(presentation.emptyMessage == "Fuel prices are not supported in Finland yet.")
+    }
 }
 
 private func makeTravelAlertsSnapshot(

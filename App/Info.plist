@@ -30,6 +30,8 @@
 	<string>Nomad Dashboard uses your location to show local weather and travel context.</string>
 	<key>ReliefWebAppName</key>
 	<string>$(RELIEFWEB_APPNAME)</string>
+	<key>TankerkonigAPIKey</key>
+	<string>$(TANKERKOENIG_APIKEY)</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>

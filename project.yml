@@ -45,6 +45,7 @@ targets:
         LSUIElement: true
         NSLocationUsageDescription: Nomad Dashboard uses your location to show local weather and travel context.
         NSLocationWhenInUseUsageDescription: Nomad Dashboard uses your location to show local weather and travel context.
+        TankerkonigAPIKey: $(TANKERKOENIG_APIKEY)
         SUEnableAutomaticChecks: true
         SUFeedURL: $(SPARKLE_FEED_URL)
         SUPublicEDKey: $(SPARKLE_PUBLIC_ED_KEY)

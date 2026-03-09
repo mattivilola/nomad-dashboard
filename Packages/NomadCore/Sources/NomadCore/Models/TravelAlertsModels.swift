@@ -232,7 +232,7 @@ public extension AppSettings {
     }
 
     var usesDeviceLocation: Bool {
-        useCurrentLocationForWeather || travelWeatherAlertsEnabled || visitedPlacesEnabled
+        useCurrentLocationForWeather || fuelPricesEnabled || travelWeatherAlertsEnabled || visitedPlacesEnabled
     }
 }
 
