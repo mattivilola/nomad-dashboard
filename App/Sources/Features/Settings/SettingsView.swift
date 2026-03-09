@@ -94,6 +94,7 @@ struct SettingsView: View {
 
                     Section {
                         Toggle("Use current location for weather", isOn: weatherLocationBinding)
+                        Toggle("Show nearby fuel prices", isOn: fuelPricesBinding)
                         Toggle("Show external IP location", isOn: binding(\.publicIPGeolocationEnabled))
                         Toggle("Save visited places locally", isOn: visitedPlacesBinding)
 
@@ -115,7 +116,7 @@ struct SettingsView: View {
                     } header: {
                         Text("Privacy & Location")
                     } footer: {
-                        Text("Weather and local weather alerts use device location only when you opt in. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs. Visited places stay on this Mac until you clear them.")
+                        Text("Weather, nearby fuel prices, and local weather alerts use device location only when you opt in. Fuel price support is country-dependent and currently best in Spain, France, Italy, and Germany. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs. Visited places stay on this Mac until you clear them.")
                     }
 
                     Section {
@@ -294,6 +295,20 @@ struct SettingsView: View {
             get: { settingsStore.settings.travelWeatherAlertsEnabled },
             set: { isEnabled in
                 settingsStore.settings.travelWeatherAlertsEnabled = isEnabled
+                snapshotStore.setCurrentLocation(locationStore.currentLocation)
+
+                if settingsStore.settings.usesDeviceLocation {
+                    locationStore.prepareForWeather()
+                }
+            }
+        )
+    }
+
+    private var fuelPricesBinding: Binding<Bool> {
+        Binding(
+            get: { settingsStore.settings.fuelPricesEnabled },
+            set: { isEnabled in
+                settingsStore.settings.fuelPricesEnabled = isEnabled
                 snapshotStore.setCurrentLocation(locationStore.currentLocation)
 
                 if settingsStore.settings.usesDeviceLocation {

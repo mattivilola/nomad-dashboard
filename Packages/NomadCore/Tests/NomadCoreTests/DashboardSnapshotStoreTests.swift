@@ -126,6 +126,44 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func refreshMarksFuelPricesLocationRequirementWhenCurrentLocationIsMissing() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.fuelPricesEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let dependencies = makeDependencies(historyStore: InMemoryHistoryStore())
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.fuelPrices?.status == .locationRequired)
+        #expect(store.snapshot.fuelPrices?.detail == "Allow current location to look up nearby fuel prices.")
+    }
+
+    @Test
+    func refreshLoadsFuelPricesForSupportedCurrentCountry() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.fuelPricesEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let fuelPriceProvider = RecordingFuelPriceProvider()
+        let dependencies = makeDependencies(
+            reverseGeocodingProvider: SpanishReverseGeocodingProvider(),
+            fuelPriceProvider: fuelPriceProvider,
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        store.setCurrentLocation(CLLocation(latitude: 39.4699, longitude: -0.3763))
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.fuelPrices?.status == .ready)
+        #expect(store.snapshot.fuelPrices?.diesel?.stationName == "Plenoil Valencia Puerto")
+        #expect(await fuelPriceProvider.requestedCountryCodes() == ["ES"])
+    }
+
+    @Test
     func refreshSkipsMarineLookupWhenSurfSpotIsBlank() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         let marineProvider = RecordingMarineProvider()
@@ -412,6 +450,31 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func settingsChangesRefreshFuelPricesImmediately() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.fuelPricesEnabled = false
+
+        let fuelPriceProvider = RecordingFuelPriceProvider()
+        let dependencies = makeDependencies(
+            reverseGeocodingProvider: SpanishReverseGeocodingProvider(),
+            fuelPriceProvider: fuelPriceProvider,
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        store.setCurrentLocation(CLLocation(latitude: 39.4699, longitude: -0.3763))
+
+        await store.refresh(manual: true)
+        #expect(await fuelPriceProvider.callCount() == 0)
+
+        settingsStore.settings.fuelPricesEnabled = true
+
+        try await waitForSettingsPropagation()
+        #expect(await fuelPriceProvider.callCount() == 1)
+        #expect(store.snapshot.fuelPrices?.status == .ready)
+    }
+
+    @Test
     func settingsChangesPropagateAutomaticUpdateChecks() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.automaticUpdateChecksEnabled = false
@@ -481,6 +544,7 @@ private func makeDependencies(
     publicIPLocationProvider: any PublicIPLocationProvider = FixedLocationProvider(),
     reverseGeocodingProvider: any ReverseGeocodingProvider = FixedReverseGeocodingProvider(),
     weatherProvider: any WeatherProvider = FixedWeatherProvider(),
+    fuelPriceProvider: any FuelPriceProvider = FixedFuelPriceProvider(),
     marineProvider: any MarineProvider = FixedMarineProvider(),
     neighborCountryResolver: any NeighborCountryResolver = FixedNeighborCountryResolver(),
     travelAdvisoryProvider: any TravelAdvisoryProvider = FixedTravelAdvisoryProvider(),
@@ -500,6 +564,7 @@ private func makeDependencies(
         publicIPLocationProvider: publicIPLocationProvider,
         reverseGeocodingProvider: reverseGeocodingProvider,
         weatherProvider: weatherProvider,
+        fuelPriceProvider: fuelPriceProvider,
         marineProvider: marineProvider,
         neighborCountryResolver: neighborCountryResolver,
         travelAdvisoryProvider: travelAdvisoryProvider,
@@ -703,6 +768,89 @@ private struct FixedNeighborCountryResolver: NeighborCountryResolver {
         default:
             []
         }
+    }
+}
+
+private struct FixedFuelPriceProvider: FuelPriceProvider {
+    func prices(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot {
+        if request.countryCode == "ES" {
+            return FuelPriceSnapshot(
+                status: .ready,
+                sourceName: "Spanish Ministry Fuel Prices",
+                sourceURL: URL(string: "https://example.com/spain-fuel"),
+                countryCode: "ES",
+                countryName: request.countryName,
+                searchRadiusKilometers: request.searchRadiusKilometers,
+                diesel: FuelStationPrice(
+                    fuelType: .diesel,
+                    stationName: "Plenoil Valencia Puerto",
+                    address: "Harbor Road 12",
+                    locality: "Valencia",
+                    pricePerLiter: 1.429,
+                    distanceKilometers: 4.8,
+                    latitude: request.coordinate.latitude,
+                    longitude: request.coordinate.longitude,
+                    updatedAt: .now
+                ),
+                gasoline: FuelStationPrice(
+                    fuelType: .gasoline,
+                    stationName: "Ballenoil Alfafar",
+                    address: "Avinguda del Port 3",
+                    locality: "Valencia",
+                    pricePerLiter: 1.519,
+                    distanceKilometers: 8.6,
+                    latitude: request.coordinate.latitude,
+                    longitude: request.coordinate.longitude,
+                    updatedAt: .now
+                ),
+                fetchedAt: .now,
+                detail: "Cheapest prices within 50 km.",
+                note: nil
+            )
+        }
+
+        return FuelPriceSnapshot(
+            status: .unsupported,
+            sourceName: "Nomad Fuel Prices",
+            sourceURL: nil,
+            countryCode: request.countryCode,
+            countryName: request.countryName,
+            searchRadiusKilometers: request.searchRadiusKilometers,
+            diesel: nil,
+            gasoline: nil,
+            fetchedAt: .now,
+            detail: "Fuel prices are not supported in \(request.countryName ?? request.countryCode) yet.",
+            note: nil
+        )
+    }
+}
+
+private actor RecordingFuelPriceProvider: FuelPriceProvider {
+    private var requests: [FuelSearchRequest] = []
+
+    func prices(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot {
+        requests.append(request)
+        return try await FixedFuelPriceProvider().prices(for: request, forceRefresh: forceRefresh)
+    }
+
+    func callCount() -> Int {
+        requests.count
+    }
+
+    func requestedCountryCodes() -> [String] {
+        requests.map(\.countryCode)
+    }
+}
+
+private struct SpanishReverseGeocodingProvider: ReverseGeocodingProvider {
+    func details(for location: CLLocation) async throws -> ReverseGeocodedLocation {
+        ReverseGeocodedLocation(
+            city: "Valencia",
+            region: "Valencian Community",
+            country: "Spain",
+            countryCode: "ES",
+            timeZoneIdentifier: "Europe/Madrid"
+        )
     }
 }
 

@@ -134,6 +134,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             locationSnapshot: locationSnapshot
         )
         var weatherSnapshot = snapshot.weather
+        var fuelPricesSnapshot = snapshot.fuelPrices
         var marineSnapshot = surfSpotConfiguration.isValid ? snapshot.marine : nil
         var didUpdateVisitedPlaces = false
 
@@ -183,6 +184,12 @@ public final class DashboardSnapshotStore: ObservableObject {
                 }
             } else {
                 weatherSnapshot = nil
+            }
+
+            if settings.fuelPricesEnabled {
+                fuelPricesSnapshot = await refreshFuelPrices(manual: manual)
+            } else {
+                fuelPricesSnapshot = nil
             }
 
             if surfSpotConfiguration.isValid,
@@ -257,6 +264,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             ),
             travelAlerts: travelAlertsSnapshot,
             weather: weatherSnapshot,
+            fuelPrices: fuelPricesSnapshot,
             marine: marineSnapshot,
             appState: AppStatusSnapshot(
                 lastRefresh: now,
@@ -318,6 +326,10 @@ public final class DashboardSnapshotStore: ObservableObject {
             needsManualRefresh = true
         }
 
+        if previousSettings.fuelPricesEnabled != newSettings.fuelPricesEnabled {
+            needsManualRefresh = true
+        }
+
         if previousSettings.surfSpotName != newSettings.surfSpotName
             || previousSettings.surfSpotLatitude != newSettings.surfSpotLatitude
             || previousSettings.surfSpotLongitude != newSettings.surfSpotLongitude
@@ -353,6 +365,83 @@ public final class DashboardSnapshotStore: ObservableObject {
 
         if needsManualRefresh {
             await refresh(manual: true)
+        }
+    }
+
+    private func refreshFuelPrices(manual: Bool) async -> FuelPriceSnapshot {
+        let radiusKilometers = 50.0
+
+        guard let currentLocation else {
+            return FuelPriceSnapshot(
+                status: .locationRequired,
+                sourceName: "Nomad Fuel Prices",
+                sourceURL: nil,
+                countryCode: nil,
+                countryName: nil,
+                searchRadiusKilometers: radiusKilometers,
+                diesel: nil,
+                gasoline: nil,
+                fetchedAt: nil,
+                detail: "Allow current location to look up nearby fuel prices.",
+                note: nil
+            )
+        }
+
+        do {
+            let reverseGeocodedLocation = try await dependencies.reverseGeocodingProvider.details(for: currentLocation)
+            guard let countryCode = normalizedValue(reverseGeocodedLocation.countryCode)?.uppercased() else {
+                return FuelPriceSnapshot(
+                    status: .unavailable,
+                    sourceName: "Apple Reverse Geocoder",
+                    sourceURL: nil,
+                    countryCode: nil,
+                    countryName: reverseGeocodedLocation.country,
+                    searchRadiusKilometers: radiusKilometers,
+                    diesel: nil,
+                    gasoline: nil,
+                    fetchedAt: Date(),
+                    detail: "Current location country could not be resolved.",
+                    note: nil
+                )
+            }
+
+            return try await dependencies.fuelPriceProvider.prices(
+                for: FuelSearchRequest(
+                    coordinate: currentLocation.coordinate,
+                    countryCode: countryCode,
+                    countryName: reverseGeocodedLocation.country,
+                    searchRadiusKilometers: radiusKilometers
+                ),
+                forceRefresh: manual
+            )
+        } catch let error as FuelPriceProviderError {
+            return FuelPriceSnapshot(
+                status: .unavailable,
+                sourceName: error.sourceName,
+                sourceURL: error.sourceURL,
+                countryCode: nil,
+                countryName: nil,
+                searchRadiusKilometers: radiusKilometers,
+                diesel: nil,
+                gasoline: nil,
+                fetchedAt: Date(),
+                detail: "Nearby fuel prices are unavailable right now.",
+                note: error.underlyingDescription == "The operation could not be completed. (NomadCore.ProviderError error 0.)" ? nil : error.underlyingDescription
+            )
+        } catch {
+            return FuelPriceSnapshot(
+                status: .unavailable,
+                sourceName: snapshot.fuelPrices?.sourceName ?? "Nomad Fuel Prices",
+                sourceURL: snapshot.fuelPrices?.sourceURL,
+                countryCode: nil,
+                countryName: nil,
+                searchRadiusKilometers: radiusKilometers,
+                diesel: nil,
+                gasoline: nil,
+                fetchedAt: Date(),
+                detail: "Nearby fuel prices are unavailable right now.",
+                note: nil
+            )
         }
     }
 

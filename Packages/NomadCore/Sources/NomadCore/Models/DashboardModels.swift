@@ -444,6 +444,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
     public let travelContext: TravelContextSnapshot
     public let travelAlerts: TravelAlertsSnapshot?
     public let weather: WeatherSnapshot?
+    public let fuelPrices: FuelPriceSnapshot?
     public let marine: MarineSnapshot?
     public let appState: AppStatusSnapshot
     public let healthSummary: DashboardHealthSummary
@@ -454,6 +455,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         travelContext: TravelContextSnapshot,
         travelAlerts: TravelAlertsSnapshot? = nil,
         weather: WeatherSnapshot?,
+        fuelPrices: FuelPriceSnapshot? = nil,
         marine: MarineSnapshot? = nil,
         appState: AppStatusSnapshot,
         healthSummary: DashboardHealthSummary? = nil
@@ -463,6 +465,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         self.travelContext = travelContext
         self.travelAlerts = travelAlerts
         self.weather = weather
+        self.fuelPrices = fuelPrices
         self.marine = marine
         self.appState = appState
         self.healthSummary = healthSummary ?? DashboardHealthEvaluator.makeSummary(
@@ -516,6 +519,7 @@ public extension DashboardSnapshot {
             fetchedAt: nil
         ),
         weather: nil,
+        fuelPrices: nil,
         marine: nil,
         appState: AppStatusSnapshot(lastRefresh: nil, updateState: .idle, issues: [])
     )
@@ -663,6 +667,41 @@ public extension DashboardSnapshot {
             ),
             fetchedAt: .now
         ),
+        fuelPrices: FuelPriceSnapshot(
+            status: .ready,
+            sourceName: "Spanish Ministry for the Ecological Transition",
+            sourceURL: URL(string: "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/"),
+            countryCode: "ES",
+            countryName: "Spain",
+            searchRadiusKilometers: 50,
+            diesel: FuelStationPrice(
+                fuelType: .diesel,
+                stationName: "Plenoil Valencia Puerto",
+                address: "Carrer d'Eivissa 12",
+                locality: "Valencia",
+                pricePerLiter: 1.429,
+                distanceKilometers: 4.8,
+                latitude: 39.457,
+                longitude: -0.332,
+                updatedAt: .now,
+                isSelfService: nil
+            ),
+            gasoline: FuelStationPrice(
+                fuelType: .gasoline,
+                stationName: "Ballenoil Alfafar",
+                address: "Carrer Alcalde José Puertes",
+                locality: "Alfafar",
+                pricePerLiter: 1.519,
+                distanceKilometers: 8.6,
+                latitude: 39.423,
+                longitude: -0.384,
+                updatedAt: .now,
+                isSelfService: nil
+            ),
+            fetchedAt: .now,
+            detail: "Cheapest prices within 50 km.",
+            note: nil
+        ),
         marine: MarineSnapshot(
             spotName: "El Saler",
             coordinate: CLLocationCoordinate2D(latitude: 39.355, longitude: -0.314),
@@ -698,6 +737,7 @@ public extension DashboardSnapshot {
             travelContext: travelContext,
             travelAlerts: travelAlerts,
             weather: weather,
+            fuelPrices: fuelPrices,
             marine: marine,
             appState: appState,
             healthSummary: healthSummary

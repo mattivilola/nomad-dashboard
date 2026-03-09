@@ -79,6 +79,7 @@ public struct DashboardPanelView: View {
                     connectivitySection
                     powerSection
                     travelSection
+                    fuelPricesSection
                     travelAlertsSection
                     weatherSection
                     footer
@@ -359,6 +360,40 @@ public struct DashboardPanelView: View {
         }
     }
 
+    private var fuelPricesSection: some View {
+        let presentation = fuelPricesSectionPresentation
+
+        return DashboardCard(
+            title: "Fuel Prices",
+            subtitle: presentation.subtitle,
+            badge: presentation.badge
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                if presentation.rows.isEmpty == false {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(presentation.rows) { row in
+                            FuelPriceRow(model: row)
+                        }
+                    }
+                } else {
+                    WeatherEmptyState(
+                        title: presentation.emptyTitle,
+                        systemImage: presentation.emptySystemImage,
+                        message: presentation.emptyMessage,
+                        actionTitle: presentation.emptyActionTitle,
+                        action: presentation.isActionable ? openSettingsAction : nil
+                    )
+                }
+
+                if let note = presentation.note {
+                    Text(note)
+                        .font(.caption2)
+                        .foregroundStyle(NomadTheme.tertiaryText)
+                }
+            }
+        }
+    }
+
     private var travelAlertsSection: some View {
         DashboardCard(
             title: "Travel Alerts",
@@ -583,6 +618,14 @@ public struct DashboardPanelView: View {
             settings: settings,
             snapshot: snapshot,
             weatherAvailabilityExplanation: weatherAvailabilityExplanation,
+            locationStatusDetail: locationStatusDetail
+        )
+    }
+
+    private var fuelPricesSectionPresentation: FuelPricesSectionPresentation {
+        FuelPricesSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
             locationStatusDetail: locationStatusDetail
         )
     }
@@ -1041,6 +1084,65 @@ private struct CompactAlertRow: View {
     }
 }
 
+struct FuelPriceRowModel: Identifiable, Equatable {
+    let id: FuelType
+    let title: String
+    let stationName: String
+    let stationDetail: String
+    let priceValue: String
+    let updatedText: String?
+    let tint: Color
+}
+
+private struct FuelPriceRow: View {
+    let model: FuelPriceRowModel
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(model.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NomadTheme.primaryText)
+
+                Text(model.stationName)
+                    .font(.caption)
+                    .foregroundStyle(NomadTheme.primaryText)
+                    .lineLimit(1)
+
+                Text(model.stationDetail)
+                    .font(.caption2)
+                    .foregroundStyle(NomadTheme.secondaryText)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 12)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(model.priceValue)
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundStyle(model.tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                if let updatedText = model.updatedText {
+                    Text(updatedText)
+                        .font(.caption2)
+                        .foregroundStyle(NomadTheme.tertiaryText)
+                }
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(NomadTheme.chartBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+                )
+        )
+    }
+}
+
 struct TravelAlertRowModel: Identifiable, Equatable {
     let id: TravelAlertKind
     let title: String
@@ -1467,6 +1569,146 @@ struct WeatherSectionPresentation {
             emptySystemImage = "cloud.slash.fill"
             emptyMessage = "Weather data is not available yet."
         }
+    }
+}
+
+struct FuelPricesSectionPresentation {
+    let badge: PillBadge
+    let subtitle: String
+    let rows: [FuelPriceRowModel]
+    let emptyTitle: String
+    let emptySystemImage: String
+    let emptyMessage: String
+    let emptyActionTitle: String?
+    let note: String?
+
+    init(
+        settings: AppSettings,
+        snapshot: DashboardSnapshot,
+        locationStatusDetail: String?
+    ) {
+        guard settings.fuelPricesEnabled else {
+            badge = PillBadge(title: "Off", symbolName: "fuelpump.slash.fill", tint: NomadTheme.primaryText)
+            subtitle = "Nearby fuel prices are disabled"
+            rows = []
+            emptyTitle = "Fuel Prices Off"
+            emptySystemImage = "fuelpump.slash.fill"
+            emptyMessage = "Enable nearby fuel prices in Settings."
+            emptyActionTitle = "Open Settings"
+            note = nil
+            return
+        }
+
+        guard let fuelPrices = snapshot.fuelPrices else {
+            badge = PillBadge(title: "Checking", symbolName: "fuelpump.fill", tint: NomadTheme.secondaryText)
+            subtitle = "Looking for nearby prices"
+            rows = []
+            emptyTitle = "Checking Fuel Prices"
+            emptySystemImage = "fuelpump.fill"
+            emptyMessage = "Looking for nearby diesel and gasoline prices."
+            emptyActionTitle = nil
+            note = nil
+            return
+        }
+
+        note = fuelPrices.note
+
+        switch fuelPrices.status {
+        case .ready:
+            badge = FuelPricesSectionPresentation.readyBadge(for: fuelPrices)
+            subtitle = fuelPrices.countryName.map { "\($0) · within \(Int(fuelPrices.searchRadiusKilometers)) km" }
+                ?? "Within \(Int(fuelPrices.searchRadiusKilometers)) km"
+            rows = [fuelPrices.diesel, fuelPrices.gasoline].compactMap { station in
+                guard let station else {
+                    return nil
+                }
+
+                return FuelPriceRowModel(
+                    id: station.fuelType,
+                    title: station.fuelType.displayName,
+                    stationName: station.stationName,
+                    stationDetail: Self.stationDetail(for: station),
+                    priceValue: NomadFormatters.fuelPricePerLiter(station.pricePerLiter),
+                    updatedText: station.updatedAt.map { "Updated \(NomadFormatters.compactClockTime($0))" },
+                    tint: station.fuelType == .diesel ? NomadTheme.teal : NomadTheme.sand
+                )
+            }
+            emptyTitle = ""
+            emptySystemImage = "fuelpump.fill"
+            emptyMessage = ""
+            emptyActionTitle = nil
+        case .unsupported:
+            badge = PillBadge(title: "Unsupported", symbolName: "globe.badge.chevron.backward", tint: NomadTheme.primaryText)
+            subtitle = fuelPrices.countryName ?? "Unsupported country"
+            rows = []
+            emptyTitle = "Country Unsupported"
+            emptySystemImage = "globe.badge.chevron.backward"
+            emptyMessage = fuelPrices.detail ?? "Nearby fuel prices are not supported in this country yet."
+            emptyActionTitle = nil
+        case .locationRequired:
+            badge = PillBadge(title: "Location Needed", symbolName: "location.slash.fill", tint: NomadTheme.sand)
+            subtitle = "Precise location is required"
+            rows = []
+            emptyTitle = "Current Location Needed"
+            emptySystemImage = "location.slash.fill"
+            emptyMessage = locationStatusDetail ?? fuelPrices.detail ?? "Allow current location to look up nearby fuel prices."
+            emptyActionTitle = "Open Settings"
+        case .configurationRequired:
+            badge = PillBadge(title: "Setup", symbolName: "key.fill", tint: NomadTheme.sand)
+            subtitle = fuelPrices.sourceName
+            rows = []
+            emptyTitle = "Source Setup Needed"
+            emptySystemImage = "key.fill"
+            emptyMessage = fuelPrices.detail ?? "This source needs extra configuration."
+            emptyActionTitle = "Open Settings"
+        case .unavailable:
+            badge = PillBadge(title: "Unavailable", symbolName: "wifi.exclamationmark", tint: NomadTheme.primaryText)
+            subtitle = fuelPrices.sourceName
+            rows = []
+            emptyTitle = "Fuel Prices Unavailable"
+            emptySystemImage = "wifi.exclamationmark"
+            emptyMessage = fuelPrices.detail ?? "Nearby fuel prices are unavailable right now."
+            emptyActionTitle = nil
+        case .noStationsFound:
+            badge = PillBadge(title: "No Matches", symbolName: "mappin.slash", tint: NomadTheme.primaryText)
+            subtitle = fuelPrices.countryName.map { "\($0) · within \(Int(fuelPrices.searchRadiusKilometers)) km" }
+                ?? "Within \(Int(fuelPrices.searchRadiusKilometers)) km"
+            rows = []
+            emptyTitle = "No Nearby Prices"
+            emptySystemImage = "mappin.slash"
+            emptyMessage = fuelPrices.detail ?? "No priced stations were found nearby."
+            emptyActionTitle = nil
+        }
+    }
+
+    var isActionable: Bool {
+        emptyActionTitle != nil
+    }
+
+    private static func stationDetail(for station: FuelStationPrice) -> String {
+        let pieces = [
+            station.locality,
+            NomadFormatters.kilometers(station.distanceKilometers),
+            station.isSelfService == true ? "Self-service" : nil
+        ].compactMap(\.self)
+
+        if let address = station.address, pieces.isEmpty == false {
+            return "\(address) · \(pieces.joined(separator: " · "))"
+        }
+
+        if let address = station.address {
+            return address
+        }
+
+        return pieces.joined(separator: " · ")
+    }
+
+    private static func readyBadge(for snapshot: FuelPriceSnapshot) -> PillBadge {
+        if snapshot.sourceName == "MIMIT Fuel Prices" {
+            return PillBadge(title: "Daily", symbolName: "calendar", tint: NomadTheme.teal)
+        }
+
+        return PillBadge(title: "Live", symbolName: "fuelpump.fill", tint: NomadTheme.teal)
     }
 }
 
