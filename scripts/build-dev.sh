@@ -4,6 +4,7 @@ set -euo pipefail
 PROJECT="NomadDashboard.xcodeproj"
 SCHEME="NomadDashboard"
 DESTINATION="platform=macOS,arch=$(uname -m)"
+DEBUG_SIGNING_CONFIG="Config/Signing.debug.local.xcconfig"
 CACHE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nomad-dashboard-xcode.XXXXXX")"
 PACKAGE_ROOT="$CACHE_ROOT/source-packages"
 HOME_ROOT="$CACHE_ROOT/home"
@@ -22,6 +23,25 @@ export XDG_CACHE_HOME="$XDG_CACHE_ROOT"
 export CLANG_MODULE_CACHE_PATH="$XDG_CACHE_ROOT/clang/ModuleCache"
 export SWIFTPM_MODULECACHE_OVERRIDE="$CACHE_ROOT/module-cache"
 
+debug_signing_is_configured() {
+  [[ -f "$DEBUG_SIGNING_CONFIG" ]] || return 1
+
+  local team_id
+  team_id="$(
+    awk -F '=' '
+      /^[[:space:]]*DEVELOPMENT_TEAM[[:space:]]*=/ {
+        value = $2
+        sub(/^[[:space:]]+/, "", value)
+        sub(/[[:space:]]+$/, "", value)
+        print value
+        exit
+      }
+    ' "$DEBUG_SIGNING_CONFIG"
+  )"
+
+  [[ -n "$team_id" && "$team_id" != "YOURTEAMID" ]]
+}
+
 if [[ ! -d "$PROJECT" ]]; then
   ./scripts/generate-project.sh
 fi
@@ -37,6 +57,14 @@ BUILD_ARGS=(
 )
 
 if [[ "${CI:-}" == "true" ]]; then
+  BUILD_ARGS+=(
+    CODE_SIGNING_ALLOWED=NO
+    CODE_SIGNING_REQUIRED=NO
+  )
+elif debug_signing_is_configured; then
+  echo "Using local debug signing overrides from $DEBUG_SIGNING_CONFIG"
+else
+  echo "Using unsigned local debug build (create $DEBUG_SIGNING_CONFIG to enable signed WeatherKit testing)"
   BUILD_ARGS+=(
     CODE_SIGNING_ALLOWED=NO
     CODE_SIGNING_REQUIRED=NO
