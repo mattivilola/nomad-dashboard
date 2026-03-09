@@ -23,14 +23,38 @@ public actor LiveWeatherProvider: WeatherProvider {
             return cache.snapshot
         }
 
-        let weather = try await service.weather(for: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
+        let snapshot = try await WeatherKitSnapshotProjector.snapshot(
+            using: service,
+            coordinate: coordinate
+        )
+
+        cache = (cacheKey, snapshot)
+        return snapshot
+    }
+
+    static func nearTermPrecipitationChance(minuteForecastChance: Double?, hourlyForecastChance: Double?) -> Double? {
+        minuteForecastChance ?? hourlyForecastChance
+    }
+
+    private static func cacheKey(for coordinate: CLLocationCoordinate2D) -> String {
+        let latitude = String(format: "%.3f", coordinate.latitude)
+        let longitude = String(format: "%.3f", coordinate.longitude)
+        return "\(latitude),\(longitude)"
+    }
+}
+
+private enum WeatherKitSnapshotProjector {
+    static func snapshot(using service: WeatherService, coordinate: CLLocationCoordinate2D) async throws -> WeatherSnapshot {
+        let weather = try await service.weather(
+            for: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        )
         let tomorrow = weather.dailyForecast.forecast.dropFirst().first ?? weather.dailyForecast.forecast.first
-        let precipitationChance = Self.nearTermPrecipitationChance(
+        let precipitationChance = LiveWeatherProvider.nearTermPrecipitationChance(
             minuteForecastChance: weather.minuteForecast?.forecast.first?.precipitationChance,
             hourlyForecastChance: weather.hourlyForecast.forecast.first?.precipitationChance
         )
 
-        let snapshot = WeatherSnapshot(
+        return WeatherSnapshot(
             currentTemperatureCelsius: weather.currentWeather.temperature.converted(to: .celsius).value,
             apparentTemperatureCelsius: weather.currentWeather.apparentTemperature.converted(to: .celsius).value,
             conditionDescription: weather.currentWeather.condition.description,
@@ -49,19 +73,6 @@ public actor LiveWeatherProvider: WeatherProvider {
             },
             fetchedAt: Date()
         )
-
-        cache = (cacheKey, snapshot)
-        return snapshot
-    }
-
-    static func nearTermPrecipitationChance(minuteForecastChance: Double?, hourlyForecastChance: Double?) -> Double? {
-        minuteForecastChance ?? hourlyForecastChance
-    }
-
-    private static func cacheKey(for coordinate: CLLocationCoordinate2D) -> String {
-        let latitude = String(format: "%.3f", coordinate.latitude)
-        let longitude = String(format: "%.3f", coordinate.longitude)
-        return "\(latitude),\(longitude)"
     }
 }
 

@@ -318,19 +318,10 @@ public actor WeatherKitAlertProvider: TravelWeatherAlertsProvider {
             return cache.signal
         }
 
-        let weather = try await service.weather(for: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
-        guard weather.availability.alertAvailability == .available else {
-            throw ProviderError.invalidResponse
-        }
-
-        let payloads = (weather.weatherAlerts ?? []).map {
-            WeatherAlertPayload(
-                detailsURL: $0.detailsURL,
-                source: $0.source,
-                summary: $0.summary,
-                severity: $0.severity
-            )
-        }
+        let payloads = try await WeatherKitAlertProjector.payloads(
+            using: service,
+            coordinate: coordinate
+        )
         let signal = Self.signal(from: payloads, fetchedAt: Date())
         cache = (cacheKey, signal)
         return signal
@@ -386,6 +377,26 @@ public actor WeatherKitAlertProvider: TravelWeatherAlertsProvider {
         let latitude = String(format: "%.3f", coordinate.latitude)
         let longitude = String(format: "%.3f", coordinate.longitude)
         return "\(latitude),\(longitude)"
+    }
+}
+
+private enum WeatherKitAlertProjector {
+    static func payloads(using service: WeatherService, coordinate: CLLocationCoordinate2D) async throws -> [WeatherAlertPayload] {
+        let weather = try await service.weather(
+            for: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+        )
+        guard weather.availability.alertAvailability == .available else {
+            throw ProviderError.invalidResponse
+        }
+
+        return (weather.weatherAlerts ?? []).map {
+            WeatherAlertPayload(
+                detailsURL: $0.detailsURL,
+                source: $0.source,
+                summary: $0.summary,
+                severity: $0.severity
+            )
+        }
     }
 }
 
