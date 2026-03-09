@@ -37,7 +37,7 @@ struct NomadDashboardApp: App {
         }
 
         DispatchQueue.main.async {
-            applyAppAppearance(persistedSettings.appearanceMode)
+            applyWindowAppearance(persistedSettings.appearanceMode)
         }
 
         _settingsStore = StateObject(wrappedValue: settingsStore)
@@ -110,9 +110,8 @@ private func reliefWebAppName() -> String? {
 }
 
 @MainActor
-private func applyAppAppearance(_ appearanceMode: AppAppearanceMode) {
+private func applyWindowAppearance(_ appearanceMode: AppAppearanceMode) {
     let appearance = appearanceMode.appKitAppearance
-    NSApp.appearance = appearance
 
     for window in NSApp.windows {
         window.appearance = appearance
@@ -126,10 +125,10 @@ private struct SceneAppearanceSync: ViewModifier {
         content
             .preferredColorScheme(settingsStore.settings.appearanceMode.preferredColorScheme)
             .task {
-                applyAppAppearance(settingsStore.settings.appearanceMode)
+                applyWindowAppearance(settingsStore.settings.appearanceMode)
             }
             .onReceive(settingsStore.$settings.map(\.appearanceMode).removeDuplicates()) { appearanceMode in
-                applyAppAppearance(appearanceMode)
+                applyWindowAppearance(appearanceMode)
             }
     }
 }
