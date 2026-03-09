@@ -2,6 +2,51 @@ import CoreLocation
 import Foundation
 import WeatherKit
 
+protocol TravelAlertDiagnosticError: Error {
+    var diagnosticSummary: String { get }
+}
+
+enum ReliefWebProviderError: Error, Equatable, TravelAlertDiagnosticError, CustomStringConvertible {
+    case requestFailed(URLError.Code)
+    case unexpectedStatus(Int, bodySnippet: String?)
+    case invalidPayload(String)
+
+    var diagnosticSummary: String {
+        switch self {
+        case let .requestFailed(code):
+            switch code {
+            case .notConnectedToInternet:
+                "ReliefWeb request failed: no internet connection."
+            case .timedOut:
+                "ReliefWeb request timed out."
+            case .cannotFindHost, .cannotConnectToHost, .networkConnectionLost, .dnsLookupFailed:
+                "ReliefWeb could not be reached."
+            default:
+                "ReliefWeb request failed before a response was received."
+            }
+        case let .unexpectedStatus(statusCode, _):
+            "ReliefWeb returned HTTP \(statusCode)."
+        case .invalidPayload:
+            "ReliefWeb response format changed."
+        }
+    }
+
+    var description: String {
+        switch self {
+        case let .requestFailed(code):
+            "ReliefWeb request failed with URLError code \(code.rawValue)."
+        case let .unexpectedStatus(statusCode, bodySnippet):
+            if let bodySnippet, bodySnippet.isEmpty == false {
+                "ReliefWeb returned HTTP \(statusCode). Body snippet: \(bodySnippet)"
+            } else {
+                "ReliefWeb returned HTTP \(statusCode)."
+            }
+        case let .invalidPayload(message):
+            "ReliefWeb response format changed: \(message)"
+        }
+    }
+}
+
 public struct BundledNeighborCountryResolver: NeighborCountryResolver {
     private let bordersByCountry: [String: [String]]
 
@@ -433,9 +478,18 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as URLError {
+            throw ReliefWebProviderError.requestFailed(error.code)
+        }
+
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw ProviderError.invalidResponse
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw ReliefWebProviderError.unexpectedStatus(statusCode, bodySnippet: responseSnippet(from: data))
         }
 
         return try Self.parseReports(from: data)
@@ -502,11 +556,24 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
     }
 
     static func parseReports(from data: Data) throws -> [SecurityReportPayload] {
+        let rootObject: [String: Any]
+
+        do {
+            guard let decoded = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw ReliefWebProviderError.invalidPayload("Top-level response was not a JSON object.")
+            }
+
+            rootObject = decoded
+        } catch let error as ReliefWebProviderError {
+            throw error
+        } catch {
+            throw ReliefWebProviderError.invalidPayload("Response body was not valid JSON.")
+        }
+
         guard
-            let rootObject = try JSONSerialization.jsonObject(with: data) as? [String: Any],
             let items = rootObject["data"] as? [[String: Any]]
         else {
-            throw ProviderError.invalidResponse
+            throw ReliefWebProviderError.invalidPayload("Missing top-level data array.")
         }
 
         return items.compactMap { item in
@@ -541,6 +608,18 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
 
     private static func normalizedCountryCodes(_ countryCodes: [String]) -> [String] {
         countryCodes.map { $0.uppercased() }.uniqued()
+    }
+
+    private func responseSnippet(from data: Data) -> String? {
+        guard
+            let text = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            text.isEmpty == false
+        else {
+            return nil
+        }
+
+        return String(text.prefix(160))
     }
 }
 

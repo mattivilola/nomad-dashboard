@@ -1,9 +1,15 @@
 import Combine
 import CoreLocation
 import Foundation
+import OSLog
 
 @MainActor
 public final class DashboardSnapshotStore: ObservableObject {
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "NomadDashboard",
+        category: "TravelAlerts"
+    )
+
     @Published public private(set) var snapshot: DashboardSnapshot
     @Published public private(set) var visitedPlaces: [VisitedPlace] = []
 
@@ -591,6 +597,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                 status: .unavailable,
                 signal: nil,
                 reason: prerequisiteFailure,
+                diagnosticSummary: nil,
                 sourceName: retainedSourceName,
                 sourceURL: retainedSourceURL,
                 lastAttemptedAt: attemptedAt,
@@ -605,6 +612,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                 status: .ready,
                 signal: signal,
                 reason: nil,
+                diagnosticSummary: nil,
                 sourceName: signal.sourceName.isEmpty ? retainedSourceName : signal.sourceName,
                 sourceURL: signal.sourceURL ?? retainedSourceURL,
                 lastAttemptedAt: attemptedAt,
@@ -612,6 +620,14 @@ public final class DashboardSnapshotStore: ObservableObject {
             )
         } catch {
             let reason = unavailableReason(for: error)
+            let diagnosticSummary = diagnosticSummary(for: error)
+            logTravelAlertFailure(
+                kind: kind,
+                sourceName: retainedSourceName,
+                reason: reason,
+                diagnosticSummary: diagnosticSummary,
+                error: error
+            )
 
             if let previousSignal = previous?.signal {
                 return TravelAlertSignalState(
@@ -619,6 +635,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                     status: .stale,
                     signal: previousSignal,
                     reason: reason,
+                    diagnosticSummary: diagnosticSummary,
                     sourceName: retainedSourceName,
                     sourceURL: retainedSourceURL,
                     lastAttemptedAt: attemptedAt,
@@ -631,6 +648,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                 status: .unavailable,
                 signal: nil,
                 reason: reason,
+                diagnosticSummary: diagnosticSummary,
                 sourceName: retainedSourceName,
                 sourceURL: retainedSourceURL,
                 lastAttemptedAt: attemptedAt,
@@ -660,6 +678,41 @@ public final class DashboardSnapshotStore: ObservableObject {
             .sourceConfigurationRequired
         default:
             .sourceUnavailable
+        }
+    }
+
+    private func diagnosticSummary(for error: Error) -> String? {
+        switch error {
+        case let error as TravelAlertDiagnosticError:
+            error.diagnosticSummary
+        default:
+            nil
+        }
+    }
+
+    private func logTravelAlertFailure(
+        kind: TravelAlertKind,
+        sourceName: String,
+        reason: TravelAlertUnavailableReason,
+        diagnosticSummary: String?,
+        error: Error
+    ) {
+        let summary = diagnosticSummary ?? unavailableSummary(for: reason)
+        Self.logger.error(
+            "Travel alert fetch failed kind=\(kind.rawValue, privacy: .public) source=\(sourceName, privacy: .public) summary=\(summary, privacy: .public) error=\(String(describing: error), privacy: .public)"
+        )
+    }
+
+    private func unavailableSummary(for reason: TravelAlertUnavailableReason) -> String {
+        switch reason {
+        case .countryRequired:
+            "Country needed for nearby alerts"
+        case .locationRequired:
+            "Location needed for local alerts"
+        case .sourceUnavailable:
+            "Source unavailable"
+        case .sourceConfigurationRequired:
+            "Source setup required"
         }
     }
 

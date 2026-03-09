@@ -1,6 +1,6 @@
 import CoreLocation
 import Foundation
-import NomadCore
+@testable import NomadCore
 import Testing
 
 @MainActor
@@ -253,6 +253,27 @@ struct DashboardSnapshotStoreTests {
         #expect(store.snapshot.travelAlerts?.state(for: .security)?.reason == .sourceConfigurationRequired)
         #expect(store.snapshot.travelAlerts?.state(for: .security)?.sourceName == "ReliefWeb")
         #expect(store.snapshot.travelAlerts?.state(for: .security)?.sourceURL == URL(string: "https://reliefweb.int"))
+    }
+
+    @Test
+    func refreshPersistsRegionalSecurityDiagnosticSummaryWhenSourceReturnsHTTPError() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.publicIPGeolocationEnabled = true
+        settingsStore.settings.regionalSecurityEnabled = true
+
+        let dependencies = makeDependencies(
+            regionalSecurityProvider: RateLimitedRegionalSecurityProvider(),
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+
+        let securityState = store.snapshot.travelAlerts?.state(for: .security)
+        #expect(securityState?.status == .unavailable)
+        #expect(securityState?.reason == .sourceUnavailable)
+        #expect(securityState?.diagnosticSummary == "ReliefWeb returned HTTP 429.")
     }
 
     @Test
@@ -755,6 +776,17 @@ private struct MissingConfigurationRegionalSecurityProvider: RegionalSecurityPro
 
     func security(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
         throw ProviderError.missingConfiguration
+    }
+}
+
+private struct RateLimitedRegionalSecurityProvider: RegionalSecurityProvider {
+    let sourceDescriptor = TravelAlertSourceDescriptor(
+        name: "ReliefWeb",
+        url: URL(string: "https://reliefweb.int")
+    )
+
+    func security(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
+        throw ReliefWebProviderError.unexpectedStatus(429, bodySnippet: "{\"message\":\"rate limited\"}")
     }
 }
 

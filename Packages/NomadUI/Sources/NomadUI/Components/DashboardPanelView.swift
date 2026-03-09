@@ -1160,7 +1160,7 @@ private extension TravelAlertRowModel {
             self.init(
                 id: state.kind,
                 title: title,
-                summary: state.reason?.summary ?? "Source unavailable",
+                summary: state.diagnosticSummary ?? state.reason?.summary ?? "Source unavailable",
                 sourceName: sourceName,
                 count: nil,
                 severity: .info,

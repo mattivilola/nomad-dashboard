@@ -96,6 +96,34 @@ struct NomadUITests {
     }
 
     @Test
+    func travelAlertsPresentationPrefersDiagnosticSummaryForUnavailableSource() {
+        let presentation = TravelAlertsCardPresentation(
+            preferences: TravelAlertPreferences(advisoryEnabled: false, weatherEnabled: false, securityEnabled: true),
+            snapshot: makeTravelAlertsSnapshot(
+                enabledKinds: [.security],
+                states: [
+                    TravelAlertSignalState(
+                        kind: .security,
+                        status: .unavailable,
+                        signal: nil,
+                        reason: .sourceUnavailable,
+                        diagnosticSummary: "ReliefWeb returned HTTP 429.",
+                        sourceName: "ReliefWeb",
+                        sourceURL: URL(string: "https://reliefweb.int"),
+                        lastAttemptedAt: .now,
+                        lastSuccessAt: nil
+                    )
+                ]
+            )
+        )
+
+        let row = presentation.rows.first
+        #expect(row?.status == TravelAlertSignalStatus.unavailable)
+        #expect(row?.summary == "ReliefWeb returned HTTP 429.")
+        #expect(row?.sourceName == "ReliefWeb")
+    }
+
+    @Test
     func travelAlertsPresentationDoesNotCollapseMixedResolvedRowsIntoCheckingFallback() {
         let presentation = TravelAlertsCardPresentation(
             preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: true, securityEnabled: true),

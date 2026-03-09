@@ -106,4 +106,68 @@ struct TravelAlertsProvidersTests {
         #expect(signal.summary == "2 nearby security bulletins were published recently.")
         #expect(signal.sourceURL?.absoluteString == "https://reliefweb.int/report/france/border-protest")
     }
+
+    @Test
+    func securityProviderSurfacesUnexpectedHTTPStatusAsDiagnosticError() async throws {
+        let session = makeMockSession()
+        MockTravelAlertsURLProtocol.handler = { request in
+            guard
+                let url = request.url,
+                let response = HTTPURLResponse(url: url, statusCode: 429, httpVersion: nil, headerFields: nil)
+            else {
+                throw ProviderError.invalidResponse
+            }
+
+            return (Data("{\"message\":\"rate limited\"}".utf8), response)
+        }
+
+        let provider = ReliefWebSecurityProvider(session: session, ttl: 0, appName: "NomadDashboardTests")
+
+        await #expect(throws: ReliefWebProviderError.unexpectedStatus(429, bodySnippet: "{\"message\":\"rate limited\"}")) {
+            try await provider.security(for: ["ES", "FR"], primaryCountryCode: "ES", forceRefresh: true)
+        }
+    }
+
+    @Test
+    func securityProviderSurfacesInvalidPayloadAsDiagnosticError() throws {
+        #expect(throws: ReliefWebProviderError.invalidPayload("Missing top-level data array.")) {
+            _ = try ReliefWebSecurityProvider.parseReports(from: Data("{\"unexpected\":[]}".utf8))
+        }
+    }
+}
+
+private func makeMockSession() -> URLSession {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [MockTravelAlertsURLProtocol.self]
+    return URLSession(configuration: configuration)
+}
+
+private final class MockTravelAlertsURLProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) throws -> (Data, URLResponse))?
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let handler = Self.handler else {
+            client?.urlProtocol(self, didFailWithError: ProviderError.invalidResponse)
+            return
+        }
+
+        do {
+            let (data, response) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
 }
