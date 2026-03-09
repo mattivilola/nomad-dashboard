@@ -724,7 +724,7 @@ struct PowerMetricsPresentation {
             drainValue = "Plugged in"
             timeLeftValue = "Plugged in"
         case .battery:
-            drainValue = snapshot.dischargeRateWatts.map { NomadFormatters.watts($0) } ?? "Estimating"
+            drainValue = snapshot.dischargeRateWatts.map { NomadFormatters.watts($0) } ?? "On battery"
             timeLeftValue = snapshot.timeRemainingMinutes.map { NomadFormatters.minutes($0) } ?? "Estimating"
         case .unknown:
             drainValue = "Estimating"

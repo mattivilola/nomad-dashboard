@@ -1,4 +1,5 @@
 import Foundation
+import IOKit
 import IOKit.ps
 
 public struct LivePowerMonitor: PowerMonitor {
@@ -54,15 +55,11 @@ public struct LivePowerMonitor: PowerMonitor {
             timeRemainingMinutes = nil
             timeToFullChargeMinutes = nil
         }
-        let amperageMilliAmps = (description[kIOPSCurrentKey] as? NSNumber)?.doubleValue
-        let voltageMilliVolts = (description[kIOPSVoltageKey] as? NSNumber)?.doubleValue
-        let dischargeRateWatts = { () -> Double? in
-            guard let amperageMilliAmps, let voltageMilliVolts else {
-                return nil
-            }
-
-            return abs(amperageMilliAmps * voltageMilliVolts) / 1_000_000
-        }()
+        let dischargeRateWatts = Self.resolveDischargeRateWatts(
+            state: state,
+            description: description,
+            registryValues: Self.batteryRegistryValues()
+        )
 
         var adapterWatts: Double?
 
@@ -90,5 +87,77 @@ public struct LivePowerMonitor: PowerMonitor {
         }
 
         return rawValue
+    }
+
+    static func resolveDischargeRateWatts(
+        state: PowerSourceState,
+        description: [String: Any],
+        registryValues: [String: Any]?
+    ) -> Double? {
+        guard state == .battery else {
+            return nil
+        }
+
+        return dischargeRateWatts(fromPowerSourceDescription: description)
+            ?? registryValues.flatMap(dischargeRateWatts(fromBatteryRegistryValues:))
+    }
+
+    static func dischargeRateWatts(fromPowerSourceDescription description: [String: Any]) -> Double? {
+        guard let amperageMilliAmps = (description[kIOPSCurrentKey] as? NSNumber)?.doubleValue,
+              let voltageMilliVolts = (description[kIOPSVoltageKey] as? NSNumber)?.doubleValue
+        else {
+            return nil
+        }
+
+        return dischargeRateWatts(amperageMilliAmps: amperageMilliAmps, voltageMilliVolts: voltageMilliVolts)
+    }
+
+    static func dischargeRateWatts(fromBatteryRegistryValues values: [String: Any]) -> Double? {
+        let currentValue = values["InstantAmperage"] as? NSNumber ?? values["Amperage"] as? NSNumber
+        let voltageValue = values["Voltage"] as? NSNumber ?? values["AppleRawBatteryVoltage"] as? NSNumber
+
+        guard let currentValue,
+              let amperageMilliAmps = normalizedSignedMilliAmps(currentValue),
+              let voltageMilliVolts = voltageValue?.doubleValue
+        else {
+            return nil
+        }
+
+        return dischargeRateWatts(amperageMilliAmps: amperageMilliAmps, voltageMilliVolts: voltageMilliVolts)
+    }
+
+    static func normalizedSignedMilliAmps(_ value: NSNumber) -> Double? {
+        let unsignedValue = value.uint64Value
+        if unsignedValue > UInt64(Int64.max) {
+            return Double(Int64(bitPattern: unsignedValue))
+        }
+
+        return value.doubleValue
+    }
+
+    private static func dischargeRateWatts(amperageMilliAmps: Double, voltageMilliVolts: Double) -> Double? {
+        guard voltageMilliVolts > 0 else {
+            return nil
+        }
+
+        return abs(amperageMilliAmps * voltageMilliVolts) / 1_000_000
+    }
+
+    private static func batteryRegistryValues() -> [String: Any]? {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
+        guard service != 0 else {
+            return nil
+        }
+        defer { IOObjectRelease(service) }
+
+        var properties: Unmanaged<CFMutableDictionary>?
+        let result = IORegistryEntryCreateCFProperties(service, &properties, kCFAllocatorDefault, 0)
+        guard result == KERN_SUCCESS,
+              let properties = properties?.takeRetainedValue() as? [String: Any]
+        else {
+            return nil
+        }
+
+        return properties
     }
 }

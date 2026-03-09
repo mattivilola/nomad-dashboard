@@ -27,6 +27,19 @@ struct NomadUITests {
     }
 
     @Test
+    func powerMetricsPresentationFallsBackToOnBatteryWithoutWattage() {
+        let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
+            state: .battery,
+            timeRemainingMinutes: 87,
+            timeToFullChargeMinutes: nil,
+            dischargeRateWatts: nil
+        ))
+
+        #expect(presentation.drainValue == "On battery")
+        #expect(presentation.timeLeftValue == "1h 27m")
+    }
+
+    @Test
     func powerMetricsPresentationShowsChargingTimeToFull() {
         let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
             state: .charging,
@@ -330,7 +343,8 @@ private func makeTravelAlertsSnapshot(
 private func makePowerSnapshot(
     state: PowerSourceState,
     timeRemainingMinutes: Int?,
-    timeToFullChargeMinutes: Int?
+    timeToFullChargeMinutes: Int?,
+    dischargeRateWatts: Double? = 11.2
 ) -> PowerSnapshot {
     PowerSnapshot(
         chargePercent: 0.72,
@@ -338,7 +352,7 @@ private func makePowerSnapshot(
         timeRemainingMinutes: timeRemainingMinutes,
         timeToFullChargeMinutes: timeToFullChargeMinutes,
         isLowPowerModeEnabled: false,
-        dischargeRateWatts: 11.2,
+        dischargeRateWatts: dischargeRateWatts,
         adapterWatts: nil,
         collectedAt: .now
     )
