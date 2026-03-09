@@ -643,8 +643,7 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
 
     private func responseSnippet(from data: Data) -> String? {
         guard
-            let text = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
+            let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
             text.isEmpty == false
         else {
             return nil

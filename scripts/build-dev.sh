@@ -4,6 +4,23 @@ set -euo pipefail
 PROJECT="NomadDashboard.xcodeproj"
 SCHEME="NomadDashboard"
 DESTINATION="platform=macOS,arch=$(uname -m)"
+CACHE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nomad-dashboard-xcode.XXXXXX")"
+PACKAGE_ROOT="$CACHE_ROOT/source-packages"
+HOME_ROOT="$CACHE_ROOT/home"
+XDG_CACHE_ROOT="$CACHE_ROOT/xdg-cache"
+
+mkdir -p \
+  "$PACKAGE_ROOT" \
+  "$HOME_ROOT/Library/Caches" \
+  "$HOME_ROOT/Library/Developer/Xcode/DerivedData" \
+  "$XDG_CACHE_ROOT/clang/ModuleCache" \
+  "$CACHE_ROOT/module-cache"
+
+export CFFIXED_USER_HOME="$HOME_ROOT"
+export HOME="$HOME_ROOT"
+export XDG_CACHE_HOME="$XDG_CACHE_ROOT"
+export CLANG_MODULE_CACHE_PATH="$XDG_CACHE_ROOT/clang/ModuleCache"
+export SWIFTPM_MODULECACHE_OVERRIDE="$CACHE_ROOT/module-cache"
 
 if [[ ! -d "$PROJECT" ]]; then
   ./scripts/generate-project.sh
@@ -15,6 +32,7 @@ BUILD_ARGS=(
   -configuration Debug
   -destination "$DESTINATION"
   -derivedDataPath DerivedData
+  -clonedSourcePackagesDirPath "$PACKAGE_ROOT"
   build
 )
 
