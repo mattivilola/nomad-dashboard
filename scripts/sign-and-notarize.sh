@@ -43,8 +43,52 @@ ensure_release_dirs
 TEMP_NOTARY_ZIP="$(release_notary_zip_path)"
 FINAL_ZIP_PATH="$(release_zip_path)"
 FINAL_DMG_PATH="$(release_dmg_path)"
+SPARKLE_FRAMEWORK_PATH="$ARCHIVE_APP_PATH/Contents/Frameworks/Sparkle.framework"
+
+codesign_item() {
+  local path="$1"
+
+  /usr/bin/codesign \
+    --force \
+    --sign "$NOMAD_SIGNING_IDENTITY" \
+    --timestamp \
+    --options runtime \
+    --preserve-metadata=identifier,entitlements,flags \
+    "$path"
+}
+
+resign_sparkle_components() {
+  [[ -d "$SPARKLE_FRAMEWORK_PATH" ]] || return 0
+
+  local version_root="$SPARKLE_FRAMEWORK_PATH/Versions/B"
+  local autoupdate="$version_root/Autoupdate"
+  local updater_app="$version_root/Updater.app"
+  local downloader_xpc="$version_root/XPCServices/Downloader.xpc"
+  local installer_xpc="$version_root/XPCServices/Installer.xpc"
+
+  [[ -f "$autoupdate" ]] && codesign_item "$autoupdate"
+
+  if [[ -d "$downloader_xpc" ]]; then
+    [[ -f "$downloader_xpc/Contents/MacOS/Downloader" ]] && codesign_item "$downloader_xpc/Contents/MacOS/Downloader"
+    codesign_item "$downloader_xpc"
+  fi
+
+  if [[ -d "$installer_xpc" ]]; then
+    [[ -f "$installer_xpc/Contents/MacOS/Installer" ]] && codesign_item "$installer_xpc/Contents/MacOS/Installer"
+    codesign_item "$installer_xpc"
+  fi
+
+  if [[ -d "$updater_app" ]]; then
+    [[ -f "$updater_app/Contents/MacOS/Updater" ]] && codesign_item "$updater_app/Contents/MacOS/Updater"
+    codesign_item "$updater_app"
+  fi
+
+  codesign_item "$SPARKLE_FRAMEWORK_PATH"
+  codesign_item "$ARCHIVE_APP_PATH"
+}
 
 ./scripts/archive-release.sh
+resign_sparkle_components
 
 codesign --verify --deep --strict --verbose=2 "$ARCHIVE_APP_PATH"
 assert_archive_is_not_adhoc
