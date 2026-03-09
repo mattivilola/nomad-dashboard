@@ -75,6 +75,7 @@ public struct PowerSnapshot: Equatable, Sendable {
     public let chargePercent: Double?
     public let state: PowerSourceState
     public let timeRemainingMinutes: Int?
+    public let timeToFullChargeMinutes: Int?
     public let isLowPowerModeEnabled: Bool
     public let dischargeRateWatts: Double?
     public let adapterWatts: Double?
@@ -84,6 +85,7 @@ public struct PowerSnapshot: Equatable, Sendable {
         chargePercent: Double?,
         state: PowerSourceState,
         timeRemainingMinutes: Int?,
+        timeToFullChargeMinutes: Int?,
         isLowPowerModeEnabled: Bool,
         dischargeRateWatts: Double?,
         adapterWatts: Double?,
@@ -92,6 +94,7 @@ public struct PowerSnapshot: Equatable, Sendable {
         self.chargePercent = chargePercent
         self.state = state
         self.timeRemainingMinutes = timeRemainingMinutes
+        self.timeToFullChargeMinutes = timeToFullChargeMinutes
         self.isLowPowerModeEnabled = isLowPowerModeEnabled
         self.dischargeRateWatts = dischargeRateWatts
         self.adapterWatts = adapterWatts
@@ -546,6 +549,7 @@ public extension DashboardSnapshot {
                 chargePercent: 0.72,
                 state: .battery,
                 timeRemainingMinutes: 208,
+                timeToFullChargeMinutes: nil,
                 isLowPowerModeEnabled: false,
                 dischargeRateWatts: 11.4,
                 adapterWatts: nil,

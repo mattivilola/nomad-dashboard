@@ -8,6 +8,8 @@ protocol TravelAlertDiagnosticError: Error {
 
 enum ReliefWebProviderError: Error, Equatable, TravelAlertDiagnosticError, CustomStringConvertible {
     case requestFailed(URLError.Code)
+    case appNameApprovalRequired(String?)
+    case appNameMissing(String?)
     case unexpectedStatus(Int, bodySnippet: String?)
     case invalidPayload(String)
 
@@ -24,6 +26,10 @@ enum ReliefWebProviderError: Error, Equatable, TravelAlertDiagnosticError, Custo
             default:
                 "ReliefWeb request failed before a response was received."
             }
+        case .appNameApprovalRequired:
+            "ReliefWeb app name approval required."
+        case .appNameMissing:
+            "ReliefWeb app name missing from request."
         case let .unexpectedStatus(statusCode, _):
             "ReliefWeb returned HTTP \(statusCode)."
         case .invalidPayload:
@@ -35,6 +41,18 @@ enum ReliefWebProviderError: Error, Equatable, TravelAlertDiagnosticError, Custo
         switch self {
         case let .requestFailed(code):
             "ReliefWeb request failed with URLError code \(code.rawValue)."
+        case let .appNameApprovalRequired(message):
+            if let message, message.isEmpty == false {
+                "ReliefWeb app name approval required: \(message)"
+            } else {
+                "ReliefWeb app name approval required."
+            }
+        case let .appNameMissing(message):
+            if let message, message.isEmpty == false {
+                "ReliefWeb app name missing from request: \(message)"
+            } else {
+                "ReliefWeb app name missing from request."
+            }
         case let .unexpectedStatus(statusCode, bodySnippet):
             if let bodySnippet, bodySnippet.isEmpty == false {
                 "ReliefWeb returned HTTP \(statusCode). Body snippet: \(bodySnippet)"
@@ -387,7 +405,7 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
     public init(
         session: URLSession = .shared,
         ttl: TimeInterval = 3_600,
-        endpoint: URL = URL(string: "https://api.reliefweb.int/v1/reports")!,
+        endpoint: URL = URL(string: "https://api.reliefweb.int/v2/reports")!,
         appName: String? = nil
     ) {
         self.init(
@@ -428,6 +446,7 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
 
         let countryNames = normalizedCountryCodes.compactMap(countryNameResolver.primaryName(for:))
         let reports = try await fetchReports(countryNames: countryNames)
+            .filter { Date().timeIntervalSince($0.date) <= 72 * 3_600 }
         let signal = Self.signal(
             from: reports,
             primaryCountryName: primaryCountryName,
@@ -439,14 +458,24 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
     }
 
     func fetchReports(countryNames: [String]) async throws -> [SecurityReportPayload] {
-        var request = URLRequest(url: endpoint)
+        guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+            throw ProviderError.invalidResponse
+        }
+
+        components.queryItems = (components.queryItems ?? []) + [
+            URLQueryItem(name: "appname", value: appName)
+        ]
+
+        guard let requestURL = components.url else {
+            throw ProviderError.invalidResponse
+        }
+
+        var request = URLRequest(url: requestURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        let cutoff = iso8601String(from: Date().addingTimeInterval(-72 * 3_600))
         let body: [String: Any] = [
-            "appname": appName,
-            "limit": 10,
+            "limit": 50,
             "sort": ["date.created:desc"],
             "fields": [
                 "include": [
@@ -464,10 +493,6 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
             "filter": [
                 "operator": "AND",
                 "conditions": [
-                    [
-                        "field": "date.created",
-                        "value": ["from": cutoff]
-                    ],
                     [
                         "field": "country.name",
                         "value": countryNames,
@@ -489,6 +514,12 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
 
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+            let errorMessage = responseErrorMessage(from: data)
+
+            if let configurationError = configurationError(statusCode: statusCode, message: errorMessage) {
+                throw configurationError
+            }
+
             throw ReliefWebProviderError.unexpectedStatus(statusCode, bodySnippet: responseSnippet(from: data))
         }
 
@@ -621,6 +652,36 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
 
         return String(text.prefix(160))
     }
+
+    private func responseErrorMessage(from data: Data) -> String? {
+        guard
+            let rootObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let errorObject = rootObject["error"] as? [String: Any],
+            let message = errorObject["message"] as? String
+        else {
+            return nil
+        }
+
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func configurationError(statusCode: Int, message: String?) -> ReliefWebProviderError? {
+        guard let message else {
+            return nil
+        }
+
+        let normalizedMessage = message.lowercased()
+        if statusCode == 403, normalizedMessage.contains("approved appname") {
+            return .appNameApprovalRequired(message)
+        }
+
+        if normalizedMessage.contains("missing appname parameter") {
+            return .appNameMissing(message)
+        }
+
+        return nil
+    }
 }
 
 struct CountryNameResolver {
@@ -748,10 +809,4 @@ private func parseISO8601Date(_ value: String) -> Date? {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime]
     return formatter.date(from: value)
-}
-
-private func iso8601String(from date: Date) -> String {
-    let formatter = ISO8601DateFormatter()
-    formatter.formatOptions = [.withInternetDateTime]
-    return formatter.string(from: date)
 }

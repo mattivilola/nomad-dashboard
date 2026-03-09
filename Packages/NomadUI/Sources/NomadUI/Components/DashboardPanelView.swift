@@ -225,14 +225,16 @@ public struct DashboardPanelView: View {
             subtitle: snapshot.power.snapshot.map(powerSubtitle) ?? "Power source unavailable",
             badge: badge(for: snapshot.healthSummary.power)
         ) {
+            let powerMetrics = PowerMetricsPresentation(snapshot: snapshot.power.snapshot)
+
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
                     MetricBlock(
                         title: "Battery",
                         value: metricValue(snapshot.power.snapshot?.chargePercent.map { $0 * 100 }, formatter: NomadFormatters.percentage, fallback: "Estimating")
                     )
-                    MetricBlock(title: "Drain", value: drainValue)
-                    MetricBlock(title: "Time Left", value: timeLeftValue)
+                    MetricBlock(title: "Drain", value: powerMetrics.drainValue)
+                    MetricBlock(title: "Time Left", value: powerMetrics.timeLeftValue)
                 }
 
                 HStack(spacing: 12) {
@@ -442,40 +444,6 @@ public struct DashboardPanelView: View {
         }
 
         return "Jitter will appear after the next slow refresh"
-    }
-
-    private var drainValue: String {
-        guard let powerSnapshot = snapshot.power.snapshot else {
-            return "Estimating"
-        }
-
-        switch powerSnapshot.state {
-        case .charging:
-            return "Charging"
-        case .charged:
-            return "Plugged in"
-        case .battery:
-            return powerSnapshot.dischargeRateWatts.map { NomadFormatters.watts($0) } ?? "Estimating"
-        case .unknown:
-            return "Estimating"
-        }
-    }
-
-    private var timeLeftValue: String {
-        guard let powerSnapshot = snapshot.power.snapshot else {
-            return "Estimating"
-        }
-
-        switch powerSnapshot.state {
-        case .charging:
-            return "Plugged in"
-        case .charged:
-            return "Plugged in"
-        case .battery:
-            return powerSnapshot.timeRemainingMinutes.map { NomadFormatters.minutes($0) } ?? "Estimating"
-        case .unknown:
-            return "Estimating"
-        }
     }
 
     private var travelSubtitle: String {
@@ -734,6 +702,34 @@ public struct DashboardPanelView: View {
 
         let description = pieces.compactMap(\.self).joined(separator: " · ")
         return description.isEmpty ? "Connected" : description
+    }
+}
+
+struct PowerMetricsPresentation {
+    let drainValue: String
+    let timeLeftValue: String
+
+    init(snapshot: PowerSnapshot?) {
+        guard let snapshot else {
+            drainValue = "Estimating"
+            timeLeftValue = "Estimating"
+            return
+        }
+
+        switch snapshot.state {
+        case .charging:
+            drainValue = "Charging"
+            timeLeftValue = snapshot.timeToFullChargeMinutes.map { NomadFormatters.minutes($0) } ?? "Plugged in"
+        case .charged:
+            drainValue = "Plugged in"
+            timeLeftValue = "Plugged in"
+        case .battery:
+            drainValue = snapshot.dischargeRateWatts.map { NomadFormatters.watts($0) } ?? "Estimating"
+            timeLeftValue = snapshot.timeRemainingMinutes.map { NomadFormatters.minutes($0) } ?? "Estimating"
+        case .unknown:
+            drainValue = "Estimating"
+            timeLeftValue = "Estimating"
+        }
     }
 }
 

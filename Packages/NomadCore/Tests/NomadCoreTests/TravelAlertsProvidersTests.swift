@@ -108,9 +108,14 @@ struct TravelAlertsProvidersTests {
     }
 
     @Test
-    func securityProviderSurfacesUnexpectedHTTPStatusAsDiagnosticError() async throws {
+    func securityProviderBuildsDocumentedRequestAndSurfacesConfiguredHTTPErrors() async throws {
         let session = makeMockSession()
+        let provider = ReliefWebSecurityProvider(session: session, ttl: 0, appName: "NomadDashboardTests")
+
         MockTravelAlertsURLProtocol.handler = { request in
+            #expect(request.url?.absoluteString.contains("/v2/reports?appname=NomadDashboardTests") == true)
+            #expect(String(data: request.httpBody ?? Data(), encoding: .utf8)?.contains("\"appname\"") == false)
+
             guard
                 let url = request.url,
                 let response = HTTPURLResponse(url: url, statusCode: 429, httpVersion: nil, headerFields: nil)
@@ -121,9 +126,27 @@ struct TravelAlertsProvidersTests {
             return (Data("{\"message\":\"rate limited\"}".utf8), response)
         }
 
-        let provider = ReliefWebSecurityProvider(session: session, ttl: 0, appName: "NomadDashboardTests")
-
         await #expect(throws: ReliefWebProviderError.unexpectedStatus(429, bodySnippet: "{\"message\":\"rate limited\"}")) {
+            try await provider.security(for: ["ES", "FR"], primaryCountryCode: "ES", forceRefresh: true)
+        }
+
+        MockTravelAlertsURLProtocol.handler = { request in
+            guard
+                let url = request.url,
+                let response = HTTPURLResponse(url: url, statusCode: 403, httpVersion: nil, headerFields: nil)
+            else {
+                throw ProviderError.invalidResponse
+            }
+
+            return (
+                Data("""
+                {"status":403,"error":{"message":"You are not using an approved appname. Kindly request an appname from ReliefWeb here: https://apidoc.reliefweb.int/parameters#appname"}}
+                """.utf8),
+                response
+            )
+        }
+
+        await #expect(throws: ReliefWebProviderError.appNameApprovalRequired("You are not using an approved appname. Kindly request an appname from ReliefWeb here: https://apidoc.reliefweb.int/parameters#appname")) {
             try await provider.security(for: ["ES", "FR"], primaryCountryCode: "ES", forceRefresh: true)
         }
     }

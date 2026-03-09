@@ -15,6 +15,54 @@ struct NomadUITests {
     }
 
     @Test
+    func powerMetricsPresentationShowsBatteryTimeRemaining() {
+        let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
+            state: .battery,
+            timeRemainingMinutes: 87,
+            timeToFullChargeMinutes: nil
+        ))
+
+        #expect(presentation.drainValue == "11.2 W")
+        #expect(presentation.timeLeftValue == "1h 27m")
+    }
+
+    @Test
+    func powerMetricsPresentationShowsChargingTimeToFull() {
+        let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
+            state: .charging,
+            timeRemainingMinutes: nil,
+            timeToFullChargeMinutes: 13
+        ))
+
+        #expect(presentation.drainValue == "Charging")
+        #expect(presentation.timeLeftValue == "13m")
+    }
+
+    @Test
+    func powerMetricsPresentationFallsBackToPluggedInWhileChargingWithoutEstimate() {
+        let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
+            state: .charging,
+            timeRemainingMinutes: nil,
+            timeToFullChargeMinutes: nil
+        ))
+
+        #expect(presentation.drainValue == "Charging")
+        #expect(presentation.timeLeftValue == "Plugged in")
+    }
+
+    @Test
+    func powerMetricsPresentationShowsPluggedInWhenCharged() {
+        let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
+            state: .charged,
+            timeRemainingMinutes: nil,
+            timeToFullChargeMinutes: nil
+        ))
+
+        #expect(presentation.drainValue == "Plugged in")
+        #expect(presentation.timeLeftValue == "Plugged in")
+    }
+
+    @Test
     func travelAlertsPresentationShowsAllClearState() {
         let presentation = TravelAlertsCardPresentation(
             preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: true, securityEnabled: true),
@@ -276,6 +324,23 @@ private func makeTravelAlertsSnapshot(
         coverageCountryCodes: coverageCountryCodes,
         states: states,
         fetchedAt: .now
+    )
+}
+
+private func makePowerSnapshot(
+    state: PowerSourceState,
+    timeRemainingMinutes: Int?,
+    timeToFullChargeMinutes: Int?
+) -> PowerSnapshot {
+    PowerSnapshot(
+        chargePercent: 0.72,
+        state: state,
+        timeRemainingMinutes: timeRemainingMinutes,
+        timeToFullChargeMinutes: timeToFullChargeMinutes,
+        isLowPowerModeEnabled: false,
+        dischargeRateWatts: 11.2,
+        adapterWatts: nil,
+        collectedAt: .now
     )
 }
 

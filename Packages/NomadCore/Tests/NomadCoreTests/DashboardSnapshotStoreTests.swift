@@ -277,6 +277,27 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func refreshMarksReliefWebAppNameApprovalAsConfigurationRequirement() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.publicIPGeolocationEnabled = true
+        settingsStore.settings.regionalSecurityEnabled = true
+
+        let dependencies = makeDependencies(
+            regionalSecurityProvider: UnapprovedAppNameRegionalSecurityProvider(),
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+
+        let securityState = store.snapshot.travelAlerts?.state(for: .security)
+        #expect(securityState?.status == .unavailable)
+        #expect(securityState?.reason == .sourceConfigurationRequired)
+        #expect(securityState?.diagnosticSummary == "ReliefWeb app name approval required.")
+    }
+
+    @Test
     func refreshPreservesLastKnownTravelAlertWhenSourceFailsAfterSuccess() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = true
@@ -617,6 +638,7 @@ private struct FixedPowerMonitor: PowerMonitor {
             chargePercent: 0.8,
             state: .battery,
             timeRemainingMinutes: 200,
+            timeToFullChargeMinutes: nil,
             isLowPowerModeEnabled: false,
             dischargeRateWatts: 11,
             adapterWatts: nil,
@@ -787,6 +809,19 @@ private struct RateLimitedRegionalSecurityProvider: RegionalSecurityProvider {
 
     func security(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
         throw ReliefWebProviderError.unexpectedStatus(429, bodySnippet: "{\"message\":\"rate limited\"}")
+    }
+}
+
+private struct UnapprovedAppNameRegionalSecurityProvider: RegionalSecurityProvider {
+    let sourceDescriptor = TravelAlertSourceDescriptor(
+        name: "ReliefWeb",
+        url: URL(string: "https://reliefweb.int")
+    )
+
+    func security(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot {
+        throw ReliefWebProviderError.appNameApprovalRequired(
+            "You are not using an approved appname. Kindly request an appname from ReliefWeb here: https://apidoc.reliefweb.int/parameters#appname"
+        )
     }
 }
 

@@ -93,6 +93,7 @@ private func makeSummary(
                 chargePercent: chargePercent,
                 state: .battery,
                 timeRemainingMinutes: timeRemainingMinutes,
+                timeToFullChargeMinutes: nil,
                 isLowPowerModeEnabled: lowPowerMode,
                 dischargeRateWatts: 11.2,
                 adapterWatts: nil,

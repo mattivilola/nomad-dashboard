@@ -4,13 +4,23 @@ import Testing
 
 struct LivePowerMonitorTests {
     @Test
-    func negativeTimeRemainingIsTreatedAsUnknown() {
-        #expect(LivePowerMonitor.normalizedTimeRemainingMinutes(-1) == nil)
+    func negativeDischargeTimeRemainingIsTreatedAsUnknown() {
+        #expect(LivePowerMonitor.normalizedEstimatedMinutes(-1) == nil)
     }
 
     @Test
-    func positiveTimeRemainingIsPreserved() {
-        #expect(LivePowerMonitor.normalizedTimeRemainingMinutes(87) == 87)
+    func positiveDischargeTimeRemainingIsPreserved() {
+        #expect(LivePowerMonitor.normalizedEstimatedMinutes(87) == 87)
+    }
+
+    @Test
+    func negativeChargeTimeRemainingIsTreatedAsUnknown() {
+        #expect(LivePowerMonitor.normalizedEstimatedMinutes(-1) == nil)
+    }
+
+    @Test
+    func positiveChargeTimeRemainingIsPreserved() {
+        #expect(LivePowerMonitor.normalizedEstimatedMinutes(13) == 13)
     }
 
     @Test
@@ -33,6 +43,7 @@ struct LivePowerMonitorTests {
                     chargePercent: 0.84,
                     state: .battery,
                     timeRemainingMinutes: nil,
+                    timeToFullChargeMinutes: nil,
                     isLowPowerModeEnabled: false,
                     dischargeRateWatts: 9.8,
                     adapterWatts: nil,
