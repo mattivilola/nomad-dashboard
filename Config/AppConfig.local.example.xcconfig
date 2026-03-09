@@ -1,0 +1,4 @@
+// Copy to Config/AppConfig.local.xcconfig for local app-only overrides.
+// This file is included by both Debug.xcconfig and Release.xcconfig and is ignored by git.
+
+RELIEFWEB_APPNAME = iloapps-nomad-dashboard-x7m4

@@ -676,6 +676,8 @@ public final class DashboardSnapshotStore: ObservableObject {
             .locationRequired
         case ProviderError.missingConfiguration:
             .sourceConfigurationRequired
+        case ReliefWebProviderError.appNameApprovalRequired, ReliefWebProviderError.appNameMissing:
+            .sourceConfigurationRequired
         default:
             .sourceUnavailable
         }

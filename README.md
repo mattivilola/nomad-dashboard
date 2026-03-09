@@ -91,7 +91,13 @@ sources used by the app. Pass extra arguments through the script directly, for
 example:
 `./scripts/probe-external-sources.sh --country-code ES --latitude 39.4699 --longitude -0.3763`
 Set `RELIEFWEB_APPNAME` if you want to override the default ReliefWeb app name
-used by the probe.
+used by the probe. ReliefWeb now requires that app name to be approved on their
+side.
+
+For the app itself, prefer a local build config instead of a shell export:
+copy `Config/AppConfig.local.example.xcconfig` to `Config/AppConfig.local.xcconfig`
+and set `RELIEFWEB_APPNAME = your-approved-name`. That file is ignored by git
+and is loaded by both Debug and Release builds.
 
 ## Release Workflow
 

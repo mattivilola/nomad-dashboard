@@ -28,6 +28,8 @@
 	<string>Nomad Dashboard uses your location to show local weather and travel context.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Nomad Dashboard uses your location to show local weather and travel context.</string>
+	<key>ReliefWebAppName</key>
+	<string>$(RELIEFWEB_APPNAME)</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>

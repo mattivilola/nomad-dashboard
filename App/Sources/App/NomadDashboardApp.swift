@@ -27,7 +27,7 @@ struct NomadDashboardApp: App {
             applicationSupportDirectory: applicationSupportDirectory,
             latencyHosts: persistedSettings.latencyHosts,
             historyRetentionHours: persistedSettings.historyRetentionHours,
-            reliefWebAppName: ProcessInfo.processInfo.environment["RELIEFWEB_APPNAME"] ?? Bundle.main.bundleIdentifier,
+            reliefWebAppName: reliefWebAppName(),
             updateCoordinator: updateCoordinator
         )
         let launchAtLoginController = LaunchAtLoginController(initialEnabled: persistedSettings.launchAtLoginEnabled)
@@ -90,6 +90,24 @@ struct NomadDashboardApp: App {
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
     }
+}
+
+private func reliefWebAppName() -> String? {
+    if let environmentValue = ProcessInfo.processInfo.environment["RELIEFWEB_APPNAME"]?
+        .trimmingCharacters(in: .whitespacesAndNewlines),
+       environmentValue.isEmpty == false
+    {
+        return environmentValue
+    }
+
+    if let plistValue = Bundle.main.object(forInfoDictionaryKey: "ReliefWebAppName") as? String {
+        let trimmedValue = plistValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmedValue.isEmpty == false {
+            return trimmedValue
+        }
+    }
+
+    return Bundle.main.bundleIdentifier
 }
 
 @MainActor

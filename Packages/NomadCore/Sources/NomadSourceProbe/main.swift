@@ -448,6 +448,10 @@ private func errorHint(for error: Error) -> String? {
         return "The upstream likely rate-limited the request. Retry later or reduce probe frequency."
     }
 
+    if description.contains("approved appname") {
+        return "ReliefWeb now requires an approved app name. Set RELIEFWEB_APPNAME to the approved value you received from ReliefWeb."
+    }
+
     if description.contains("missingconfiguration") {
         return "Set RELIEFWEB_APPNAME if ReliefWeb rejects the default app name."
     }
