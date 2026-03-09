@@ -9,8 +9,30 @@ struct SettingsView: View {
     @ObservedObject var locationStore: CurrentLocationStore
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
     let updatesEnabled: Bool
+
+    @State private var surfSpotNameText: String
+    @State private var surfSpotLatitudeText: String
+    @State private var surfSpotLongitudeText: String
+
     @Environment(\.openURL) private var openURL
     @Environment(\.openWindow) private var openWindow
+
+    init(
+        settingsStore: AppSettingsStore,
+        snapshotStore: DashboardSnapshotStore,
+        locationStore: CurrentLocationStore,
+        launchAtLoginController: LaunchAtLoginController,
+        updatesEnabled: Bool
+    ) {
+        self.settingsStore = settingsStore
+        self.snapshotStore = snapshotStore
+        self.locationStore = locationStore
+        self.launchAtLoginController = launchAtLoginController
+        self.updatesEnabled = updatesEnabled
+        _surfSpotNameText = State(initialValue: settingsStore.settings.surfSpotName)
+        _surfSpotLatitudeText = State(initialValue: Self.coordinateText(for: settingsStore.settings.surfSpotLatitude))
+        _surfSpotLongitudeText = State(initialValue: Self.coordinateText(for: settingsStore.settings.surfSpotLongitude))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -79,6 +101,37 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    TextField("Spot name", text: surfSpotNameBinding)
+                        .textFieldStyle(.roundedBorder)
+
+                    HStack(spacing: 12) {
+                        TextField("Latitude", text: surfSpotLatitudeBinding)
+                            .textFieldStyle(.roundedBorder)
+
+                        TextField("Longitude", text: surfSpotLongitudeBinding)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    HStack {
+                        Spacer()
+
+                        Button("Use Current Location") {
+                            useCurrentLocationForSurfSpot()
+                        }
+                    }
+
+                    if let surfSpotValidationMessage {
+                        Text(surfSpotValidationMessage)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                } header: {
+                    Text("Surf Spot")
+                } footer: {
+                    Text("Add one surf spot for wave, swell, wind, and sea-surface context. Surf data uses Open-Meteo; local weather and alerts continue to use WeatherKit.")
+                }
+
+                Section {
                     Toggle("Travel advisory", isOn: binding(\.travelAdvisoryEnabled))
                     Toggle("Weather alerts", isOn: travelWeatherAlertsBinding)
                     Toggle("Regional security", isOn: binding(\.regionalSecurityEnabled))
@@ -143,6 +196,9 @@ struct SettingsView: View {
         }
         .padding(20)
         .frame(width: 560, height: 520, alignment: .topLeading)
+        .onAppear {
+            syncSurfSpotFields()
+        }
         .onReceive(locationStore.$currentLocation) { location in
             snapshotStore.setCurrentLocation(location)
 
@@ -270,5 +326,116 @@ struct SettingsView: View {
         }
 
         openURL(url)
+    }
+
+    private var surfSpotNameBinding: Binding<String> {
+        Binding(
+            get: { surfSpotNameText },
+            set: { newValue in
+                surfSpotNameText = newValue
+                settingsStore.settings.surfSpotName = newValue
+            }
+        )
+    }
+
+    private var surfSpotLatitudeBinding: Binding<String> {
+        Binding(
+            get: { surfSpotLatitudeText },
+            set: { newValue in
+                surfSpotLatitudeText = newValue
+                settingsStore.settings.surfSpotLatitude = parsedCoordinate(from: newValue)
+            }
+        )
+    }
+
+    private var surfSpotLongitudeBinding: Binding<String> {
+        Binding(
+            get: { surfSpotLongitudeText },
+            set: { newValue in
+                surfSpotLongitudeText = newValue
+                settingsStore.settings.surfSpotLongitude = parsedCoordinate(from: newValue)
+            }
+        )
+    }
+
+    private var surfSpotValidationMessage: String? {
+        let normalizedName = surfSpotNameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let latitude = parsedCoordinate(from: surfSpotLatitudeText)
+        let longitude = parsedCoordinate(from: surfSpotLongitudeText)
+        let hasAnyInput = normalizedName.isEmpty == false
+            || surfSpotLatitudeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            || surfSpotLongitudeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+
+        guard hasAnyInput else {
+            return nil
+        }
+
+        if normalizedName.isEmpty {
+            return "Add a surf spot name."
+        }
+
+        if latitude == nil || ((-90.0)...90.0).contains(latitude ?? 0) == false {
+            return "Latitude must be between -90 and 90."
+        }
+
+        if longitude == nil || ((-180.0)...180.0).contains(longitude ?? 0) == false {
+            return "Longitude must be between -180 and 180."
+        }
+
+        return nil
+    }
+
+    private func useCurrentLocationForSurfSpot() {
+        guard let location = locationStore.currentLocation else {
+            snapshotStore.setCurrentLocation(locationStore.currentLocation)
+
+            switch locationStore.authorizationStatus {
+            case .authorizedAlways, .authorizedWhenInUse:
+                locationStore.refreshLocation()
+            case .notDetermined:
+                locationStore.requestAuthorization()
+            case .denied, .restricted:
+                openLocationSettings()
+            @unknown default:
+                openLocationSettings()
+            }
+
+            return
+        }
+
+        if surfSpotNameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            surfSpotNameText = "Current Spot"
+            settingsStore.settings.surfSpotName = surfSpotNameText
+        }
+
+        let latitude = Self.coordinateText(for: location.coordinate.latitude)
+        let longitude = Self.coordinateText(for: location.coordinate.longitude)
+        surfSpotLatitudeText = latitude
+        surfSpotLongitudeText = longitude
+        settingsStore.settings.surfSpotLatitude = location.coordinate.latitude
+        settingsStore.settings.surfSpotLongitude = location.coordinate.longitude
+    }
+
+    private func syncSurfSpotFields() {
+        surfSpotNameText = settingsStore.settings.surfSpotName
+        surfSpotLatitudeText = Self.coordinateText(for: settingsStore.settings.surfSpotLatitude)
+        surfSpotLongitudeText = Self.coordinateText(for: settingsStore.settings.surfSpotLongitude)
+    }
+
+    private func parsedCoordinate(from value: String) -> Double? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.isEmpty == false else {
+            return nil
+        }
+
+        return Double(trimmed.replacingOccurrences(of: ",", with: "."))
+    }
+
+    private static func coordinateText(for value: Double?) -> String {
+        guard let value else {
+            return ""
+        }
+
+        return String(format: "%.5f", value)
     }
 }

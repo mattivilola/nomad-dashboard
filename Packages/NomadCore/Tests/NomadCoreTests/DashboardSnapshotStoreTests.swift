@@ -9,6 +9,9 @@ struct DashboardSnapshotStoreTests {
     func refreshBuildsSnapshotFromDependencies() async throws {
         let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
         settingsStore.settings.publicIPGeolocationEnabled = true
+        settingsStore.settings.surfSpotName = "Helsinki Beach"
+        settingsStore.settings.surfSpotLatitude = 60.1699
+        settingsStore.settings.surfSpotLongitude = 24.9384
 
         let historyStore = InMemoryHistoryStore()
         let dependencies = makeDependencies(historyStore: historyStore)
@@ -21,6 +24,7 @@ struct DashboardSnapshotStoreTests {
         #expect(store.snapshot.travelContext.publicIP?.address == "198.51.100.12")
         #expect(store.snapshot.travelContext.location?.country == "Finland")
         #expect(store.snapshot.weather?.conditionDescription == "Clear")
+        #expect(store.snapshot.marine?.spotName == "Helsinki Beach")
         #expect(store.snapshot.network.downloadHistory.isEmpty == false)
         #expect(store.snapshot.healthSummary.overall.level == .ready)
     }
@@ -118,6 +122,66 @@ struct DashboardSnapshotStoreTests {
         await store.refresh(manual: true)
 
         #expect(store.snapshot.weather == nil)
+        #expect(store.snapshot.appState.issues.contains(.weatherLocationRequired))
+    }
+
+    @Test
+    func refreshSkipsMarineLookupWhenSurfSpotIsBlank() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let marineProvider = RecordingMarineProvider()
+        let dependencies = makeDependencies(
+            marineProvider: marineProvider,
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.marine == nil)
+        #expect(store.snapshot.appState.issues.contains(.marineSpotNotConfigured))
+        #expect(await marineProvider.callCount() == 0)
+    }
+
+    @Test
+    func refreshMarksMarineAsUnavailableWhenProviderFails() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.surfSpotName = "Helsinki Beach"
+        settingsStore.settings.surfSpotLatitude = 60.1699
+        settingsStore.settings.surfSpotLongitude = 24.9384
+
+        let dependencies = makeDependencies(
+            marineProvider: FailingMarineProvider(),
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.weather?.conditionDescription == "Clear")
+        #expect(store.snapshot.marine == nil)
+        #expect(store.snapshot.appState.issues.contains(.marineUnavailable))
+    }
+
+    @Test
+    func refreshKeepsMarineWhenWeatherFails() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        settingsStore.settings.surfSpotName = "Helsinki Beach"
+        settingsStore.settings.surfSpotLatitude = 60.1699
+        settingsStore.settings.surfSpotLongitude = 24.9384
+
+        let dependencies = makeDependencies(
+            weatherProvider: MissingCoordinateWeatherProvider(),
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.weather == nil)
+        #expect(store.snapshot.marine?.spotName == "Helsinki Beach")
         #expect(store.snapshot.appState.issues.contains(.weatherLocationRequired))
     }
 
@@ -284,6 +348,28 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func settingsChangesRefreshMarineImmediately() async throws {
+        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let marineProvider = RecordingMarineProvider()
+        let dependencies = makeDependencies(
+            marineProvider: marineProvider,
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        await store.refresh(manual: true)
+        #expect(await marineProvider.callCount() == 0)
+
+        settingsStore.settings.surfSpotName = "Helsinki Beach"
+        settingsStore.settings.surfSpotLatitude = 60.1699
+        settingsStore.settings.surfSpotLongitude = 24.9384
+
+        try await waitForSettingsPropagation()
+        #expect(await marineProvider.callCount() >= 1)
+        #expect(store.snapshot.marine?.spotName == "Helsinki Beach")
+    }
+
+    @Test
     func settingsChangesPropagateAutomaticUpdateChecks() async throws {
         let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
         settingsStore.settings.automaticUpdateChecksEnabled = false
@@ -353,6 +439,7 @@ private func makeDependencies(
     publicIPLocationProvider: any PublicIPLocationProvider = FixedLocationProvider(),
     reverseGeocodingProvider: any ReverseGeocodingProvider = FixedReverseGeocodingProvider(),
     weatherProvider: any WeatherProvider = FixedWeatherProvider(),
+    marineProvider: any MarineProvider = FixedMarineProvider(),
     neighborCountryResolver: any NeighborCountryResolver = FixedNeighborCountryResolver(),
     travelAdvisoryProvider: any TravelAdvisoryProvider = FixedTravelAdvisoryProvider(),
     travelWeatherAlertsProvider: any TravelWeatherAlertsProvider = FixedTravelWeatherAlertsProvider(),
@@ -371,6 +458,7 @@ private func makeDependencies(
         publicIPLocationProvider: publicIPLocationProvider,
         reverseGeocodingProvider: reverseGeocodingProvider,
         weatherProvider: weatherProvider,
+        marineProvider: marineProvider,
         neighborCountryResolver: neighborCountryResolver,
         travelAdvisoryProvider: travelAdvisoryProvider,
         travelWeatherAlertsProvider: travelWeatherAlertsProvider,
@@ -744,6 +832,51 @@ private struct FixedWeatherProvider: WeatherProvider {
             ),
             fetchedAt: .now
         )
+    }
+}
+
+private struct FixedMarineProvider: MarineProvider {
+    func marine(for spot: MarineSpot) async throws -> MarineSnapshot {
+        MarineSnapshot(
+            spotName: spot.name,
+            coordinate: spot.coordinate,
+            sourceName: "Open-Meteo",
+            waveHeightMeters: 1.6,
+            wavePeriodSeconds: 11,
+            swellHeightMeters: 1.2,
+            swellPeriodSeconds: 10,
+            swellDirectionDegrees: 67.5,
+            windSpeedKph: 18,
+            windGustKph: 24,
+            windDirectionDegrees: 315,
+            seaSurfaceTemperatureCelsius: 9,
+            forecastSlots: [
+                MarineForecastSlot(date: .now, waveHeightMeters: 1.6, swellHeightMeters: 1.2, windSpeedKph: 18, windDirectionDegrees: 315),
+                MarineForecastSlot(date: Date().addingTimeInterval(3 * 3_600), waveHeightMeters: 1.4, swellHeightMeters: 1.0, windSpeedKph: 16, windDirectionDegrees: 300),
+                MarineForecastSlot(date: Date().addingTimeInterval(6 * 3_600), waveHeightMeters: 1.3, swellHeightMeters: 0.9, windSpeedKph: 13, windDirectionDegrees: 285),
+                MarineForecastSlot(date: Date().addingTimeInterval(12 * 3_600), waveHeightMeters: 1.1, swellHeightMeters: 0.8, windSpeedKph: 10, windDirectionDegrees: 270)
+            ],
+            fetchedAt: .now
+        )
+    }
+}
+
+private struct FailingMarineProvider: MarineProvider {
+    func marine(for spot: MarineSpot) async throws -> MarineSnapshot {
+        throw ProviderError.invalidResponse
+    }
+}
+
+private actor RecordingMarineProvider: MarineProvider {
+    private var calls = 0
+
+    func marine(for spot: MarineSpot) async throws -> MarineSnapshot {
+        calls += 1
+        return try await FixedMarineProvider().marine(for: spot)
+    }
+
+    func callCount() -> Int {
+        calls
     }
 }
 

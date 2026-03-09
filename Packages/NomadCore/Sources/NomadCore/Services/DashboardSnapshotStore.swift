@@ -100,8 +100,15 @@ public final class DashboardSnapshotStore: ObservableObject {
     public func refresh(manual: Bool = false) async {
         let now = Date()
         let settings = settingsStore.settings
+        let surfSpotConfiguration = settings.surfSpotConfiguration
         let includeSlowMetrics = manual || shouldRefreshSlowMetrics(now: now, interval: settings.slowRefreshIntervalSeconds)
         var issues: [DashboardIssue] = []
+
+        if surfSpotConfiguration.isConfigured == false {
+            issues.append(.marineSpotNotConfigured)
+        } else if surfSpotConfiguration.isValid == false {
+            issues.append(.marineSpotInvalid)
+        }
 
         let throughputSample = await dependencies.throughputMonitor.currentSample()
 
@@ -121,6 +128,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             locationSnapshot: locationSnapshot
         )
         var weatherSnapshot = snapshot.weather
+        var marineSnapshot = surfSpotConfiguration.isValid ? snapshot.marine : nil
         var didUpdateVisitedPlaces = false
 
         if includeSlowMetrics {
@@ -169,6 +177,21 @@ public final class DashboardSnapshotStore: ObservableObject {
                 }
             } else {
                 weatherSnapshot = nil
+            }
+
+            if surfSpotConfiguration.isValid,
+               let surfSpotName = surfSpotConfiguration.name,
+               let coordinate = surfSpotConfiguration.coordinate {
+                do {
+                    marineSnapshot = try await dependencies.marineProvider.marine(
+                        for: MarineSpot(name: surfSpotName, coordinate: coordinate)
+                    )
+                } catch {
+                    marineSnapshot = nil
+                    issues.append(.marineUnavailable)
+                }
+            } else {
+                marineSnapshot = nil
             }
 
             if settings.visitedPlacesEnabled {
@@ -227,6 +250,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             ),
             travelAlerts: travelAlertsSnapshot,
             weather: weatherSnapshot,
+            marine: marineSnapshot,
             appState: AppStatusSnapshot(
                 lastRefresh: now,
                 updateState: updateState,
@@ -284,6 +308,12 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         if previousSettings.useCurrentLocationForWeather != newSettings.useCurrentLocationForWeather {
+            needsManualRefresh = true
+        }
+
+        if previousSettings.surfSpotName != newSettings.surfSpotName
+            || previousSettings.surfSpotLatitude != newSettings.surfSpotLatitude
+            || previousSettings.surfSpotLongitude != newSettings.surfSpotLongitude {
             needsManualRefresh = true
         }
 

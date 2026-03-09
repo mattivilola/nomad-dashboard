@@ -50,6 +50,8 @@ final class CurrentLocationStore: NSObject, ObservableObject {
 
     func requestAuthorization() {
         manager.requestWhenInUseAuthorization()
+        // On macOS, starting a location request is what surfaces the permission prompt.
+        manager.requestLocation()
     }
 
     func refreshLocation() {

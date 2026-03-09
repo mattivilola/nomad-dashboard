@@ -47,6 +47,10 @@ public protocol WeatherProvider: Sendable {
     func weather(for coordinate: CLLocationCoordinate2D?) async throws -> WeatherSnapshot
 }
 
+public protocol MarineProvider: Sendable {
+    func marine(for spot: MarineSpot) async throws -> MarineSnapshot
+}
+
 public protocol NeighborCountryResolver: Sendable {
     func neighboringCountryCodes(for countryCode: String) -> [String]
 }
