@@ -1,0 +1,5 @@
+#include "Version.xcconfig"
+
+PRODUCT_BUNDLE_IDENTIFIER = com.iloapps.NomadDashboard
+SPARKLE_FEED_URL =
+SPARKLE_PUBLIC_ED_KEY =

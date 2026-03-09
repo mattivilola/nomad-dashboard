@@ -1,0 +1,1814 @@
+[
+  {
+    "cca2": "AD",
+    "borders": [
+      "ES",
+      "FR"
+    ]
+  },
+  {
+    "cca2": "AE",
+    "borders": [
+      "OM",
+      "SA"
+    ]
+  },
+  {
+    "cca2": "AF",
+    "borders": [
+      "CN",
+      "IR",
+      "PK",
+      "TJ",
+      "TM",
+      "UZ"
+    ]
+  },
+  {
+    "cca2": "AG",
+    "borders": []
+  },
+  {
+    "cca2": "AI",
+    "borders": []
+  },
+  {
+    "cca2": "AL",
+    "borders": [
+      "GR",
+      "ME",
+      "MK",
+      "XK"
+    ]
+  },
+  {
+    "cca2": "AM",
+    "borders": [
+      "AZ",
+      "GE",
+      "IR",
+      "TR"
+    ]
+  },
+  {
+    "cca2": "AO",
+    "borders": [
+      "CD",
+      "CG",
+      "NA",
+      "ZM"
+    ]
+  },
+  {
+    "cca2": "AQ",
+    "borders": []
+  },
+  {
+    "cca2": "AR",
+    "borders": [
+      "BO",
+      "BR",
+      "CL",
+      "PY",
+      "UY"
+    ]
+  },
+  {
+    "cca2": "AS",
+    "borders": []
+  },
+  {
+    "cca2": "AT",
+    "borders": [
+      "CH",
+      "CZ",
+      "DE",
+      "HU",
+      "IT",
+      "LI",
+      "SI",
+      "SK"
+    ]
+  },
+  {
+    "cca2": "AU",
+    "borders": []
+  },
+  {
+    "cca2": "AW",
+    "borders": []
+  },
+  {
+    "cca2": "AX",
+    "borders": []
+  },
+  {
+    "cca2": "AZ",
+    "borders": [
+      "AM",
+      "GE",
+      "IR",
+      "RU",
+      "TR"
+    ]
+  },
+  {
+    "cca2": "BA",
+    "borders": [
+      "HR",
+      "ME",
+      "RS"
+    ]
+  },
+  {
+    "cca2": "BB",
+    "borders": []
+  },
+  {
+    "cca2": "BD",
+    "borders": [
+      "IN",
+      "MM"
+    ]
+  },
+  {
+    "cca2": "BE",
+    "borders": [
+      "DE",
+      "FR",
+      "LU",
+      "NL"
+    ]
+  },
+  {
+    "cca2": "BF",
+    "borders": [
+      "BJ",
+      "CI",
+      "GH",
+      "ML",
+      "NE",
+      "TG"
+    ]
+  },
+  {
+    "cca2": "BG",
+    "borders": [
+      "GR",
+      "MK",
+      "RO",
+      "RS",
+      "TR"
+    ]
+  },
+  {
+    "cca2": "BH",
+    "borders": []
+  },
+  {
+    "cca2": "BI",
+    "borders": [
+      "CD",
+      "RW",
+      "TZ"
+    ]
+  },
+  {
+    "cca2": "BJ",
+    "borders": [
+      "BF",
+      "NE",
+      "NG",
+      "TG"
+    ]
+  },
+  {
+    "cca2": "BL",
+    "borders": []
+  },
+  {
+    "cca2": "BM",
+    "borders": []
+  },
+  {
+    "cca2": "BN",
+    "borders": [
+      "MY"
+    ]
+  },
+  {
+    "cca2": "BO",
+    "borders": [
+      "AR",
+      "BR",
+      "CL",
+      "PE",
+      "PY"
+    ]
+  },
+  {
+    "cca2": "BQ",
+    "borders": []
+  },
+  {
+    "cca2": "BR",
+    "borders": [
+      "AR",
+      "BO",
+      "CO",
+      "GF",
+      "GY",
+      "PE",
+      "PY",
+      "SR",
+      "UY",
+      "VE"
+    ]
+  },
+  {
+    "cca2": "BS",
+    "borders": []
+  },
+  {
+    "cca2": "BT",
+    "borders": [
+      "CN",
+      "IN"
+    ]
+  },
+  {
+    "cca2": "BV",
+    "borders": []
+  },
+  {
+    "cca2": "BW",
+    "borders": [
+      "NA",
+      "ZA",
+      "ZM",
+      "ZW"
+    ]
+  },
+  {
+    "cca2": "BY",
+    "borders": [
+      "LT",
+      "LV",
+      "PL",
+      "RU",
+      "UA"
+    ]
+  },
+  {
+    "cca2": "BZ",
+    "borders": [
+      "GT",
+      "MX"
+    ]
+  },
+  {
+    "cca2": "CA",
+    "borders": [
+      "US"
+    ]
+  },
+  {
+    "cca2": "CC",
+    "borders": []
+  },
+  {
+    "cca2": "CD",
+    "borders": [
+      "AO",
+      "BI",
+      "CF",
+      "CG",
+      "RW",
+      "SS",
+      "TZ",
+      "UG",
+      "ZM"
+    ]
+  },
+  {
+    "cca2": "CF",
+    "borders": [
+      "CD",
+      "CG",
+      "CM",
+      "SD",
+      "SS",
+      "TD"
+    ]
+  },
+  {
+    "cca2": "CG",
+    "borders": [
+      "AO",
+      "CD",
+      "CF",
+      "CM",
+      "GA"
+    ]
+  },
+  {
+    "cca2": "CH",
+    "borders": [
+      "AT",
+      "DE",
+      "FR",
+      "IT",
+      "LI"
+    ]
+  },
+  {
+    "cca2": "CI",
+    "borders": [
+      "BF",
+      "GH",
+      "GN",
+      "LR",
+      "ML"
+    ]
+  },
+  {
+    "cca2": "CK",
+    "borders": []
+  },
+  {
+    "cca2": "CL",
+    "borders": [
+      "AR",
+      "BO",
+      "PE"
+    ]
+  },
+  {
+    "cca2": "CM",
+    "borders": [
+      "CF",
+      "CG",
+      "GA",
+      "GQ",
+      "NG",
+      "TD"
+    ]
+  },
+  {
+    "cca2": "CN",
+    "borders": [
+      "AF",
+      "BT",
+      "HK",
+      "IN",
+      "KG",
+      "KP",
+      "KZ",
+      "LA",
+      "MM",
+      "MN",
+      "MO",
+      "NP",
+      "PK",
+      "RU",
+      "TJ",
+      "VN"
+    ]
+  },
+  {
+    "cca2": "CO",
+    "borders": [
+      "BR",
+      "EC",
+      "PA",
+      "PE",
+      "VE"
+    ]
+  },
+  {
+    "cca2": "CR",
+    "borders": [
+      "NI",
+      "PA"
+    ]
+  },
+  {
+    "cca2": "CU",
+    "borders": []
+  },
+  {
+    "cca2": "CV",
+    "borders": []
+  },
+  {
+    "cca2": "CW",
+    "borders": []
+  },
+  {
+    "cca2": "CX",
+    "borders": []
+  },
+  {
+    "cca2": "CY",
+    "borders": []
+  },
+  {
+    "cca2": "CZ",
+    "borders": [
+      "AT",
+      "DE",
+      "PL",
+      "SK"
+    ]
+  },
+  {
+    "cca2": "DE",
+    "borders": [
+      "AT",
+      "BE",
+      "CH",
+      "CZ",
+      "DK",
+      "FR",
+      "LU",
+      "NL",
+      "PL"
+    ]
+  },
+  {
+    "cca2": "DJ",
+    "borders": [
+      "ER",
+      "ET",
+      "SO"
+    ]
+  },
+  {
+    "cca2": "DK",
+    "borders": [
+      "DE"
+    ]
+  },
+  {
+    "cca2": "DM",
+    "borders": []
+  },
+  {
+    "cca2": "DO",
+    "borders": [
+      "HT"
+    ]
+  },
+  {
+    "cca2": "DZ",
+    "borders": [
+      "EH",
+      "LY",
+      "MA",
+      "ML",
+      "MR",
+      "NE",
+      "TN"
+    ]
+  },
+  {
+    "cca2": "EC",
+    "borders": [
+      "CO",
+      "PE"
+    ]
+  },
+  {
+    "cca2": "EE",
+    "borders": [
+      "LV",
+      "RU"
+    ]
+  },
+  {
+    "cca2": "EG",
+    "borders": [
+      "IL",
+      "LY",
+      "PS",
+      "SD"
+    ]
+  },
+  {
+    "cca2": "EH",
+    "borders": [
+      "DZ",
+      "MA",
+      "MR"
+    ]
+  },
+  {
+    "cca2": "ER",
+    "borders": [
+      "DJ",
+      "ET",
+      "SD"
+    ]
+  },
+  {
+    "cca2": "ES",
+    "borders": [
+      "AD",
+      "FR",
+      "GI",
+      "MA",
+      "PT"
+    ]
+  },
+  {
+    "cca2": "ET",
+    "borders": [
+      "DJ",
+      "ER",
+      "KE",
+      "SD",
+      "SO",
+      "SS"
+    ]
+  },
+  {
+    "cca2": "FI",
+    "borders": [
+      "NO",
+      "RU",
+      "SE"
+    ]
+  },
+  {
+    "cca2": "FJ",
+    "borders": []
+  },
+  {
+    "cca2": "FK",
+    "borders": []
+  },
+  {
+    "cca2": "FM",
+    "borders": []
+  },
+  {
+    "cca2": "FO",
+    "borders": []
+  },
+  {
+    "cca2": "FR",
+    "borders": [
+      "AD",
+      "BE",
+      "CH",
+      "DE",
+      "ES",
+      "IT",
+      "LU",
+      "MC"
+    ]
+  },
+  {
+    "cca2": "GA",
+    "borders": [
+      "CG",
+      "CM",
+      "GQ"
+    ]
+  },
+  {
+    "cca2": "GB",
+    "borders": [
+      "IE"
+    ]
+  },
+  {
+    "cca2": "GD",
+    "borders": []
+  },
+  {
+    "cca2": "GE",
+    "borders": [
+      "AM",
+      "AZ",
+      "RU",
+      "TR"
+    ]
+  },
+  {
+    "cca2": "GF",
+    "borders": [
+      "BR",
+      "SR"
+    ]
+  },
+  {
+    "cca2": "GG",
+    "borders": []
+  },
+  {
+    "cca2": "GH",
+    "borders": [
+      "BF",
+      "CI",
+      "TG"
+    ]
+  },
+  {
+    "cca2": "GI",
+    "borders": [
+      "ES"
+    ]
+  },
+  {
+    "cca2": "GL",
+    "borders": []
+  },
+  {
+    "cca2": "GM",
+    "borders": [
+      "SN"
+    ]
+  },
+  {
+    "cca2": "GN",
+    "borders": [
+      "CI",
+      "GW",
+      "LR",
+      "ML",
+      "SL",
+      "SN"
+    ]
+  },
+  {
+    "cca2": "GP",
+    "borders": []
+  },
+  {
+    "cca2": "GQ",
+    "borders": [
+      "CM",
+      "GA"
+    ]
+  },
+  {
+    "cca2": "GR",
+    "borders": [
+      "AL",
+      "BG",
+      "MK",
+      "TR"
+    ]
+  },
+  {
+    "cca2": "GS",
+    "borders": []
+  },
+  {
+    "cca2": "GT",
+    "borders": [
+      "BZ",
+      "HN",
+      "MX",
+      "SV"
+    ]
+  },
+  {
+    "cca2": "GU",
+    "borders": []
+  },
+  {
+    "cca2": "GW",
+    "borders": [
+      "GN",
+      "SN"
+    ]
+  },
+  {
+    "cca2": "GY",
+    "borders": [
+      "BR",
+      "SR",
+      "VE"
+    ]
+  },
+  {
+    "cca2": "HK",
+    "borders": [
+      "CN"
+    ]
+  },
+  {
+    "cca2": "HM",
+    "borders": []
+  },
+  {
+    "cca2": "HN",
+    "borders": [
+      "GT",
+      "NI",
+      "SV"
+    ]
+  },
+  {
+    "cca2": "HR",
+    "borders": [
+      "BA",
+      "HU",
+      "ME",
+      "RS",
+      "SI"
+    ]
+  },
+  {
+    "cca2": "HT",
+    "borders": [
+      "DO"
+    ]
+  },
+  {
+    "cca2": "HU",
+    "borders": [
+      "AT",
+      "HR",
+      "RO",
+      "RS",
+      "SI",
+      "SK",
+      "UA"
+    ]
+  },
+  {
+    "cca2": "ID",
+    "borders": [
+      "MY",
+      "PG",
+      "TL"
+    ]
+  },
+  {
+    "cca2": "IE",
+    "borders": [
+      "GB"
+    ]
+  },
+  {
+    "cca2": "IL",
+    "borders": [
+      "EG",
+      "JO",
+      "LB",
+      "PS",
+      "SY"
+    ]
+  },
+  {
+    "cca2": "IM",
+    "borders": []
+  },
+  {
+    "cca2": "IN",
+    "borders": [
+      "BD",
+      "BT",
+      "CN",
+      "MM",
+      "NP",
+      "PK"
+    ]
+  },
+  {
+    "cca2": "IO",
+    "borders": []
+  },
+  {
+    "cca2": "IQ",
+    "borders": [
+      "IR",
+      "JO",
+      "KW",
+      "SA",
+      "SY",
+      "TR"
+    ]
+  },
+  {
+    "cca2": "IR",
+    "borders": [
+      "AF",
+      "AM",
+      "AZ",
+      "IQ",
+      "PK",
+      "TM",
+      "TR"
+    ]
+  },
+  {
+    "cca2": "IS",
+    "borders": []
+  },
+  {
+    "cca2": "IT",
+    "borders": [
+      "AT",
+      "CH",
+      "FR",
+      "SI",
+      "SM",
+      "VA"
+    ]
+  },
+  {
+    "cca2": "JE",
+    "borders": []
+  },
+  {
+    "cca2": "JM",
+    "borders": []
+  },
+  {
+    "cca2": "JO",
+    "borders": [
+      "IL",
+      "IQ",
+      "PS",
+      "SA",
+      "SY"
+    ]
+  },
+  {
+    "cca2": "JP",
+    "borders": []
+  },
+  {
+    "cca2": "KE",
+    "borders": [
+      "ET",
+      "SO",
+      "SS",
+      "TZ",
+      "UG"
+    ]
+  },
+  {
+    "cca2": "KG",
+    "borders": [
+      "CN",
+      "KZ",
+      "TJ",
+      "UZ"
+    ]
+  },
+  {
+    "cca2": "KH",
+    "borders": [
+      "LA",
+      "TH",
+      "VN"
+    ]
+  },
+  {
+    "cca2": "KI",
+    "borders": []
+  },
+  {
+    "cca2": "KM",
+    "borders": []
+  },
+  {
+    "cca2": "KN",
+    "borders": []
+  },
+  {
+    "cca2": "KP",
+    "borders": [
+      "CN",
+      "KR",
+      "RU"
+    ]
+  },
+  {
+    "cca2": "KR",
+    "borders": [
+      "KP"
+    ]
+  },
+  {
+    "cca2": "KW",
+    "borders": [
+      "IQ",
+      "SA"
+    ]
+  },
+  {
+    "cca2": "KY",
+    "borders": []
+  },
+  {
+    "cca2": "KZ",
+    "borders": [
+      "CN",
+      "KG",
+      "RU",
+      "TM",
+      "UZ"
+    ]
+  },
+  {
+    "cca2": "LA",
+    "borders": [
+      "CN",
+      "KH",
+      "MM",
+      "TH",
+      "VN"
+    ]
+  },
+  {
+    "cca2": "LB",
+    "borders": [
+      "IL",
+      "SY"
+    ]
+  },
+  {
+    "cca2": "LC",
+    "borders": []
+  },
+  {
+    "cca2": "LI",
+    "borders": [
+      "AT",
+      "CH"
+    ]
+  },
+  {
+    "cca2": "LK",
+    "borders": []
+  },
+  {
+    "cca2": "LR",
+    "borders": [
+      "CI",
+      "GN",
+      "SL"
+    ]
+  },
+  {
+    "cca2": "LS",
+    "borders": [
+      "ZA"
+    ]
+  },
+  {
+    "cca2": "LT",
+    "borders": [
+      "BY",
+      "LV",
+      "PL",
+      "RU"
+    ]
+  },
+  {
+    "cca2": "LU",
+    "borders": [
+      "BE",
+      "DE",
+      "FR"
+    ]
+  },
+  {
+    "cca2": "LV",
+    "borders": [
+      "BY",
+      "EE",
+      "LT",
+      "RU"
+    ]
+  },
+  {
+    "cca2": "LY",
+    "borders": [
+      "DZ",
+      "EG",
+      "NE",
+      "SD",
+      "TD",
+      "TN"
+    ]
+  },
+  {
+    "cca2": "MA",
+    "borders": [
+      "DZ",
+      "EH",
+      "ES"
+    ]
+  },
+  {
+    "cca2": "MC",
+    "borders": [
+      "FR"
+    ]
+  },
+  {
+    "cca2": "MD",
+    "borders": [
+      "RO",
+      "UA"
+    ]
+  },
+  {
+    "cca2": "ME",
+    "borders": [
+      "AL",
+      "BA",
+      "HR",
+      "RS",
+      "XK"
+    ]
+  },
+  {
+    "cca2": "MF",
+    "borders": [
+      "SX"
+    ]
+  },
+  {
+    "cca2": "MG",
+    "borders": []
+  },
+  {
+    "cca2": "MH",
+    "borders": []
+  },
+  {
+    "cca2": "MK",
+    "borders": [
+      "AL",
+      "BG",
+      "GR",
+      "RS",
+      "XK"
+    ]
+  },
+  {
+    "cca2": "ML",
+    "borders": [
+      "BF",
+      "CI",
+      "DZ",
+      "GN",
+      "MR",
+      "NE",
+      "SN"
+    ]
+  },
+  {
+    "cca2": "MM",
+    "borders": [
+      "BD",
+      "CN",
+      "IN",
+      "LA",
+      "TH"
+    ]
+  },
+  {
+    "cca2": "MN",
+    "borders": [
+      "CN",
+      "RU"
+    ]
+  },
+  {
+    "cca2": "MO",
+    "borders": [
+      "CN"
+    ]
+  },
+  {
+    "cca2": "MP",
+    "borders": []
+  },
+  {
+    "cca2": "MQ",
+    "borders": []
+  },
+  {
+    "cca2": "MR",
+    "borders": [
+      "DZ",
+      "EH",
+      "ML",
+      "SN"
+    ]
+  },
+  {
+    "cca2": "MS",
+    "borders": []
+  },
+  {
+    "cca2": "MT",
+    "borders": []
+  },
+  {
+    "cca2": "MU",
+    "borders": []
+  },
+  {
+    "cca2": "MV",
+    "borders": []
+  },
+  {
+    "cca2": "MW",
+    "borders": [
+      "MZ",
+      "TZ",
+      "ZM"
+    ]
+  },
+  {
+    "cca2": "MX",
+    "borders": [
+      "BZ",
+      "GT",
+      "US"
+    ]
+  },
+  {
+    "cca2": "MY",
+    "borders": [
+      "BN",
+      "ID",
+      "TH"
+    ]
+  },
+  {
+    "cca2": "MZ",
+    "borders": [
+      "MW",
+      "SZ",
+      "TZ",
+      "ZA",
+      "ZM",
+      "ZW"
+    ]
+  },
+  {
+    "cca2": "NA",
+    "borders": [
+      "AO",
+      "BW",
+      "ZA",
+      "ZM"
+    ]
+  },
+  {
+    "cca2": "NC",
+    "borders": []
+  },
+  {
+    "cca2": "NE",
+    "borders": [
+      "BF",
+      "BJ",
+      "DZ",
+      "LY",
+      "ML",
+      "NG",
+      "TD"
+    ]
+  },
+  {
+    "cca2": "NF",
+    "borders": []
+  },
+  {
+    "cca2": "NG",
+    "borders": [
+      "BJ",
+      "CM",
+      "NE",
+      "TD"
+    ]
+  },
+  {
+    "cca2": "NI",
+    "borders": [
+      "CR",
+      "HN"
+    ]
+  },
+  {
+    "cca2": "NL",
+    "borders": [
+      "BE",
+      "DE"
+    ]
+  },
+  {
+    "cca2": "NO",
+    "borders": [
+      "FI",
+      "RU",
+      "SE"
+    ]
+  },
+  {
+    "cca2": "NP",
+    "borders": [
+      "CN",
+      "IN"
+    ]
+  },
+  {
+    "cca2": "NR",
+    "borders": []
+  },
+  {
+    "cca2": "NU",
+    "borders": []
+  },
+  {
+    "cca2": "NZ",
+    "borders": []
+  },
+  {
+    "cca2": "OM",
+    "borders": [
+      "AE",
+      "SA",
+      "YE"
+    ]
+  },
+  {
+    "cca2": "PA",
+    "borders": [
+      "CO",
+      "CR"
+    ]
+  },
+  {
+    "cca2": "PE",
+    "borders": [
+      "BO",
+      "BR",
+      "CL",
+      "CO",
+      "EC"
+    ]
+  },
+  {
+    "cca2": "PF",
+    "borders": []
+  },
+  {
+    "cca2": "PG",
+    "borders": [
+      "ID"
+    ]
+  },
+  {
+    "cca2": "PH",
+    "borders": []
+  },
+  {
+    "cca2": "PK",
+    "borders": [
+      "AF",
+      "CN",
+      "IN",
+      "IR"
+    ]
+  },
+  {
+    "cca2": "PL",
+    "borders": [
+      "BY",
+      "CZ",
+      "DE",
+      "LT",
+      "RU",
+      "SK",
+      "UA"
+    ]
+  },
+  {
+    "cca2": "PM",
+    "borders": []
+  },
+  {
+    "cca2": "PN",
+    "borders": []
+  },
+  {
+    "cca2": "PR",
+    "borders": []
+  },
+  {
+    "cca2": "PS",
+    "borders": [
+      "EG",
+      "IL",
+      "JO"
+    ]
+  },
+  {
+    "cca2": "PT",
+    "borders": [
+      "ES"
+    ]
+  },
+  {
+    "cca2": "PW",
+    "borders": []
+  },
+  {
+    "cca2": "PY",
+    "borders": [
+      "AR",
+      "BO",
+      "BR"
+    ]
+  },
+  {
+    "cca2": "QA",
+    "borders": [
+      "SA"
+    ]
+  },
+  {
+    "cca2": "RE",
+    "borders": []
+  },
+  {
+    "cca2": "RO",
+    "borders": [
+      "BG",
+      "HU",
+      "MD",
+      "RS",
+      "UA"
+    ]
+  },
+  {
+    "cca2": "RS",
+    "borders": [
+      "BA",
+      "BG",
+      "HR",
+      "HU",
+      "ME",
+      "MK",
+      "RO",
+      "XK"
+    ]
+  },
+  {
+    "cca2": "RU",
+    "borders": [
+      "AZ",
+      "BY",
+      "CN",
+      "EE",
+      "FI",
+      "GE",
+      "KP",
+      "KZ",
+      "LT",
+      "LV",
+      "MN",
+      "NO",
+      "PL",
+      "UA"
+    ]
+  },
+  {
+    "cca2": "RW",
+    "borders": [
+      "BI",
+      "CD",
+      "TZ",
+      "UG"
+    ]
+  },
+  {
+    "cca2": "SA",
+    "borders": [
+      "AE",
+      "IQ",
+      "JO",
+      "KW",
+      "OM",
+      "QA",
+      "YE"
+    ]
+  },
+  {
+    "cca2": "SB",
+    "borders": []
+  },
+  {
+    "cca2": "SC",
+    "borders": []
+  },
+  {
+    "cca2": "SD",
+    "borders": [
+      "CF",
+      "EG",
+      "ER",
+      "ET",
+      "LY",
+      "SS",
+      "TD"
+    ]
+  },
+  {
+    "cca2": "SE",
+    "borders": [
+      "FI",
+      "NO"
+    ]
+  },
+  {
+    "cca2": "SG",
+    "borders": []
+  },
+  {
+    "cca2": "SH",
+    "borders": []
+  },
+  {
+    "cca2": "SI",
+    "borders": [
+      "AT",
+      "HR",
+      "HU",
+      "IT"
+    ]
+  },
+  {
+    "cca2": "SJ",
+    "borders": []
+  },
+  {
+    "cca2": "SK",
+    "borders": [
+      "AT",
+      "CZ",
+      "HU",
+      "PL",
+      "UA"
+    ]
+  },
+  {
+    "cca2": "SL",
+    "borders": [
+      "GN",
+      "LR"
+    ]
+  },
+  {
+    "cca2": "SM",
+    "borders": [
+      "IT"
+    ]
+  },
+  {
+    "cca2": "SN",
+    "borders": [
+      "GM",
+      "GN",
+      "GW",
+      "ML",
+      "MR"
+    ]
+  },
+  {
+    "cca2": "SO",
+    "borders": [
+      "DJ",
+      "ET",
+      "KE"
+    ]
+  },
+  {
+    "cca2": "SR",
+    "borders": [
+      "BR",
+      "GF",
+      "GY"
+    ]
+  },
+  {
+    "cca2": "SS",
+    "borders": [
+      "CD",
+      "CF",
+      "ET",
+      "KE",
+      "SD",
+      "UG"
+    ]
+  },
+  {
+    "cca2": "ST",
+    "borders": []
+  },
+  {
+    "cca2": "SV",
+    "borders": [
+      "GT",
+      "HN"
+    ]
+  },
+  {
+    "cca2": "SX",
+    "borders": [
+      "MF"
+    ]
+  },
+  {
+    "cca2": "SY",
+    "borders": [
+      "IL",
+      "IQ",
+      "JO",
+      "LB",
+      "TR"
+    ]
+  },
+  {
+    "cca2": "SZ",
+    "borders": [
+      "MZ",
+      "ZA"
+    ]
+  },
+  {
+    "cca2": "TC",
+    "borders": []
+  },
+  {
+    "cca2": "TD",
+    "borders": [
+      "CF",
+      "CM",
+      "LY",
+      "NE",
+      "NG",
+      "SD"
+    ]
+  },
+  {
+    "cca2": "TF",
+    "borders": []
+  },
+  {
+    "cca2": "TG",
+    "borders": [
+      "BF",
+      "BJ",
+      "GH"
+    ]
+  },
+  {
+    "cca2": "TH",
+    "borders": [
+      "KH",
+      "LA",
+      "MM",
+      "MY"
+    ]
+  },
+  {
+    "cca2": "TJ",
+    "borders": [
+      "AF",
+      "CN",
+      "KG",
+      "UZ"
+    ]
+  },
+  {
+    "cca2": "TK",
+    "borders": []
+  },
+  {
+    "cca2": "TL",
+    "borders": [
+      "ID"
+    ]
+  },
+  {
+    "cca2": "TM",
+    "borders": [
+      "AF",
+      "IR",
+      "KZ",
+      "UZ"
+    ]
+  },
+  {
+    "cca2": "TN",
+    "borders": [
+      "DZ",
+      "LY"
+    ]
+  },
+  {
+    "cca2": "TO",
+    "borders": []
+  },
+  {
+    "cca2": "TR",
+    "borders": [
+      "AM",
+      "AZ",
+      "BG",
+      "GE",
+      "GR",
+      "IQ",
+      "IR",
+      "SY"
+    ]
+  },
+  {
+    "cca2": "TT",
+    "borders": []
+  },
+  {
+    "cca2": "TV",
+    "borders": []
+  },
+  {
+    "cca2": "TW",
+    "borders": []
+  },
+  {
+    "cca2": "TZ",
+    "borders": [
+      "BI",
+      "CD",
+      "KE",
+      "MW",
+      "MZ",
+      "RW",
+      "UG",
+      "ZM"
+    ]
+  },
+  {
+    "cca2": "UA",
+    "borders": [
+      "BY",
+      "HU",
+      "MD",
+      "PL",
+      "RO",
+      "RU",
+      "SK"
+    ]
+  },
+  {
+    "cca2": "UG",
+    "borders": [
+      "CD",
+      "KE",
+      "RW",
+      "SS",
+      "TZ"
+    ]
+  },
+  {
+    "cca2": "UM",
+    "borders": []
+  },
+  {
+    "cca2": "US",
+    "borders": [
+      "CA",
+      "MX"
+    ]
+  },
+  {
+    "cca2": "UY",
+    "borders": [
+      "AR",
+      "BR"
+    ]
+  },
+  {
+    "cca2": "UZ",
+    "borders": [
+      "AF",
+      "KG",
+      "KZ",
+      "TJ",
+      "TM"
+    ]
+  },
+  {
+    "cca2": "VA",
+    "borders": [
+      "IT"
+    ]
+  },
+  {
+    "cca2": "VC",
+    "borders": []
+  },
+  {
+    "cca2": "VE",
+    "borders": [
+      "BR",
+      "CO",
+      "GY"
+    ]
+  },
+  {
+    "cca2": "VG",
+    "borders": []
+  },
+  {
+    "cca2": "VI",
+    "borders": []
+  },
+  {
+    "cca2": "VN",
+    "borders": [
+      "CN",
+      "KH",
+      "LA"
+    ]
+  },
+  {
+    "cca2": "VU",
+    "borders": []
+  },
+  {
+    "cca2": "WF",
+    "borders": []
+  },
+  {
+    "cca2": "WS",
+    "borders": []
+  },
+  {
+    "cca2": "XK",
+    "borders": [
+      "AL",
+      "ME",
+      "MK",
+      "RS"
+    ]
+  },
+  {
+    "cca2": "YE",
+    "borders": [
+      "OM",
+      "SA"
+    ]
+  },
+  {
+    "cca2": "YT",
+    "borders": []
+  },
+  {
+    "cca2": "ZA",
+    "borders": [
+      "BW",
+      "LS",
+      "MZ",
+      "NA",
+      "SZ",
+      "ZW"
+    ]
+  },
+  {
+    "cca2": "ZM",
+    "borders": [
+      "AO",
+      "BW",
+      "CD",
+      "MW",
+      "MZ",
+      "NA",
+      "TZ",
+      "ZW"
+    ]
+  },
+  {
+    "cca2": "ZW",
+    "borders": [
+      "BW",
+      "MZ",
+      "ZA",
+      "ZM"
+    ]
+  }
+]

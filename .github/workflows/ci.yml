@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain helpers
+        run: brew install xcodegen swiftformat xcbeautify
+
+      - name: Lint Swift sources
+        run: ./scripts/lint.sh
+
+      - name: Test Swift packages
+        run: ./scripts/test.sh
+
+      - name: Generate Xcode project
+        run: ./scripts/generate-project.sh
+
+      - name: Build app
+        run: ./scripts/build-dev.sh
+
