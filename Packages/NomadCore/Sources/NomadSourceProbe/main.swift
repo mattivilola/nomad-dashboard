@@ -90,8 +90,8 @@ private struct ProbeRunner {
 
         let reverseGeocoder = CachedReverseGeocodingProvider()
         if let coordinate {
-            results.append(
-                await probe("Apple reverse geocoder") {
+            await results.append(
+                probe("Apple reverse geocoder") {
                     let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
                     let details = try await reverseGeocoder.details(for: location)
                     return ProbeResult.success(
@@ -111,8 +111,8 @@ private struct ProbeRunner {
 
         let weatherProvider = LiveWeatherProvider()
         if let coordinate {
-            results.append(
-                await probe("WeatherKit weather") {
+            await results.append(
+                probe("WeatherKit weather") {
                     let snapshot = try await weatherProvider.weather(for: coordinate)
                     var lines = [
                         "condition: \(snapshot.conditionDescription)",
@@ -138,8 +138,8 @@ private struct ProbeRunner {
 
         let weatherAlertsProvider = WeatherKitAlertProvider()
         if let coordinate {
-            results.append(
-                await probe("WeatherKit alerts") {
+            await results.append(
+                probe("WeatherKit alerts") {
                     let signal = try await weatherAlertsProvider.alerts(for: coordinate, forceRefresh: true)
                     return ProbeResult.success(
                         name: "WeatherKit alerts",
@@ -153,8 +153,8 @@ private struct ProbeRunner {
 
         let advisoryProvider = SmartravellerAdvisoryProvider()
         if let primaryCountryCode, coverageCountryCodes.isEmpty == false {
-            results.append(
-                await probe("Smartraveller advisory") {
+            await results.append(
+                probe("Smartraveller advisory") {
                     let signal = try await advisoryProvider.advisory(
                         for: coverageCountryCodes,
                         primaryCountryCode: primaryCountryCode,
@@ -172,8 +172,8 @@ private struct ProbeRunner {
 
         let reliefWebProvider = ReliefWebSecurityProvider(appName: context.reliefWebAppName)
         if let primaryCountryCode, coverageCountryCodes.isEmpty == false {
-            results.append(
-                await probe("ReliefWeb regional security") {
+            await results.append(
+                probe("ReliefWeb regional security") {
                     let signal = try await reliefWebProvider.security(
                         for: coverageCountryCodes,
                         primaryCountryCode: primaryCountryCode,
@@ -191,8 +191,8 @@ private struct ProbeRunner {
 
         let marineProvider = LiveOpenMeteoMarineProvider()
         if let coordinate {
-            results.append(
-                await probe("Open-Meteo marine") {
+            await results.append(
+                probe("Open-Meteo marine") {
                     let snapshot = try await marineProvider.marine(
                         for: MarineSpot(name: context.spotName, coordinate: coordinate)
                     )

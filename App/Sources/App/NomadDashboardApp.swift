@@ -94,8 +94,7 @@ struct NomadDashboardApp: App {
 
 private func reliefWebAppName() -> String? {
     if let environmentValue = ProcessInfo.processInfo.environment["RELIEFWEB_APPNAME"]?
-        .trimmingCharacters(in: .whitespacesAndNewlines),
-       environmentValue.isEmpty == false
+        .trimmingCharacters(in: .whitespacesAndNewlines), environmentValue.isEmpty == false
     {
         return environmentValue
     }
