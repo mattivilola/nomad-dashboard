@@ -522,6 +522,16 @@ func errorLines(for error: Error) -> [String] {
     if let fuelError = error as? FuelPriceProviderError {
         lines.append("fuel source: \(fuelError.sourceName)")
         lines.append("fuel source URL: \(fuelError.sourceURL?.absoluteString ?? "n/a")")
+        lines.append("fuel stage: \(fuelError.stage.rawValue)")
+        lines.append("fuel summary: \(fuelError.diagnosticSummary)")
+        lines.append("fuel failure kind: \(fuelError.failureKind?.rawValue ?? "n/a")")
+        lines.append("fuel domain: \(fuelError.underlyingDomain ?? "n/a")")
+        lines.append("fuel code: \(fuelError.underlyingCode.map(String.init) ?? "n/a")")
+        lines.append("fuel URL error symbol: \(fuelError.urlErrorSymbol ?? "n/a")")
+        lines.append("fuel failing URL: \(fuelError.failingURL?.absoluteString ?? "n/a")")
+        lines.append("fuel HTTP status: \(fuelError.httpStatusCode.map(String.init) ?? "n/a")")
+        lines.append("fuel MIME type: \(fuelError.responseMIMEType ?? "n/a")")
+        lines.append("fuel payload bytes: \(fuelError.payloadByteCount.map(String.init) ?? "n/a")")
         lines.append("underlying: \(fuelError.underlyingDescription)")
     }
 
@@ -538,6 +548,17 @@ func errorLines(for error: Error) -> [String] {
 }
 
 func errorHint(for error: Error) -> String? {
+    if let fuelError = error as? FuelPriceProviderError {
+        switch fuelError.failureKind {
+        case .dnsResolution:
+            return "Apple URLSession could not resolve the host. Compare this with curl or nscurl --ats-diagnostics; curl reachability does not guarantee app reachability."
+        case .tlsHandshake, .certificateValidation:
+            return "Apple URLSession rejected the secure connection. Compare this with nscurl --ats-diagnostics; curl success does not rule out Apple-network-stack failures."
+        default:
+            break
+        }
+    }
+
     let description = errorDescriptionText(for: error)
 
     if description.contains("weatherkit") {
@@ -617,7 +638,7 @@ private func fuelStationLines(label: String, station: FuelStationPrice?) -> [Str
 
 private func errorDescriptionText(for error: Error) -> String {
     if let fuelError = error as? FuelPriceProviderError {
-        return "\(String(describing: error)) \(fuelError.underlyingDescription)".lowercased()
+        return "\(String(describing: error)) \(fuelError.diagnosticSummary) \(fuelError.underlyingDescription)".lowercased()
     }
 
     return String(describing: error).lowercased()

@@ -9,6 +9,10 @@ public final class DashboardSnapshotStore: ObservableObject {
         subsystem: Bundle.main.bundleIdentifier ?? "NomadDashboard",
         category: "TravelAlerts"
     )
+    private static let fuelLogger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "NomadDashboard",
+        category: "FuelPrices"
+    )
 
     @Published public private(set) var snapshot: DashboardSnapshot
     @Published public private(set) var visitedPlaces: [VisitedPlace] = []
@@ -135,6 +139,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         )
         var weatherSnapshot = snapshot.weather
         var fuelPricesSnapshot = snapshot.fuelPrices
+        var fuelDiagnosticsSnapshot = snapshot.fuelDiagnostics
         var marineSnapshot = surfSpotConfiguration.isValid ? snapshot.marine : nil
         var didUpdateVisitedPlaces = false
 
@@ -187,7 +192,9 @@ public final class DashboardSnapshotStore: ObservableObject {
             }
 
             if settings.fuelPricesEnabled {
-                fuelPricesSnapshot = await refreshFuelPrices(manual: manual)
+                let fuelRefresh = await refreshFuelPrices(manual: manual)
+                fuelPricesSnapshot = fuelRefresh.snapshot
+                fuelDiagnosticsSnapshot = fuelRefresh.diagnostics
             } else {
                 fuelPricesSnapshot = nil
             }
@@ -265,6 +272,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             travelAlerts: travelAlertsSnapshot,
             weather: weatherSnapshot,
             fuelPrices: fuelPricesSnapshot,
+            fuelDiagnostics: fuelDiagnosticsSnapshot,
             marine: marineSnapshot,
             appState: AppStatusSnapshot(
                 lastRefresh: now,
@@ -368,13 +376,18 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
     }
 
-    private func refreshFuelPrices(manual: Bool) async -> FuelPriceSnapshot {
+    private func refreshFuelPrices(manual: Bool) async -> (snapshot: FuelPriceSnapshot, diagnostics: FuelDiagnosticsSnapshot) {
         let radiusKilometers = 50.0
+        let currentCoordinate = currentLocation?.coordinate
+        let existingSourceName = snapshot.fuelPrices?.sourceName ?? "Nomad Fuel Prices"
+        let existingSourceURL = snapshot.fuelPrices?.sourceURL
+        var resolvedCountryCode: String?
+        var resolvedCountryName: String?
 
         guard let currentLocation else {
-            return FuelPriceSnapshot(
+            let fuelSnapshot = FuelPriceSnapshot(
                 status: .locationRequired,
-                sourceName: "Nomad Fuel Prices",
+                sourceName: existingSourceName,
                 sourceURL: nil,
                 countryCode: nil,
                 countryName: nil,
@@ -385,12 +398,31 @@ public final class DashboardSnapshotStore: ObservableObject {
                 detail: "Allow current location to look up nearby fuel prices.",
                 note: nil
             )
+            let diagnostics = FuelDiagnosticsSnapshot(
+                status: .locationRequired,
+                stage: .locationMissing,
+                countryCode: nil,
+                countryName: nil,
+                latitude: currentCoordinate?.latitude,
+                longitude: currentCoordinate?.longitude,
+                searchRadiusKilometers: radiusKilometers,
+                providerName: existingSourceName,
+                sourceURL: existingSourceURL,
+                startedAt: nil,
+                finishedAt: Date(),
+                elapsedMilliseconds: nil,
+                summary: "Fuel lookup skipped because current location is unavailable.",
+                error: nil
+            )
+            Self.fuelLogger.info("Fuel fetch skipped because current location is unavailable.")
+            return (fuelSnapshot, diagnostics)
         }
 
         do {
             let reverseGeocodedLocation = try await dependencies.reverseGeocodingProvider.details(for: currentLocation)
+            resolvedCountryName = reverseGeocodedLocation.country
             guard let countryCode = normalizedValue(reverseGeocodedLocation.countryCode)?.uppercased() else {
-                return FuelPriceSnapshot(
+                let fuelSnapshot = FuelPriceSnapshot(
                     status: .unavailable,
                     sourceName: "Apple Reverse Geocoder",
                     sourceURL: nil,
@@ -403,19 +435,57 @@ public final class DashboardSnapshotStore: ObservableObject {
                     detail: "Current location country could not be resolved.",
                     note: nil
                 )
-            }
-
-            return try await dependencies.fuelPriceProvider.prices(
-                for: FuelSearchRequest(
-                    coordinate: currentLocation.coordinate,
-                    countryCode: countryCode,
+                let diagnostics = FuelDiagnosticsSnapshot(
+                    status: .unavailable,
+                    stage: .reverseGeocoding,
+                    countryCode: nil,
                     countryName: reverseGeocodedLocation.country,
-                    searchRadiusKilometers: radiusKilometers
-                ),
+                    latitude: currentLocation.coordinate.latitude,
+                    longitude: currentLocation.coordinate.longitude,
+                    searchRadiusKilometers: radiusKilometers,
+                    providerName: "Apple Reverse Geocoder",
+                    sourceURL: nil,
+                    startedAt: nil,
+                    finishedAt: fuelSnapshot.fetchedAt,
+                    elapsedMilliseconds: nil,
+                    summary: "Current location country could not be resolved.",
+                    error: nil
+                )
+                Self.fuelLogger.error("Fuel fetch reverse geocoding resolved no country code for lat=\(currentLocation.coordinate.latitude, privacy: .public) lon=\(currentLocation.coordinate.longitude, privacy: .public)")
+                return (fuelSnapshot, diagnostics)
+            }
+            resolvedCountryCode = countryCode
+
+            let request = FuelSearchRequest(
+                coordinate: currentLocation.coordinate,
+                countryCode: countryCode,
+                countryName: reverseGeocodedLocation.country,
+                searchRadiusKilometers: radiusKilometers
+            )
+            Self.fuelLogger.info(
+                "Fuel fetch start providerCountry=\(countryCode, privacy: .public) lat=\(request.coordinate.latitude, privacy: .public) lon=\(request.coordinate.longitude, privacy: .public) radiusKm=\(radiusKilometers, privacy: .public)"
+            )
+
+            let fuelSnapshot = try await dependencies.fuelPriceProvider.prices(
+                for: request,
                 forceRefresh: manual
             )
+            let providerDiagnosticsProvider = dependencies.fuelPriceProvider as? FuelPriceDiagnosticsProviding
+            let providerDiagnostics: FuelProviderRequestDiagnostics? = if let providerDiagnosticsProvider {
+                await providerDiagnosticsProvider.latestRequestDiagnostics()
+            } else {
+                nil
+            }
+            let diagnostics = makeFuelDiagnostics(
+                snapshot: fuelSnapshot,
+                request: request,
+                providerDiagnostics: providerDiagnostics
+            )
+            logFuelSuccess(snapshot: fuelSnapshot, diagnostics: diagnostics)
+            return (fuelSnapshot, diagnostics)
         } catch let error as FuelPriceProviderError {
-            return FuelPriceSnapshot(
+            let note = error.diagnosticSummary == "The operation could not be completed. (NomadCore.ProviderError error 0.)" ? nil : error.diagnosticSummary
+            let fuelSnapshot = FuelPriceSnapshot(
                 status: .unavailable,
                 sourceName: error.sourceName,
                 sourceURL: error.sourceURL,
@@ -426,10 +496,39 @@ public final class DashboardSnapshotStore: ObservableObject {
                 gasoline: nil,
                 fetchedAt: Date(),
                 detail: "Nearby fuel prices are unavailable right now.",
-                note: error.underlyingDescription == "The operation could not be completed. (NomadCore.ProviderError error 0.)" ? nil : error.underlyingDescription
+                note: note
             )
+            let providerDiagnosticsProvider = dependencies.fuelPriceProvider as? FuelPriceDiagnosticsProviding
+            let providerDiagnostics: FuelProviderRequestDiagnostics? = if let providerDiagnosticsProvider {
+                await providerDiagnosticsProvider.latestRequestDiagnostics()
+            } else {
+                nil
+            }
+            let diagnostics = FuelDiagnosticsSnapshot(
+                status: .unavailable,
+                stage: error.stage,
+                countryCode: resolvedCountryCode,
+                countryName: resolvedCountryName,
+                latitude: currentLocation.coordinate.latitude,
+                longitude: currentLocation.coordinate.longitude,
+                searchRadiusKilometers: radiusKilometers,
+                providerName: error.sourceName,
+                sourceURL: error.sourceURL,
+                startedAt: providerDiagnostics?.startedAt,
+                finishedAt: providerDiagnostics?.finishedAt ?? Date(),
+                elapsedMilliseconds: providerDiagnostics?.elapsedMilliseconds,
+                summary: error.diagnosticSummary,
+                error: error.details
+            )
+            logFuelFailure(error: error, diagnostics: diagnostics)
+            return (fuelSnapshot, diagnostics)
         } catch {
-            return FuelPriceSnapshot(
+            let diagnosticsError = makeDiagnosticsError(
+                from: error,
+                fallbackURL: nil,
+                summary: "Fuel price request failed before the provider completed."
+            )
+            let fuelSnapshot = FuelPriceSnapshot(
                 status: .unavailable,
                 sourceName: snapshot.fuelPrices?.sourceName ?? "Nomad Fuel Prices",
                 sourceURL: snapshot.fuelPrices?.sourceURL,
@@ -440,9 +539,68 @@ public final class DashboardSnapshotStore: ObservableObject {
                 gasoline: nil,
                 fetchedAt: Date(),
                 detail: "Nearby fuel prices are unavailable right now.",
-                note: nil
+                note: diagnosticsError.preferredSummary
             )
+            let diagnostics = FuelDiagnosticsSnapshot(
+                status: .unavailable,
+                stage: .reverseGeocoding,
+                countryCode: resolvedCountryCode,
+                countryName: resolvedCountryName,
+                latitude: currentLocation.coordinate.latitude,
+                longitude: currentLocation.coordinate.longitude,
+                searchRadiusKilometers: radiusKilometers,
+                providerName: fuelSnapshot.sourceName,
+                sourceURL: fuelSnapshot.sourceURL,
+                startedAt: nil,
+                finishedAt: Date(),
+                elapsedMilliseconds: nil,
+                summary: diagnosticsError.preferredSummary,
+                error: diagnosticsError
+            )
+            Self.fuelLogger.error("Fuel fetch failed before provider request: \(diagnosticsError.preferredSummary, privacy: .public)")
+            return (fuelSnapshot, diagnostics)
         }
+    }
+
+    private func makeFuelDiagnostics(
+        snapshot: FuelPriceSnapshot,
+        request: FuelSearchRequest,
+        providerDiagnostics: FuelProviderRequestDiagnostics?
+    ) -> FuelDiagnosticsSnapshot {
+        FuelDiagnosticsSnapshot(
+            status: snapshot.status,
+            stage: providerDiagnostics?.stage ?? .bestPriceSelection,
+            countryCode: snapshot.countryCode ?? request.countryCode,
+            countryName: snapshot.countryName ?? request.countryName,
+            latitude: request.coordinate.latitude,
+            longitude: request.coordinate.longitude,
+            searchRadiusKilometers: snapshot.searchRadiusKilometers,
+            providerName: providerDiagnostics?.providerName ?? snapshot.sourceName,
+            sourceURL: providerDiagnostics?.sourceURL ?? snapshot.sourceURL,
+            startedAt: providerDiagnostics?.startedAt,
+            finishedAt: providerDiagnostics?.finishedAt ?? snapshot.fetchedAt,
+            elapsedMilliseconds: providerDiagnostics?.elapsedMilliseconds,
+            summary: providerDiagnostics?.summary ?? snapshot.detail ?? "Fuel price lookup completed.",
+            error: providerDiagnostics?.error
+        )
+    }
+
+    private func logFuelSuccess(snapshot: FuelPriceSnapshot, diagnostics: FuelDiagnosticsSnapshot) {
+        let diesel = snapshot.diesel.map {
+            "\($0.stationName) \(String(format: "%.3f", $0.pricePerLiter)) \($0.currencyCode)/L \(String(format: "%.1f", $0.distanceKilometers))km"
+        } ?? "n/a"
+        let gasoline = snapshot.gasoline.map {
+            "\($0.stationName) \(String(format: "%.3f", $0.pricePerLiter)) \($0.currencyCode)/L \(String(format: "%.1f", $0.distanceKilometers))km"
+        } ?? "n/a"
+        Self.fuelLogger.info(
+            "Fuel fetch success status=\(snapshot.status.rawValue, privacy: .public) provider=\(snapshot.sourceName, privacy: .public) country=\(snapshot.countryCode ?? "n/a", privacy: .public) diesel=\(diesel, privacy: .public) gasoline=\(gasoline, privacy: .public) elapsedMs=\(diagnostics.elapsedMilliseconds ?? -1, privacy: .public)"
+        )
+    }
+
+    private func logFuelFailure(error: FuelPriceProviderError, diagnostics: FuelDiagnosticsSnapshot) {
+        Self.fuelLogger.error(
+            "Fuel fetch failed provider=\(error.sourceName, privacy: .public) stage=\(diagnostics.stage.rawValue, privacy: .public) kind=\(error.failureKind?.rawValue ?? "unknown", privacy: .public) domain=\(error.underlyingDomain ?? "n/a", privacy: .public) code=\(error.underlyingCode ?? -1, privacy: .public) urlError=\(error.urlErrorSymbol ?? "n/a", privacy: .public) failingURL=\(error.failingURL?.absoluteString ?? "n/a", privacy: .public) httpStatus=\(error.httpStatusCode ?? -1, privacy: .public) mime=\(error.responseMIMEType ?? "n/a", privacy: .public) bytes=\(error.payloadByteCount ?? -1, privacy: .public) summary=\(diagnostics.summary, privacy: .public)"
+        )
     }
 
     private func loadVisitedPlaces() async {

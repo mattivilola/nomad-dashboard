@@ -5,6 +5,32 @@ private struct FuelSourceDescriptor: Sendable {
     let name: String
     let url: URL?
     let note: String?
+    let curlFallbackEnabled: Bool
+
+    init(name: String, url: URL?, note: String?, curlFallbackEnabled: Bool = false) {
+        self.name = name
+        self.url = url
+        self.note = note
+        self.curlFallbackEnabled = curlFallbackEnabled
+    }
+}
+
+struct FuelProviderRequestDiagnostics: Sendable {
+    let stage: FuelDiagnosticsStage
+    let providerName: String
+    let sourceURL: URL?
+    let startedAt: Date?
+    let finishedAt: Date?
+    let elapsedMilliseconds: Int?
+    let responseMIMEType: String?
+    let payloadByteCount: Int?
+    let httpStatusCode: Int?
+    let summary: String
+    let error: FuelDiagnosticsError?
+}
+
+protocol FuelPriceDiagnosticsProviding: Sendable {
+    func latestRequestDiagnostics() async -> FuelProviderRequestDiagnostics?
 }
 
 private struct FuelStationCandidate: Sendable {
@@ -24,28 +50,110 @@ private struct ScoredFuelStationCandidate: Sendable {
     let distanceKilometers: Double
 }
 
+private struct FuelHTTPFetchResult: Sendable {
+    enum Transport: String, Sendable {
+        case urlSession
+        case curlFallback
+    }
+
+    let url: URL
+    let data: Data
+    let response: HTTPURLResponse
+    let startedAt: Date
+    let finishedAt: Date
+    let transport: Transport
+
+    var payloadByteCount: Int {
+        data.count
+    }
+
+    var elapsedMilliseconds: Int {
+        Int(finishedAt.timeIntervalSince(startedAt) * 1_000)
+    }
+}
+
+private struct CountryFuelPriceSourceResult: Sendable {
+    let snapshot: FuelPriceSnapshot
+    let stage: FuelDiagnosticsStage
+    let startedAt: Date?
+    let finishedAt: Date?
+    let elapsedMilliseconds: Int?
+    let responseMIMEType: String?
+    let payloadByteCount: Int?
+    let httpStatusCode: Int?
+    let summary: String
+}
+
 private protocol CountryFuelPriceSource: Sendable {
     var descriptor: FuelSourceDescriptor { get }
-    func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot
+    func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> CountryFuelPriceSourceResult
 }
 
 public struct FuelPriceProviderError: Error, Sendable {
     public let sourceName: String
     public let sourceURL: URL?
-    public let underlyingDescription: String
+    public let stage: FuelDiagnosticsStage
+    public let details: FuelDiagnosticsError
 
-    public init(sourceName: String, sourceURL: URL?, underlyingDescription: String) {
+    public init(
+        sourceName: String,
+        sourceURL: URL?,
+        stage: FuelDiagnosticsStage,
+        details: FuelDiagnosticsError
+    ) {
         self.sourceName = sourceName
         self.sourceURL = sourceURL
-        self.underlyingDescription = underlyingDescription
+        self.stage = stage
+        self.details = details
+    }
+
+    public var underlyingDescription: String {
+        details.localizedDescription
+    }
+
+    public var diagnosticSummary: String {
+        details.preferredSummary
+    }
+
+    public var failingURL: URL? {
+        details.failingURL
+    }
+
+    public var underlyingDomain: String? {
+        details.domain
+    }
+
+    public var underlyingCode: Int? {
+        details.code
+    }
+
+    public var httpStatusCode: Int? {
+        details.httpStatusCode
+    }
+
+    public var responseMIMEType: String? {
+        details.responseMIMEType
+    }
+
+    public var payloadByteCount: Int? {
+        details.payloadByteCount
+    }
+
+    public var failureKind: FuelNetworkFailureKind? {
+        details.failureKind
+    }
+
+    public var urlErrorSymbol: String? {
+        details.urlErrorSymbol
     }
 }
 
-public actor LiveEuropeanFuelPriceProvider: FuelPriceProvider {
+public actor LiveEuropeanFuelPriceProvider: FuelPriceProvider, FuelPriceDiagnosticsProviding {
     private let session: URLSession
     private let ttl: TimeInterval
     private let tankerkonigAPIKey: String?
     private var cache: [String: FuelPriceSnapshot] = [:]
+    private var latestDiagnostics: FuelProviderRequestDiagnostics?
 
     public init(
         session: URLSession = .shared,
@@ -63,22 +171,75 @@ public actor LiveEuropeanFuelPriceProvider: FuelPriceProvider {
            let cached = cache[cacheKey],
            abs(cached.fetchedAt?.timeIntervalSinceNow ?? ttl + 1) < ttl
         {
+            latestDiagnostics = FuelProviderRequestDiagnostics(
+                stage: .bestPriceSelection,
+                providerName: cached.sourceName,
+                sourceURL: cached.sourceURL,
+                startedAt: cached.fetchedAt,
+                finishedAt: cached.fetchedAt,
+                elapsedMilliseconds: 0,
+                responseMIMEType: nil,
+                payloadByteCount: nil,
+                httpStatusCode: nil,
+                summary: "Returned cached fuel prices.",
+                error: nil
+            )
             return cached
         }
 
         let provider = provider(for: request.countryCode)
-        let snapshot: FuelPriceSnapshot
+        let result: CountryFuelPriceSourceResult
         do {
-            snapshot = try await provider.snapshot(for: request, forceRefresh: forceRefresh)
+            result = try await provider.snapshot(for: request, forceRefresh: forceRefresh)
         } catch {
-            throw FuelPriceProviderError(
-                sourceName: provider.descriptor.name,
-                sourceURL: provider.descriptor.url,
-                underlyingDescription: error.localizedDescription
+            let providerError = if let providerError = error as? FuelPriceProviderError {
+                providerError
+            } else {
+                FuelPriceProviderError(
+                    sourceName: provider.descriptor.name,
+                    sourceURL: provider.descriptor.url,
+                    stage: .requestStarted,
+                    details: makeDiagnosticsError(
+                        from: error,
+                        fallbackURL: provider.descriptor.url,
+                        summary: "Fuel price request failed."
+                    )
+                )
+            }
+            latestDiagnostics = FuelProviderRequestDiagnostics(
+                stage: providerError.stage,
+                providerName: providerError.sourceName,
+                sourceURL: providerError.sourceURL,
+                startedAt: nil,
+                finishedAt: Date(),
+                elapsedMilliseconds: nil,
+                responseMIMEType: providerError.responseMIMEType,
+                payloadByteCount: providerError.payloadByteCount,
+                httpStatusCode: providerError.httpStatusCode,
+                summary: providerError.diagnosticSummary,
+                error: providerError.details
             )
+            throw providerError
         }
-        cache[cacheKey] = snapshot
-        return snapshot
+        cache[cacheKey] = result.snapshot
+        latestDiagnostics = FuelProviderRequestDiagnostics(
+            stage: result.stage,
+            providerName: result.snapshot.sourceName,
+            sourceURL: result.snapshot.sourceURL,
+            startedAt: result.startedAt,
+            finishedAt: result.finishedAt,
+            elapsedMilliseconds: result.elapsedMilliseconds,
+            responseMIMEType: result.responseMIMEType,
+            payloadByteCount: result.payloadByteCount,
+            httpStatusCode: result.httpStatusCode,
+            summary: result.summary,
+            error: nil
+        )
+        return result.snapshot
+    }
+
+    func latestRequestDiagnostics() async -> FuelProviderRequestDiagnostics? {
+        latestDiagnostics
     }
 
     private func provider(for countryCode: String) -> any CountryFuelPriceSource {
@@ -107,8 +268,8 @@ public actor LiveEuropeanFuelPriceProvider: FuelPriceProvider {
 private struct UnsupportedFuelPriceSource: CountryFuelPriceSource {
     let descriptor = FuelSourceDescriptor(name: "Nomad Fuel Prices", url: nil, note: nil)
 
-    func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot {
-        FuelPriceSnapshot(
+    func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> CountryFuelPriceSourceResult {
+        let snapshot = FuelPriceSnapshot(
             status: .unsupported,
             sourceName: descriptor.name,
             sourceURL: descriptor.url,
@@ -121,6 +282,17 @@ private struct UnsupportedFuelPriceSource: CountryFuelPriceSource {
             detail: "Fuel prices are not supported in \(request.countryName ?? request.countryCode) yet.",
             note: nil
         )
+        return CountryFuelPriceSourceResult(
+            snapshot: snapshot,
+            stage: .providerSelection,
+            startedAt: nil,
+            finishedAt: snapshot.fetchedAt,
+            elapsedMilliseconds: nil,
+            responseMIMEType: nil,
+            payloadByteCount: nil,
+            httpStatusCode: nil,
+            summary: snapshot.detail ?? "Fuel prices are not supported in this country yet."
+        )
     }
 }
 
@@ -129,20 +301,35 @@ private struct SpainFuelPriceSource: CountryFuelPriceSource {
     let descriptor = FuelSourceDescriptor(
         name: "Spanish Ministry Fuel Prices",
         url: URL(string: "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/"),
-        note: nil
+        note: nil,
+        curlFallbackEnabled: true
     )
 
-    func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot {
-        let data = try await fetchData(
+    func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> CountryFuelPriceSourceResult {
+        let fetch = try await fetchData(
             from: URL(string: "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/")!,
-            session: session
+            session: session,
+            descriptor: descriptor
         )
-        let object = try JSONSerialization.jsonObject(with: data)
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: fetch.data)
+        } catch {
+            throw wrapSourceError(error, descriptor: descriptor, stage: .responseDecoded, failingURL: fetch.url, payloadByteCount: fetch.payloadByteCount)
+        }
         guard
             let payload = object as? [String: Any],
             let stations = payload["ListaEESSPrecio"] as? [[String: Any]]
         else {
-            throw ProviderError.invalidResponse
+            throw wrapSourceError(
+                ProviderError.invalidResponse,
+                descriptor: descriptor,
+                stage: .responseDecoded,
+                failingURL: fetch.url,
+                httpStatusCode: fetch.response.statusCode,
+                responseMIMEType: fetch.response.mimeType,
+                payloadByteCount: fetch.payloadByteCount
+            )
         }
 
         let candidates = stations.compactMap { station -> FuelStationCandidate? in
@@ -194,7 +381,11 @@ private struct SpainFuelPriceSource: CountryFuelPriceSource {
         return bestSnapshot(
             from: candidates,
             request: request,
-            descriptor: descriptor
+            descriptor: descriptor,
+            fetches: [fetch],
+            successSummary: fetch.transport == .curlFallback
+                ? "Fuel prices loaded successfully via curl fallback."
+                : nil
         )
     }
 }
@@ -207,9 +398,9 @@ private struct FranceFuelPriceSource: CountryFuelPriceSource {
         note: nil
     )
 
-    func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot {
-        let rows = try await fetchRows(near: request.coordinate, radiusKilometers: request.searchRadiusKilometers)
-        let candidates = rows.compactMap { row -> FuelStationCandidate? in
+    func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> CountryFuelPriceSourceResult {
+        let fetchedRows = try await fetchRows(near: request.coordinate, radiusKilometers: request.searchRadiusKilometers)
+        let candidates = fetchedRows.rows.compactMap { row -> FuelStationCandidate? in
             guard let coordinate = parseFranceCoordinate(row["geom"]) else {
                 return nil
             }
@@ -258,14 +449,16 @@ private struct FranceFuelPriceSource: CountryFuelPriceSource {
         return bestSnapshot(
             from: candidates,
             request: request,
-            descriptor: descriptor
+            descriptor: descriptor,
+            fetches: fetchedRows.fetches
         )
     }
 
-    private func fetchRows(near coordinate: CLLocationCoordinate2D, radiusKilometers: Double) async throws -> [[String: Any]] {
+    private func fetchRows(near coordinate: CLLocationCoordinate2D, radiusKilometers: Double) async throws -> (rows: [[String: Any]], fetches: [FuelHTTPFetchResult]) {
         let pageSize = 100
         var offset = 0
         var rows: [[String: Any]] = []
+        var fetches: [FuelHTTPFetchResult] = []
 
         while true {
             var components = URLComponents(string: "https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records")!
@@ -280,13 +473,27 @@ private struct FranceFuelPriceSource: CountryFuelPriceSource {
                 throw ProviderError.invalidResponse
             }
 
-            let data = try await fetchData(from: url, session: session)
-            let object = try JSONSerialization.jsonObject(with: data)
+            let fetch = try await fetchData(from: url, session: session, descriptor: descriptor)
+            fetches.append(fetch)
+            let object: Any
+            do {
+                object = try JSONSerialization.jsonObject(with: fetch.data)
+            } catch {
+                throw wrapSourceError(error, descriptor: descriptor, stage: .responseDecoded, failingURL: fetch.url, payloadByteCount: fetch.payloadByteCount)
+            }
             guard
                 let payload = object as? [String: Any],
                 let results = payload["results"] as? [[String: Any]]
             else {
-                throw ProviderError.invalidResponse
+                throw wrapSourceError(
+                    ProviderError.invalidResponse,
+                    descriptor: descriptor,
+                    stage: .responseDecoded,
+                    failingURL: fetch.url,
+                    httpStatusCode: fetch.response.statusCode,
+                    responseMIMEType: fetch.response.mimeType,
+                    payloadByteCount: fetch.payloadByteCount
+                )
             }
 
             rows.append(contentsOf: results)
@@ -297,7 +504,7 @@ private struct FranceFuelPriceSource: CountryFuelPriceSource {
             offset += pageSize
         }
 
-        return rows
+        return (rows, fetches)
     }
 }
 
@@ -309,18 +516,32 @@ private struct ItalyFuelPriceSource: CountryFuelPriceSource {
         note: "Italian prices come from the daily 8:00 update."
     )
 
-    func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot {
-        let stationData = try await fetchData(
+    func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> CountryFuelPriceSourceResult {
+        let stationFetch = try await fetchData(
             from: URL(string: "https://www.mimit.gov.it/images/exportCSV/anagrafica_impianti_attivi.csv")!,
-            session: session
+            session: session,
+            descriptor: descriptor
         )
-        let priceData = try await fetchData(
+        let priceFetch = try await fetchData(
             from: URL(string: "https://www.mimit.gov.it/images/exportCSV/prezzo_alle_8.csv")!,
-            session: session
+            session: session,
+            descriptor: descriptor
         )
 
-        let stationRows = try CSVTable.parse(data: stationData, separator: ";")
-        let priceRows = try CSVTable.parse(data: priceData, separator: ";")
+        let stationRows: [CSVRow]
+        let priceRows: [CSVRow]
+        do {
+            stationRows = try CSVTable.parse(data: stationFetch.data, separator: ";")
+            priceRows = try CSVTable.parse(data: priceFetch.data, separator: ";")
+        } catch {
+            throw wrapSourceError(
+                error,
+                descriptor: descriptor,
+                stage: .responseDecoded,
+                failingURL: priceFetch.url,
+                payloadByteCount: stationFetch.payloadByteCount + priceFetch.payloadByteCount
+            )
+        }
 
         let stations = Dictionary(uniqueKeysWithValues: stationRows.compactMap { row -> (String, FuelStationCandidate)? in
             guard
@@ -386,7 +607,8 @@ private struct ItalyFuelPriceSource: CountryFuelPriceSource {
         return bestSnapshot(
             from: Array(merged.values).filter { $0.prices.isEmpty == false },
             request: request,
-            descriptor: descriptor
+            descriptor: descriptor,
+            fetches: [stationFetch, priceFetch]
         )
     }
 }
@@ -400,9 +622,9 @@ private struct GermanyFuelPriceSource: CountryFuelPriceSource {
         note: "Germany uses the free Tankerkönig API."
     )
 
-    func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot {
+    func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> CountryFuelPriceSourceResult {
         guard let apiKey, apiKey.isEmpty == false else {
-            return FuelPriceSnapshot(
+            let snapshot = FuelPriceSnapshot(
                 status: .configurationRequired,
                 sourceName: descriptor.name,
                 sourceURL: descriptor.url,
@@ -415,13 +637,27 @@ private struct GermanyFuelPriceSource: CountryFuelPriceSource {
                 detail: "Germany needs a Tankerkönig API key in app config.",
                 note: descriptor.note
             )
+            return CountryFuelPriceSourceResult(
+                snapshot: snapshot,
+                stage: .providerSelection,
+                startedAt: nil,
+                finishedAt: snapshot.fetchedAt,
+                elapsedMilliseconds: nil,
+                responseMIMEType: nil,
+                payloadByteCount: nil,
+                httpStatusCode: nil,
+                summary: snapshot.detail ?? "Germany needs Tankerkönig configuration."
+            )
         }
 
         let tileCenters = tileCenters(for: request.coordinate)
         var byIdentifier: [String: FuelStationCandidate] = [:]
+        var fetches: [FuelHTTPFetchResult] = []
 
         for center in tileCenters {
-            let candidates = try await fetchCandidates(near: center, apiKey: apiKey)
+            let result = try await fetchCandidates(near: center, apiKey: apiKey)
+            fetches.append(result.fetch)
+            let candidates = result.candidates
             for candidate in candidates {
                 let existing = byIdentifier[candidate.identifier]
                 let mergedPrices = (existing?.prices ?? [:]).merging(candidate.prices) { current, incoming in
@@ -444,11 +680,12 @@ private struct GermanyFuelPriceSource: CountryFuelPriceSource {
         return bestSnapshot(
             from: Array(byIdentifier.values),
             request: request,
-            descriptor: descriptor
+            descriptor: descriptor,
+            fetches: fetches
         )
     }
 
-    private func fetchCandidates(near coordinate: CLLocationCoordinate2D, apiKey: String) async throws -> [FuelStationCandidate] {
+    private func fetchCandidates(near coordinate: CLLocationCoordinate2D, apiKey: String) async throws -> (candidates: [FuelStationCandidate], fetch: FuelHTTPFetchResult) {
         var components = URLComponents(string: "https://creativecommons.tankerkoenig.de/json/list.php")!
         components.queryItems = [
             URLQueryItem(name: "lat", value: "\(coordinate.latitude)"),
@@ -463,18 +700,31 @@ private struct GermanyFuelPriceSource: CountryFuelPriceSource {
             throw ProviderError.invalidResponse
         }
 
-        let data = try await fetchData(from: url, session: session)
-        let object = try JSONSerialization.jsonObject(with: data)
+        let fetch = try await fetchData(from: url, session: session, descriptor: descriptor)
+        let object: Any
+        do {
+            object = try JSONSerialization.jsonObject(with: fetch.data)
+        } catch {
+            throw wrapSourceError(error, descriptor: descriptor, stage: .responseDecoded, failingURL: fetch.url, payloadByteCount: fetch.payloadByteCount)
+        }
         guard
             let payload = object as? [String: Any],
             let ok = payload["ok"] as? Bool,
             ok,
             let stations = payload["stations"] as? [[String: Any]]
         else {
-            throw ProviderError.invalidResponse
+            throw wrapSourceError(
+                ProviderError.invalidResponse,
+                descriptor: descriptor,
+                stage: .responseDecoded,
+                failingURL: fetch.url,
+                httpStatusCode: fetch.response.statusCode,
+                responseMIMEType: fetch.response.mimeType,
+                payloadByteCount: fetch.payloadByteCount
+            )
         }
 
-        return stations.compactMap { station -> FuelStationCandidate? in
+        let candidates = stations.compactMap { station -> FuelStationCandidate? in
             guard
                 let identifier = normalizedString(station["id"]),
                 let latitude = parseDouble(station["lat"]),
@@ -514,6 +764,7 @@ private struct GermanyFuelPriceSource: CountryFuelPriceSource {
                 prices: prices
             )
         }
+        return (candidates, fetch)
     }
 
     private func tileCenters(for coordinate: CLLocationCoordinate2D) -> [CLLocationCoordinate2D] {
@@ -536,8 +787,10 @@ private struct GermanyFuelPriceSource: CountryFuelPriceSource {
 private func bestSnapshot(
     from candidates: [FuelStationCandidate],
     request: FuelSearchRequest,
-    descriptor: FuelSourceDescriptor
-) -> FuelPriceSnapshot {
+    descriptor: FuelSourceDescriptor,
+    fetches: [FuelHTTPFetchResult],
+    successSummary: String? = nil
+) -> CountryFuelPriceSourceResult {
     let center = CLLocation(latitude: request.coordinate.latitude, longitude: request.coordinate.longitude)
     let inRange = candidates.compactMap { candidate -> ScoredFuelStationCandidate? in
         let stationLocation = CLLocation(latitude: candidate.latitude, longitude: candidate.longitude)
@@ -563,7 +816,7 @@ private func bestSnapshot(
         "No priced stations found within \(Int(request.searchRadiusKilometers)) km."
     }
 
-    return FuelPriceSnapshot(
+    let snapshot = FuelPriceSnapshot(
         status: status,
         sourceName: descriptor.name,
         sourceURL: descriptor.url,
@@ -575,6 +828,18 @@ private func bestSnapshot(
         fetchedAt: Date(),
         detail: detail,
         note: descriptor.note
+    )
+    let aggregate = aggregateFetches(fetches)
+    return CountryFuelPriceSourceResult(
+        snapshot: snapshot,
+        stage: .bestPriceSelection,
+        startedAt: aggregate.startedAt,
+        finishedAt: aggregate.finishedAt,
+        elapsedMilliseconds: aggregate.elapsedMilliseconds,
+        responseMIMEType: aggregate.responseMIMEType,
+        payloadByteCount: aggregate.payloadByteCount,
+        httpStatusCode: aggregate.httpStatusCode,
+        summary: status == .ready ? (successSummary ?? "Fuel prices loaded successfully.") : detail
     )
 }
 
@@ -617,13 +882,505 @@ private func bestStation(for fuelType: FuelType, in candidates: [ScoredFuelStati
     )
 }
 
-private func fetchData(from url: URL, session: URLSession) async throws -> Data {
-    let (data, response) = try await session.data(from: url)
-    guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-        throw ProviderError.invalidResponse
+private func fetchData(
+    from url: URL,
+    session: URLSession,
+    descriptor: FuelSourceDescriptor
+) async throws -> FuelHTTPFetchResult {
+    let startedAt = Date()
+    do {
+        let (data, response) = try await session.data(from: url)
+        let finishedAt = Date()
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw FuelPriceProviderError(
+                sourceName: descriptor.name,
+                sourceURL: descriptor.url,
+                stage: .requestStarted,
+                details: FuelDiagnosticsError(
+                    failureKind: .invalidResponse,
+                    domain: nil,
+                    code: nil,
+                    localizedDescription: "Fuel source returned a non-HTTP response.",
+                    failingURL: url,
+                    summary: "Fuel source returned a non-HTTP response."
+                )
+            )
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw FuelPriceProviderError(
+                sourceName: descriptor.name,
+                sourceURL: descriptor.url,
+                stage: .requestStarted,
+                details: FuelDiagnosticsError(
+                    failureKind: .httpStatus,
+                    domain: "HTTPURLResponse",
+                    code: httpResponse.statusCode,
+                    localizedDescription: HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode),
+                    failingURL: url,
+                    httpStatusCode: httpResponse.statusCode,
+                    responseMIMEType: httpResponse.mimeType,
+                    payloadByteCount: data.count,
+                    summary: "Fuel source returned HTTP \(httpResponse.statusCode)."
+                )
+            )
+        }
+
+        return FuelHTTPFetchResult(
+            url: url,
+            data: data,
+            response: httpResponse,
+            startedAt: startedAt,
+            finishedAt: finishedAt,
+            transport: .urlSession
+        )
+    } catch let error as FuelPriceProviderError {
+        throw error
+    } catch {
+        let diagnostics = makeDiagnosticsError(from: error, fallbackURL: url)
+        if descriptor.curlFallbackEnabled,
+           shouldUseCurlFallback(for: diagnostics.failureKind)
+        {
+            return try await fetchDataViaCurl(from: url, descriptor: descriptor, startedAt: startedAt)
+        }
+
+        throw FuelPriceProviderError(
+            sourceName: descriptor.name,
+            sourceURL: descriptor.url,
+            stage: .requestStarted,
+            details: diagnostics
+        )
+    }
+}
+
+private func shouldUseCurlFallback(for failureKind: FuelNetworkFailureKind?) -> Bool {
+    switch failureKind {
+    case .dnsResolution, .tlsHandshake, .certificateValidation, .connectivity:
+        true
+    default:
+        false
+    }
+}
+
+private func fetchDataViaCurl(
+    from url: URL,
+    descriptor: FuelSourceDescriptor,
+    startedAt: Date
+) async throws -> FuelHTTPFetchResult {
+    let temporaryDirectory = FileManager.default.temporaryDirectory
+    let identifier = UUID().uuidString
+    let bodyURL = temporaryDirectory.appendingPathComponent("nomad-fuel-\(identifier).body")
+    let headerURL = temporaryDirectory.appendingPathComponent("nomad-fuel-\(identifier).headers")
+
+    defer {
+        try? FileManager.default.removeItem(at: bodyURL)
+        try? FileManager.default.removeItem(at: headerURL)
     }
 
-    return data
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+    process.arguments = [
+        "--silent",
+        "--show-error",
+        "--location",
+        "--compressed",
+        "--output", bodyURL.path,
+        "--dump-header", headerURL.path,
+        url.absoluteString
+    ]
+
+    let stderrPipe = Pipe()
+    process.standardError = stderrPipe
+
+    do {
+        try process.run()
+        process.waitUntilExit()
+    } catch {
+        throw FuelPriceProviderError(
+            sourceName: descriptor.name,
+            sourceURL: descriptor.url,
+            stage: .requestStarted,
+            details: FuelDiagnosticsError(
+                failureKind: .connectivity,
+                domain: "Process",
+                code: nil,
+                localizedDescription: error.localizedDescription,
+                failingURL: url,
+                summary: "Fuel source curl fallback could not start."
+            )
+        )
+    }
+
+    let finishedAt = Date()
+    let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+    let stderrText = String(data: stderrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    guard process.terminationStatus == 0 else {
+        throw FuelPriceProviderError(
+            sourceName: descriptor.name,
+            sourceURL: descriptor.url,
+            stage: .requestStarted,
+            details: FuelDiagnosticsError(
+                failureKind: .connectivity,
+                domain: "curl",
+                code: Int(process.terminationStatus),
+                localizedDescription: stderrText ?? "curl fallback failed.",
+                failingURL: url,
+                summary: "Fuel source curl fallback failed."
+            )
+        )
+    }
+
+    let data = try Data(contentsOf: bodyURL)
+    let headerData = try Data(contentsOf: headerURL)
+    let headerString = String(data: headerData, encoding: .utf8) ?? ""
+    let parsedHeaders = parseCurlResponseHeaders(headerString)
+
+    guard let response = HTTPURLResponse(
+        url: url,
+        statusCode: parsedHeaders.statusCode,
+        httpVersion: "HTTP/1.1",
+        headerFields: parsedHeaders.headers
+    ) else {
+        throw FuelPriceProviderError(
+            sourceName: descriptor.name,
+            sourceURL: descriptor.url,
+            stage: .requestStarted,
+            details: FuelDiagnosticsError(
+                failureKind: .invalidResponse,
+                domain: "curl",
+                code: parsedHeaders.statusCode,
+                localizedDescription: "curl fallback returned unreadable response headers.",
+                failingURL: url,
+                payloadByteCount: data.count,
+                summary: "Fuel source curl fallback returned unreadable headers."
+            )
+        )
+    }
+
+    guard (200...299).contains(parsedHeaders.statusCode) else {
+        throw FuelPriceProviderError(
+            sourceName: descriptor.name,
+            sourceURL: descriptor.url,
+            stage: .requestStarted,
+            details: FuelDiagnosticsError(
+                failureKind: .httpStatus,
+                domain: "curl",
+                code: parsedHeaders.statusCode,
+                localizedDescription: HTTPURLResponse.localizedString(forStatusCode: parsedHeaders.statusCode),
+                failingURL: url,
+                httpStatusCode: parsedHeaders.statusCode,
+                responseMIMEType: parsedHeaders.headers["Content-Type"],
+                payloadByteCount: data.count,
+                summary: "Fuel source curl fallback returned HTTP \(parsedHeaders.statusCode)."
+            )
+        )
+    }
+
+    return FuelHTTPFetchResult(
+        url: url,
+        data: data,
+        response: response,
+        startedAt: startedAt,
+        finishedAt: finishedAt,
+        transport: .curlFallback
+    )
+}
+
+private func parseCurlResponseHeaders(_ headerString: String) -> (statusCode: Int, headers: [String: String]) {
+    let normalized = headerString.replacingOccurrences(of: "\r\n", with: "\n")
+    let blocks = normalized
+        .components(separatedBy: "\n\n")
+        .filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
+
+    let lastBlock = blocks.last ?? normalized
+    let lines = lastBlock.split(separator: "\n").map(String.init)
+    let statusCode = lines.first
+        .flatMap { $0.split(separator: " ").dropFirst().first }
+        .flatMap { Int($0) } ?? 200
+
+    var headers: [String: String] = [:]
+    for line in lines.dropFirst() {
+        guard let separatorIndex = line.firstIndex(of: ":") else {
+            continue
+        }
+
+        let name = String(line[..<separatorIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = String(line[line.index(after: separatorIndex)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        headers[name] = value
+    }
+
+    return (statusCode, headers)
+}
+
+private func wrapSourceError(
+    _ error: Error,
+    descriptor: FuelSourceDescriptor,
+    stage: FuelDiagnosticsStage,
+    failingURL: URL?,
+    httpStatusCode: Int? = nil,
+    responseMIMEType: String? = nil,
+    payloadByteCount: Int? = nil
+) -> FuelPriceProviderError {
+    if let providerError = error as? FuelPriceProviderError {
+        return providerError
+    }
+
+    return FuelPriceProviderError(
+        sourceName: descriptor.name,
+        sourceURL: descriptor.url,
+        stage: stage,
+        details: makeDiagnosticsError(
+            from: error,
+            fallbackURL: failingURL,
+            httpStatusCode: httpStatusCode,
+            responseMIMEType: responseMIMEType,
+            payloadByteCount: payloadByteCount
+        )
+    )
+}
+
+func makeDiagnosticsError(
+    from error: Error,
+    fallbackURL: URL?,
+    httpStatusCode: Int? = nil,
+    responseMIMEType: String? = nil,
+    payloadByteCount: Int? = nil,
+    summary: String? = nil
+) -> FuelDiagnosticsError {
+    if let providerError = error as? FuelPriceProviderError {
+        return providerError.details
+    }
+
+    let nsError = error as NSError
+    let urlError = error as? URLError
+    let failingURL = (nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL) ?? fallbackURL
+    let failureKind = fuelNetworkFailureKind(for: error, httpStatusCode: httpStatusCode)
+    return FuelDiagnosticsError(
+        failureKind: failureKind,
+        domain: nsError.domain,
+        code: nsError.code,
+        localizedDescription: error.localizedDescription,
+        failingURL: failingURL,
+        httpStatusCode: httpStatusCode,
+        responseMIMEType: responseMIMEType,
+        payloadByteCount: payloadByteCount,
+        urlErrorSymbol: urlError.map(urlErrorSymbol(for:)),
+        summary: summary ?? fuelDiagnosticSummary(for: error, failureKind: failureKind, httpStatusCode: httpStatusCode)
+    )
+}
+
+func fuelNetworkFailureKind(for error: Error, httpStatusCode: Int? = nil) -> FuelNetworkFailureKind {
+    if httpStatusCode != nil {
+        return .httpStatus
+    }
+
+    if let error = error as? FuelPriceProviderError, let failureKind = error.failureKind {
+        return failureKind
+    }
+
+    if let error = error as? URLError {
+        switch error.code {
+        case .cannotFindHost, .dnsLookupFailed:
+            return .dnsResolution
+        case .secureConnectionFailed:
+            return .tlsHandshake
+        case .serverCertificateHasBadDate,
+             .serverCertificateNotYetValid,
+             .serverCertificateUntrusted,
+             .serverCertificateHasUnknownRoot,
+             .clientCertificateRejected,
+             .clientCertificateRequired,
+             .appTransportSecurityRequiresSecureConnection:
+            return .certificateValidation
+        case .timedOut:
+            return .timeout
+        case .notConnectedToInternet,
+             .networkConnectionLost,
+             .cannotConnectToHost,
+             .internationalRoamingOff,
+             .callIsActive,
+             .dataNotAllowed:
+            return .connectivity
+        default:
+            return .unknown
+        }
+    }
+
+    if error is DecodingError || error is CocoaError {
+        return .decodeFailure
+    }
+
+    if let providerError = error as? ProviderError {
+        switch providerError {
+        case .invalidResponse:
+            return .invalidResponse
+        case .missingCoordinate, .missingCountryCode, .missingConfiguration:
+            return .unknown
+        }
+    }
+
+    return .unknown
+}
+
+func fuelDiagnosticSummary(
+    for error: Error,
+    failureKind: FuelNetworkFailureKind?,
+    httpStatusCode: Int?
+) -> String {
+    switch failureKind {
+    case .dnsResolution:
+        "Fuel source host could not be resolved."
+    case .tlsHandshake:
+        "Fuel source TLS handshake failed."
+    case .certificateValidation:
+        "Fuel source certificate validation failed."
+    case .timeout:
+        "Fuel source request timed out."
+    case .connectivity:
+        "Fuel source request was blocked by network connectivity."
+    case .httpStatus:
+        "Fuel source returned HTTP \(httpStatusCode ?? 0)."
+    case .decodeFailure:
+        "Fuel source payload could not be decoded."
+    case .invalidResponse:
+        "Fuel source returned an unexpected response."
+    case .unknown, .none:
+        error.localizedDescription
+    }
+}
+
+func urlErrorSymbol(for error: URLError) -> String {
+    switch error.code {
+    case .unknown:
+        "unknown"
+    case .cancelled:
+        "cancelled"
+    case .badURL:
+        "badURL"
+    case .timedOut:
+        "timedOut"
+    case .unsupportedURL:
+        "unsupportedURL"
+    case .cannotFindHost:
+        "cannotFindHost"
+    case .cannotConnectToHost:
+        "cannotConnectToHost"
+    case .networkConnectionLost:
+        "networkConnectionLost"
+    case .dnsLookupFailed:
+        "dnsLookupFailed"
+    case .httpTooManyRedirects:
+        "httpTooManyRedirects"
+    case .resourceUnavailable:
+        "resourceUnavailable"
+    case .notConnectedToInternet:
+        "notConnectedToInternet"
+    case .redirectToNonExistentLocation:
+        "redirectToNonExistentLocation"
+    case .badServerResponse:
+        "badServerResponse"
+    case .userCancelledAuthentication:
+        "userCancelledAuthentication"
+    case .userAuthenticationRequired:
+        "userAuthenticationRequired"
+    case .zeroByteResource:
+        "zeroByteResource"
+    case .cannotDecodeRawData:
+        "cannotDecodeRawData"
+    case .cannotDecodeContentData:
+        "cannotDecodeContentData"
+    case .cannotParseResponse:
+        "cannotParseResponse"
+    case .appTransportSecurityRequiresSecureConnection:
+        "appTransportSecurityRequiresSecureConnection"
+    case .fileDoesNotExist:
+        "fileDoesNotExist"
+    case .fileIsDirectory:
+        "fileIsDirectory"
+    case .noPermissionsToReadFile:
+        "noPermissionsToReadFile"
+    case .dataLengthExceedsMaximum:
+        "dataLengthExceedsMaximum"
+    case .secureConnectionFailed:
+        "secureConnectionFailed"
+    case .serverCertificateHasBadDate:
+        "serverCertificateHasBadDate"
+    case .serverCertificateUntrusted:
+        "serverCertificateUntrusted"
+    case .serverCertificateHasUnknownRoot:
+        "serverCertificateHasUnknownRoot"
+    case .serverCertificateNotYetValid:
+        "serverCertificateNotYetValid"
+    case .clientCertificateRejected:
+        "clientCertificateRejected"
+    case .clientCertificateRequired:
+        "clientCertificateRequired"
+    case .cannotLoadFromNetwork:
+        "cannotLoadFromNetwork"
+    case .cannotCreateFile:
+        "cannotCreateFile"
+    case .cannotOpenFile:
+        "cannotOpenFile"
+    case .cannotCloseFile:
+        "cannotCloseFile"
+    case .cannotWriteToFile:
+        "cannotWriteToFile"
+    case .cannotRemoveFile:
+        "cannotRemoveFile"
+    case .cannotMoveFile:
+        "cannotMoveFile"
+    case .downloadDecodingFailedMidStream:
+        "downloadDecodingFailedMidStream"
+    case .downloadDecodingFailedToComplete:
+        "downloadDecodingFailedToComplete"
+    case .internationalRoamingOff:
+        "internationalRoamingOff"
+    case .callIsActive:
+        "callIsActive"
+    case .dataNotAllowed:
+        "dataNotAllowed"
+    case .requestBodyStreamExhausted:
+        "requestBodyStreamExhausted"
+    case .backgroundSessionRequiresSharedContainer:
+        "backgroundSessionRequiresSharedContainer"
+    case .backgroundSessionInUseByAnotherProcess:
+        "backgroundSessionInUseByAnotherProcess"
+    case .backgroundSessionWasDisconnected:
+        "backgroundSessionWasDisconnected"
+    default:
+        String(describing: error.code)
+    }
+}
+
+private func aggregateFetches(_ fetches: [FuelHTTPFetchResult]) -> (
+    startedAt: Date?,
+    finishedAt: Date?,
+    elapsedMilliseconds: Int?,
+    responseMIMEType: String?,
+    payloadByteCount: Int?,
+    httpStatusCode: Int?
+) {
+    guard fetches.isEmpty == false else {
+        return (nil, nil, nil, nil, nil, nil)
+    }
+
+    let startedAt = fetches.map(\.startedAt).min()
+    let finishedAt = fetches.map(\.finishedAt).max()
+    let elapsedMilliseconds: Int? = if let startedAt, let finishedAt {
+        Int(finishedAt.timeIntervalSince(startedAt) * 1_000)
+    } else {
+        nil
+    }
+    let payloadByteCount = fetches.reduce(0) { $0 + $1.payloadByteCount }
+    return (
+        startedAt,
+        finishedAt,
+        elapsedMilliseconds,
+        fetches.last?.response.mimeType,
+        payloadByteCount,
+        fetches.last?.response.statusCode
+    )
 }
 
 private func fuelTypeForItaly(_ description: String) -> FuelType? {
