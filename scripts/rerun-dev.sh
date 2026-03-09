@@ -2,8 +2,8 @@
 set -euo pipefail
 
 PROJECT="NomadDashboard.xcodeproj"
-APP_PATH="DerivedData/Build/Products/Debug/Nomad Dashboard.app"
-EXECUTABLE_PATH="$APP_PATH/Contents/MacOS/Nomad Dashboard"
+APP_PATH="DerivedData/Build/Products/Debug/Nomad Dashboard Dev.app"
+EXECUTABLE_PATH="$APP_PATH/Contents/MacOS/Nomad Dashboard Dev"
 
 if [[ ! -d "$PROJECT" ]]; then
   ./scripts/generate-project.sh
@@ -16,4 +16,3 @@ fi
 
 ./scripts/build-dev.sh
 open "$APP_PATH"
-

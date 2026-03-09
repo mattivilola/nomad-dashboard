@@ -9,6 +9,7 @@ struct DashboardRootView: View {
     @ObservedObject var settingsStore: AppSettingsStore
     @ObservedObject var locationStore: CurrentLocationStore
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
+    @ObservedObject var settingsNavigationController: SettingsNavigationController
     let updatesEnabled: Bool
 
     @Environment(\.openWindow) private var openWindow
@@ -21,6 +22,9 @@ struct DashboardRootView: View {
             isPublicIPLocationEnabled: settingsStore.settings.publicIPGeolocationEnabled,
             travelAlertPreferences: settingsStore.settings.travelAlertPreferences,
             versionDescription: AppRuntimeInfo.versionDescription,
+            buildFlavorBadgeTitle: AppRuntimeInfo.headerFlavorBadgeTitle,
+            weatherAvailabilityExplanation: AppRuntimeInfo.weatherAvailabilityExplanation,
+            locationStatusDetail: locationStore.diagnostics.detailText,
             appIcon: AppRuntimeInfo.applicationIconImage,
             refreshAction: refresh,
             toggleAppearanceAction: toggleAppearance,
@@ -29,6 +33,7 @@ struct DashboardRootView: View {
             openNetworkSettingsAction: openNetworkSettings,
             checkForUpdatesAction: checkForUpdatesAction,
             openSettingsAction: openSettings,
+            openSurfSpotSettingsAction: openSurfSpotSettings,
             openAboutAction: openAbout,
             quitAction: quitApplication
         )
@@ -49,7 +54,7 @@ struct DashboardRootView: View {
 
     private func refresh() {
         if settingsStore.settings.usesDeviceLocation {
-            locationStore.refreshLocation()
+            locationStore.requestCurrentLocation()
         }
 
         Task {
@@ -82,6 +87,11 @@ struct DashboardRootView: View {
 
     private func openAbout() {
         openDashboardWindow(.about)
+    }
+
+    private func openSurfSpotSettings() {
+        settingsNavigationController.focus(.surfSpot)
+        openDashboardWindow(.settings)
     }
 
     private func openVisitedMap() {

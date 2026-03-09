@@ -139,6 +139,7 @@ struct NomadUITests {
         #expect(presentation.state == .notConfigured)
         #expect(presentation.marine == nil)
         #expect(presentation.emptyMessage == "Add a surf spot in Settings.")
+        #expect(presentation.emptyActionTitle == "Set Surf Spot")
     }
 
     @Test
@@ -170,6 +171,7 @@ struct NomadUITests {
 
         #expect(presentation.state == .invalid)
         #expect(presentation.emptyMessage == "Fix surf spot coordinates in Settings.")
+        #expect(presentation.emptyActionTitle == "Open Surf Settings")
     }
 
     @Test
@@ -192,6 +194,43 @@ struct NomadUITests {
 
         #expect(presentation.state == .unavailable)
         #expect(presentation.emptyMessage == "Surf check unavailable.")
+        #expect(presentation.emptyActionTitle == nil)
+    }
+
+    @Test
+    func weatherSectionPresentationExplainsBuildIssue() {
+        let presentation = WeatherSectionPresentation(
+            settings: AppSettings(),
+            snapshot: DashboardSnapshot.placeholder,
+            weatherAvailabilityExplanation: "WeatherKit is unavailable in this build because the app is not signed for WeatherKit access.",
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.badge.title == "Build Issue")
+        #expect(presentation.subtitle == "WeatherKit unavailable in this build")
+        #expect(presentation.emptyTitle == "WeatherKit Unavailable")
+    }
+
+    @Test
+    func weatherSectionPresentationUsesLocationDetailWhenWeatherNeedsLocation() {
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: nil,
+            marine: nil,
+            appState: AppStatusSnapshot(lastRefresh: .now, updateState: .idle, issues: [.weatherLocationRequired])
+        )
+        let presentation = WeatherSectionPresentation(
+            settings: AppSettings(),
+            snapshot: snapshot,
+            weatherAvailabilityExplanation: nil,
+            locationStatusDetail: "Allow location access to use current weather."
+        )
+
+        #expect(presentation.badge.title == "Location Needed")
+        #expect(presentation.emptyMessage == "Allow location access to use current weather.")
     }
 }
 

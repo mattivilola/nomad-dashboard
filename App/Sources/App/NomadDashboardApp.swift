@@ -10,6 +10,7 @@ struct NomadDashboardApp: App {
     @StateObject private var snapshotStore: DashboardSnapshotStore
     @StateObject private var locationStore: CurrentLocationStore
     @StateObject private var launchAtLoginController: LaunchAtLoginController
+    @StateObject private var settingsNavigationController: SettingsNavigationController
 
     init() {
         let settingsStore = AppSettingsStore()
@@ -45,6 +46,7 @@ struct NomadDashboardApp: App {
         _snapshotStore = StateObject(wrappedValue: DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies))
         _locationStore = StateObject(wrappedValue: CurrentLocationStore())
         _launchAtLoginController = StateObject(wrappedValue: launchAtLoginController)
+        _settingsNavigationController = StateObject(wrappedValue: SettingsNavigationController())
     }
 
     var body: some Scene {
@@ -54,6 +56,7 @@ struct NomadDashboardApp: App {
                 settingsStore: settingsStore,
                 locationStore: locationStore,
                 launchAtLoginController: launchAtLoginController,
+                settingsNavigationController: settingsNavigationController,
                 updatesEnabled: UpdateFeatureConfiguration.isEnabled
             )
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
@@ -68,6 +71,7 @@ struct NomadDashboardApp: App {
                 snapshotStore: snapshotStore,
                 locationStore: locationStore,
                 launchAtLoginController: launchAtLoginController,
+                settingsNavigationController: settingsNavigationController,
                 updatesEnabled: UpdateFeatureConfiguration.isEnabled
             )
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))

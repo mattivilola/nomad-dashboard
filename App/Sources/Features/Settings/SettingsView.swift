@@ -8,26 +8,36 @@ struct SettingsView: View {
     @ObservedObject var snapshotStore: DashboardSnapshotStore
     @ObservedObject var locationStore: CurrentLocationStore
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
+    @ObservedObject var settingsNavigationController: SettingsNavigationController
     let updatesEnabled: Bool
 
     @State private var surfSpotNameText: String
     @State private var surfSpotLatitudeText: String
     @State private var surfSpotLongitudeText: String
+    @State private var pendingSurfSpotFillFromLocation = false
+
+    @FocusState private var focusedField: FocusField?
 
     @Environment(\.openURL) private var openURL
     @Environment(\.openWindow) private var openWindow
+
+    private enum FocusField: Hashable {
+        case surfSpotName
+    }
 
     init(
         settingsStore: AppSettingsStore,
         snapshotStore: DashboardSnapshotStore,
         locationStore: CurrentLocationStore,
         launchAtLoginController: LaunchAtLoginController,
+        settingsNavigationController: SettingsNavigationController,
         updatesEnabled: Bool
     ) {
         self.settingsStore = settingsStore
         self.snapshotStore = snapshotStore
         self.locationStore = locationStore
         self.launchAtLoginController = launchAtLoginController
+        self.settingsNavigationController = settingsNavigationController
         self.updatesEnabled = updatesEnabled
         _surfSpotNameText = State(initialValue: settingsStore.settings.surfSpotName)
         _surfSpotLatitudeText = State(initialValue: Self.coordinateText(for: settingsStore.settings.surfSpotLatitude))
@@ -55,7 +65,8 @@ struct SettingsView: View {
                     .accessibilityHidden(true)
             }
 
-            Form {
+            ScrollViewReader { proxy in
+                Form {
                 Section {
                     Picker("Appearance", selection: binding(\.appearanceMode)) {
                         ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
@@ -91,9 +102,16 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    if let detail = locationStore.diagnostics.detailText {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Button(locationActionTitle) {
                         handleLocationAction()
                     }
+                    .disabled(locationStore.diagnostics.isRequestInProgress)
                 } header: {
                     Text("Privacy & Location")
                 } footer: {
@@ -103,6 +121,8 @@ struct SettingsView: View {
                 Section {
                     TextField("Spot name", text: surfSpotNameBinding)
                         .textFieldStyle(.roundedBorder)
+                        .focused($focusedField, equals: .surfSpotName)
+                        .id(SettingsFocusTarget.surfSpot.rawValue)
 
                     HStack(spacing: 12) {
                         TextField("Latitude", text: surfSpotLatitudeBinding)
@@ -118,12 +138,19 @@ struct SettingsView: View {
                         Button("Use Current Location") {
                             useCurrentLocationForSurfSpot()
                         }
+                        .disabled(locationStore.diagnostics.isRequestInProgress)
                     }
 
                     if let surfSpotValidationMessage {
                         Text(surfSpotValidationMessage)
                             .font(.caption)
                             .foregroundStyle(.orange)
+                    }
+
+                    if pendingSurfSpotFillFromLocation, let detail = locationStore.diagnostics.detailText {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 } header: {
                     Text("Surf Spot")
@@ -193,6 +220,20 @@ struct SettingsView: View {
                 }
             }
             .formStyle(.grouped)
+            .onReceive(settingsNavigationController.$focusRequest.compactMap { $0 }) { request in
+                guard request.target == .surfSpot else {
+                    return
+                }
+
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    proxy.scrollTo(SettingsFocusTarget.surfSpot.rawValue, anchor: .top)
+                }
+
+                DispatchQueue.main.async {
+                    focusedField = .surfSpotName
+                }
+            }
+        }
         }
         .padding(20)
         .frame(width: 560, height: 520, alignment: .topLeading)
@@ -201,6 +242,11 @@ struct SettingsView: View {
         }
         .onReceive(locationStore.$currentLocation) { location in
             snapshotStore.setCurrentLocation(location)
+
+            if pendingSurfSpotFillFromLocation, let location {
+                applySurfSpotCoordinate(from: location)
+                pendingSurfSpotFillFromLocation = false
+            }
 
             guard settingsStore.settings.usesDeviceLocation else {
                 return
@@ -294,7 +340,15 @@ struct SettingsView: View {
     }
 
     private var locationActionTitle: String {
-        switch locationStore.authorizationStatus {
+        if locationStore.diagnostics.isRequestInProgress {
+            return "Requesting Location…"
+        }
+
+        if locationStore.diagnostics.isLocationServicesEnabled == false {
+            return "Open Location Settings"
+        }
+
+        return switch locationStore.authorizationStatus {
         case .notDetermined:
             "Request Location Access"
         case .denied, .restricted:
@@ -307,6 +361,11 @@ struct SettingsView: View {
     }
 
     private func handleLocationAction() {
+        if locationStore.diagnostics.isLocationServicesEnabled == false {
+            openLocationSettings()
+            return
+        }
+
         switch locationStore.authorizationStatus {
         case .notDetermined:
             locationStore.requestAuthorization()
@@ -314,7 +373,7 @@ struct SettingsView: View {
             openLocationSettings()
         case .authorizedAlways, .authorizedWhenInUse:
             snapshotStore.setCurrentLocation(locationStore.currentLocation)
-            locationStore.refreshLocation()
+            locationStore.requestCurrentLocation()
         @unknown default:
             openLocationSettings()
         }
@@ -388,12 +447,18 @@ struct SettingsView: View {
     private func useCurrentLocationForSurfSpot() {
         guard let location = locationStore.currentLocation else {
             snapshotStore.setCurrentLocation(locationStore.currentLocation)
+            pendingSurfSpotFillFromLocation = true
+
+            if locationStore.diagnostics.isLocationServicesEnabled == false {
+                openLocationSettings()
+                return
+            }
 
             switch locationStore.authorizationStatus {
-            case .authorizedAlways, .authorizedWhenInUse:
-                locationStore.refreshLocation()
             case .notDetermined:
                 locationStore.requestAuthorization()
+            case .authorizedAlways, .authorizedWhenInUse:
+                locationStore.requestCurrentLocation()
             case .denied, .restricted:
                 openLocationSettings()
             @unknown default:
@@ -403,6 +468,10 @@ struct SettingsView: View {
             return
         }
 
+        applySurfSpotCoordinate(from: location)
+    }
+
+    private func applySurfSpotCoordinate(from location: CLLocation) {
         if surfSpotNameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             surfSpotNameText = "Current Spot"
             settingsStore.settings.surfSpotName = surfSpotNameText

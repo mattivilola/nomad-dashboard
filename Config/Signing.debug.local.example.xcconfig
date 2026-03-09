@@ -1,0 +1,8 @@
+// Copy to Config/Signing.debug.local.xcconfig for local debug signing overrides.
+// This file is included only by Debug.xcconfig and is ignored by git.
+// Use values that match the debug bundle identifier: com.iloapps.NomadDashboard.dev
+
+DEVELOPMENT_TEAM = YOURTEAMID
+CODE_SIGN_STYLE = Automatic
+CODE_SIGN_IDENTITY = Apple Development
+DEBUG_CODE_SIGN_ENTITLEMENTS = App/NomadDashboard.entitlements

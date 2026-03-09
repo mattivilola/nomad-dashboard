@@ -16,6 +16,7 @@ packages:
 settings:
   base:
     PRODUCT_NAME: Nomad Dashboard
+    APP_DISPLAY_NAME: Nomad Dashboard
     PRODUCT_BUNDLE_IDENTIFIER: com.iloapps.NomadDashboard
     DEVELOPMENT_TEAM: ""
     SWIFT_VERSION: 6.0
@@ -37,7 +38,7 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: Nomad Dashboard
+        CFBundleDisplayName: $(APP_DISPLAY_NAME)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.travel

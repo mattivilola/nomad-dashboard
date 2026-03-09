@@ -9,6 +9,9 @@ public struct DashboardPanelView: View {
     private let isPublicIPLocationEnabled: Bool
     private let travelAlertPreferences: TravelAlertPreferences
     private let versionDescription: String
+    private let buildFlavorBadgeTitle: String?
+    private let weatherAvailabilityExplanation: String?
+    private let locationStatusDetail: String?
     private let appIcon: NSImage?
     private let refreshAction: () -> Void
     private let toggleAppearanceAction: () -> Void
@@ -17,6 +20,7 @@ public struct DashboardPanelView: View {
     private let openNetworkSettingsAction: () -> Void
     private let checkForUpdatesAction: (() -> Void)?
     private let openSettingsAction: () -> Void
+    private let openSurfSpotSettingsAction: () -> Void
     private let openAboutAction: () -> Void
     private let quitAction: () -> Void
 
@@ -28,6 +32,9 @@ public struct DashboardPanelView: View {
         isPublicIPLocationEnabled: Bool,
         travelAlertPreferences: TravelAlertPreferences,
         versionDescription: String = "",
+        buildFlavorBadgeTitle: String? = nil,
+        weatherAvailabilityExplanation: String? = nil,
+        locationStatusDetail: String? = nil,
         appIcon: NSImage? = nil,
         refreshAction: @escaping () -> Void,
         toggleAppearanceAction: @escaping () -> Void,
@@ -36,6 +43,7 @@ public struct DashboardPanelView: View {
         openNetworkSettingsAction: @escaping () -> Void,
         checkForUpdatesAction: (() -> Void)? = nil,
         openSettingsAction: @escaping () -> Void,
+        openSurfSpotSettingsAction: @escaping () -> Void,
         openAboutAction: @escaping () -> Void,
         quitAction: @escaping () -> Void
     ) {
@@ -44,6 +52,9 @@ public struct DashboardPanelView: View {
         self.isPublicIPLocationEnabled = isPublicIPLocationEnabled
         self.travelAlertPreferences = travelAlertPreferences
         self.versionDescription = versionDescription
+        self.buildFlavorBadgeTitle = buildFlavorBadgeTitle
+        self.weatherAvailabilityExplanation = weatherAvailabilityExplanation
+        self.locationStatusDetail = locationStatusDetail
         self.appIcon = appIcon
         self.refreshAction = refreshAction
         self.toggleAppearanceAction = toggleAppearanceAction
@@ -52,6 +63,7 @@ public struct DashboardPanelView: View {
         self.openNetworkSettingsAction = openNetworkSettingsAction
         self.checkForUpdatesAction = checkForUpdatesAction
         self.openSettingsAction = openSettingsAction
+        self.openSurfSpotSettingsAction = openSurfSpotSettingsAction
         self.openAboutAction = openAboutAction
         self.quitAction = quitAction
     }
@@ -80,9 +92,21 @@ public struct DashboardPanelView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Nomad Dashboard")
-                    .font(.system(size: 26, weight: .semibold, design: .rounded))
-                    .foregroundStyle(NomadTheme.primaryText)
+                HStack(spacing: 8) {
+                    Text("Nomad Dashboard")
+                        .font(.system(size: 26, weight: .semibold, design: .rounded))
+                        .foregroundStyle(NomadTheme.primaryText)
+
+                    if let buildFlavorBadgeTitle {
+                        BadgeView(
+                            badge: PillBadge(
+                                title: buildFlavorBadgeTitle,
+                                symbolName: "hammer.fill",
+                                tint: NomadTheme.sand
+                            )
+                        )
+                    }
+                }
 
                 HStack(alignment: .lastTextBaseline, spacing: 12) {
                     Text(snapshot.travelContext.location.flatMap(formattedLocation) ?? "Travel-ready system telemetry")
@@ -266,10 +290,12 @@ public struct DashboardPanelView: View {
     }
 
     private var weatherSection: some View {
-        DashboardCard(
+        let presentation = weatherSectionPresentation
+
+        return DashboardCard(
             title: "Weather",
-            subtitle: weatherSubtitle,
-            badge: weatherBadge
+            subtitle: presentation.subtitle,
+            badge: presentation.badge
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 if let weather = snapshot.weather {
@@ -310,9 +336,9 @@ public struct DashboardPanelView: View {
                     }
                 } else {
                     WeatherEmptyState(
-                        title: weatherBadge.title,
-                        systemImage: weatherBadge.symbolName,
-                        message: weatherEmptyMessage
+                        title: presentation.emptyTitle,
+                        systemImage: presentation.emptySystemImage,
+                        message: presentation.emptyMessage
                     )
                 }
 
@@ -515,38 +541,6 @@ public struct DashboardPanelView: View {
         return "Refreshing…"
     }
 
-    private var weatherBadge: PillBadge {
-        if snapshot.weather != nil {
-            return PillBadge(title: "Live", symbolName: "cloud.sun.fill", tint: NomadTheme.teal)
-        }
-
-        if snapshot.appState.issues.contains(.weatherLocationRequired) {
-            return PillBadge(title: "Location Needed", symbolName: "location.slash.fill", tint: NomadTheme.sand)
-        }
-
-        return PillBadge(title: "Unavailable", symbolName: "cloud.slash.fill", tint: NomadTheme.primaryText)
-    }
-
-    private var weatherSubtitle: String {
-        if let weather = snapshot.weather {
-            return weather.conditionDescription
-        }
-
-        if snapshot.appState.issues.contains(.weatherLocationRequired) {
-            return "Location permission required"
-        }
-
-        return "Weather data unavailable"
-    }
-
-    private var weatherEmptyMessage: String {
-        if snapshot.appState.issues.contains(.weatherLocationRequired) {
-            return "Allow current location to load local weather."
-        }
-
-        return "Weather data is not available yet."
-    }
-
     private var surfSection: some View {
         let presentation = surfSectionPresentation
 
@@ -564,7 +558,15 @@ public struct DashboardPanelView: View {
 
                 Spacer(minLength: 12)
 
-                BadgeView(badge: presentation.badge)
+                if presentation.isActionable {
+                    Button(action: openSurfSpotSettingsAction) {
+                        BadgeView(badge: presentation.badge)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open Surf Spot Settings")
+                } else {
+                    BadgeView(badge: presentation.badge)
+                }
             }
 
             if let marine = presentation.marine {
@@ -591,7 +593,9 @@ public struct DashboardPanelView: View {
                 WeatherEmptyState(
                     title: presentation.emptyTitle,
                     systemImage: presentation.emptySystemImage,
-                    message: presentation.emptyMessage
+                    message: presentation.emptyMessage,
+                    actionTitle: presentation.emptyActionTitle,
+                    action: presentation.isActionable ? openSurfSpotSettingsAction : nil
                 )
             }
         }
@@ -599,6 +603,15 @@ public struct DashboardPanelView: View {
 
     private var surfSectionPresentation: SurfSectionPresentation {
         SurfSectionPresentation(settings: settings, snapshot: snapshot)
+    }
+
+    private var weatherSectionPresentation: WeatherSectionPresentation {
+        WeatherSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            weatherAvailabilityExplanation: weatherAvailabilityExplanation,
+            locationStatusDetail: locationStatusDetail
+        )
     }
 
     private var weatherAttributionLine: String {
@@ -1329,6 +1342,8 @@ private struct WeatherEmptyState: View {
     let title: String
     let systemImage: String
     let message: String
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -1345,6 +1360,12 @@ private struct WeatherEmptyState: View {
                     .font(.caption)
                     .foregroundStyle(NomadTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let actionTitle, let action {
+                    Button(actionTitle, action: action)
+                        .buttonStyle(.link)
+                        .font(.caption.weight(.semibold))
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1357,6 +1378,61 @@ private struct WeatherEmptyState: View {
                         .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
                 )
         )
+    }
+}
+
+struct WeatherSectionPresentation {
+    let badge: PillBadge
+    let subtitle: String
+    let emptyTitle: String
+    let emptySystemImage: String
+    let emptyMessage: String
+
+    init(
+        settings: AppSettings,
+        snapshot: DashboardSnapshot,
+        weatherAvailabilityExplanation: String?,
+        locationStatusDetail: String?
+    ) {
+        if let weather = snapshot.weather {
+            badge = PillBadge(title: "Live", symbolName: "cloud.sun.fill", tint: NomadTheme.teal)
+            subtitle = weather.conditionDescription
+            emptyTitle = ""
+            emptySystemImage = "cloud.sun.fill"
+            emptyMessage = ""
+            return
+        }
+
+        if let weatherAvailabilityExplanation {
+            badge = PillBadge(title: "Build Issue", symbolName: "hammer.fill", tint: NomadTheme.sand)
+            subtitle = "WeatherKit unavailable in this build"
+            emptyTitle = "WeatherKit Unavailable"
+            emptySystemImage = "hammer.fill"
+            emptyMessage = weatherAvailabilityExplanation
+            return
+        }
+
+        if snapshot.appState.issues.contains(.weatherLocationRequired) {
+            badge = PillBadge(title: "Location Needed", symbolName: "location.slash.fill", tint: NomadTheme.sand)
+            subtitle = "Location permission required"
+            emptyTitle = "Location Needed"
+            emptySystemImage = "location.slash.fill"
+            emptyMessage = locationStatusDetail ?? "Allow current location to load local weather."
+            return
+        }
+
+        badge = PillBadge(title: "Unavailable", symbolName: "cloud.slash.fill", tint: NomadTheme.primaryText)
+        subtitle = "Weather data unavailable"
+
+        if settings.useCurrentLocationForWeather, let locationStatusDetail {
+            emptyTitle = "Unavailable"
+            emptySystemImage = "cloud.slash.fill"
+            emptyMessage = locationStatusDetail
+        } else {
+            emptyTitle = "Unavailable"
+            emptySystemImage = "cloud.slash.fill"
+            emptyMessage = "Weather data is not available yet."
+        }
     }
 }
 
@@ -1379,6 +1455,7 @@ struct SurfSectionPresentation {
     let emptyTitle: String
     let emptySystemImage: String
     let emptyMessage: String
+    let emptyActionTitle: String?
 
     init(settings: AppSettings, snapshot: DashboardSnapshot) {
         let surfConfiguration = settings.surfSpotConfiguration
@@ -1401,6 +1478,7 @@ struct SurfSectionPresentation {
             emptyTitle = ""
             emptySystemImage = "water.waves"
             emptyMessage = ""
+            emptyActionTitle = nil
             return
         }
 
@@ -1417,18 +1495,30 @@ struct SurfSectionPresentation {
             emptyTitle = "Surf Spot"
             emptySystemImage = "water.waves.slash"
             emptyMessage = "Add a surf spot in Settings."
+            emptyActionTitle = "Set Surf Spot"
         } else if surfConfiguration.isValid == false {
             state = .invalid
             badge = PillBadge(title: "Fix Spot", symbolName: "exclamationmark.triangle.fill", tint: NomadTheme.sand)
             emptyTitle = "Surf Spot"
             emptySystemImage = "exclamationmark.triangle.fill"
             emptyMessage = "Fix surf spot coordinates in Settings."
+            emptyActionTitle = "Open Surf Settings"
         } else {
             state = .unavailable
             badge = PillBadge(title: "Unavailable", symbolName: "water.waves.slash", tint: NomadTheme.primaryText)
             emptyTitle = "Surf Spot"
             emptySystemImage = "water.waves.slash"
             emptyMessage = "Surf check unavailable."
+            emptyActionTitle = nil
+        }
+    }
+
+    var isActionable: Bool {
+        switch state {
+        case .notConfigured, .invalid:
+            true
+        case .unavailable, .ready:
+            false
         }
     }
 
