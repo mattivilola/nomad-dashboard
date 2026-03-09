@@ -46,13 +46,13 @@ release:
 	./scripts/publish-update.sh
 
 release-patch:
-	./scripts/prepare-release.sh patch
+	./scripts/prepare-release.sh --push patch
 
 release-minor:
-	./scripts/prepare-release.sh minor
+	./scripts/prepare-release.sh --push minor
 
 release-major:
-	./scripts/prepare-release.sh major
+	./scripts/prepare-release.sh --push major
 
 release-dry-run:
 	./scripts/sign-and-notarize.sh --dry-run

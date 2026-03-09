@@ -105,6 +105,33 @@ run_patch_release_test() {
   assert_equals "$tag_name" "v0.1.1" "patch release should create a matching tag"
 }
 
+run_patch_release_with_push_test() {
+  local remote_path="$TEST_ROOT/patch-release-remote.git"
+  local repo_path="$TEST_ROOT/patch-release-with-push"
+  local output
+  local current_branch
+  local remote_branch_head remote_tag_ref
+
+  git init --bare -q "$remote_path"
+  bootstrap_repo "$repo_path" "0.1.0" "1" $'### Added\n\n- Publish release refs automatically\n\n### Changed\n\n- _Nothing yet_\n\n### Fixed\n\n- _Nothing yet_'
+
+  (
+    cd "$repo_path"
+    git remote add origin "$remote_path"
+    output="$(./scripts/prepare-release.sh --push patch)"
+    assert_contains "$output" "Prepared v0.1.1 and pushed it to origin" "push mode should report that the release refs were pushed"
+    assert_contains "$output" "branch:" "push mode should report the pushed branch"
+    assert_contains "$output" "tag: v0.1.1" "push mode should report the pushed tag"
+  )
+
+  current_branch="$(git -C "$repo_path" branch --show-current)"
+  remote_branch_head="$(git -C "$remote_path" rev-parse "refs/heads/$current_branch")"
+  remote_tag_ref="$(git -C "$remote_path" rev-parse refs/tags/v0.1.1)"
+
+  assert_equals "$remote_branch_head" "$(git -C "$repo_path" rev-parse HEAD)" "push mode should update the remote branch"
+  assert_equals "$remote_tag_ref" "$(git -C "$repo_path" rev-parse refs/tags/v0.1.1)" "push mode should update the remote tag"
+}
+
 run_minor_release_test() {
   local repo_path="$TEST_ROOT/minor-release"
 
@@ -225,6 +252,7 @@ run_dirty_tree_test() {
 }
 
 run_patch_release_test
+run_patch_release_with_push_test
 run_minor_release_test
 run_merge_manual_and_git_notes_test
 run_major_release_test

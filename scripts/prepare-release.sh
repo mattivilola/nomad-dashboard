@@ -3,26 +3,70 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/prepare-release.sh patch|minor|major
+Usage: ./scripts/prepare-release.sh [--push] patch|minor|major
 
 Bumps the semantic version and build number, updates CHANGELOG.md,
 creates a release commit, and creates an annotated git tag.
+Pass --push to also push the current branch and the new tag to origin.
 EOF
 }
 
-if (($# != 1)); then
+if (($# < 1 || $# > 2)); then
   usage >&2
   exit 1
 fi
 
-BUMP_KIND="$1"
+BUMP_KIND=""
+PUSH_TO_REMOTE="false"
+
+for arg in "$@"; do
+  case "$arg" in
+    patch|minor|major)
+      if [[ -n "$BUMP_KIND" ]]; then
+        usage >&2
+        exit 1
+      fi
+      BUMP_KIND="$arg"
+      ;;
+    --push)
+      PUSH_TO_REMOTE="true"
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "$BUMP_KIND" ]]; then
+  usage >&2
+  exit 1
+fi
+
+assert_push_remote_ready() {
+  git remote get-url origin >/dev/null 2>&1 || {
+    echo "Cannot push release: git remote 'origin' is not configured." >&2
+    exit 1
+  }
+
+  CURRENT_BRANCH="$(git branch --show-current)"
+  [[ -n "$CURRENT_BRANCH" ]] || {
+    echo "Cannot push release from a detached HEAD. Check out the target branch and try again." >&2
+    exit 1
+  }
+}
+
+push_release_refs() {
+  git push origin "$CURRENT_BRANCH"
+  git push origin "$NEXT_TAG"
+}
 
 case "$BUMP_KIND" in
   patch|minor|major) ;;
-  -h|--help)
-    usage
-    exit 0
-    ;;
   *)
     usage >&2
     exit 1
@@ -379,6 +423,10 @@ if git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null 2>&1; then
   exit 1
 fi
 
+if [[ "$PUSH_TO_REMOTE" == "true" ]]; then
+  assert_push_remote_ready
+fi
+
 CHANGELOG_HEADER="$(extract_header)"
 UNRELEASED_BODY="$(extract_unreleased_body)"
 RELEASED_SECTIONS="$(extract_released_sections)"
@@ -392,6 +440,25 @@ write_changelog "$NEXT_VERSION" "$RELEASE_BODY" "$CHANGELOG_HEADER" "$RELEASED_S
 git add -- "$VERSION_FILE" "$CHANGELOG_FILE"
 git commit -m "Release ${NEXT_TAG}"
 git tag -a "$NEXT_TAG" -m "Release ${NEXT_TAG}"
+
+if [[ "$PUSH_TO_REMOTE" == "true" ]]; then
+  push_release_refs
+fi
+
+if [[ "$PUSH_TO_REMOTE" == "true" ]]; then
+  cat <<EOF
+Prepared ${NEXT_TAG} and pushed it to origin
+
+Pushed:
+  branch: ${CURRENT_BRANCH}
+  tag: ${NEXT_TAG}
+
+Next steps:
+  make release-dry-run
+  make release
+EOF
+  exit 0
+fi
 
 cat <<EOF
 Prepared ${NEXT_TAG}
