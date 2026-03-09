@@ -7,3 +7,5 @@ DEVELOPMENT_TEAM = YOURTEAMID
 CODE_SIGN_STYLE = Automatic
 CODE_SIGN_IDENTITY = Apple Development
 DEBUG_CODE_SIGN_ENTITLEMENTS = App/NomadDashboard.entitlements
+// Optional: allow xcodebuild to create or refresh the debug provisioning profile.
+NOMAD_DEBUG_ALLOW_PROVISIONING_UPDATES = true
