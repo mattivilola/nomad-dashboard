@@ -49,6 +49,9 @@ targets:
     settings:
       base:
         INFOPLIST_FILE: App/Info.plist
+      configs:
+        Release:
+          CODE_SIGN_ENTITLEMENTS: App/NomadDashboard.entitlements
     dependencies:
       - package: NomadCore
       - package: NomadUI
