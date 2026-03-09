@@ -20,6 +20,20 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.14] - 2026-03-09
+
+### Changed
+
+- Merge branch 'main' into staging
+- Automate pushing of release tags and branches to origin
+- help to fix these CI github errors (vibe-kanban MAT-1)
+- Merge branch 'staging'
+- fix the icon color - use the system theme as toolbar is system based and not light/dark theme (vibe-kanban MAT-2)
+- power dashboard drain is always estimating.. how to fix? (vibe-kanban MAT-3)
+- Fallback to unsigned local debug builds
+- help to fix dev build/rerun script (vibe-kanban MAT-4)
+- Relax HOME directory isolation for local signed dev builds
+
 ## [0.1.13] - 2026-03-09
 
 ### Changed
