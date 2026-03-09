@@ -41,6 +41,7 @@ dmg:
 	./scripts/create-dmg.sh
 
 release:
+	./scripts/release-preflight.sh
 	./scripts/sign-and-notarize.sh
 	./scripts/publish-update.sh
 
