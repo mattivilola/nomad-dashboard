@@ -20,6 +20,17 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.6] - 2026-03-09
+
+### Added
+
+- Update branding assets
+- Implement automated release and Sparkle update pipeline
+
+### Changed
+
+- Modernize Sparkle update handling and ignore generated build data
+
 ## [0.1.5] - 2026-03-06
 
 ### Added
