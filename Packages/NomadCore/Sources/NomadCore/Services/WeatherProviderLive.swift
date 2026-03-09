@@ -25,13 +25,17 @@ public actor LiveWeatherProvider: WeatherProvider {
 
         let weather = try await service.weather(for: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude))
         let tomorrow = weather.dailyForecast.forecast.dropFirst().first ?? weather.dailyForecast.forecast.first
+        let precipitationChance = Self.nearTermPrecipitationChance(
+            minuteForecastChance: weather.minuteForecast?.forecast.first?.precipitationChance,
+            hourlyForecastChance: weather.hourlyForecast.forecast.first?.precipitationChance
+        )
 
         let snapshot = WeatherSnapshot(
             currentTemperatureCelsius: weather.currentWeather.temperature.converted(to: .celsius).value,
             apparentTemperatureCelsius: weather.currentWeather.apparentTemperature.converted(to: .celsius).value,
             conditionDescription: weather.currentWeather.condition.description,
             symbolName: weather.currentWeather.symbolName,
-            precipitationChance: nil,
+            precipitationChance: precipitationChance,
             windSpeedKph: weather.currentWeather.wind.speed.converted(to: .kilometersPerHour).value,
             tomorrow: tomorrow.map {
                 WeatherDaySummary(
@@ -48,6 +52,10 @@ public actor LiveWeatherProvider: WeatherProvider {
 
         cache = (cacheKey, snapshot)
         return snapshot
+    }
+
+    static func nearTermPrecipitationChance(minuteForecastChance: Double?, hourlyForecastChance: Double?) -> Double? {
+        minuteForecastChance ?? hourlyForecastChance
     }
 
     private static func cacheKey(for coordinate: CLLocationCoordinate2D) -> String {

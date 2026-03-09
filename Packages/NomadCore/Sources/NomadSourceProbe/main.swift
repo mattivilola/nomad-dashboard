@@ -121,6 +121,10 @@ private struct ProbeRunner {
                         "wind kph: \(displayNumber(snapshot.windSpeedKph))"
                     ]
 
+                    if let precipitationChance = snapshot.precipitationChance {
+                        lines.append("precip chance: \(String(format: "%.0f%%", precipitationChance * 100))")
+                    }
+
                     if let tomorrow = snapshot.tomorrow {
                         lines.append("tomorrow: \(tomorrow.summary) (\(displayNumber(tomorrow.temperatureMinCelsius)) to \(displayNumber(tomorrow.temperatureMaxCelsius)) C)")
                     }

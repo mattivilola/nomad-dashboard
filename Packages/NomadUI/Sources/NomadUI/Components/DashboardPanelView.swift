@@ -314,8 +314,8 @@ public struct DashboardPanelView: View {
                                 typography: .compact
                             )
                             MetricBlock(
-                                title: "Rain",
-                                value: weather.precipitationChance.map { NomadFormatters.precipitation($0) } ?? "Estimating",
+                                title: "Rain Chance",
+                                value: weather.precipitationChance.map { NomadFormatters.precipitation($0) } ?? "n/a",
                                 typography: .compact
                             )
                         }
