@@ -31,6 +31,10 @@ let package = Package(
         .testTarget(
             name: "NomadCoreTests",
             dependencies: ["NomadCore"]
+        ),
+        .testTarget(
+            name: "NomadSourceProbeTests",
+            dependencies: ["NomadSourceProbe"]
         )
     ]
 )

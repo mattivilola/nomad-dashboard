@@ -20,6 +20,17 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.15] - 2026-03-09
+
+### Changed
+
+- Remove explicit provisioning updates option for debug builds
+- Merge branch 'main' into staging
+- Add location fuel price card
+- Add dynamic background to Fuel Prices dashboard card
+- Enable automatic provisioning updates and fallback for signed debug builds
+- Add fuel price probing to NomadSourceProbe
+
 ## [0.1.14] - 2026-03-09
 
 ### Changed

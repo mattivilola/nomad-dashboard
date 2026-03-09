@@ -5,6 +5,8 @@ public enum NomadTheme {
     public static let sand = Color(dynamicLight: 0xA56E17, dark: 0xF0C987)
     public static let teal = Color(dynamicLight: 0x0E8C92, dark: 0x5FC3C8)
     public static let coral = Color(dynamicLight: 0xC85C34, dark: 0xF68B63)
+    public static let fuelGlow = Color(dynamicLight: 0xF3BF6B, dark: 0xFFCF85, lightOpacity: 0.88, darkOpacity: 0.72)
+    public static let fuelRoad = Color(dynamicLight: 0x27404D, dark: 0xD9E3E8, lightOpacity: 0.13, darkOpacity: 0.10)
 
     public static let primaryText = Color(dynamicLight: 0x13212A, dark: 0xFFFFFF, darkOpacity: 0.84)
     public static let secondaryText = Color(dynamicLight: 0x425663, dark: 0xFFFFFF, darkOpacity: 0.68)

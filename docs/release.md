@@ -28,7 +28,8 @@ Nomad Dashboard is distributed directly outside the Mac App Store.
    - `NOMAD_SPARKLE_PUBLIC_ED_KEY`
    - optional `NOMAD_SPARKLE_BIN_DIR` if Sparkle CLI tools are not auto-discovered
 6. In the Apple Developer portal, open the App ID for `com.iloapps.NomadDashboard` and enable the WeatherKit capability before shipping a release build.
-7. Local Debug builds default to unsigned mode so `make build`, `make run`, and `make rerun` work without Apple provisioning setup. If you want local WeatherKit access in the separate debug app, create a second App ID for `com.iloapps.NomadDashboard.dev`, enable WeatherKit there too, and add local values plus `DEBUG_CODE_SIGN_ENTITLEMENTS = App/NomadDashboard.entitlements` in `Config/Signing.debug.local.xcconfig`. If Xcode CLI reports that automatic signing needs provisioning updates, either set `NOMAD_DEBUG_ALLOW_PROVISIONING_UPDATES = true` in `Config/Signing.debug.local.xcconfig` or rerun from the shell with `NOMAD_DEBUG_ALLOW_PROVISIONING_UPDATES=true make rerun`.
+7. Local Debug builds default to unsigned mode so `make build`, `make run`, and `make rerun` work without Apple provisioning setup. If you want local WeatherKit access in the separate debug app, create a second App ID for `com.iloapps.NomadDashboard.dev`, enable WeatherKit there too, and add local values plus `DEBUG_CODE_SIGN_ENTITLEMENTS = App/NomadDashboard.entitlements` in `Config/Signing.debug.local.xcconfig`.
+8. Optional for signed local Debug builds: set `NOMAD_DEBUG_ALLOW_PROVISIONING_UPDATES = true` in `Config/Signing.debug.local.xcconfig` to let `xcodebuild` request or refresh the `com.iloapps.NomadDashboard.dev` provisioning profile automatically.
 
 `Config/Signing.env` is ignored by git and should stay local to the release machine.
 
@@ -81,6 +82,7 @@ Nomad Dashboard is distributed directly outside the Mac App Store.
 - Sparkle remains unavailable in local/dev builds until both `SUFeedURL` and `SUPublicEDKey` are injected into the app bundle.
 - Debug builds use a separate app identity (`Nomad Dashboard Dev`, bundle ID `com.iloapps.NomadDashboard.dev`) so they can run alongside production with separate macOS privacy permissions.
 - Local Debug builds are unsigned unless `Config/Signing.debug.local.xcconfig` enables local automatic signing.
-- Signed Debug CLI builds can opt into `-allowProvisioningUpdates` through `NOMAD_DEBUG_ALLOW_PROVISIONING_UPDATES = true` in `Config/Signing.debug.local.xcconfig` or `NOMAD_DEBUG_ALLOW_PROVISIONING_UPDATES=true` in the shell.
+- Signed local Debug builds use your normal macOS home directory so Xcode can access the local developer account state; unsigned and CI builds still use an isolated temporary home for reproducible caches.
+- When signed local Debug provisioning fails, `make build`, `make run`, and `make rerun` automatically retry once as unsigned builds so the app still launches, but WeatherKit remains unavailable in that fallback build.
 - `make brand-assets` is still available for design-time regeneration of tracked branding assets, but it is no longer part of normal DMG packaging.
 - The release-preparation script still drafts notes from commits since the latest `v*` tag and merges any curated `Unreleased` notes.

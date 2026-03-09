@@ -80,11 +80,16 @@ private struct ProbeRunner {
         let coverageCountryCodes = primaryCountryCode.map {
             [$0] + neighborResolver.neighboringCountryCodes(for: $0)
         } ?? []
+        var reverseGeocodedLocation: ReverseGeocodedLocation?
+        let fuelCoordinate = options.fuelCoordinate ?? coordinate
+        let fuelCountryCode = options.fuelCountryCode ?? primaryCountryCode
 
         print("Resolved inputs")
         print("  coordinate: \(displayCoordinate(coordinate))")
         print("  primary country: \(display(primaryCountryCode))")
         print("  coverage countries: \(coverageCountryCodes.isEmpty ? "n/a" : coverageCountryCodes.joined(separator: ", "))")
+        print("  fuel coordinate: \(displayCoordinate(fuelCoordinate))")
+        print("  fuel country: \(display(fuelCountryCode))")
         print("  marine spot: \(context.spotName)")
         print("")
 
@@ -94,6 +99,7 @@ private struct ProbeRunner {
                 probe("Apple reverse geocoder") {
                     let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
                     let details = try await reverseGeocoder.details(for: location)
+                    reverseGeocodedLocation = details
                     return ProbeResult.success(
                         name: "Apple reverse geocoder",
                         lines: [
@@ -107,6 +113,12 @@ private struct ProbeRunner {
             )
         } else {
             results.append(.skipped(name: "Apple reverse geocoder", reason: "Coordinate unavailable. Pass --latitude and --longitude to force it."))
+        }
+
+        let fuelCountryName: String? = if options.fuelCountryCode == nil {
+            reverseGeocodedLocation?.country ?? resolvedLocation?.country
+        } else {
+            nil
         }
 
         let weatherProvider = LiveWeatherProvider()
@@ -212,6 +224,48 @@ private struct ProbeRunner {
             results.append(.skipped(name: "Open-Meteo marine", reason: "Coordinate unavailable."))
         }
 
+        if fuelCountryCode == "ES" {
+            await results.append(
+                probe("Spain fuel URLSession preflight") {
+                    let preflight = try await spainFuelEndpointPreflight()
+                    return ProbeResult.success(
+                        name: "Spain fuel URLSession preflight",
+                        lines: preflight
+                    )
+                }
+            )
+        }
+
+        let fuelProvider = LiveEuropeanFuelPriceProvider(
+            tankerkonigAPIKey: options.tankerkonigAPIKey
+                ?? ProcessInfo.processInfo.environment["TANKERKOENIG_APIKEY"]?.trimmedNonEmpty
+        )
+        if let fuelCoordinate, let fuelCountryCode {
+            await results.append(
+                probe("Fuel prices") {
+                    let snapshot = try await fuelProvider.prices(
+                        for: FuelSearchRequest(
+                            coordinate: fuelCoordinate,
+                            countryCode: fuelCountryCode,
+                            countryName: fuelCountryName
+                        ),
+                        forceRefresh: true
+                    )
+                    return ProbeResult.success(
+                        name: "Fuel prices",
+                        lines: fuelPriceLines(snapshot)
+                    )
+                }
+            )
+        } else {
+            results.append(
+                .skipped(
+                    name: "Fuel prices",
+                    reason: "Fuel coordinate and country code unavailable. Pass --fuel-latitude/--fuel-longitude and --fuel-country-code to force them."
+                )
+            )
+        }
+
         print("Summary")
         for result in results {
             print(result.summaryLine)
@@ -260,11 +314,15 @@ private struct ProbeContext {
     }
 }
 
-private struct Options {
+struct Options {
     let countryCode: String?
     let latitude: Double?
     let longitude: Double?
+    let fuelCountryCode: String?
+    let fuelLatitude: Double?
+    let fuelLongitude: Double?
     let ipAddress: String?
+    let tankerkonigAPIKey: String?
     let reliefWebAppName: String?
     let spotName: String?
     let showHelp: Bool
@@ -277,11 +335,23 @@ private struct Options {
         return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 
+    var fuelCoordinate: CLLocationCoordinate2D? {
+        guard let fuelLatitude, let fuelLongitude else {
+            return nil
+        }
+
+        return CLLocationCoordinate2D(latitude: fuelLatitude, longitude: fuelLongitude)
+    }
+
     static func parse(arguments: [String]) throws -> Options {
         var countryCode: String?
         var latitude: Double?
         var longitude: Double?
+        var fuelCountryCode: String?
+        var fuelLatitude: Double?
+        var fuelLongitude: Double?
         var ipAddress: String?
+        var tankerkonigAPIKey: String?
         var reliefWebAppName: String?
         var spotName: String?
         var showHelp = false
@@ -297,8 +367,16 @@ private struct Options {
                 latitude = try parseDouble(nextValue(after: argument, iterator: &iterator), argument: argument)
             case "--longitude":
                 longitude = try parseDouble(nextValue(after: argument, iterator: &iterator), argument: argument)
+            case "--fuel-country-code":
+                fuelCountryCode = try nextValue(after: argument, iterator: &iterator).uppercased()
+            case "--fuel-latitude":
+                fuelLatitude = try parseDouble(nextValue(after: argument, iterator: &iterator), argument: argument)
+            case "--fuel-longitude":
+                fuelLongitude = try parseDouble(nextValue(after: argument, iterator: &iterator), argument: argument)
             case "--ip":
                 ipAddress = try nextValue(after: argument, iterator: &iterator)
+            case "--tankerkonig-api-key":
+                tankerkonigAPIKey = try nextValue(after: argument, iterator: &iterator)
             case "--reliefweb-app-name":
                 reliefWebAppName = try nextValue(after: argument, iterator: &iterator)
             case "--spot-name":
@@ -312,11 +390,19 @@ private struct Options {
             throw UsageError("Pass both --latitude and --longitude together.")
         }
 
+        if (fuelLatitude == nil) != (fuelLongitude == nil) {
+            throw UsageError("Pass both --fuel-latitude and --fuel-longitude together.")
+        }
+
         return Options(
             countryCode: countryCode,
             latitude: latitude,
             longitude: longitude,
+            fuelCountryCode: fuelCountryCode,
+            fuelLatitude: fuelLatitude,
+            fuelLongitude: fuelLongitude,
             ipAddress: ipAddress,
+            tankerkonigAPIKey: tankerkonigAPIKey,
             reliefWebAppName: reliefWebAppName,
             spotName: spotName,
             showHelp: showHelp
@@ -332,7 +418,11 @@ private struct Options {
       --country-code <code>         Override the primary ISO country code for Smartraveller and ReliefWeb.
       --latitude <value>            Override the latitude used for reverse geocoding, WeatherKit, and marine.
       --longitude <value>           Override the longitude used for reverse geocoding, WeatherKit, and marine.
+      --fuel-country-code <code>    Override the ISO country code used for the fuel provider. Defaults to --country-code.
+      --fuel-latitude <value>       Override the latitude used for fuel-source probing. Defaults to --latitude when omitted.
+      --fuel-longitude <value>      Override the longitude used for fuel-source probing. Defaults to --longitude when omitted.
       --ip <address>                Override the IP address used for geolocation.
+      --tankerkonig-api-key <key>   Override TANKERKOENIG_APIKEY for Germany fuel probing.
       --reliefweb-app-name <name>   Override RELIEFWEB_APPNAME. Defaults to env RELIEFWEB_APPNAME or NomadDashboardSourceProbe.
       --spot-name <name>            Label used for the marine probe. Default: Source probe spot.
       --help                        Show this help.
@@ -355,7 +445,7 @@ private struct Options {
     }
 }
 
-private struct ProbeResult {
+struct ProbeResult {
     enum Status {
         case passed
         case failed
@@ -426,8 +516,14 @@ private struct UsageError: LocalizedError {
     }
 }
 
-private func errorLines(for error: Error) -> [String] {
+func errorLines(for error: Error) -> [String] {
     var lines = ["error: \(String(describing: error))"]
+
+    if let fuelError = error as? FuelPriceProviderError {
+        lines.append("fuel source: \(fuelError.sourceName)")
+        lines.append("fuel source URL: \(fuelError.sourceURL?.absoluteString ?? "n/a")")
+        lines.append("underlying: \(fuelError.underlyingDescription)")
+    }
 
     if let urlError = error as? URLError {
         lines.append("url error: \(urlError.code.rawValue) \(urlError.code)")
@@ -441,8 +537,8 @@ private func errorLines(for error: Error) -> [String] {
     return lines
 }
 
-private func errorHint(for error: Error) -> String? {
-    let description = String(describing: error).lowercased()
+func errorHint(for error: Error) -> String? {
+    let description = errorDescriptionText(for: error)
 
     if description.contains("weatherkit") {
         return "WeatherKit calls from the CLI may fail without the same entitlement context as the app build."
@@ -460,7 +556,71 @@ private func errorHint(for error: Error) -> String? {
         return "Set RELIEFWEB_APPNAME if ReliefWeb rejects the default app name."
     }
 
+    if description.contains("server with the specified hostname could not be found")
+        || description.contains("cannotfindhost")
+    {
+        return "Apple URLSession could not resolve the host. Compare this with curl or nscurl --ats-diagnostics; curl reachability does not guarantee app reachability."
+    }
+
+    if description.contains("ssl")
+        || description.contains("secure connection")
+        || description.contains("server certificate")
+    {
+        return "Apple URLSession rejected the secure connection. Compare this with nscurl --ats-diagnostics; curl success does not rule out Apple-network-stack failures."
+    }
+
     return nil
+}
+
+func fuelPriceLines(_ snapshot: FuelPriceSnapshot) -> [String] {
+    var lines = [
+        "status: \(snapshot.status.rawValue)",
+        "provider: \(snapshot.sourceName)",
+        "country: \(display(snapshot.countryName)) (\(display(snapshot.countryCode)))",
+        "detail: \(display(snapshot.detail))"
+    ]
+
+    if let note = snapshot.note {
+        lines.append("note: \(note)")
+    }
+
+    lines.append(contentsOf: fuelStationLines(label: "diesel", station: snapshot.diesel))
+    lines.append(contentsOf: fuelStationLines(label: "gasoline", station: snapshot.gasoline))
+    return lines
+}
+
+func spainFuelEndpointPreflight(session: URLSession = .shared) async throws -> [String] {
+    let url = URL(string: "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/")!
+    let (data, response) = try await session.data(from: url)
+    guard let httpResponse = response as? HTTPURLResponse else {
+        throw ProviderError.invalidResponse
+    }
+
+    return [
+        "status: HTTP \(httpResponse.statusCode)",
+        "bytes: \(data.count)",
+        "host: \(url.host ?? "n/a")"
+    ]
+}
+
+private func fuelStationLines(label: String, station: FuelStationPrice?) -> [String] {
+    guard let station else {
+        return ["\(label): n/a"]
+    }
+
+    return [
+        "\(label): \(station.stationName)",
+        "\(label) price: \(String(format: "%.3f", station.pricePerLiter)) \(station.currencyCode)/L",
+        "\(label) distance km: \(String(format: "%.1f", station.distanceKilometers))"
+    ]
+}
+
+private func errorDescriptionText(for error: Error) -> String {
+    if let fuelError = error as? FuelPriceProviderError {
+        return "\(String(describing: error)) \(fuelError.underlyingDescription)".lowercased()
+    }
+
+    return String(describing: error).lowercased()
 }
 
 private func travelAlertLines(_ signal: TravelAlertSignalSnapshot) -> [String] {
