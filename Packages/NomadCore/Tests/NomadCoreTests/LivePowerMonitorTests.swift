@@ -24,6 +24,57 @@ struct LivePowerMonitorTests {
     }
 
     @Test
+    func wrappedBatteryCurrentIsNormalizedToSignedMilliAmps() {
+        let wrappedCurrent = NSNumber(value: UInt64.max - 852)
+
+        #expect(LivePowerMonitor.normalizedSignedMilliAmps(wrappedCurrent) == -853)
+    }
+
+    @Test
+    func dischargeRateFallsBackToBatteryRegistryValues() {
+        let watts = LivePowerMonitor.dischargeRateWatts(fromBatteryRegistryValues: [
+            "InstantAmperage": NSNumber(value: UInt64.max - 852),
+            "Voltage": NSNumber(value: 11_569)
+        ])
+
+        #expect(watts == 9.868357)
+    }
+
+    @Test
+    func dischargeRatePrefersPowerSourceDescriptionWhenAvailable() {
+        let watts = LivePowerMonitor.resolveDischargeRateWatts(
+            state: .battery,
+            description: [
+                kIOPSCurrentKey: NSNumber(value: 1_200),
+                kIOPSVoltageKey: NSNumber(value: 11_000)
+            ],
+            registryValues: [
+                "InstantAmperage": NSNumber(value: UInt64.max - 852),
+                "Voltage": NSNumber(value: 11_569)
+            ]
+        )
+
+        #expect(watts == 13.2)
+    }
+
+    @Test
+    func dischargeRateIsNotReportedWhenMachineIsNotOnBattery() {
+        let watts = LivePowerMonitor.resolveDischargeRateWatts(
+            state: .charging,
+            description: [
+                kIOPSCurrentKey: NSNumber(value: 1_200),
+                kIOPSVoltageKey: NSNumber(value: 11_000)
+            ],
+            registryValues: [
+                "InstantAmperage": NSNumber(value: UInt64.max - 852),
+                "Voltage": NSNumber(value: 11_569)
+            ]
+        )
+
+        #expect(watts == nil)
+    }
+
+    @Test
     func missingBatteryEstimateDoesNotTriggerAttention() {
         let summary = DashboardHealthEvaluator.makeSummary(
             network: NetworkSectionSnapshot(
