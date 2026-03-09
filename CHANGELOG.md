@@ -20,6 +20,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.8] - 2026-03-09
+
+### Added
+
+- Enable WeatherKit integration
+
+### Changed
+
+- Merge branch 'staging'
+
 ## [0.1.7] - 2026-03-09
 
 ### Changed
