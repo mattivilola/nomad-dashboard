@@ -9,6 +9,7 @@ CACHE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nomad-dashboard-xcode.XXXXXX")"
 PACKAGE_ROOT="$CACHE_ROOT/source-packages"
 HOME_ROOT="$CACHE_ROOT/home"
 XDG_CACHE_ROOT="$CACHE_ROOT/xdg-cache"
+USE_ISOLATED_HOME="false"
 
 mkdir -p \
   "$PACKAGE_ROOT" \
@@ -16,12 +17,6 @@ mkdir -p \
   "$HOME_ROOT/Library/Developer/Xcode/DerivedData" \
   "$XDG_CACHE_ROOT/clang/ModuleCache" \
   "$CACHE_ROOT/module-cache"
-
-export CFFIXED_USER_HOME="$HOME_ROOT"
-export HOME="$HOME_ROOT"
-export XDG_CACHE_HOME="$XDG_CACHE_ROOT"
-export CLANG_MODULE_CACHE_PATH="$XDG_CACHE_ROOT/clang/ModuleCache"
-export SWIFTPM_MODULECACHE_OVERRIDE="$CACHE_ROOT/module-cache"
 
 xcconfig_value() {
   local key="$1"
@@ -57,6 +52,22 @@ allow_provisioning_updates() {
 if [[ ! -d "$PROJECT" ]]; then
   ./scripts/generate-project.sh
 fi
+
+if [[ "${CI:-}" == "true" ]]; then
+  USE_ISOLATED_HOME="true"
+elif ! debug_signing_is_configured; then
+  USE_ISOLATED_HOME="true"
+fi
+
+if [[ "$USE_ISOLATED_HOME" == "true" ]]; then
+  # Unsigned builds can use an isolated home for reproducible caches.
+  export CFFIXED_USER_HOME="$HOME_ROOT"
+  export HOME="$HOME_ROOT"
+fi
+
+export XDG_CACHE_HOME="$XDG_CACHE_ROOT"
+export CLANG_MODULE_CACHE_PATH="$XDG_CACHE_ROOT/clang/ModuleCache"
+export SWIFTPM_MODULECACHE_OVERRIDE="$CACHE_ROOT/module-cache"
 
 BUILD_ARGS=(
   -project "$PROJECT"
