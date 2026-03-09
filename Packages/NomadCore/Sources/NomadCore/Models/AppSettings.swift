@@ -139,12 +139,10 @@ public extension AppSettings {
         let hasValidLatitude = surfSpotLatitude.map { (-90.0...90.0).contains($0) } ?? false
         let hasValidLongitude = surfSpotLongitude.map { (-180.0...180.0).contains($0) } ?? false
         let isValid = resolvedName != nil && hasValidLatitude && hasValidLongitude
-        let coordinate: CLLocationCoordinate2D?
-
-        if isValid, let surfSpotLatitude, let surfSpotLongitude {
-            coordinate = CLLocationCoordinate2D(latitude: surfSpotLatitude, longitude: surfSpotLongitude)
+        let coordinate: CLLocationCoordinate2D? = if isValid, let surfSpotLatitude, let surfSpotLongitude {
+            CLLocationCoordinate2D(latitude: surfSpotLatitude, longitude: surfSpotLongitude)
         } else {
-            coordinate = nil
+            nil
         }
 
         return SurfSpotConfiguration(

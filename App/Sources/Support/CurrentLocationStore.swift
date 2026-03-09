@@ -79,9 +79,9 @@ final class CurrentLocationStore: NSObject, ObservableObject {
         let manager = CLLocationManager()
         let initialLocation = manager.location
         self.manager = manager
-        self.authorizationStatus = manager.authorizationStatus
-        self.currentLocation = initialLocation
-        self.currentCoordinate = initialLocation?.coordinate
+        authorizationStatus = manager.authorizationStatus
+        currentLocation = initialLocation
+        currentCoordinate = initialLocation?.coordinate
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters

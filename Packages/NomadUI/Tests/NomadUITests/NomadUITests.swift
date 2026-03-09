@@ -259,7 +259,7 @@ private func makeState(
     sourceName: String? = nil,
     count: Int? = nil
 ) -> TravelAlertSignalState {
-    let defaultSourceName: String = switch kind {
+    let defaultSourceName = switch kind {
     case .advisory:
         "Smartraveller"
     case .weather:

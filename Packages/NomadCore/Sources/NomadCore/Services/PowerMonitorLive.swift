@@ -8,7 +8,8 @@ public struct LivePowerMonitor: PowerMonitor {
         guard let blob = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
               let sources = IOPSCopyPowerSourcesList(blob)?.takeRetainedValue() as? [CFTypeRef],
               let source = sources.first,
-              let description = IOPSGetPowerSourceDescription(blob, source)?.takeUnretainedValue() as? [String: Any] else {
+              let description = IOPSGetPowerSourceDescription(blob, source)?.takeUnretainedValue() as? [String: Any]
+        else {
             return nil
         }
 
@@ -24,17 +25,15 @@ public struct LivePowerMonitor: PowerMonitor {
 
         let isCharging = (description[kIOPSIsChargingKey] as? Bool) ?? false
         let powerSource = (description[kIOPSPowerSourceStateKey] as? String) ?? ""
-        let state: PowerSourceState
-
-        switch (powerSource, isCharging) {
+        let state: PowerSourceState = switch (powerSource, isCharging) {
         case (kIOPSACPowerValue, true):
-            state = .charging
+            .charging
         case (kIOPSACPowerValue, false):
-            state = .charged
+            .charged
         case (kIOPSBatteryPowerValue, _):
-            state = .battery
+            .battery
         default:
-            state = .unknown
+            .unknown
         }
 
         let minutes = Self.normalizedTimeRemainingMinutes(
@@ -53,7 +52,8 @@ public struct LivePowerMonitor: PowerMonitor {
         var adapterWatts: Double?
 
         if let adapterDetails = IOPSCopyExternalPowerAdapterDetails()?.takeRetainedValue() as? [String: Any],
-           let watts = adapterDetails[kIOPSPowerAdapterWattsKey] as? NSNumber {
+           let watts = adapterDetails[kIOPSPowerAdapterWattsKey] as? NSNumber
+        {
             adapterWatts = watts.doubleValue
         }
 

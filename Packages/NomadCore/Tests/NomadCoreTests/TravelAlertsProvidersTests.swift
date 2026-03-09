@@ -49,17 +49,17 @@ struct TravelAlertsProvidersTests {
     }
 
     @Test
-    func weatherSignalPreservesAttributionAndHighestSeverity() {
-        let signal = WeatherKitAlertProvider.signal(
+    func weatherSignalPreservesAttributionAndHighestSeverity() throws {
+        let signal = try WeatherKitAlertProvider.signal(
             from: [
                 WeatherAlertPayload(
-                    detailsURL: URL(string: "https://weather.example/minor")!,
+                    detailsURL: #require(URL(string: "https://weather.example/minor")),
                     source: "National Weather Service",
                     summary: "Wind advisory.",
                     severity: .minor
                 ),
                 WeatherAlertPayload(
-                    detailsURL: URL(string: "https://weather.example/severe")!,
+                    detailsURL: #require(URL(string: "https://weather.example/severe")),
                     source: "National Weather Service",
                     summary: "Flood warning.",
                     severity: .severe

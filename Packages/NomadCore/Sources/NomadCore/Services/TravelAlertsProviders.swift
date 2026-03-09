@@ -15,11 +15,11 @@ public struct BundledNeighborCountryResolver: NeighborCountryResolver {
             let data = try? Data(contentsOf: url),
             let records = try? JSONDecoder().decode([CountryBorderRecord].self, from: data)
         else {
-            self.bordersByCountry = [:]
+            bordersByCountry = [:]
             return
         }
 
-        self.bordersByCountry = Dictionary(
+        bordersByCountry = Dictionary(
             uniqueKeysWithValues: records.map { ($0.cca2.uppercased(), $0.borders.map { $0.uppercased() }) }
         )
     }
@@ -30,7 +30,7 @@ public struct BundledNeighborCountryResolver: NeighborCountryResolver {
 }
 
 public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
-    nonisolated public let sourceDescriptor = TravelAlertSourceDescriptor(
+    public nonisolated let sourceDescriptor = TravelAlertSourceDescriptor(
         name: "Smartraveller",
         url: URL(string: "https://www.smartraveller.gov.au")
     )
@@ -129,14 +129,12 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
         }
 
         let sourceURL = worst.destination.url
-        let summary: String
-
-        if worst.severity == .clear {
-            summary = "No elevated travel advisories across your nearby countries."
+        let summary = if worst.severity == .clear {
+            "No elevated travel advisories across your nearby countries."
         } else if worst.countryCode == primaryCountryCode {
-            summary = "\(worst.countryName) is at \(worst.destination.levelLabel)."
+            "\(worst.countryName) is at \(worst.destination.levelLabel)."
         } else {
-            summary = "\(worst.countryName) is at \(worst.destination.levelLabel) nearby."
+            "\(worst.countryName) is at \(worst.destination.levelLabel) nearby."
         }
 
         return TravelAlertSignalSnapshot(
@@ -157,13 +155,12 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
     static func parseDestinations(from data: Data) throws -> [SmartravellerDestination] {
         let rootObject = try JSONSerialization.jsonObject(with: data)
 
-        let rawItems: [Any]
-        if let array = rootObject as? [Any] {
-            rawItems = array
+        let rawItems: [Any] = if let array = rootObject as? [Any] {
+            array
         } else if let dictionary = rootObject as? [String: Any] {
-            rawItems = (dictionary["data"] as? [Any]) ?? (dictionary["destinations"] as? [Any]) ?? []
+            (dictionary["data"] as? [Any]) ?? (dictionary["destinations"] as? [Any]) ?? []
         } else {
-            rawItems = []
+            []
         }
 
         let destinations = rawItems.compactMap { item -> SmartravellerDestination? in
@@ -234,7 +231,7 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
 }
 
 public actor WeatherKitAlertProvider: TravelWeatherAlertsProvider {
-    nonisolated public let sourceDescriptor = TravelAlertSourceDescriptor(
+    public nonisolated let sourceDescriptor = TravelAlertSourceDescriptor(
         name: "WeatherKit",
         url: URL(string: "https://developer.apple.com/weatherkit/")
     )
@@ -330,7 +327,7 @@ public actor WeatherKitAlertProvider: TravelWeatherAlertsProvider {
 }
 
 public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
-    nonisolated public let sourceDescriptor = TravelAlertSourceDescriptor(
+    public nonisolated let sourceDescriptor = TravelAlertSourceDescriptor(
         name: "ReliefWeb",
         url: URL(string: "https://reliefweb.int")
     )
@@ -455,34 +452,32 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
         let nearbyReports = reports.filter { CountryNameResolver().normalized($0.primaryCountryName) != primaryNormalizer }
         let currentCountryRecentReports = currentCountryReports.filter { now.timeIntervalSince($0.date) <= 24 * 3_600 }
 
-        let severity: TravelAlertSeverity
-        if currentCountryRecentReports.isEmpty == false {
-            severity = .warning
+        let severity: TravelAlertSeverity = if currentCountryRecentReports.isEmpty == false {
+            .warning
         } else if currentCountryReports.isEmpty == false || nearbyReports.count >= 2 {
-            severity = .caution
+            .caution
         } else if nearbyReports.isEmpty == false {
-            severity = .info
+            .info
         } else {
-            severity = .clear
+            .clear
         }
 
         let latestReport = reports.sorted { $0.date > $1.date }.first
-        let summary: String
-        switch severity {
+        let summary = switch severity {
         case .warning:
-            summary = "\(currentCountryRecentReports.count) recent security bulletin(s) mention \(primaryCountryName)."
+            "\(currentCountryRecentReports.count) recent security bulletin(s) mention \(primaryCountryName)."
         case .caution:
             if currentCountryReports.isEmpty == false {
-                summary = "Security reporting mentions \(primaryCountryName) within the last 72 hours."
+                "Security reporting mentions \(primaryCountryName) within the last 72 hours."
             } else {
-                summary = "\(nearbyReports.count) nearby security bulletins were published recently."
+                "\(nearbyReports.count) nearby security bulletins were published recently."
             }
         case .info:
-            summary = "A nearby security bulletin was published within the last 72 hours."
+            "A nearby security bulletin was published within the last 72 hours."
         case .clear:
-            summary = "No recent security bulletins across \(matchedCountryNames.count) monitored countries."
+            "No recent security bulletins across \(matchedCountryNames.count) monitored countries."
         case .critical:
-            summary = "Regional security conditions require immediate review."
+            "Regional security conditions require immediate review."
         }
 
         let sourceURL = latestReport?.urlAlias.flatMap { alias -> URL? in
@@ -549,7 +544,7 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
     }
 }
 
-struct CountryNameResolver: Sendable {
+struct CountryNameResolver {
     private let locale = Locale(identifier: "en_US_POSIX")
 
     func primaryName(for countryCode: String) -> String? {
@@ -579,14 +574,14 @@ struct CountryNameResolver: Sendable {
     }
 }
 
-struct WeatherAlertPayload: Sendable {
+struct WeatherAlertPayload {
     let detailsURL: URL
     let source: String
     let summary: String
     let severity: WeatherSeverity
 }
 
-struct SecurityReportPayload: Sendable {
+struct SecurityReportPayload {
     let title: String
     let date: Date
     let primaryCountryName: String
@@ -594,7 +589,7 @@ struct SecurityReportPayload: Sendable {
     let urlAlias: String?
 }
 
-struct AdvisoryMatch: Sendable {
+struct AdvisoryMatch {
     let countryCode: String
     let countryName: String
     let destination: SmartravellerDestination
@@ -604,7 +599,7 @@ struct AdvisoryMatch: Sendable {
     }
 }
 
-struct SmartravellerDestination: Sendable {
+struct SmartravellerDestination {
     let name: String
     let level: Int
     let url: URL?

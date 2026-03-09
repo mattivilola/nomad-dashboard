@@ -19,7 +19,8 @@ public final class AppSettingsStore: ObservableObject {
         self.key = key
 
         if let data = defaults.data(forKey: key),
-           let decoded = try? decoder.decode(AppSettings.self, from: data) {
+           let decoded = try? decoder.decode(AppSettings.self, from: data)
+        {
             settings = decoded
         } else {
             settings = AppSettings()
@@ -38,4 +39,3 @@ public final class AppSettingsStore: ObservableObject {
         defaults.set(data, forKey: key)
     }
 }
-

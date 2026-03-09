@@ -77,13 +77,13 @@ public extension DashboardSnapshot {
     private static func batterySymbolName(for chargePercent: Double) -> String {
         switch chargePercent {
         case ...0.25:
-            return "battery.25percent"
+            "battery.25percent"
         case ...0.5:
-            return "battery.50percent"
+            "battery.50percent"
         case ...0.75:
-            return "battery.75percent"
+            "battery.75percent"
         default:
-            return "battery.100percent"
+            "battery.100percent"
         }
     }
 }

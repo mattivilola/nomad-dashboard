@@ -25,3 +25,5 @@ DerivedDataValidation/info.plist
 DerivedDataValidation/Logs/Package/*.xcactivitylog
 App/Resources/Generated/
 Packages/**/.build/
+.cache/
+.tmp-home/

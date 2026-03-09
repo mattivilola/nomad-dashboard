@@ -7,7 +7,7 @@ import Testing
 struct DashboardSnapshotStoreTests {
     @Test
     func refreshBuildsSnapshotFromDependencies() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = true
         settingsStore.settings.surfSpotName = "Helsinki Beach"
         settingsStore.settings.surfSpotLatitude = 60.1699
@@ -31,7 +31,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func refreshStoresUniqueVisitedPlaceFromIPAndDeviceLocation() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = true
         settingsStore.settings.visitedPlacesEnabled = true
 
@@ -51,7 +51,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func refreshSkipsVisitedPlaceCaptureWhenHistoryIsDisabled() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = true
         settingsStore.settings.visitedPlacesEnabled = false
 
@@ -68,7 +68,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func refreshSkipsLocationLookupWhenGeolocationIsDisabled() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = false
         settingsStore.settings.useCurrentLocationForWeather = false
 
@@ -91,7 +91,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func refreshKeepsPublicIPWhenLocationLookupFails() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = true
         settingsStore.settings.useCurrentLocationForWeather = false
 
@@ -111,7 +111,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func refreshMarksWeatherLocationRequirementWhenCoordinateIsMissing() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         let dependencies = makeDependencies(
             weatherProvider: MissingCoordinateWeatherProvider(),
             historyStore: InMemoryHistoryStore()
@@ -127,7 +127,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func refreshSkipsMarineLookupWhenSurfSpotIsBlank() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         let marineProvider = RecordingMarineProvider()
         let dependencies = makeDependencies(
             marineProvider: marineProvider,
@@ -145,7 +145,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func refreshMarksMarineAsUnavailableWhenProviderFails() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.surfSpotName = "Helsinki Beach"
         settingsStore.settings.surfSpotLatitude = 60.1699
         settingsStore.settings.surfSpotLongitude = 24.9384
@@ -166,7 +166,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func refreshKeepsMarineWhenWeatherFails() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.surfSpotName = "Helsinki Beach"
         settingsStore.settings.surfSpotLatitude = 60.1699
         settingsStore.settings.surfSpotLongitude = 24.9384
@@ -187,7 +187,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func refreshBuildsTravelAlertsFromEnabledProviders() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = true
         settingsStore.settings.travelAdvisoryEnabled = true
         settingsStore.settings.travelWeatherAlertsEnabled = true
@@ -216,7 +216,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func refreshMarksTravelWeatherAlertsLocationRequirementWhenCoordinateIsMissing() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = false
         settingsStore.settings.useCurrentLocationForWeather = false
         settingsStore.settings.travelWeatherAlertsEnabled = true
@@ -235,7 +235,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func refreshMarksRegionalSecurityConfigurationRequirementWhenSourceNeedsSetup() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = true
         settingsStore.settings.regionalSecurityEnabled = true
 
@@ -257,7 +257,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func refreshPreservesLastKnownTravelAlertWhenSourceFailsAfterSuccess() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = true
         settingsStore.settings.travelWeatherAlertsEnabled = true
 
@@ -305,7 +305,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func fastRefreshPreservesResolvedTravelAlertState() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = false
         settingsStore.settings.useCurrentLocationForWeather = false
         settingsStore.settings.travelWeatherAlertsEnabled = true
@@ -325,7 +325,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func settingsChangesRefreshTravelAlertsImmediately() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = true
         settingsStore.settings.travelAdvisoryEnabled = false
         let advisoryProvider = RecordingTravelAdvisoryProvider()
@@ -349,7 +349,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func settingsChangesRefreshMarineImmediately() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         let marineProvider = RecordingMarineProvider()
         let dependencies = makeDependencies(
             marineProvider: marineProvider,
@@ -371,7 +371,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func settingsChangesPropagateAutomaticUpdateChecks() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.automaticUpdateChecksEnabled = false
         let updateCoordinator = RecordingUpdateCoordinator()
         let dependencies = makeDependencies(
@@ -393,7 +393,7 @@ struct DashboardSnapshotStoreTests {
 
     @Test
     func changingHistoryRetentionPrunesSnapshotHistoryImmediately() async throws {
-        let settingsStore = AppSettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.historyRetentionHours = 24
 
         let now = Date()
@@ -759,7 +759,7 @@ private struct MissingConfigurationRegionalSecurityProvider: RegionalSecurityPro
 }
 
 private actor SequenceTravelWeatherAlertsProvider: TravelWeatherAlertsProvider {
-    enum Response: Sendable {
+    enum Response {
         case success(TravelAlertSignalSnapshot)
         case failure(ProviderError)
     }

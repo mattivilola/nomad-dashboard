@@ -7,7 +7,7 @@ public actor LiveWeatherProvider: WeatherProvider {
     private let ttl: TimeInterval
     private var cache: (key: String, snapshot: WeatherSnapshot)?
 
-    public init(service: WeatherService = WeatherService(), ttl: TimeInterval = 1800) {
+    public init(service: WeatherService = WeatherService(), ttl: TimeInterval = 1_800) {
         self.service = service
         self.ttl = ttl
     }

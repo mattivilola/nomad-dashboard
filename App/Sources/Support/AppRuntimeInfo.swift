@@ -97,7 +97,8 @@ enum AppRuntimeInfo {
         let status = SecCodeCopySigningInformation(code, SecCSFlags(rawValue: kSecCSSigningInformation), &signingInformation)
         guard status == errSecSuccess,
               let dictionary = signingInformation as? [String: Any],
-              let certificates = dictionary[kSecCodeInfoCertificates as String] as? [SecCertificate] else {
+              let certificates = dictionary[kSecCodeInfoCertificates as String] as? [SecCertificate]
+        else {
             return []
         }
 

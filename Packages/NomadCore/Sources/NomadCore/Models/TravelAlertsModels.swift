@@ -68,7 +68,9 @@ public struct TravelAlertSignalSnapshot: Codable, Equatable, Sendable, Identifia
     public let affectedCountryCodes: [String]
     public let itemCount: Int?
 
-    public var id: TravelAlertKind { kind }
+    public var id: TravelAlertKind {
+        kind
+    }
 
     public init(
         kind: TravelAlertKind,
@@ -103,7 +105,9 @@ public struct TravelAlertSignalState: Codable, Equatable, Sendable, Identifiable
     public let lastAttemptedAt: Date?
     public let lastSuccessAt: Date?
 
-    public var id: TravelAlertKind { kind }
+    public var id: TravelAlertKind {
+        kind
+    }
 
     public init(
         kind: TravelAlertKind,

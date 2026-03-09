@@ -21,9 +21,9 @@ public final class DashboardSnapshotStore: ObservableObject {
     public init(settingsStore: AppSettingsStore, dependencies: DashboardDependencies, initialSnapshot: DashboardSnapshot = .placeholder) {
         self.settingsStore = settingsStore
         self.dependencies = dependencies
-        self.snapshot = initialSnapshot
-        self.appliedSettings = settingsStore.settings
-        self.snapshot = self.snapshot.replacingTravelAlerts(
+        snapshot = initialSnapshot
+        appliedSettings = settingsStore.settings
+        snapshot = snapshot.replacingTravelAlerts(
             synchronizedTravelAlertsSnapshot(
                 previous: initialSnapshot.travelAlerts,
                 settings: settingsStore.settings,
@@ -50,12 +50,12 @@ public final class DashboardSnapshotStore: ObservableObject {
                 return
             }
 
-            await self.refresh(manual: true)
+            await refresh(manual: true)
 
             while !Task.isCancelled {
-                let interval = self.settingsStore.settings.refreshIntervalSeconds
+                let interval = settingsStore.settings.refreshIntervalSeconds
                 try? await Task.sleep(for: .seconds(interval))
-                await self.refresh()
+                await refresh()
             }
         }
     }
@@ -181,7 +181,8 @@ public final class DashboardSnapshotStore: ObservableObject {
 
             if surfSpotConfiguration.isValid,
                let surfSpotName = surfSpotConfiguration.name,
-               let coordinate = surfSpotConfiguration.coordinate {
+               let coordinate = surfSpotConfiguration.coordinate
+            {
                 do {
                     marineSnapshot = try await dependencies.marineProvider.marine(
                         for: MarineSpot(name: surfSpotName, coordinate: coordinate)
@@ -224,7 +225,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             await loadVisitedPlaces()
         }
 
-        let history = (try? await dependencies.historyStore.loadAll()) ?? [:]
+        let history = await (try? dependencies.historyStore.loadAll()) ?? [:]
         let updateState = await dependencies.updateCoordinator.currentState()
         let timeZoneIdentifier = locationSnapshot?.timeZone ?? TimeZone.current.identifier
 
@@ -276,8 +277,8 @@ public final class DashboardSnapshotStore: ObservableObject {
                     return
                 }
 
-                let previousSettings = self.appliedSettings
-                self.appliedSettings = newSettings
+                let previousSettings = appliedSettings
+                appliedSettings = newSettings
 
                 Task { [weak self] in
                     await self?.applySettingsChange(from: previousSettings, to: newSettings)
@@ -313,7 +314,8 @@ public final class DashboardSnapshotStore: ObservableObject {
 
         if previousSettings.surfSpotName != newSettings.surfSpotName
             || previousSettings.surfSpotLatitude != newSettings.surfSpotLatitude
-            || previousSettings.surfSpotLongitude != newSettings.surfSpotLongitude {
+            || previousSettings.surfSpotLongitude != newSettings.surfSpotLongitude
+        {
             needsManualRefresh = true
         }
 
@@ -349,7 +351,7 @@ public final class DashboardSnapshotStore: ObservableObject {
     }
 
     private func loadVisitedPlaces() async {
-        visitedPlaces = (try? await dependencies.visitedPlacesStore.loadAll()) ?? []
+        visitedPlaces = await (try? dependencies.visitedPlacesStore.loadAll()) ?? []
     }
 
     private func recordVisitedPlace(from snapshot: IPLocationSnapshot, visitedAt: Date) async -> Bool {
@@ -465,8 +467,8 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         if preferences.advisoryEnabled {
-            states.append(
-                await refreshAlertState(
+            await states.append(
+                refreshAlertState(
                     kind: .advisory,
                     previous: previousSnapshot?.state(for: .advisory),
                     source: dependencies.travelAdvisoryProvider.sourceDescriptor,
@@ -488,8 +490,8 @@ public final class DashboardSnapshotStore: ObservableObject {
 
         if preferences.weatherEnabled {
             let weatherAlertCoordinate = currentCoordinate ?? locationSnapshot?.coordinate
-            states.append(
-                await refreshAlertState(
+            await states.append(
+                refreshAlertState(
                     kind: .weather,
                     previous: previousSnapshot?.state(for: .weather),
                     source: dependencies.travelWeatherAlertsProvider.sourceDescriptor,
@@ -505,8 +507,8 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         if preferences.securityEnabled {
-            states.append(
-                await refreshAlertState(
+            await states.append(
+                refreshAlertState(
                     kind: .security,
                     previous: previousSnapshot?.state(for: .security),
                     source: dependencies.regionalSecurityProvider.sourceDescriptor,

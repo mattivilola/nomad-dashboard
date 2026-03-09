@@ -100,7 +100,7 @@ public struct VisitedPlace: Codable, Equatable, Sendable, Identifiable {
 
     func merging(input: VisitedPlaceInput) -> VisitedPlace {
         let normalizedInput = Self.normalized(input)
-        let sources = (self.sources + [normalizedInput.source]).uniqued()
+        let sources = (sources + [normalizedInput.source]).uniqued()
         let preferredReplacement = normalizedInput.source == .deviceLocation || coordinate == nil
 
         return VisitedPlace(
@@ -144,7 +144,7 @@ public struct VisitedPlace: Codable, Equatable, Sendable, Identifiable {
             return "\(normalizedCountryCode)|\(normalizedCity)"
         }
 
-        return "\((normalizedCountry ?? "__unknown__"))|\(normalizedCity)"
+        return "\(normalizedCountry ?? "__unknown__")|\(normalizedCity)"
     }
 
     private static func normalized(_ input: VisitedPlaceInput) -> VisitedPlaceInput {
@@ -191,7 +191,7 @@ public struct VisitedPlaceSummary: Equatable, Sendable {
     }
 }
 
-public extension Array where Element == VisitedPlace {
+public extension [VisitedPlace] {
     var visitedPlaceSummary: VisitedPlaceSummary {
         let countryKeys = compactMap { place in
             if let countryCode = place.countryCode, countryCode.isEmpty == false {
@@ -202,7 +202,7 @@ public extension Array where Element == VisitedPlace {
         }
 
         return VisitedPlaceSummary(
-            citiesVisited: filter { $0.supportsMapPin }.count,
+            citiesVisited: count(where: { $0.supportsMapPin }),
             countriesVisited: Set(countryKeys).count,
             latestVisitAt: map(\.lastVisitedAt).max()
         )

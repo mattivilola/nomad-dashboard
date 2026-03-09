@@ -477,7 +477,8 @@ public struct DashboardPanelView: View {
 
     private var travelSubtitle: String {
         if let location = snapshot.travelContext.location,
-           let formattedLocation = formattedLocation(location) {
+           let formattedLocation = formattedLocation(location)
+        {
             return formattedLocation
         }
 
@@ -526,7 +527,8 @@ public struct DashboardPanelView: View {
 
     private var locationValue: String {
         if let location = snapshot.travelContext.location,
-           let formattedLocation = formattedLocation(location) {
+           let formattedLocation = formattedLocation(location)
+        {
             return formattedLocation
         }
 
@@ -706,13 +708,13 @@ public struct DashboardPanelView: View {
     private func powerSubtitle(_ snapshot: PowerSnapshot) -> String {
         switch snapshot.state {
         case .battery:
-            return "Running on battery"
+            "Running on battery"
         case .charging:
-            return "Charging"
+            "Charging"
         case .charged:
-            return "Connected to power"
+            "Connected to power"
         case .unknown:
-            return "Power status unavailable"
+            "Power status unavailable"
         }
     }
 
@@ -727,7 +729,7 @@ public struct DashboardPanelView: View {
             snapshot.transmitRateMbps.map { String(format: "%.0f Mbps", $0) }
         ]
 
-        let description = pieces.compactMap { $0 }.joined(separator: " · ")
+        let description = pieces.compactMap(\.self).joined(separator: " · ")
         return description.isEmpty ? "Connected" : description
     }
 }
@@ -1037,20 +1039,20 @@ struct TravelAlertsCardPresentation: Equatable {
 
     init(preferences: TravelAlertPreferences, snapshot: TravelAlertsSnapshot?) {
         guard preferences.enabledKinds.isEmpty == false else {
-            self.badge = .off
-            self.rows = []
-            self.showsAllClearRow = false
+            badge = .off
+            rows = []
+            showsAllClearRow = false
             return
         }
 
         guard let snapshot else {
-            self.badge = .checking
-            self.rows = []
-            self.showsAllClearRow = false
+            badge = .checking
+            rows = []
+            showsAllClearRow = false
             return
         }
 
-        self.rows = preferences.enabledKinds.compactMap { kind in
+        rows = preferences.enabledKinds.compactMap { kind in
             guard let state = snapshot.state(for: kind) else {
                 return nil
             }
@@ -1058,8 +1060,8 @@ struct TravelAlertsCardPresentation: Equatable {
             return TravelAlertRowModel(state: state)
         }
 
-        self.showsAllClearRow = snapshot.allResolvedClear
-        self.badge = TravelAlertsBadgePresentation.resolve(for: snapshot)
+        showsAllClearRow = snapshot.allResolvedClear
+        badge = TravelAlertsBadgePresentation.resolve(for: snapshot)
     }
 }
 
@@ -1342,8 +1344,8 @@ private struct WeatherEmptyState: View {
     let title: String
     let systemImage: String
     let message: String
-    var actionTitle: String? = nil
-    var action: (() -> Void)? = nil
+    var actionTitle: String?
+    var action: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -1554,15 +1556,15 @@ struct SurfForecastSlotPresentation: Identifiable, Equatable {
     let windValue: String
 
     init(index: Int, slot: MarineForecastSlot) {
-        self.id = "\(index)-\(slot.date.timeIntervalSinceReferenceDate)"
-        self.title = switch index {
+        id = "\(index)-\(slot.date.timeIntervalSinceReferenceDate)"
+        title = switch index {
         case 0: "Now"
         case 1: "+3h"
         case 2: "+6h"
         default: "+12h"
         }
-        self.waveValue = NomadFormatters.meters(slot.waveHeightMeters)
-        self.windValue = slot.windSpeedKph.map {
+        waveValue = NomadFormatters.meters(slot.waveHeightMeters)
+        windValue = slot.windSpeedKph.map {
             "\(NomadFormatters.kilometersPerHour($0)) · \(NomadFormatters.compassDirection(slot.windDirectionDegrees))"
         } ?? "n/a"
     }
@@ -1653,7 +1655,8 @@ private func renderablePoints(_ points: [MetricPoint]) -> [MetricPoint]? {
 
     guard let minimum = points.map(\.value).min(),
           let maximum = points.map(\.value).max(),
-          abs(maximum - minimum) > 0.01 else {
+          abs(maximum - minimum) > 0.01
+    else {
         return nil
     }
 

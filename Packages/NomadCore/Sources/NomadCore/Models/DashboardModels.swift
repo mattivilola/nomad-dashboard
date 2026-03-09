@@ -5,7 +5,9 @@ public struct MetricPoint: Codable, Equatable, Sendable, Identifiable {
     public let timestamp: Date
     public let value: Double
 
-    public var id: Date { timestamp }
+    public var id: Date {
+        timestamp
+    }
 
     public init(timestamp: Date, value: Double) {
         self.timestamp = timestamp
@@ -258,7 +260,9 @@ public struct MarineForecastSlot: Equatable, Sendable, Identifiable {
     public let windSpeedKph: Double?
     public let windDirectionDegrees: Double?
 
-    public var id: Date { date }
+    public var id: Date {
+        date
+    }
 
     public init(
         date: Date,

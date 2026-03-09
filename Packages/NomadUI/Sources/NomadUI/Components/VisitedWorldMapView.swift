@@ -146,12 +146,12 @@ private final class VisitedPlaceAnnotation: NSObject, MKAnnotation {
         self.coordinate = coordinate
 
         if let city = place.city, city.isEmpty == false {
-            self.title = city
+            title = city
         } else {
-            self.title = place.country
+            title = place.country
         }
 
-        self.subtitle = place.city == nil ? (place.countryCode ?? place.country) : place.country
+        subtitle = place.city == nil ? (place.countryCode ?? place.country) : place.country
     }
 }
 

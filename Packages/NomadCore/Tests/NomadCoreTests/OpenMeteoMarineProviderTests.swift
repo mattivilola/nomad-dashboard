@@ -26,18 +26,18 @@ struct OpenMeteoMarineProviderTests {
             }
 
             if url.host == "marine-api.open-meteo.com" {
-                return (try marinePayload(times: timeline), response)
+                return try (marinePayload(times: timeline), response)
             }
 
             if url.host == "api.open-meteo.com" {
-                return (try forecastPayload(times: timeline), response)
+                return try (forecastPayload(times: timeline), response)
             }
 
             Issue.record("Unexpected URL: \(url.absoluteString)")
             throw ProviderError.invalidResponse
         }
 
-        let provider = LiveOpenMeteoMarineProvider(session: session, ttl: 1800)
+        let provider = LiveOpenMeteoMarineProvider(session: session, ttl: 1_800)
         let snapshot = try await provider.marine(
             for: MarineSpot(
                 name: "El Saler",
