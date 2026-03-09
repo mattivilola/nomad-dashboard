@@ -11,6 +11,10 @@ let package = Package(
         .library(
             name: "NomadCore",
             targets: ["NomadCore"]
+        ),
+        .executable(
+            name: "NomadSourceProbe",
+            targets: ["NomadSourceProbe"]
         )
     ],
     targets: [
@@ -19,6 +23,10 @@ let package = Package(
             resources: [
                 .process("Resources")
             ]
+        ),
+        .executableTarget(
+            name: "NomadSourceProbe",
+            dependencies: ["NomadCore"]
         ),
         .testTarget(
             name: "NomadCoreTests",

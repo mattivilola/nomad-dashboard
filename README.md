@@ -68,7 +68,9 @@ docs/                   Architecture, UX, release, roadmap, privacy notes
    `make rerun`
 7. Run the tests:
    `make test`
-8. Prepare a versioned release:
+8. Probe the live external data sources:
+   `make probe-sources`
+9. Prepare a versioned release:
    `make release-patch`
 
 The generated `.xcodeproj` is intentionally not committed. `project.yml` is the
@@ -83,6 +85,13 @@ to quit the current menu bar instance first.
 
 `make rerun` quits the current dev instance, rebuilds, and launches the latest
 app again.
+
+`make probe-sources` runs a CLI helper that exercises the live upstream data
+sources used by the app. Pass extra arguments through the script directly, for
+example:
+`./scripts/probe-external-sources.sh --country-code ES --latitude 39.4699 --longitude -0.3763`
+Set `RELIEFWEB_APPNAME` if you want to override the default ReliefWeb app name
+used by the probe.
 
 ## Release Workflow
 
