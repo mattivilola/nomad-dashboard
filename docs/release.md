@@ -46,24 +46,21 @@ Nomad Dashboard is distributed directly outside the Mac App Store.
 2. Merge or fast-forward `staging` into `main`.
 3. Confirm `git status --short` is empty on `main`.
 4. Update `CHANGELOG.md` under `## [Unreleased]`.
-5. Cut the release version and tag on `main`:
+5. Cut the release version and tag on `main`, then push both automatically to `origin`:
    - `make release-patch`
    - `make release-minor`
    - `make release-major`
-6. Push `main` and the new tag:
-   - `git push origin main`
-   - `git push origin --tags`
-7. Run a local pipeline preview:
+6. Run a local pipeline preview:
    `make release-dry-run`
-8. Build, sign, notarize, staple, and package the release:
+7. Build, sign, notarize, staple, and package the release:
    `make release`
    - `make release` now does an upfront GitHub preflight and aborts immediately if the release tag has not been pushed yet.
-9. Verify the GitHub release includes:
+8. Verify the GitHub release includes:
    - `NomadDashboard-<version>.zip`
    - `NomadDashboard-<version>.dmg`
    - `appcast.xml`
-10. Install from the DMG, launch the app, and verify `Check for Updates` reaches the published GitHub appcast.
-11. Verify the installed release can load current weather and WeatherKit-backed travel weather alerts.
+9. Install from the DMG, launch the app, and verify `Check for Updates` reaches the published GitHub appcast.
+10. Verify the installed release can load current weather and WeatherKit-backed travel weather alerts.
 
 ## Commands
 
@@ -75,6 +72,8 @@ Nomad Dashboard is distributed directly outside the Mac App Store.
   Prints the exact version, tag, repository, feed URL, and artifact paths the release pipeline will use.
 - `make release`
   Verifies the pushed release tag first, then runs signing/notarization and publishes the versioned Sparkle zip, DMG, and `appcast.xml` to GitHub Releases.
+- `make release-patch`, `make release-minor`, `make release-major`
+  Prepare the release locally, then push the current branch and the new tag to `origin`.
 
 ## Notes
 
