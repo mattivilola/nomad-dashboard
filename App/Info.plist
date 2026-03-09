@@ -24,6 +24,8 @@
 	<string>public.app-category.travel</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSLocationUsageDescription</key>
+	<string>Nomad Dashboard uses your location to show local weather and travel context.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Nomad Dashboard uses your location to show local weather and travel context.</string>
 	<key>SUEnableAutomaticChecks</key>

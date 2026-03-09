@@ -42,6 +42,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.travel
         LSUIElement: true
+        NSLocationUsageDescription: Nomad Dashboard uses your location to show local weather and travel context.
         NSLocationWhenInUseUsageDescription: Nomad Dashboard uses your location to show local weather and travel context.
         SUEnableAutomaticChecks: true
         SUFeedURL: $(SPARKLE_FEED_URL)
