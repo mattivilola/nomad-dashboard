@@ -399,7 +399,7 @@ struct NomadUITests {
         )
 
         #expect(presentation.badge.title == "Location Needed")
-        #expect(presentation.visualMode == .staticScene)
+        #expect(presentation.visualMode == .ambient)
         #expect(presentation.emptyMessage == "Allow location access to use current fuel prices.")
     }
 
@@ -437,7 +437,7 @@ struct NomadUITests {
         )
 
         #expect(presentation.badge.title == "Unsupported")
-        #expect(presentation.visualMode == .staticScene)
+        #expect(presentation.visualMode == .ambient)
         #expect(presentation.emptyMessage == "Fuel prices are not supported in Finland yet.")
     }
 }

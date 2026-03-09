@@ -29,10 +29,16 @@ private protocol CountryFuelPriceSource: Sendable {
     func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot
 }
 
-struct FuelPriceProviderError: Error, Sendable {
-    let sourceName: String
-    let sourceURL: URL?
-    let underlyingDescription: String
+public struct FuelPriceProviderError: Error, Sendable {
+    public let sourceName: String
+    public let sourceURL: URL?
+    public let underlyingDescription: String
+
+    public init(sourceName: String, sourceURL: URL?, underlyingDescription: String) {
+        self.sourceName = sourceName
+        self.sourceURL = sourceURL
+        self.underlyingDescription = underlyingDescription
+    }
 }
 
 public actor LiveEuropeanFuelPriceProvider: FuelPriceProvider {

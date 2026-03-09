@@ -2039,7 +2039,7 @@ struct FuelPricesSectionPresentation {
             emptyActionTitle = nil
         case .unsupported:
             badge = PillBadge(title: "Unsupported", symbolName: "globe.badge.chevron.backward", tint: NomadTheme.primaryText)
-            visualMode = .staticScene
+            visualMode = .ambient
             subtitle = fuelPrices.countryName ?? "Unsupported country"
             rows = []
             emptyTitle = "Country Unsupported"
@@ -2048,7 +2048,7 @@ struct FuelPricesSectionPresentation {
             emptyActionTitle = nil
         case .locationRequired:
             badge = PillBadge(title: "Location Needed", symbolName: "location.slash.fill", tint: NomadTheme.sand)
-            visualMode = .staticScene
+            visualMode = .ambient
             subtitle = "Precise location is required"
             rows = []
             emptyTitle = "Current Location Needed"
@@ -2057,7 +2057,7 @@ struct FuelPricesSectionPresentation {
             emptyActionTitle = "Open Settings"
         case .configurationRequired:
             badge = PillBadge(title: "Setup", symbolName: "key.fill", tint: NomadTheme.sand)
-            visualMode = .staticScene
+            visualMode = .ambient
             subtitle = fuelPrices.sourceName
             rows = []
             emptyTitle = "Source Setup Needed"
@@ -2066,7 +2066,7 @@ struct FuelPricesSectionPresentation {
             emptyActionTitle = "Open Settings"
         case .unavailable:
             badge = PillBadge(title: "Unavailable", symbolName: "wifi.exclamationmark", tint: NomadTheme.primaryText)
-            visualMode = .staticScene
+            visualMode = .ambient
             subtitle = fuelPrices.sourceName
             rows = []
             emptyTitle = "Fuel Prices Unavailable"
@@ -2075,7 +2075,7 @@ struct FuelPricesSectionPresentation {
             emptyActionTitle = nil
         case .noStationsFound:
             badge = PillBadge(title: "No Matches", symbolName: "mappin.slash", tint: NomadTheme.primaryText)
-            visualMode = .staticScene
+            visualMode = .ambient
             subtitle = fuelPrices.countryName.map { "\($0) · within \(Int(fuelPrices.searchRadiusKilometers)) km" }
                 ?? "Within \(Int(fuelPrices.searchRadiusKilometers)) km"
             rows = []
