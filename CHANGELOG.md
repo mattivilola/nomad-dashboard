@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.9] - 2026-03-09
+
+### Changed
+
+- Add support for local release signing overrides
+
 ## [0.1.8] - 2026-03-09
 
 ### Added
