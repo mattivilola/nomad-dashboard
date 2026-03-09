@@ -303,15 +303,18 @@ public struct DashboardPanelView: View {
                         HStack(spacing: 12) {
                             MetricBlock(
                                 title: "Current",
-                                value: metricValue(weather.currentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating")
+                                value: metricValue(weather.currentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating"),
+                                typography: .compact
                             )
                             MetricBlock(
                                 title: "Feels Like",
-                                value: metricValue(weather.apparentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating")
+                                value: metricValue(weather.apparentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating"),
+                                typography: .compact
                             )
                             MetricBlock(
                                 title: "Rain",
-                                value: weather.precipitationChance.map { NomadFormatters.precipitation($0) } ?? "Estimating"
+                                value: weather.precipitationChance.map { NomadFormatters.precipitation($0) } ?? "Estimating",
+                                typography: .compact
                             )
                         }
 
@@ -574,9 +577,9 @@ public struct DashboardPanelView: View {
             if let marine = presentation.marine {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 12) {
-                        MetricBlock(title: "Wave", value: presentation.waveSummary)
-                        MetricBlock(title: "Swell", value: presentation.swellSummary)
-                        MetricBlock(title: "Wind", value: presentation.windSummary)
+                        MetricBlock(title: "Wave", value: presentation.waveSummary, typography: .compact)
+                        MetricBlock(title: "Swell", value: presentation.swellSummary, typography: .compact)
+                        MetricBlock(title: "Wind", value: presentation.windSummary, typography: .compact)
                     }
 
                     HStack(spacing: 8) {
@@ -862,8 +865,41 @@ private struct SummaryTile: View {
 }
 
 private struct MetricBlock: View {
+    enum Typography {
+        case standard
+        case compact
+
+        var font: Font {
+            switch self {
+            case .standard:
+                .system(size: 22, weight: .semibold, design: .rounded)
+            case .compact:
+                .system(size: 20, weight: .semibold, design: .rounded)
+            }
+        }
+
+        var lineLimit: Int {
+            switch self {
+            case .standard:
+                2
+            case .compact:
+                1
+            }
+        }
+
+        var minimumScaleFactor: CGFloat {
+            switch self {
+            case .standard:
+                0.65
+            case .compact:
+                0.75
+            }
+        }
+    }
+
     let title: String
     let value: String
+    var typography: Typography = .standard
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -872,10 +908,10 @@ private struct MetricBlock: View {
                 .foregroundStyle(NomadTheme.tertiaryText)
 
             Text(value)
-                .font(.system(size: 22, weight: .semibold, design: .rounded))
+                .font(typography.font)
                 .foregroundStyle(metricTint)
-                .lineLimit(2)
-                .minimumScaleFactor(0.65)
+                .lineLimit(typography.lineLimit)
+                .minimumScaleFactor(typography.minimumScaleFactor)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
