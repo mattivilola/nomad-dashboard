@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.7] - 2026-03-09
+
+### Changed
+
+- Ensure correct signing of Sparkle framework components
+
 ## [0.1.6] - 2026-03-09
 
 ### Added
