@@ -115,24 +115,14 @@ struct MenuBarStatusLabel: View {
     let snapshot: DashboardSnapshot
 
     var body: some View {
+        let presentation = snapshot.menuBarStatusPresentation
+
         HStack(spacing: 6) {
-            Image(systemName: symbolName)
-            if let percentage = snapshot.power.snapshot?.chargePercent {
-                Text("\(Int(percentage * 100))%")
+            Image(systemName: presentation.symbolName)
+            if let text = presentation.text {
+                Text(text)
                     .monospacedDigit()
             }
         }
-    }
-
-    private var symbolName: String {
-        if snapshot.travelContext.vpn?.isActive == true {
-            return "lock.shield.fill"
-        }
-
-        if let latency = snapshot.network.latency?.milliseconds, latency > 90 {
-            return "wifi.exclamationmark"
-        }
-
-        return "suitcase.rolling.fill"
     }
 }
