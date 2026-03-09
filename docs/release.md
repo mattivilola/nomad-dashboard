@@ -57,6 +57,7 @@ Nomad Dashboard is distributed directly outside the Mac App Store.
    `make release-dry-run`
 8. Build, sign, notarize, staple, and package the release:
    `make release`
+   - `make release` now does an upfront GitHub preflight and aborts immediately if the release tag has not been pushed yet.
 9. Verify the GitHub release includes:
    - `NomadDashboard-<version>.zip`
    - `NomadDashboard-<version>.dmg`
@@ -73,7 +74,7 @@ Nomad Dashboard is distributed directly outside the Mac App Store.
 - `make release-dry-run`
   Prints the exact version, tag, repository, feed URL, and artifact paths the release pipeline will use.
 - `make release`
-  Runs signing/notarization first, then publishes the versioned Sparkle zip, DMG, and `appcast.xml` to GitHub Releases.
+  Verifies the pushed release tag first, then runs signing/notarization and publishes the versioned Sparkle zip, DMG, and `appcast.xml` to GitHub Releases.
 
 ## Notes
 

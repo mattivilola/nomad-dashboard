@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.13] - 2026-03-09
+
+### Changed
+
+- Add release preflight to verify remote tag
+
 ## [0.1.12] - 2026-03-09
 
 ### Added

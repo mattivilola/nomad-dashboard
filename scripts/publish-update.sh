@@ -31,6 +31,7 @@ assert_changelog_present
 assert_release_tag_matches_head
 assert_publish_config
 assert_github_auth
+assert_release_tag_exists_in_remote_repo
 ensure_release_dirs
 write_release_notes_files
 

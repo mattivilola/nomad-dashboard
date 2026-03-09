@@ -28,8 +28,10 @@ bootstrap_repo() {
 
   mkdir -p "$repo_path/scripts" "$repo_path/Config"
   cp "$REPO_ROOT/scripts/release-common.sh" "$repo_path/scripts/release-common.sh"
+  cp "$REPO_ROOT/scripts/release-preflight.sh" "$repo_path/scripts/release-preflight.sh"
   cp "$REPO_ROOT/scripts/sign-and-notarize.sh" "$repo_path/scripts/sign-and-notarize.sh"
   cp "$REPO_ROOT/scripts/publish-update.sh" "$repo_path/scripts/publish-update.sh"
+  chmod +x "$repo_path/scripts/"*.sh
 
   cat > "$repo_path/Config/Version.xcconfig" <<'EOF'
 MARKETING_VERSION = 0.1.6
@@ -186,10 +188,104 @@ EOF
   assert_contains "$output" "GitHub CLI authentication is invalid" "publish auth failure should explain how to fix gh authentication"
 }
 
+run_release_preflight_missing_remote_tag_test() {
+  local repo_path="$TEST_ROOT/release-preflight-missing-tag"
+  local fake_bin="$TEST_ROOT/release-preflight-fake-bin"
+  local output
+  local exit_code
+
+  bootstrap_repo "$repo_path"
+  mkdir -p "$fake_bin"
+
+  cat > "$fake_bin/gh" <<'EOF'
+#!/bin/zsh
+if [[ "$1" == "auth" && "$2" == "status" ]]; then
+  exit 0
+fi
+
+if [[ "$1" == "api" ]]; then
+  exit 1
+fi
+
+exit 1
+EOF
+
+  chmod +x "$fake_bin/gh"
+
+  set +e
+  output="$(cd "$repo_path" && PATH="$fake_bin:$PATH" ./scripts/release-preflight.sh 2>&1)"
+  exit_code=$?
+  set -e
+
+  if [[ "$exit_code" -eq 0 ]]; then
+    fail "release-preflight should fail when the release tag has not been pushed"
+  fi
+
+  assert_contains "$output" "Push it first" "release preflight should explain that the tag must be pushed before release"
+}
+
+run_publish_missing_remote_tag_test() {
+  local repo_path="$TEST_ROOT/publish-missing-remote-tag"
+  local fake_bin="$repo_path/fake-bin"
+  local output
+  local exit_code
+
+  bootstrap_repo "$repo_path"
+  mkdir -p "$fake_bin"
+  mkdir -p "$repo_path/sparkle-bin"
+  touch "$repo_path/sparkle_private_key.pem"
+
+  cat > "$repo_path/Config/Signing.env" <<EOF
+export NOMAD_GITHUB_REPOSITORY="mattivilola/nomad-dashboard"
+export NOMAD_SPARKLE_PRIVATE_KEY_PATH="$repo_path/sparkle_private_key.pem"
+export NOMAD_SPARKLE_BIN_DIR="$repo_path/sparkle-bin"
+EOF
+
+  cat > "$repo_path/sparkle-bin/generate_appcast" <<'EOF'
+#!/bin/zsh
+exit 0
+EOF
+
+  cat > "$fake_bin/gh" <<'EOF'
+#!/bin/zsh
+if [[ "$1" == "auth" && "$2" == "status" ]]; then
+  exit 0
+fi
+
+if [[ "$1" == "api" ]]; then
+  exit 1
+fi
+
+exit 1
+EOF
+
+  chmod +x "$repo_path/sparkle-bin/generate_appcast" "$fake_bin/gh"
+
+  (
+    cd "$repo_path"
+    git add Config/Signing.env fake-bin sparkle-bin sparkle_private_key.pem
+    git commit -qm "Add publish prerequisites"
+    git tag -fa v0.1.6 -m "Release v0.1.6" >/dev/null
+  )
+
+  set +e
+  output="$(cd "$repo_path" && PATH="$fake_bin:$PATH" ./scripts/publish-update.sh 2>&1)"
+  exit_code=$?
+  set -e
+
+  if [[ "$exit_code" -eq 0 ]]; then
+    fail "publish-update should fail when the release tag has not been pushed"
+  fi
+
+  assert_contains "$output" "Push it first" "publish-update should explain that the tag must be pushed before publishing"
+}
+
 run_sign_dry_run_test
 run_publish_dry_run_test
 run_dirty_tree_rejection_test
 run_missing_signing_config_test
 run_publish_auth_failure_test
+run_release_preflight_missing_remote_tag_test
+run_publish_missing_remote_tag_test
 
 echo "release publishing tests passed"

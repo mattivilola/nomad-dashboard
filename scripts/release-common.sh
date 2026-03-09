@@ -222,6 +222,20 @@ assert_github_auth() {
   gh auth status >/dev/null 2>&1 || fail "GitHub CLI authentication is invalid. Run 'gh auth login -h github.com' before publishing."
 }
 
+assert_github_repository_config() {
+  load_signing_env
+  [[ -n "${NOMAD_GITHUB_REPOSITORY:-}" ]] || fail "NOMAD_GITHUB_REPOSITORY is not set."
+}
+
+assert_release_tag_exists_in_remote_repo() {
+  local expected_tag
+
+  expected_tag="$(release_tag)"
+  assert_github_repository_config
+
+  gh api "repos/$NOMAD_GITHUB_REPOSITORY/git/ref/tags/$expected_tag" >/dev/null 2>&1 || fail "Tag $expected_tag is not available in $NOMAD_GITHUB_REPOSITORY yet. Push it first with 'git push origin $expected_tag' or 'git push origin --tags'."
+}
+
 assert_signing_identity_available() {
   security find-identity -v -p codesigning | grep -F "$NOMAD_SIGNING_IDENTITY" >/dev/null 2>&1 || fail "Developer ID identity '$NOMAD_SIGNING_IDENTITY' is not available in the current keychain."
 }
