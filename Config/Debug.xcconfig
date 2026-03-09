@@ -1,5 +1,5 @@
 #include "Version.xcconfig"
 
 PRODUCT_BUNDLE_IDENTIFIER = com.iloapps.NomadDashboard
-SPARKLE_FEED_URL = https://github.com/ILOapplications/nomad-dashboard-macosx/releases/latest/download/appcast.xml
+SPARKLE_FEED_URL =
 SPARKLE_PUBLIC_ED_KEY =

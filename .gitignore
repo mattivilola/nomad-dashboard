@@ -13,6 +13,6 @@ dist/
 artifacts/
 *.dmg
 *.xcarchive
+Config/Signing.env
 App/Resources/Generated/
 Packages/**/.build/
-

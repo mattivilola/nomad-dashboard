@@ -10,3 +10,4 @@ export SWIFTPM_MODULECACHE_OVERRIDE="$CACHE_ROOT/module-cache"
 swift test --package-path Packages/NomadCore --scratch-path "$CACHE_ROOT/nomadcore"
 swift test --package-path Packages/NomadUI --scratch-path "$CACHE_ROOT/nomadui"
 ./scripts/test-release-workflow.sh
+zsh ./scripts/test-release-publishing.sh

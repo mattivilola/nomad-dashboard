@@ -56,7 +56,7 @@ struct SettingsView: View {
                 } header: {
                     Text("General")
                 } footer: {
-                    Text(updatesEnabled ? "System follows your macOS appearance. The dashboard header button flips quickly between dark and light, and all preferences stay across relaunches." : "System follows your macOS appearance. The dashboard header button flips quickly between dark and light, and all preferences stay across relaunches. In-app update checks stay paused until the release pipeline is ready.")
+                    Text(updatesEnabled ? "System follows your macOS appearance. The dashboard header button flips quickly between dark and light, and all preferences stay across relaunches." : "System follows your macOS appearance. The dashboard header button flips quickly between dark and light, and all preferences stay across relaunches. In-app update checks only become available in signed release builds that include Sparkle metadata.")
                 }
 
                 Section {

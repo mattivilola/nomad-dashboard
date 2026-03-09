@@ -16,6 +16,27 @@ MOUNT_DIR="$TEMP_DIR/mount"
 DEVICE=""
 VOLUME_ICON_SOURCE=""
 
+while (($# > 0)); do
+  case "$1" in
+    --app-path)
+      APP_PATH="$2"
+      shift 2
+      ;;
+    --output-path)
+      DMG_PATH="$2"
+      shift 2
+      ;;
+    --volume-name)
+      VOLUME_NAME="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
 cleanup() {
   local exit_code="$?"
 
@@ -25,6 +46,19 @@ cleanup() {
 
   rm -rf "$TEMP_DIR"
   exit "$exit_code"
+}
+
+render_temporary_background() {
+  local export_dir="$TEMP_DIR/generated-branding"
+  local renderer_path="$REPO_ROOT/Branding/Source/NomadBrandRenderer.swift"
+  local background_1x="$export_dir/NomadDashboard-dmg-background.png"
+  local background_2x="$export_dir/NomadDashboard-dmg-background@2x.png"
+  local generated_background="$export_dir/NomadDashboard-dmg-background.tiff"
+
+  mkdir -p "$export_dir"
+  swift "$renderer_path" --output-dir "$export_dir" >/dev/null
+  tiffutil -cathidpicheck "$background_1x" "$background_2x" -out "$generated_background"
+  BACKGROUND_SOURCE="$generated_background"
 }
 
 prepare_applications_alias() {
@@ -94,6 +128,7 @@ EOF
 trap cleanup EXIT INT TERM
 
 cd "$REPO_ROOT"
+mkdir -p "$(dirname "$DMG_PATH")"
 
 if [[ ! -d "$APP_PATH" ]]; then
   echo "Archive not found at $APP_PATH. Run ./scripts/archive-release.sh first." >&2
@@ -101,7 +136,7 @@ if [[ ! -d "$APP_PATH" ]]; then
 fi
 
 if [[ ! -f "$BACKGROUND_SOURCE" ]]; then
-  ./scripts/export-brand-assets.sh
+  render_temporary_background
 fi
 
 VOLUME_ICON_SOURCE="$(find "$APP_PATH/Contents/Resources" -maxdepth 1 -name '*.icns' | head -n 1)"

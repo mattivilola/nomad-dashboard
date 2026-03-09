@@ -1,54 +1,80 @@
 # Release Flow
 
-Nomad Dashboard is intended for direct distribution outside the Mac App Store.
+Nomad Dashboard is distributed directly outside the Mac App Store.
 
-## Tooling
+## Branch Policy
 
-- XcodeGen for project generation
-- Xcode for archive builds
-- Sparkle for in-app updates
-- `hdiutil` for DMG creation
-- `swift`, `sips`, and `tiffutil` for brand asset exports
-- Apple notarization tooling for signed releases
+- `staging` is the integration branch.
+- `main` is the official release branch.
+- Finalize release candidates on `staging`, then merge or fast-forward them into `main` before cutting a public release.
+- Public release tags use the exact format `vX.Y.Z` and must point at the same commit as `Config/Version.xcconfig`.
 
-## Current Status
+## One-Time Local Setup
 
-- Status as of March 6, 2026: in-app Sparkle update checks are temporarily disabled.
-- TODO: re-enable automatic and manual update checks after the release pipeline can publish signed app builds and `appcast.xml`.
-- Blocker: the publish/update pipeline has not been created yet.
+1. Install and trust your Developer ID Application certificate in the login keychain.
+2. Re-authenticate GitHub CLI:
+   `gh auth login -h github.com`
+3. Store notarization credentials in the keychain:
+   `xcrun notarytool store-credentials NomadDashboardNotary --apple-id <apple-id> --team-id <team-id>`
+4. Generate or import Sparkle signing keys:
+   `generate_keys --account nomad-dashboard`
+   or export an existing private key to the path referenced by `NOMAD_SPARKLE_PRIVATE_KEY_PATH`.
+5. Create `Config/Signing.env` from `Config/Signing.example.env` and fill in:
+   - `NOMAD_TEAM_ID`
+   - `NOMAD_SIGNING_IDENTITY`
+   - `NOMAD_NOTARY_PROFILE`
+   - `NOMAD_GITHUB_REPOSITORY`
+   - `NOMAD_SPARKLE_PRIVATE_KEY_PATH`
+   - `NOMAD_SPARKLE_PUBLIC_ED_KEY`
+   - optional `NOMAD_SPARKLE_BIN_DIR` if Sparkle CLI tools are not auto-discovered
 
-## Planned Release Steps
+`Config/Signing.env` is ignored by git and should stay local to the release machine.
 
-1. Keep `CHANGELOG.md` updated under `## [Unreleased]` with the clearest user-facing notes you have.
-2. Make sure `git status --short` is empty.
-3. Run one of:
-   `make release-patch`
-   `make release-minor`
-   `make release-major`
-4. Push the resulting release commit and `vX.Y.Z` tag.
-5. Configure signing identities and Sparkle keys locally.
-6. Regenerate branded assets with `make brand-assets`.
-7. Generate the Xcode project.
-8. Archive the app in Release mode.
-9. Sign and notarize the archive.
-10. Create the branded DMG payload for first-time installs with `make dmg`.
-11. Publish the archive and appcast for Sparkle updates.
+## Release Artifacts
 
-The scripts in `scripts/` support dry-run usage until real release credentials
-are available.
+- Sparkle updates are published as `NomadDashboard-<version>.zip`.
+- Manual installs are published as `NomadDashboard-<version>.dmg`.
+- `appcast.xml` is published to the GitHub release and served from:
+  `https://github.com/mattivilola/nomad-dashboard/releases/latest/download/appcast.xml`
+- Release notes for both the GitHub release and Sparkle appcast are sourced from the matching version section in `CHANGELOG.md`.
+
+## Release Checklist
+
+1. Make sure `staging` contains the final release-ready changes.
+2. Merge or fast-forward `staging` into `main`.
+3. Confirm `git status --short` is empty on `main`.
+4. Update `CHANGELOG.md` under `## [Unreleased]`.
+5. Cut the release version and tag on `main`:
+   - `make release-patch`
+   - `make release-minor`
+   - `make release-major`
+6. Push `main` and the new tag:
+   - `git push origin main`
+   - `git push origin --tags`
+7. Run a local pipeline preview:
+   `make release-dry-run`
+8. Build, sign, notarize, staple, and package the release:
+   `make release`
+9. Verify the GitHub release includes:
+   - `NomadDashboard-<version>.zip`
+   - `NomadDashboard-<version>.dmg`
+   - `appcast.xml`
+10. Install from the DMG, launch the app, and verify `Check for Updates` reaches the published GitHub appcast.
+
+## Commands
+
+- `make archive`
+  Creates the release archive. When `Config/Signing.env` is present, release signing metadata is injected at build time.
+- `make dmg`
+  Creates a DMG from the archived app without regenerating tracked branding exports.
+- `make release-dry-run`
+  Prints the exact version, tag, repository, feed URL, and artifact paths the release pipeline will use.
+- `make release`
+  Runs signing/notarization first, then publishes the versioned Sparkle zip, DMG, and `appcast.xml` to GitHub Releases.
 
 ## Notes
 
 - Version metadata lives in `Config/Version.xcconfig`.
-- Release tags use the exact format `vX.Y.Z`.
-- `make brand-assets` regenerates the app icon set, logo exports, DMG background,
-  and custom volume icon from the source in `Branding/`.
-- The release-preparation script always drafts notes from commits since the
-  latest `v*` tag, groups them into `Added`, `Changed`, and `Fixed`, and then
-  merges in any curated `Unreleased` notes.
-- Curated `Unreleased` notes still matter. They are the place to tighten or
-  override wording when commit subjects are too implementation-focused.
-- The release-preparation command aborts on a dirty git tree.
-- The DMG now uses the classic drag-install layout: app on the left,
-  `Applications` symlink on the right, branded background, and custom volume
-  icon.
+- Sparkle remains unavailable in local/dev builds until both `SUFeedURL` and `SUPublicEDKey` are injected into the app bundle.
+- `make brand-assets` is still available for design-time regeneration of tracked branding assets, but it is no longer part of normal DMG packaging.
+- The release-preparation script still drafts notes from commits since the latest `v*` tag and merges any curated `Unreleased` notes.

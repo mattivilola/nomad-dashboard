@@ -22,7 +22,7 @@ settings:
     MACOSX_DEPLOYMENT_TARGET: 14.0
     ENABLE_HARDENED_RUNTIME: YES
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-    SPARKLE_FEED_URL: https://github.com/ILOapplications/nomad-dashboard-macosx/releases/latest/download/appcast.xml
+    SPARKLE_FEED_URL: ""
     SPARKLE_PUBLIC_ED_KEY: ""
 targets:
   NomadDashboard:
