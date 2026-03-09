@@ -5,6 +5,7 @@ PROJECT="NomadDashboard.xcodeproj"
 SCHEME="NomadDashboard"
 DESTINATION="platform=macOS,arch=$(uname -m)"
 DEBUG_SIGNING_CONFIG="Config/Signing.debug.local.xcconfig"
+ALLOW_PROVISIONING_UPDATES="${NOMAD_DEBUG_ALLOW_PROVISIONING_UPDATES:-false}"
 CACHE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nomad-dashboard-xcode.XXXXXX")"
 PACKAGE_ROOT="$CACHE_ROOT/source-packages"
 HOME_ROOT="$CACHE_ROOT/home"
@@ -62,7 +63,12 @@ if [[ "${CI:-}" == "true" ]]; then
     CODE_SIGNING_REQUIRED=NO
   )
 elif debug_signing_is_configured; then
-  echo "Using local debug signing overrides from $DEBUG_SIGNING_CONFIG"
+  if [[ "$ALLOW_PROVISIONING_UPDATES" == "true" ]]; then
+    echo "Using local debug signing overrides from $DEBUG_SIGNING_CONFIG with provisioning updates enabled"
+    BUILD_ARGS+=(-allowProvisioningUpdates)
+  else
+    echo "Using local debug signing overrides from $DEBUG_SIGNING_CONFIG"
+  fi
 else
   echo "Using unsigned local debug build (create $DEBUG_SIGNING_CONFIG to enable signed WeatherKit testing)"
   BUILD_ARGS+=(

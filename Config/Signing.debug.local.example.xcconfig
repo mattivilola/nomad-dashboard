@@ -2,6 +2,8 @@
 // Without this file, local Debug builds fall back to unsigned mode and WeatherKit remains unavailable.
 // This file is included only by Debug.xcconfig and is ignored by git.
 // Use values that match the debug bundle identifier: com.iloapps.NomadDashboard.dev
+// If a signed CLI build says to pass -allowProvisioningUpdates, rerun with:
+//   NOMAD_DEBUG_ALLOW_PROVISIONING_UPDATES=true make build
 
 DEVELOPMENT_TEAM = YOURTEAMID
 CODE_SIGN_STYLE = Automatic
