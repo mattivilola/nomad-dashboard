@@ -545,6 +545,55 @@ struct NomadUITests {
         #expect(presentation.rows.first?.hasGoogleMapsAction == true)
         #expect(presentation.rows.first?.hasMapActions == true)
     }
+
+    @Test
+    func fuelCardVisibilityRatioReflectsVisibleHeight() {
+        let ratio = fuelCardVisibilityRatio(
+            frame: CGRect(x: 0, y: 520, width: 300, height: 200),
+            viewportHeight: 640
+        )
+
+        #expect(abs(ratio - 0.6) < 0.000_1)
+    }
+
+    @Test
+    func fuelBackdropAnimationStateStartsAnimatingAtVisibilityThreshold() {
+        let state = fuelBackdropAnimationState(
+            frame: CGRect(x: 0, y: 570, width: 300, height: 200),
+            viewportHeight: 640,
+            visualMode: .animatedCamper,
+            reduceMotion: false
+        )
+
+        #expect(abs(state.visibilityRatio - 0.35) < 0.000_1)
+        #expect(state.isAnimating)
+    }
+
+    @Test
+    func fuelBackdropAnimationStateStopsAnimatingWhenCardIsNotVisibleEnough() {
+        let state = fuelBackdropAnimationState(
+            frame: CGRect(x: 0, y: 580, width: 300, height: 200),
+            viewportHeight: 640,
+            visualMode: .animatedCamper,
+            reduceMotion: false
+        )
+
+        #expect(abs(state.visibilityRatio - 0.3) < 0.000_1)
+        #expect(state.isAnimating == false)
+    }
+
+    @Test
+    func fuelBackdropAnimationStateStaysStaticForAmbientMode() {
+        let state = fuelBackdropAnimationState(
+            frame: CGRect(x: 0, y: 420, width: 300, height: 200),
+            viewportHeight: 640,
+            visualMode: .ambient,
+            reduceMotion: false
+        )
+
+        #expect(abs(state.visibilityRatio - 1) < 0.000_1)
+        #expect(state.isAnimating == false)
+    }
 }
 
 private func makeTravelAlertsSnapshot(

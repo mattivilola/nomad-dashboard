@@ -13,6 +13,8 @@ struct AppSettingsStoreTests {
         let store = AppSettingsStore(defaults: defaults)
 
         #expect(store.settings.appearanceMode == .system)
+        #expect(store.settings.dashboardCardOrder == DashboardCardID.defaultOrder)
+        #expect(store.settings.dashboardCardWidthModes == DashboardCardID.defaultWidthModes)
         #expect(store.settings.publicIPGeolocationEnabled == true)
         #expect(store.settings.visitedPlacesEnabled == true)
         #expect(store.settings.fuelPricesEnabled == false)
@@ -38,6 +40,44 @@ struct AppSettingsStoreTests {
             let reloaded = AppSettingsStore(defaults: defaults)
             #expect(reloaded.settings.appearanceMode == mode)
         }
+    }
+
+    @Test
+    func persistsDashboardCardOrderChangesToUserDefaults() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = AppSettingsStore(defaults: defaults)
+        let reordered: [DashboardCardID] = [
+            .weather,
+            .travelAlerts,
+            .fuelPrices,
+            .travelContext,
+            .power,
+            .connectivity
+        ]
+
+        store.settings.dashboardCardOrder = reordered
+
+        let reloaded = AppSettingsStore(defaults: defaults)
+        #expect(reloaded.settings.dashboardCardOrder == reordered)
+    }
+
+    @Test
+    func persistsDashboardCardWidthModeChangesToUserDefaults() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.settings.dashboardCardWidthModes[.connectivity] = .narrow
+        store.settings.dashboardCardWidthModes[.weather] = .narrow
+
+        let reloaded = AppSettingsStore(defaults: defaults)
+        #expect(reloaded.settings.dashboardCardWidthModes[.connectivity] == .narrow)
+        #expect(reloaded.settings.dashboardCardWidthModes[.weather] == .narrow)
+        #expect(reloaded.settings.dashboardCardWidthModes[.power] == .wide)
     }
 
     @Test
@@ -110,6 +150,8 @@ struct AppSettingsStoreTests {
         let store = AppSettingsStore(defaults: defaults)
 
         #expect(store.settings.appearanceMode == .system)
+        #expect(store.settings.dashboardCardOrder == DashboardCardID.defaultOrder)
+        #expect(store.settings.dashboardCardWidthModes == DashboardCardID.defaultWidthModes)
         #expect(store.settings.refreshIntervalSeconds == 5)
         #expect(store.settings.slowRefreshIntervalSeconds == 120)
         #expect(store.settings.historyRetentionHours == 36)
@@ -127,9 +169,105 @@ struct AppSettingsStoreTests {
         #expect(store.settings.surfSpotLongitude == nil)
         #expect(store.settings.latencyHosts == ["example.com:443"])
     }
+
+    @Test
+    func sanitizesInvalidPersistedDashboardCardOrder() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let payload = InvalidDashboardCardOrderPayload(
+            appearanceMode: .system,
+            dashboardCardOrder: [
+                DashboardCardID.weather.rawValue,
+                "unknown-card",
+                DashboardCardID.weather.rawValue,
+                DashboardCardID.power.rawValue
+            ],
+            refreshIntervalSeconds: 5,
+            slowRefreshIntervalSeconds: 120,
+            historyRetentionHours: 36,
+            publicIPGeolocationEnabled: false,
+            automaticUpdateChecksEnabled: false,
+            launchAtLoginEnabled: true,
+            useCurrentLocationForWeather: false,
+            latencyHosts: ["example.com:443"]
+        )
+        let data = try JSONEncoder().encode(payload)
+        defaults.set(data, forKey: "NomadDashboard.AppSettings")
+
+        let store = AppSettingsStore(defaults: defaults)
+        #expect(store.settings.dashboardCardOrder == [
+            .weather,
+            .power,
+            .connectivity,
+            .travelContext,
+            .fuelPrices,
+            .travelAlerts
+        ])
+    }
+
+    @Test
+    func sanitizesInvalidPersistedDashboardCardWidthModes() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let payload = InvalidDashboardCardWidthModesPayload(
+            appearanceMode: .system,
+            dashboardCardOrder: DashboardCardID.defaultOrder.map(\.rawValue),
+            dashboardCardWidthModes: [
+                DashboardCardID.connectivity.rawValue: DashboardCardWidthMode.narrow.rawValue,
+                "invalid-card": DashboardCardWidthMode.narrow.rawValue,
+                DashboardCardID.travelAlerts.rawValue: "invalid-width"
+            ],
+            refreshIntervalSeconds: 5,
+            slowRefreshIntervalSeconds: 120,
+            historyRetentionHours: 36,
+            publicIPGeolocationEnabled: false,
+            automaticUpdateChecksEnabled: false,
+            launchAtLoginEnabled: true,
+            useCurrentLocationForWeather: false,
+            latencyHosts: ["example.com:443"]
+        )
+        let data = try JSONEncoder().encode(payload)
+        defaults.set(data, forKey: "NomadDashboard.AppSettings")
+
+        let store = AppSettingsStore(defaults: defaults)
+        #expect(store.settings.dashboardCardWidthModes[.connectivity] == .narrow)
+        #expect(store.settings.dashboardCardWidthModes[.travelAlerts] == .wide)
+        #expect(store.settings.dashboardCardWidthModes[.fuelPrices] == .wide)
+    }
 }
 
 private struct LegacyAppSettingsPayload: Codable {
+    let refreshIntervalSeconds: TimeInterval
+    let slowRefreshIntervalSeconds: TimeInterval
+    let historyRetentionHours: Int
+    let publicIPGeolocationEnabled: Bool
+    let automaticUpdateChecksEnabled: Bool
+    let launchAtLoginEnabled: Bool
+    let useCurrentLocationForWeather: Bool
+    let latencyHosts: [String]
+}
+
+private struct InvalidDashboardCardOrderPayload: Codable {
+    let appearanceMode: AppAppearanceMode
+    let dashboardCardOrder: [String]
+    let refreshIntervalSeconds: TimeInterval
+    let slowRefreshIntervalSeconds: TimeInterval
+    let historyRetentionHours: Int
+    let publicIPGeolocationEnabled: Bool
+    let automaticUpdateChecksEnabled: Bool
+    let launchAtLoginEnabled: Bool
+    let useCurrentLocationForWeather: Bool
+    let latencyHosts: [String]
+}
+
+private struct InvalidDashboardCardWidthModesPayload: Codable {
+    let appearanceMode: AppAppearanceMode
+    let dashboardCardOrder: [String]
+    let dashboardCardWidthModes: [String: String]
     let refreshIntervalSeconds: TimeInterval
     let slowRefreshIntervalSeconds: TimeInterval
     let historyRetentionHours: Int

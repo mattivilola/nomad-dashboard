@@ -6,6 +6,8 @@ import SwiftUI
 public struct DashboardPanelView: View {
     private let snapshot: DashboardSnapshot
     private let settings: AppSettings
+    private let dashboardCardOrder: [DashboardCardID]
+    private let dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode]
     private let isPublicIPLocationEnabled: Bool
     private let travelAlertPreferences: TravelAlertPreferences
     private let versionDescription: String
@@ -25,12 +27,19 @@ public struct DashboardPanelView: View {
     private let openSurfSpotSettingsAction: () -> Void
     private let openAboutAction: () -> Void
     private let quitAction: () -> Void
+    private let onCardOrderChange: ([DashboardCardID]) -> Void
+    private let onCardWidthModesChange: ([DashboardCardID: DashboardCardWidthMode]) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var resolvedCardOrder: [DashboardCardID]
+    @State private var resolvedCardWidthModes: [DashboardCardID: DashboardCardWidthMode]
+    @State private var activeDropCardID: DashboardCardID?
 
     public init(
         snapshot: DashboardSnapshot,
         settings: AppSettings,
+        dashboardCardOrder: [DashboardCardID],
+        dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode],
         isPublicIPLocationEnabled: Bool,
         travelAlertPreferences: TravelAlertPreferences,
         versionDescription: String = "",
@@ -49,10 +58,14 @@ public struct DashboardPanelView: View {
         openSettingsAction: @escaping () -> Void,
         openSurfSpotSettingsAction: @escaping () -> Void,
         openAboutAction: @escaping () -> Void,
-        quitAction: @escaping () -> Void
+        quitAction: @escaping () -> Void,
+        onCardOrderChange: @escaping ([DashboardCardID]) -> Void = { _ in },
+        onCardWidthModesChange: @escaping ([DashboardCardID: DashboardCardWidthMode]) -> Void = { _ in }
     ) {
         self.snapshot = snapshot
         self.settings = settings
+        self.dashboardCardOrder = DashboardCardID.sanitizedOrder(dashboardCardOrder)
+        self.dashboardCardWidthModes = DashboardCardID.sanitizedWidthModes(dashboardCardWidthModes)
         self.isPublicIPLocationEnabled = isPublicIPLocationEnabled
         self.travelAlertPreferences = travelAlertPreferences
         self.versionDescription = versionDescription
@@ -72,28 +85,46 @@ public struct DashboardPanelView: View {
         self.openSurfSpotSettingsAction = openSurfSpotSettingsAction
         self.openAboutAction = openAboutAction
         self.quitAction = quitAction
+        self.onCardOrderChange = onCardOrderChange
+        self.onCardWidthModesChange = onCardWidthModesChange
+        _resolvedCardOrder = State(initialValue: DashboardCardID.sanitizedOrder(dashboardCardOrder))
+        _resolvedCardWidthModes = State(initialValue: DashboardCardID.sanitizedWidthModes(dashboardCardWidthModes))
     }
 
     public var body: some View {
-        ZStack {
-            NomadTheme.background.ignoresSafeArea()
+        GeometryReader { viewport in
+            ZStack {
+                NomadTheme.background.ignoresSafeArea()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    header
-                    summaryStrip
-                    connectivitySection
-                    powerSection
-                    travelSection
-                    fuelPricesSection
-                    travelAlertsSection
-                    weatherSection
-                    footer
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        header
+                        summaryStrip
+                        orderedCardSections(viewportHeight: viewport.size.height)
+                        footer
+                    }
+                    .padding(18)
                 }
-                .padding(18)
+                .coordinateSpace(name: DashboardScrollCoordinateSpace.name)
             }
         }
         .frame(width: 430, height: 640)
+        .onChange(of: dashboardCardOrder) { _, newValue in
+            let sanitizedOrder = DashboardCardID.sanitizedOrder(newValue)
+            guard resolvedCardOrder != sanitizedOrder else {
+                return
+            }
+
+            resolvedCardOrder = sanitizedOrder
+        }
+        .onChange(of: dashboardCardWidthModes) { _, newValue in
+            let sanitizedWidthModes = DashboardCardID.sanitizedWidthModes(newValue)
+            guard resolvedCardWidthModes != sanitizedWidthModes else {
+                return
+            }
+
+            resolvedCardWidthModes = sanitizedWidthModes
+        }
     }
 
     private var header: some View {
@@ -184,95 +215,339 @@ public struct DashboardPanelView: View {
         }
     }
 
-    private var connectivitySection: some View {
+    private func orderedCardSections(viewportHeight: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(packedCardRows) { row in
+                if row.items.count == 2 {
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(row.items) { item in
+                            dashboardCardItem(item, viewportHeight: viewportHeight)
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                        }
+                    }
+                } else if let item = row.items.first {
+                    dashboardCardItem(item, viewportHeight: viewportHeight)
+                }
+            }
+        }
+    }
+
+    private var packedCardRows: [DashboardCardRow] {
+        let orderedCards = DashboardCardID.sanitizedOrder(resolvedCardOrder)
+        let widthModes = DashboardCardID.sanitizedWidthModes(resolvedCardWidthModes)
+        var rows: [DashboardCardRow] = []
+        var index = 0
+
+        while index < orderedCards.count {
+            let cardID = orderedCards[index]
+            let widthMode = widthModes[cardID] ?? .wide
+
+            if widthMode == .narrow,
+               index + 1 < orderedCards.count
+            {
+                let nextCardID = orderedCards[index + 1]
+                let nextWidthMode = widthModes[nextCardID] ?? .wide
+
+                if nextWidthMode == .narrow {
+                    rows.append(
+                        DashboardCardRow(items: [
+                            DashboardCardRowItem(
+                                cardID: cardID,
+                                preferredWidthMode: .narrow,
+                                renderWidth: .half
+                            ),
+                            DashboardCardRowItem(
+                                cardID: nextCardID,
+                                preferredWidthMode: .narrow,
+                                renderWidth: .half
+                            )
+                        ])
+                    )
+                    index += 2
+                    continue
+                }
+            }
+
+            rows.append(
+                DashboardCardRow(items: [
+                    DashboardCardRowItem(
+                        cardID: cardID,
+                        preferredWidthMode: widthMode,
+                        renderWidth: .full
+                    )
+                ])
+            )
+            index += 1
+        }
+
+        return rows
+    }
+
+    private func dashboardCardItem(_ item: DashboardCardRowItem, viewportHeight: CGFloat) -> some View {
+        interactiveCard(
+            cardID: item.cardID,
+            renderWidth: item.renderWidth
+        ) {
+            dashboardCard(for: item.cardID, widthMode: item.preferredWidthMode, viewportHeight: viewportHeight)
+        }
+    }
+
+    @ViewBuilder
+    private func dashboardCard(
+        for cardID: DashboardCardID,
+        widthMode: DashboardCardWidthMode,
+        viewportHeight: CGFloat
+    ) -> some View {
+        switch cardID {
+        case .connectivity:
+            connectivitySection(widthMode: widthMode)
+        case .power:
+            powerSection(widthMode: widthMode)
+        case .travelContext:
+            travelSection(widthMode: widthMode)
+        case .fuelPrices:
+            fuelPricesSection(widthMode: widthMode, viewportHeight: viewportHeight)
+        case .travelAlerts:
+            travelAlertsSection(widthMode: widthMode)
+        case .weather:
+            weatherSection(widthMode: widthMode)
+        }
+    }
+
+    private func interactiveCard<Content: View>(
+        cardID: DashboardCardID,
+        renderWidth: DashboardCardRenderWidth,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        DashboardCardDropTarget(
+            isHighlighted: activeDropCardID == cardID,
+            content: content
+        ) { items, location, size in
+            applyDrop(
+                items: items,
+                onto: cardID,
+                location: location,
+                size: size,
+                renderWidth: renderWidth
+            )
+        } isTargeted: { isTargeted in
+            if isTargeted {
+                activeDropCardID = cardID
+            } else if activeDropCardID == cardID {
+                activeDropCardID = nil
+            }
+        }
+    }
+
+    @discardableResult
+    private func applyDrop(
+        items: [String],
+        onto targetCardID: DashboardCardID,
+        location: CGPoint,
+        size: CGSize,
+        renderWidth: DashboardCardRenderWidth
+    ) -> Bool {
+        activeDropCardID = nil
+
+        guard let rawValue = items.first,
+              let draggedCardID = DashboardCardID(rawValue: rawValue),
+              let targetIndex = resolvedCardOrder.firstIndex(of: targetCardID)
+        else {
+            return false
+        }
+
+        let insertAfter: Bool = switch renderWidth {
+        case .full:
+            location.y >= size.height / 2
+        case .half:
+            location.x >= size.width / 2
+        }
+
+        let insertionIndex = insertAfter ? targetIndex + 1 : targetIndex
+        return moveCard(draggedCardID, toOriginalInsertionIndex: insertionIndex)
+    }
+
+    @discardableResult
+    private func moveCard(_ cardID: DashboardCardID, toOriginalInsertionIndex insertionIndex: Int) -> Bool {
+        let currentOrder = DashboardCardID.sanitizedOrder(resolvedCardOrder)
+        let reordered = reorderedCardIDs(from: currentOrder, moving: cardID, to: insertionIndex)
+
+        guard reordered != currentOrder else {
+            return false
+        }
+
+        resolvedCardOrder = reordered
+        onCardOrderChange(reordered)
+        return true
+    }
+
+    private func reorderedCardIDs(from order: [DashboardCardID], moving cardID: DashboardCardID, to insertionIndex: Int) -> [DashboardCardID] {
+        guard let currentIndex = order.firstIndex(of: cardID) else {
+            return order
+        }
+
+        var reordered = order
+        reordered.remove(at: currentIndex)
+        let adjustedIndex = insertionIndex > currentIndex ? insertionIndex - 1 : insertionIndex
+        let clampedIndex = min(max(adjustedIndex, 0), reordered.count)
+        reordered.insert(cardID, at: clampedIndex)
+        return DashboardCardID.sanitizedOrder(reordered)
+    }
+
+    private func connectivitySection(widthMode: DashboardCardWidthMode) -> some View {
         DashboardCard(
             title: "Connectivity",
             subtitle: snapshot.network.throughput?.activeInterface ?? "Interface unavailable",
-            badge: badge(for: snapshot.healthSummary.network)
+            badge: badge(for: snapshot.healthSummary.network),
+            accessory: cardControls(for: .connectivity, title: "Connectivity"),
+            isCompact: widthMode == .narrow
         ) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    MetricBlock(
-                        title: "Down",
-                        value: metricValue(snapshot.network.throughput?.downloadMegabitsPerSecond, formatter: NomadFormatters.megabitsPerSecond)
-                    )
-                    MetricBlock(
-                        title: "Up",
-                        value: metricValue(snapshot.network.throughput?.uploadMegabitsPerSecond, formatter: NomadFormatters.megabitsPerSecond)
-                    )
+            if widthMode == .narrow {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        MetricBlock(
+                            title: "Down",
+                            value: metricValue(snapshot.network.throughput?.downloadMegabitsPerSecond, formatter: NomadFormatters.megabitsPerSecond),
+                            typography: .compact
+                        )
+                        MetricBlock(
+                            title: "Up",
+                            value: metricValue(snapshot.network.throughput?.uploadMegabitsPerSecond, formatter: NomadFormatters.megabitsPerSecond),
+                            typography: .compact
+                        )
+                    }
+
                     MetricBlock(
                         title: "Latency",
-                        value: metricValue(snapshot.network.latency?.milliseconds, formatter: NomadFormatters.latency, fallback: "Waiting")
+                        value: metricValue(snapshot.network.latency?.milliseconds, formatter: NomadFormatters.latency, fallback: "Waiting"),
+                        typography: .compact
                     )
-                }
 
-                HStack(spacing: 12) {
-                    ThroughputTrendChart(
-                        downloadPoints: snapshot.network.downloadHistory,
-                        uploadPoints: snapshot.network.uploadHistory
-                    )
                     MiniTrendChart(
                         points: snapshot.network.latencyHistory,
                         color: NomadTheme.coral,
                         yLabel: "Latency",
-                        unitLabel: "ms"
+                        unitLabel: "ms",
+                        isCompact: true
                     )
-                }
 
-                Text(jitterDescription)
-                    .font(.caption)
-                    .foregroundStyle(NomadTheme.secondaryText)
+                    Text(jitterDescription)
+                        .font(.caption2)
+                        .foregroundStyle(NomadTheme.secondaryText)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        MetricBlock(
+                            title: "Down",
+                            value: metricValue(snapshot.network.throughput?.downloadMegabitsPerSecond, formatter: NomadFormatters.megabitsPerSecond)
+                        )
+                        MetricBlock(
+                            title: "Up",
+                            value: metricValue(snapshot.network.throughput?.uploadMegabitsPerSecond, formatter: NomadFormatters.megabitsPerSecond)
+                        )
+                        MetricBlock(
+                            title: "Latency",
+                            value: metricValue(snapshot.network.latency?.milliseconds, formatter: NomadFormatters.latency, fallback: "Waiting")
+                        )
+                    }
+
+                    HStack(spacing: 12) {
+                        ThroughputTrendChart(
+                            downloadPoints: snapshot.network.downloadHistory,
+                            uploadPoints: snapshot.network.uploadHistory
+                        )
+                        MiniTrendChart(
+                            points: snapshot.network.latencyHistory,
+                            color: NomadTheme.coral,
+                            yLabel: "Latency",
+                            unitLabel: "ms"
+                        )
+                    }
+
+                    Text(jitterDescription)
+                        .font(.caption)
+                        .foregroundStyle(NomadTheme.secondaryText)
+                }
             }
         }
     }
 
-    private var powerSection: some View {
+    private func powerSection(widthMode: DashboardCardWidthMode) -> some View {
         DashboardCard(
             title: "Power",
             subtitle: snapshot.power.snapshot.map(powerSubtitle) ?? "Power source unavailable",
-            badge: badge(for: snapshot.healthSummary.power)
+            badge: badge(for: snapshot.healthSummary.power),
+            accessory: cardControls(for: .power, title: "Power"),
+            isCompact: widthMode == .narrow
         ) {
             let powerMetrics = PowerMetricsPresentation(snapshot: snapshot.power.snapshot)
 
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 12) {
-                    MetricBlock(
-                        title: "Battery",
-                        value: metricValue(snapshot.power.snapshot?.chargePercent.map { $0 * 100 }, formatter: NomadFormatters.percentage, fallback: "Estimating")
-                    )
-                    MetricBlock(title: "Drain", value: powerMetrics.drainValue)
-                    MetricBlock(title: "Time Left", value: powerMetrics.timeLeftValue)
-                }
+            if widthMode == .narrow {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        MetricBlock(
+                            title: "Battery",
+                            value: metricValue(snapshot.power.snapshot?.chargePercent.map { $0 * 100 }, formatter: NomadFormatters.percentage, fallback: "Estimating"),
+                            typography: .compact
+                        )
+                        MetricBlock(title: "Drain", value: powerMetrics.drainValue, typography: .compact)
+                    }
 
-                HStack(spacing: 12) {
+                    MetricBlock(title: "Time Left", value: powerMetrics.timeLeftValue, typography: .compact)
+
                     MiniTrendChart(
                         points: snapshot.power.chargeHistory,
                         color: NomadTheme.sand,
                         yLabel: "Charge",
-                        unitLabel: "%"
+                        unitLabel: "%",
+                        isCompact: true
                     )
-                    MiniTrendChart(
-                        points: snapshot.power.dischargeHistory,
-                        color: NomadTheme.coral,
-                        yLabel: "Drain",
-                        unitLabel: "W",
-                        placeholderText: snapshot.power.snapshot?.state == .battery ? "Collecting trend…" : "Plugged in"
-                    )
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        MetricBlock(
+                            title: "Battery",
+                            value: metricValue(snapshot.power.snapshot?.chargePercent.map { $0 * 100 }, formatter: NomadFormatters.percentage, fallback: "Estimating")
+                        )
+                        MetricBlock(title: "Drain", value: powerMetrics.drainValue)
+                        MetricBlock(title: "Time Left", value: powerMetrics.timeLeftValue)
+                    }
+
+                    HStack(spacing: 12) {
+                        MiniTrendChart(
+                            points: snapshot.power.chargeHistory,
+                            color: NomadTheme.sand,
+                            yLabel: "Charge",
+                            unitLabel: "%"
+                        )
+                        MiniTrendChart(
+                            points: snapshot.power.dischargeHistory,
+                            color: NomadTheme.coral,
+                            yLabel: "Drain",
+                            unitLabel: "W",
+                            placeholderText: snapshot.power.snapshot?.state == .battery ? "Collecting trend…" : "Plugged in"
+                        )
+                    }
                 }
             }
         }
     }
 
-    private var travelSection: some View {
+    private func travelSection(widthMode: DashboardCardWidthMode) -> some View {
         DashboardCard(
             title: "Travel Context",
             subtitle: travelSubtitle,
-            badge: travelBadge
+            badge: travelBadge,
+            accessory: cardControls(for: .travelContext, title: "Travel Context"),
+            isCompact: widthMode == .narrow
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 DetailRow(
                     label: "Public IP",
                     value: publicIPValue,
+                    isCompact: widthMode == .narrow,
                     action: DetailRowAction(
                         title: "Copy Public IP",
                         systemImage: "document.on.document",
@@ -280,13 +555,14 @@ public struct DashboardPanelView: View {
                         action: copyIPAddressAction
                     )
                 )
-                DetailRow(label: "Wi-Fi", value: snapshot.travelContext.wifi?.ssid ?? "Not connected")
-                DetailRow(label: "Signal", value: signalDescription(snapshot.travelContext.wifi))
-                DetailRow(label: "VPN", value: vpnDescription)
-                DetailRow(label: "Time Zone", value: snapshot.travelContext.timeZoneIdentifier)
+                DetailRow(label: "Wi-Fi", value: snapshot.travelContext.wifi?.ssid ?? "Not connected", isCompact: widthMode == .narrow)
+                DetailRow(label: "Signal", value: signalDescription(snapshot.travelContext.wifi), isCompact: widthMode == .narrow)
+                DetailRow(label: "VPN", value: vpnDescription, isCompact: widthMode == .narrow)
+                DetailRow(label: "Time Zone", value: snapshot.travelContext.timeZoneIdentifier, isCompact: widthMode == .narrow)
                 DetailRow(
                     label: "Location",
                     value: locationValue,
+                    isCompact: widthMode == .narrow,
                     action: DetailRowAction(
                         title: "Open Visited Map",
                         systemImage: "map",
@@ -298,33 +574,56 @@ public struct DashboardPanelView: View {
         }
     }
 
-    private var weatherSection: some View {
+    private func weatherSection(widthMode: DashboardCardWidthMode) -> some View {
         let presentation = weatherSectionPresentation
 
         return DashboardCard(
             title: "Weather",
             subtitle: presentation.subtitle,
-            badge: presentation.badge
+            badge: presentation.badge,
+            accessory: cardControls(for: .weather, title: "Weather"),
+            isCompact: widthMode == .narrow
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 if let weather = snapshot.weather {
                     VStack(alignment: .leading, spacing: 10) {
-                        HStack(spacing: 12) {
-                            MetricBlock(
-                                title: "Current",
-                                value: metricValue(weather.currentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating"),
-                                typography: .compact
-                            )
-                            MetricBlock(
-                                title: "Feels Like",
-                                value: metricValue(weather.apparentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating"),
-                                typography: .compact
-                            )
+                        if widthMode == .narrow {
+                            HStack(spacing: 12) {
+                                MetricBlock(
+                                    title: "Current",
+                                    value: metricValue(weather.currentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating"),
+                                    typography: .compact
+                                )
+                                MetricBlock(
+                                    title: "Feels Like",
+                                    value: metricValue(weather.apparentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating"),
+                                    typography: .compact
+                                )
+                            }
+
                             MetricBlock(
                                 title: "Rain Chance",
                                 value: weather.precipitationChance.map { NomadFormatters.precipitation($0) } ?? "n/a",
                                 typography: .compact
                             )
+                        } else {
+                            HStack(spacing: 12) {
+                                MetricBlock(
+                                    title: "Current",
+                                    value: metricValue(weather.currentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating"),
+                                    typography: .compact
+                                )
+                                MetricBlock(
+                                    title: "Feels Like",
+                                    value: metricValue(weather.apparentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating"),
+                                    typography: .compact
+                                )
+                                MetricBlock(
+                                    title: "Rain Chance",
+                                    value: weather.precipitationChance.map { NomadFormatters.precipitation($0) } ?? "n/a",
+                                    typography: .compact
+                                )
+                            }
                         }
 
                         if let tomorrow = weather.tomorrow {
@@ -357,52 +656,10 @@ public struct DashboardPanelView: View {
                 Divider()
                     .overlay(NomadTheme.cardBorder.opacity(0.9))
 
-                surfSection
+                surfSection(widthMode: widthMode)
 
-                Text(weatherAttributionLine)
-                    .font(.caption2)
-                    .foregroundStyle(NomadTheme.tertiaryText)
-            }
-        }
-    }
-
-    private var fuelPricesSection: some View {
-        let presentation = fuelPricesSectionPresentation
-
-        return DashboardCard(
-            title: "Fuel Prices",
-            subtitle: presentation.subtitle,
-            badge: presentation.badge,
-            backgroundDecoration: AnyView(
-                FuelCardBackdrop(
-                    visualMode: presentation.visualMode,
-                    badgeTint: presentation.badge.tint
-                )
-            )
-        ) {
-            VStack(alignment: .leading, spacing: 10) {
-                if presentation.rows.isEmpty == false {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(presentation.rows) { row in
-                            FuelPriceRow(
-                                model: row,
-                                previewMapAction: openFuelStationMapPreviewAction,
-                                openGoogleMapsAction: openFuelStationInGoogleMapsAction
-                            )
-                        }
-                    }
-                } else {
-                    WeatherEmptyState(
-                        title: presentation.emptyTitle,
-                        systemImage: presentation.emptySystemImage,
-                        message: presentation.emptyMessage,
-                        actionTitle: presentation.emptyActionTitle,
-                        action: presentation.isActionable ? openSettingsAction : nil
-                    )
-                }
-
-                if let note = presentation.note {
-                    Text(note)
+                if widthMode != .narrow {
+                    Text(weatherAttributionLine)
                         .font(.caption2)
                         .foregroundStyle(NomadTheme.tertiaryText)
                 }
@@ -410,11 +667,25 @@ public struct DashboardPanelView: View {
         }
     }
 
-    private var travelAlertsSection: some View {
+    private func fuelPricesSection(widthMode: DashboardCardWidthMode, viewportHeight: CGFloat) -> some View {
+        FuelPricesSectionView(
+            presentation: fuelPricesSectionPresentation,
+            widthMode: widthMode,
+            viewportHeight: viewportHeight,
+            accessory: cardControls(for: .fuelPrices, title: "Fuel Prices"),
+            openSettingsAction: openSettingsAction,
+            previewMapAction: openFuelStationMapPreviewAction,
+            openGoogleMapsAction: openFuelStationInGoogleMapsAction
+        )
+    }
+
+    private func travelAlertsSection(widthMode: DashboardCardWidthMode) -> some View {
         DashboardCard(
             title: "Travel Alerts",
             subtitle: travelAlertsSubtitle,
-            badge: travelAlertsBadge
+            badge: travelAlertsBadge,
+            accessory: cardControls(for: .travelAlerts, title: "Travel Alerts"),
+            isCompact: widthMode == .narrow
         ) {
             if travelAlertPreferences.enabledKinds.isEmpty {
                 WeatherEmptyState(
@@ -446,7 +717,8 @@ public struct DashboardPanelView: View {
                             sourceName: row.sourceName,
                             count: row.count,
                             tint: row.tint,
-                            symbolName: row.symbolName
+                            symbolName: row.symbolName,
+                            isCompact: widthMode == .narrow
                         )
                     }
                 }
@@ -565,7 +837,7 @@ public struct DashboardPanelView: View {
         return "Refreshing…"
     }
 
-    private var surfSection: some View {
+    private func surfSection(widthMode: DashboardCardWidthMode) -> some View {
         let presentation = surfSectionPresentation
 
         return VStack(alignment: .leading, spacing: 10) {
@@ -595,15 +867,24 @@ public struct DashboardPanelView: View {
 
             if let marine = presentation.marine {
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 12) {
-                        MetricBlock(title: "Wave", value: presentation.waveSummary, typography: .compact)
-                        MetricBlock(title: "Swell", value: presentation.swellSummary, typography: .compact)
-                        MetricBlock(title: "Wind", value: presentation.windSummary, typography: .compact)
-                    }
+                    if widthMode == .narrow {
+                        HStack(spacing: 12) {
+                            MetricBlock(title: "Wave", value: presentation.waveSummary, typography: .compact)
+                            MetricBlock(title: "Swell", value: presentation.swellSummary, typography: .compact)
+                        }
 
-                    HStack(spacing: 8) {
-                        ForEach(presentation.forecastSlots) { slot in
-                            MarineForecastChip(model: slot)
+                        MetricBlock(title: "Wind", value: presentation.windSummary, typography: .compact)
+                    } else {
+                        HStack(spacing: 12) {
+                            MetricBlock(title: "Wave", value: presentation.waveSummary, typography: .compact)
+                            MetricBlock(title: "Swell", value: presentation.swellSummary, typography: .compact)
+                            MetricBlock(title: "Wind", value: presentation.windSummary, typography: .compact)
+                        }
+
+                        HStack(spacing: 8) {
+                            ForEach(presentation.forecastSlots) { slot in
+                                MarineForecastChip(model: slot)
+                            }
                         }
                     }
 
@@ -697,6 +978,32 @@ public struct DashboardPanelView: View {
 
     private func badge(for health: SectionHealth) -> PillBadge {
         PillBadge(title: health.label, symbolName: health.symbolName, tint: health.level.tint)
+    }
+
+    private func cardControls(for cardID: DashboardCardID, title: String) -> AnyView {
+        AnyView(
+            HStack(spacing: 6) {
+                DashboardCardWidthToggleButton(
+                    widthMode: resolvedCardWidthModes[cardID] ?? .wide,
+                    title: title
+                ) {
+                    toggleWidthMode(for: cardID)
+                }
+
+                DashboardCardDragHandle(cardID: cardID, title: title)
+            }
+        )
+    }
+
+    private func toggleWidthMode(for cardID: DashboardCardID) {
+        let currentWidthModes = DashboardCardID.sanitizedWidthModes(resolvedCardWidthModes)
+        let currentWidthMode = currentWidthModes[cardID] ?? .wide
+        let nextWidthMode: DashboardCardWidthMode = currentWidthMode == .wide ? .narrow : .wide
+        var updatedWidthModes = currentWidthModes
+        updatedWidthModes[cardID] = nextWidthMode
+        let sanitizedWidthModes = DashboardCardID.sanitizedWidthModes(updatedWidthModes)
+        resolvedCardWidthModes = sanitizedWidthModes
+        onCardWidthModesChange(sanitizedWidthModes)
     }
 
     private func metricValue(
@@ -798,6 +1105,7 @@ private struct DashboardCard<Content: View>: View {
     let badge: PillBadge?
     let accessory: AnyView?
     let backgroundDecoration: AnyView?
+    let isCompact: Bool
     let content: Content
 
     init(
@@ -806,6 +1114,7 @@ private struct DashboardCard<Content: View>: View {
         badge: PillBadge? = nil,
         accessory: AnyView? = nil,
         backgroundDecoration: AnyView? = nil,
+        isCompact: Bool = false,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
@@ -813,6 +1122,7 @@ private struct DashboardCard<Content: View>: View {
         self.badge = badge
         self.accessory = accessory
         self.backgroundDecoration = backgroundDecoration
+        self.isCompact = isCompact
         self.content = content()
     }
 
@@ -820,22 +1130,27 @@ private struct DashboardCard<Content: View>: View {
         let cardShape = RoundedRectangle(cornerRadius: 22, style: .continuous)
 
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: isCompact ? .center : .top, spacing: isCompact ? 8 : 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .font(.system(size: isCompact ? 15 : 18, weight: .semibold, design: .rounded))
                         .foregroundStyle(NomadTheme.primaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(isCompact ? 0.75 : 0.9)
 
                     Text(subtitle)
-                        .font(.caption)
+                        .font(isCompact ? .caption2 : .caption)
                         .foregroundStyle(NomadTheme.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
+                .layoutPriority(1)
 
-                Spacer(minLength: 12)
+                Spacer(minLength: isCompact ? 6 : 12)
 
-                HStack(spacing: 8) {
+                HStack(spacing: isCompact ? 6 : 8) {
                     if let badge {
-                        BadgeView(badge: badge)
+                        BadgeView(badge: badge, isCompact: isCompact)
                     }
 
                     if let accessory {
@@ -861,6 +1176,119 @@ private struct DashboardCard<Content: View>: View {
                     .stroke(NomadTheme.cardBorder, lineWidth: 1)
             }
         )
+    }
+}
+
+private struct DashboardCardDragHandle: View {
+    let cardID: DashboardCardID
+    let title: String
+
+    var body: some View {
+        Image(systemName: "line.3.horizontal")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(NomadTheme.tertiaryText)
+            .frame(width: 28, height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(NomadTheme.inlineButtonBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .draggable(cardID.rawValue)
+            .help("Drag to reorder \(title)")
+            .accessibilityLabel("Drag to reorder \(title)")
+    }
+}
+
+private struct DashboardCardWidthToggleButton: View {
+    let widthMode: DashboardCardWidthMode
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: widthMode == .wide ? "rectangle.split.1x2" : "rectangle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(NomadTheme.tertiaryText)
+                .frame(width: 28, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(NomadTheme.inlineButtonBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .help(widthMode == .wide ? "Make \(title) narrow" : "Make \(title) wide")
+        .accessibilityLabel(widthMode == .wide ? "Make \(title) narrow" : "Make \(title) wide")
+    }
+}
+
+private enum DashboardCardRenderWidth {
+    case full
+    case half
+}
+
+private struct DashboardCardRowItem: Identifiable {
+    let cardID: DashboardCardID
+    let preferredWidthMode: DashboardCardWidthMode
+    let renderWidth: DashboardCardRenderWidth
+
+    var id: DashboardCardID { cardID }
+}
+
+private struct DashboardCardRow: Identifiable {
+    let items: [DashboardCardRowItem]
+
+    var id: String {
+        items.map { $0.cardID.rawValue }.joined(separator: "|")
+    }
+}
+
+private struct DashboardCardDropTarget<Content: View>: View {
+    let isHighlighted: Bool
+    let content: () -> Content
+    let onDrop: ([String], CGPoint, CGSize) -> Bool
+    let isTargeted: (Bool) -> Void
+
+    init(
+        isHighlighted: Bool,
+        @ViewBuilder content: @escaping () -> Content,
+        onDrop: @escaping ([String], CGPoint, CGSize) -> Bool,
+        isTargeted: @escaping (Bool) -> Void
+    ) {
+        self.isHighlighted = isHighlighted
+        self.content = content
+        self.onDrop = onDrop
+        self.isTargeted = isTargeted
+    }
+
+    var body: some View {
+        content()
+            .overlay {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(
+                        isHighlighted ? NomadTheme.teal.opacity(0.9) : Color.clear,
+                        style: StrokeStyle(lineWidth: 1.5, dash: [7, 4])
+                    )
+                    .padding(1)
+                    .allowsHitTesting(false)
+            }
+            .background {
+                GeometryReader { geometry in
+                    Color.clear
+                        .dropDestination(for: String.self) { items, location in
+                            onDrop(items, location, geometry.size)
+                        } isTargeted: { value in
+                            isTargeted(value)
+                        }
+                }
+            }
     }
 }
 
@@ -997,31 +1425,56 @@ private struct MetricBlock: View {
 private struct DetailRow: View {
     let label: String
     let value: String
+    let isCompact: Bool
     let action: DetailRowAction?
 
-    init(label: String, value: String, action: DetailRowAction? = nil) {
+    init(label: String, value: String, isCompact: Bool = false, action: DetailRowAction? = nil) {
         self.label = label
         self.value = value
+        self.isCompact = isCompact
         self.action = action
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(label)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(NomadTheme.tertiaryText)
+        Group {
+            if isCompact {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(label)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NomadTheme.tertiaryText)
 
-            Spacer(minLength: 12)
+                    HStack(alignment: .top, spacing: 6) {
+                        Text(value)
+                            .font(.caption)
+                            .foregroundStyle(NomadTheme.primaryText)
+                            .fixedSize(horizontal: false, vertical: true)
 
-            HStack(alignment: .top, spacing: 6) {
-                Text(value)
-                    .font(.caption)
-                    .foregroundStyle(NomadTheme.primaryText)
-                    .multilineTextAlignment(.trailing)
-                    .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
 
-                if let action {
-                    DetailRowActionButton(action: action)
+                        if let action {
+                            DetailRowActionButton(action: action)
+                        }
+                    }
+                }
+            } else {
+                HStack(alignment: .top, spacing: 12) {
+                    Text(label)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NomadTheme.tertiaryText)
+
+                    Spacer(minLength: 12)
+
+                    HStack(alignment: .top, spacing: 6) {
+                        Text(value)
+                            .font(.caption)
+                            .foregroundStyle(NomadTheme.primaryText)
+                            .multilineTextAlignment(.trailing)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if let action {
+                            DetailRowActionButton(action: action)
+                        }
+                    }
                 }
             }
         }
@@ -1067,47 +1520,90 @@ private struct CompactAlertRow: View {
     let count: Int?
     let tint: Color
     let symbolName: String
+    var isCompact: Bool = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: symbolName)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(tint)
-                .frame(width: 18, alignment: .center)
+        Group {
+            if isCompact {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: symbolName)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(tint)
+                            .frame(width: 18, alignment: .center)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(NomadTheme.primaryText)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(title)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(NomadTheme.primaryText)
 
-                Text(summary)
-                    .font(.caption)
-                    .foregroundStyle(NomadTheme.secondaryText)
-                    .lineLimit(2)
-            }
+                            Text(summary)
+                                .font(.caption)
+                                .foregroundStyle(NomadTheme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
 
-            Spacer(minLength: 12)
+                    HStack(spacing: 8) {
+                        Text(sourceName)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(NomadTheme.tertiaryText)
+                            .lineLimit(1)
 
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(sourceName)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(NomadTheme.tertiaryText)
-                    .lineLimit(1)
+                        if let count, count > 1 {
+                            countBadge
+                        }
 
-                if let count, count > 1 {
-                    Text("\(count)")
-                        .font(.caption2.weight(.bold))
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.leading, 28)
+                }
+            } else {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: symbolName)
+                        .font(.caption.weight(.semibold))
                         .foregroundStyle(tint)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(tint.opacity(0.12))
-                        )
+                        .frame(width: 18, alignment: .center)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(NomadTheme.primaryText)
+
+                        Text(summary)
+                            .font(.caption)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 12)
+
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(sourceName)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(NomadTheme.tertiaryText)
+                            .lineLimit(1)
+
+                        if let count, count > 1 {
+                            countBadge
+                        }
+                    }
                 }
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private var countBadge: some View {
+        Text("\(count ?? 0)")
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(tint.opacity(0.12))
+            )
     }
 }
 
@@ -1136,61 +1632,81 @@ struct FuelPriceRowModel: Identifiable, Equatable {
 
 private struct FuelPriceRow: View {
     let model: FuelPriceRowModel
+    var isCompact: Bool = false
     let previewMapAction: (FuelStationMapDestination) -> Void
     let openGoogleMapsAction: (FuelStationMapDestination) -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(model.title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(NomadTheme.primaryText)
+        Group {
+            if isCompact {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(model.title)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(NomadTheme.primaryText)
 
-                Text(model.stationName)
-                    .font(.caption)
-                    .foregroundStyle(NomadTheme.primaryText)
-                    .lineLimit(1)
+                            Text(model.stationName)
+                                .font(.caption)
+                                .foregroundStyle(NomadTheme.primaryText)
+                                .lineLimit(2)
+                        }
 
-                Text(model.stationDetail)
-                    .font(.caption2)
-                    .foregroundStyle(NomadTheme.secondaryText)
-                    .lineLimit(2)
-            }
+                        Spacer(minLength: 8)
 
-            Spacer(minLength: 12)
+                        Text(model.priceValue)
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .foregroundStyle(model.tint)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
 
-            VStack(alignment: .trailing, spacing: 3) {
-                Text(model.priceValue)
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                    .foregroundStyle(model.tint)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    HStack(alignment: .center, spacing: 8) {
+                        if let updatedText = model.updatedText {
+                            Text(updatedText)
+                                .font(.caption2)
+                                .foregroundStyle(NomadTheme.tertiaryText)
+                        }
 
-                if let updatedText = model.updatedText {
-                    Text(updatedText)
-                        .font(.caption2)
-                        .foregroundStyle(NomadTheme.tertiaryText)
+                        Spacer(minLength: 0)
+
+                        mapActions
+                    }
                 }
+            } else {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(model.title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(NomadTheme.primaryText)
 
-                if let stationDestination = model.stationDestination, model.hasMapActions {
-                    HStack(spacing: 6) {
-                        if model.hasPreviewMapAction {
-                            FuelRowActionButton(
-                                title: "Map",
-                                systemImage: "map.fill"
-                            ) {
-                                previewMapAction(stationDestination)
-                            }
+                        Text(model.stationName)
+                            .font(.caption)
+                            .foregroundStyle(NomadTheme.primaryText)
+                            .lineLimit(1)
+
+                        Text(model.stationDetail)
+                            .font(.caption2)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 12)
+
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text(model.priceValue)
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .foregroundStyle(model.tint)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+
+                        if let updatedText = model.updatedText {
+                            Text(updatedText)
+                                .font(.caption2)
+                                .foregroundStyle(NomadTheme.tertiaryText)
                         }
 
-                        if model.hasGoogleMapsAction {
-                            FuelRowActionButton(
-                                title: "Google",
-                                systemImage: "arrow.up.right.square.fill"
-                            ) {
-                                openGoogleMapsAction(stationDestination)
-                            }
-                        }
+                        mapActions
                     }
                 }
             }
@@ -1204,6 +1720,31 @@ private struct FuelPriceRow: View {
                         .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
                 )
         )
+    }
+
+    @ViewBuilder
+    private var mapActions: some View {
+        if let stationDestination = model.stationDestination, model.hasMapActions {
+            HStack(spacing: 6) {
+                if model.hasPreviewMapAction {
+                    FuelRowActionButton(
+                        title: "Map",
+                        systemImage: "map.fill"
+                    ) {
+                        previewMapAction(stationDestination)
+                    }
+                }
+
+                if model.hasGoogleMapsAction {
+                    FuelRowActionButton(
+                        title: "Google",
+                        systemImage: "arrow.up.right.square.fill"
+                    ) {
+                        openGoogleMapsAction(stationDestination)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1232,70 +1773,225 @@ private struct FuelRowActionButton: View {
     }
 }
 
+private enum DashboardScrollCoordinateSpace {
+    static let name = "DashboardPanelScrollSpace"
+}
+
+private struct FuelCardFramePreferenceKey: PreferenceKey {
+    static var defaultValue: CGRect { .null }
+
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let nextFrame = nextValue()
+        if nextFrame.isNull == false {
+            value = nextFrame
+        }
+    }
+}
+
 enum FuelCardVisualMode: Equatable {
     case animatedCamper
     case ambient
     case staticScene
 }
 
+struct FuelBackdropAnimationState: Equatable {
+    let visibilityRatio: Double
+    let isAnimating: Bool
+}
+
+func fuelCardVisibilityRatio(frame: CGRect, viewportHeight: CGFloat) -> Double {
+    guard frame.isNull == false, frame.height > 0, viewportHeight > 0 else {
+        return 0
+    }
+
+    let visibleMinY = max(frame.minY, 0)
+    let visibleMaxY = min(frame.maxY, viewportHeight)
+    let visibleHeight = max(visibleMaxY - visibleMinY, 0)
+    return min(max(visibleHeight / frame.height, 0), 1)
+}
+
+func fuelBackdropAnimationState(
+    frame: CGRect,
+    viewportHeight: CGFloat,
+    visualMode: FuelCardVisualMode,
+    reduceMotion: Bool,
+    threshold: Double = 0.35
+) -> FuelBackdropAnimationState {
+    let visibilityRatio = fuelCardVisibilityRatio(frame: frame, viewportHeight: viewportHeight)
+    return FuelBackdropAnimationState(
+        visibilityRatio: visibilityRatio,
+        isAnimating: visualMode == .animatedCamper && reduceMotion == false && visibilityRatio >= threshold
+    )
+}
+
+private struct FuelPricesSectionView: View {
+    let presentation: FuelPricesSectionPresentation
+    let widthMode: DashboardCardWidthMode
+    let viewportHeight: CGFloat
+    let accessory: AnyView
+    let openSettingsAction: () -> Void
+    let previewMapAction: (FuelStationMapDestination) -> Void
+    let openGoogleMapsAction: (FuelStationMapDestination) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var cardFrame: CGRect = .null
+
+    var body: some View {
+        let animationState = fuelBackdropAnimationState(
+            frame: cardFrame,
+            viewportHeight: viewportHeight,
+            visualMode: presentation.visualMode,
+            reduceMotion: reduceMotion
+        )
+
+        DashboardCard(
+            title: "Fuel Prices",
+            subtitle: presentation.subtitle,
+            badge: presentation.badge,
+            accessory: accessory,
+            backgroundDecoration: AnyView(
+                FuelCardBackdrop(
+                    visualMode: presentation.visualMode,
+                    badgeTint: presentation.badge.tint,
+                    isAnimating: animationState.isAnimating,
+                    isCompact: widthMode == .narrow
+                )
+            ),
+            isCompact: widthMode == .narrow
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                if presentation.rows.isEmpty == false {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(presentation.rows) { row in
+                            FuelPriceRow(
+                                model: row,
+                                isCompact: widthMode == .narrow,
+                                previewMapAction: previewMapAction,
+                                openGoogleMapsAction: openGoogleMapsAction
+                            )
+                        }
+                    }
+                } else {
+                    WeatherEmptyState(
+                        title: presentation.emptyTitle,
+                        systemImage: presentation.emptySystemImage,
+                        message: presentation.emptyMessage,
+                        actionTitle: presentation.emptyActionTitle,
+                        action: presentation.isActionable ? openSettingsAction : nil
+                    )
+                }
+
+                if let note = presentation.note {
+                    Text(note)
+                        .font(.caption2)
+                        .foregroundStyle(NomadTheme.tertiaryText)
+                }
+            }
+        }
+        .background(
+            GeometryReader { geometry in
+                Color.clear
+                    .preference(
+                        key: FuelCardFramePreferenceKey.self,
+                        value: geometry.frame(in: .named(DashboardScrollCoordinateSpace.name))
+                    )
+            }
+        )
+        .onPreferenceChange(FuelCardFramePreferenceKey.self) { frame in
+            cardFrame = frame
+        }
+    }
+}
+
 private struct FuelCardBackdrop: View {
     let visualMode: FuelCardVisualMode
     let badgeTint: Color
+    let isAnimating: Bool
+    let isCompact: Bool
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var lastResolvedPhase = 0.18
 
     var body: some View {
         GeometryReader { geometry in
-            TimelineView(.animation) { context in
-                let phase = effectivePhase(for: context.date)
-
-                ZStack {
-                    FuelCardGlowLayer(phase: phase, visualMode: visualMode, badgeTint: badgeTint)
-
-                    VStack {
-                        Spacer(minLength: 0)
-
-                        ZStack(alignment: .bottomLeading) {
-                            FuelRoadScene(phase: phase, visualMode: visualMode)
-
-                            if shouldShowCamper {
-                                FuelCamperTrack(
-                                    phase: phase,
-                                    width: geometry.size.width
-                                )
-                                .transition(.opacity)
+            Group {
+                if isAnimating {
+                    TimelineView(.animation) { context in
+                        let phase = context.date.timeIntervalSinceReferenceDate
+                        backdropContents(size: geometry.size, phase: phase)
+                            .onAppear {
+                                lastResolvedPhase = phase
                             }
-                        }
-                        .frame(height: geometry.size.height * 0.34)
+                            .onChange(of: phase) { _, newPhase in
+                                lastResolvedPhase = newPhase
+                            }
                     }
-
-                    FuelAtmosphereLayer(phase: phase, visualMode: visualMode)
-                        .allowsHitTesting(false)
+                } else {
+                    backdropContents(size: geometry.size, phase: resolvedStaticPhase)
                 }
-                .mask(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                )
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
-    private var shouldShowCamper: Bool {
-        visualMode == .animatedCamper && reduceMotion == false
+    @ViewBuilder
+    private func backdropContents(size: CGSize, phase: Double) -> some View {
+        let metrics = FuelBackdropMetrics(size: size, isCompact: isCompact)
+
+        ZStack {
+            FuelCardGlowLayer(phase: phase, visualMode: visualMode, badgeTint: badgeTint, metrics: metrics)
+
+            VStack {
+                Spacer(minLength: 0)
+
+                ZStack(alignment: .bottomLeading) {
+                    FuelRoadScene(phase: phase, visualMode: visualMode, metrics: metrics)
+
+                    if visualMode == .animatedCamper {
+                        FuelCamperTrack(phase: phase, metrics: metrics)
+                            .transition(.opacity)
+                    }
+                }
+                .frame(width: metrics.roadWidth, height: metrics.roadHeight)
+                .frame(maxWidth: .infinity)
+            }
+
+            FuelAtmosphereLayer(phase: phase, visualMode: visualMode, metrics: metrics)
+                .allowsHitTesting(false)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .mask(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
     }
 
-    private func effectivePhase(for date: Date) -> Double {
-        guard reduceMotion == false else {
-            return 0.18
-        }
-
+    private var resolvedStaticPhase: Double {
         switch visualMode {
-        case .animatedCamper, .ambient:
-            return date.timeIntervalSinceReferenceDate
-        case .staticScene:
+        case .animatedCamper:
+            return lastResolvedPhase
+        case .ambient, .staticScene:
             return 0.18
         }
+    }
+}
+
+private struct FuelBackdropMetrics {
+    let width: CGFloat
+    let height: CGFloat
+    let roadWidth: CGFloat
+    let roadHeight: CGFloat
+    let laneMarkerCount: Int
+    let laneMarkerSpacing: CGFloat
+    let camperInset: CGFloat
+
+    init(size: CGSize, isCompact: Bool) {
+        width = max(size.width, 1)
+        height = max(size.height, 1)
+        roadWidth = width * 0.94
+        roadHeight = max(height * (isCompact ? 0.24 : 0.34), isCompact ? 54 : 72)
+        laneMarkerSpacing = max(12, roadWidth * 0.032)
+        laneMarkerCount = max(isCompact ? 4 : 7, Int((roadWidth * 0.72) / (18 + laneMarkerSpacing)))
+        camperInset = roadWidth * 0.08
     }
 }
 
@@ -1303,6 +1999,7 @@ private struct FuelCardGlowLayer: View {
     let phase: Double
     let visualMode: FuelCardVisualMode
     let badgeTint: Color
+    let metrics: FuelBackdropMetrics
 
     var body: some View {
         ZStack {
@@ -1316,11 +2013,11 @@ private struct FuelCardGlowLayer: View {
                         ],
                         center: .center,
                         startRadius: 6,
-                        endRadius: 120
+                        endRadius: max(metrics.width * 0.34, 120)
                     )
                 )
-                .frame(width: 180, height: 88)
-                .offset(x: 78, y: 44)
+                .frame(width: max(metrics.width * 0.58, 180), height: max(metrics.height * 0.26, 88))
+                .offset(x: -metrics.width * 0.12, y: metrics.height * 0.08)
                 .blur(radius: 10)
 
             Ellipse()
@@ -1334,8 +2031,8 @@ private struct FuelCardGlowLayer: View {
                         endPoint: .trailing
                     )
                 )
-                .frame(width: 220, height: 52)
-                .offset(x: CGFloat(sin(phase / 4.7)) * 18, y: 10)
+                .frame(width: max(metrics.width * 0.82, 220), height: max(metrics.height * 0.15, 52))
+                .offset(x: CGFloat(sin(phase / 4.7)) * metrics.width * 0.08, y: metrics.height * 0.02)
                 .blur(radius: 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1345,18 +2042,20 @@ private struct FuelCardGlowLayer: View {
 private struct FuelAtmosphereLayer: View {
     let phase: Double
     let visualMode: FuelCardVisualMode
+    let metrics: FuelBackdropMetrics
 
     var body: some View {
         ZStack {
             ForEach(0..<3, id: \.self) { index in
                 let drift = visualMode == .staticScene ? 0 : sin(phase / (6.5 + Double(index)))
+                let xFractions: [CGFloat] = [0.18, 0.5, 0.82]
                 Capsule(style: .continuous)
                     .fill(index == 1 ? NomadTheme.teal.opacity(0.06) : NomadTheme.fuelGlow.opacity(0.05))
-                    .frame(width: 42 - CGFloat(index * 8), height: 7)
+                    .frame(width: max(22, metrics.width * (0.11 - CGFloat(index) * 0.018)), height: 7)
                     .rotationEffect(.degrees(Double(index * 6) - 7))
                     .offset(
-                        x: CGFloat(-116 + (index * 76)) + CGFloat(drift) * 12,
-                        y: CGFloat(-48 + (index * 10))
+                        x: metrics.width * (xFractions[index] - 0.5) + CGFloat(drift) * metrics.width * 0.04,
+                        y: -metrics.height * 0.15 + CGFloat(index) * 10
                     )
                     .blur(radius: 1.2)
             }
@@ -1367,6 +2066,7 @@ private struct FuelAtmosphereLayer: View {
 private struct FuelRoadScene: View {
     let phase: Double
     let visualMode: FuelCardVisualMode
+    let metrics: FuelBackdropMetrics
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -1382,8 +2082,8 @@ private struct FuelRoadScene: View {
                         endPoint: .bottom
                     )
                 )
-                .frame(height: 66)
-                .offset(y: 14)
+                .frame(width: metrics.roadWidth, height: metrics.roadHeight)
+                .offset(y: metrics.roadHeight * 0.2)
 
             Capsule(style: .continuous)
                 .fill(
@@ -1397,18 +2097,19 @@ private struct FuelRoadScene: View {
                         endPoint: .trailing
                     )
                 )
-                .frame(width: 84, height: 3)
-                .offset(x: laneOffset, y: -16)
+                .frame(width: metrics.roadWidth * 0.28, height: 3)
+                .offset(x: laneOffset, y: -metrics.roadHeight * 0.24)
                 .blur(radius: 0.6)
 
-            HStack(spacing: 18) {
-                ForEach(0..<7, id: \.self) { _ in
+            HStack(spacing: metrics.laneMarkerSpacing) {
+                ForEach(0..<metrics.laneMarkerCount, id: \.self) { _ in
                     Capsule(style: .continuous)
                         .fill(NomadTheme.cardBorder.opacity(0.24))
                         .frame(width: 18, height: 2)
                 }
             }
-            .offset(x: laneOffset * 0.8, y: -16)
+            .frame(width: metrics.roadWidth * 0.84)
+            .offset(x: laneOffset * 0.8, y: -metrics.roadHeight * 0.24)
 
             Rectangle()
                 .fill(
@@ -1422,9 +2123,10 @@ private struct FuelRoadScene: View {
                         endPoint: .bottom
                     )
                 )
-                .frame(height: 22)
-                .offset(y: -40)
+                .frame(width: metrics.roadWidth, height: metrics.roadHeight * 0.32)
+                .offset(y: -metrics.roadHeight * 0.6)
         }
+        .frame(width: metrics.roadWidth, height: metrics.roadHeight)
         .mask(horizontalSoftMask)
     }
 
@@ -1434,7 +2136,7 @@ private struct FuelRoadScene: View {
         }
 
         let loop = phase.truncatingRemainder(dividingBy: 8.5) / 8.5
-        return CGFloat((loop - 0.5) * 150)
+        return CGFloat((loop - 0.5) * Double(metrics.roadWidth * 0.42))
     }
 
     private var horizontalSoftMask: some View {
@@ -1453,18 +2155,20 @@ private struct FuelRoadScene: View {
 
 private struct FuelCamperTrack: View {
     let phase: Double
-    let width: CGFloat
+    let metrics: FuelBackdropMetrics
 
     var body: some View {
         let loopDuration = 12.4
         let loop = phase.truncatingRemainder(dividingBy: loopDuration) / loopDuration
-        let x = (width + 92) * CGFloat(loop) - 70
+        let travelWidth = max(metrics.roadWidth - (metrics.camperInset * 2) - 66, 1)
+        let x = metrics.camperInset + travelWidth * CGFloat(loop)
         let bounce = sin(loop * .pi * 10) * 1.2
 
         FuelCamperVan()
             .frame(width: 66, height: 32)
             .offset(x: x, y: CGFloat(-10 + bounce))
             .shadow(color: NomadTheme.primaryText.opacity(0.08), radius: 6, y: 2)
+            .frame(width: metrics.roadWidth, height: metrics.roadHeight, alignment: .leading)
             .mask(
                 LinearGradient(
                     stops: [
@@ -1776,27 +2480,50 @@ private extension TravelAlertRowModel {
 
 private struct BadgeView: View {
     let badge: PillBadge
+    var isCompact: Bool = false
 
     var body: some View {
-        Label(badge.title, systemImage: badge.symbolName)
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .foregroundStyle(badge.tint)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(badge.tint.opacity(0.12))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(badge.tint.opacity(0.18), lineWidth: 1)
-            )
+        Group {
+            if isCompact {
+                Image(systemName: badge.symbolName)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(badge.tint)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(badge.tint.opacity(0.12))
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(badge.tint.opacity(0.18), lineWidth: 1)
+                    )
+                    .help(badge.title)
+                    .accessibilityLabel(badge.title)
+            } else {
+                Label(badge.title, systemImage: badge.symbolName)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .foregroundStyle(badge.tint)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(badge.tint.opacity(0.12))
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(badge.tint.opacity(0.18), lineWidth: 1)
+                    )
+            }
+        }
     }
 }
 
 private struct ThroughputTrendChart: View {
     let downloadPoints: [MetricPoint]
     let uploadPoints: [MetricPoint]
+    var isCompact: Bool = false
 
     var body: some View {
         let downloadSeries = renderablePoints(downloadPoints)
@@ -1810,7 +2537,7 @@ private struct ThroughputTrendChart: View {
 
                 Spacer()
 
-                HStack(spacing: 10) {
+                HStack(spacing: isCompact ? 6 : 10) {
                     if downloadSeries != nil {
                         TrendLegendItem(title: "Down", color: NomadTheme.teal)
                     }
@@ -1868,7 +2595,7 @@ private struct ThroughputTrendChart: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
+        .padding(isCompact ? 8 : 10)
         .background(chartContainerBackground)
     }
 
@@ -1888,6 +2615,7 @@ private struct MiniTrendChart: View {
     let yLabel: String
     let unitLabel: String
     var placeholderText: String = "Collecting trend…"
+    var isCompact: Bool = false
 
     var body: some View {
         let series = renderablePoints(points)
@@ -1928,7 +2656,7 @@ private struct MiniTrendChart: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
+        .padding(isCompact ? 8 : 10)
         .background(chartContainerBackground)
     }
 
@@ -2334,6 +3062,7 @@ struct SurfForecastSlotPresentation: Identifiable, Equatable {
 
 private struct MarineForecastChip: View {
     let model: SurfForecastSlotPresentation
+    var isCompact: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -2351,7 +3080,7 @@ private struct MarineForecastChip: View {
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
+        .padding(isCompact ? 8 : 10)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(NomadTheme.chartBackground)

@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import CoreLocation
 import NomadCore
 import NomadUI
 import SwiftUI
@@ -15,11 +16,16 @@ struct DashboardRootView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
     @State private var selectedFuelStation: FuelStationMapDestination?
+    @State private var locationRefreshTask: Task<Void, Never>?
+    @State private var pendingLocationRefresh: CLLocation?
+    @State private var lastLocationRefreshLocation: CLLocation?
 
     var body: some View {
         DashboardPanelView(
             snapshot: snapshotStore.snapshot,
             settings: settingsStore.settings,
+            dashboardCardOrder: settingsStore.settings.dashboardCardOrder,
+            dashboardCardWidthModes: settingsStore.settings.dashboardCardWidthModes,
             isPublicIPLocationEnabled: settingsStore.settings.publicIPGeolocationEnabled,
             travelAlertPreferences: settingsStore.settings.travelAlertPreferences,
             versionDescription: AppRuntimeInfo.versionDescription,
@@ -38,7 +44,9 @@ struct DashboardRootView: View {
             openSettingsAction: openSettings,
             openSurfSpotSettingsAction: openSurfSpotSettings,
             openAboutAction: openAbout,
-            quitAction: quitApplication
+            quitAction: quitApplication,
+            onCardOrderChange: persistDashboardCardOrder,
+            onCardWidthModesChange: persistDashboardCardWidthModes
         )
         .task {
             snapshotStore.setCurrentLocation(locationStore.currentLocation)
@@ -49,15 +57,21 @@ struct DashboardRootView: View {
         }
         .onReceive(locationStore.$currentLocation) { location in
             snapshotStore.setCurrentLocation(location)
-            Task {
-                await snapshotStore.refresh(manual: true)
+
+            guard settingsStore.settings.usesDeviceLocation else {
+                return
             }
+
+            scheduleLocationRefresh(for: location)
         }
         .sheet(item: $selectedFuelStation) { station in
             FuelStationPreviewSheet(
                 station: station,
                 openInGoogleMapsAction: { openFuelStationInGoogleMaps(station) }
             )
+        }
+        .onDisappear {
+            locationRefreshTask?.cancel()
         }
     }
 
@@ -127,6 +141,24 @@ struct DashboardRootView: View {
         NSApp.terminate(nil)
     }
 
+    private func persistDashboardCardOrder(_ cardOrder: [DashboardCardID]) {
+        let sanitizedOrder = DashboardCardID.sanitizedOrder(cardOrder)
+        guard settingsStore.settings.dashboardCardOrder != sanitizedOrder else {
+            return
+        }
+
+        settingsStore.settings.dashboardCardOrder = sanitizedOrder
+    }
+
+    private func persistDashboardCardWidthModes(_ widthModes: [DashboardCardID: DashboardCardWidthMode]) {
+        let sanitizedWidthModes = DashboardCardID.sanitizedWidthModes(widthModes)
+        guard settingsStore.settings.dashboardCardWidthModes != sanitizedWidthModes else {
+            return
+        }
+
+        settingsStore.settings.dashboardCardWidthModes = sanitizedWidthModes
+    }
+
     private func openDashboardWindow(_ destination: AppWindowDestination) {
         let sourceWindow = NSApp.keyWindow
         openAndActivateWindow(destination, with: openWindow)
@@ -144,6 +176,48 @@ struct DashboardRootView: View {
         return {
             snapshotStore.checkForUpdates()
         }
+    }
+
+    private func scheduleLocationRefresh(for location: CLLocation?) {
+        guard let location, shouldScheduleLocationRefresh(for: location) else {
+            return
+        }
+
+        pendingLocationRefresh = location
+        locationRefreshTask?.cancel()
+        locationRefreshTask = Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await snapshotStore.refresh(manual: true)
+
+            await MainActor.run {
+                lastLocationRefreshLocation = location
+                pendingLocationRefresh = nil
+            }
+        }
+    }
+
+    private func shouldScheduleLocationRefresh(for location: CLLocation) -> Bool {
+        if let pendingLocationRefresh,
+           hasInsignificantLocationChange(from: pendingLocationRefresh, to: location)
+        {
+            return false
+        }
+
+        if let lastLocationRefreshLocation,
+           hasInsignificantLocationChange(from: lastLocationRefreshLocation, to: location)
+        {
+            return false
+        }
+
+        return true
+    }
+
+    private func hasInsignificantLocationChange(from previous: CLLocation, to current: CLLocation) -> Bool {
+        previous.distance(from: current) < 250
     }
 }
 

@@ -3,6 +3,8 @@ import Foundation
 
 public struct AppSettings: Codable, Equatable, Sendable {
     public var appearanceMode: AppAppearanceMode
+    public var dashboardCardOrder: [DashboardCardID]
+    public var dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode]
     public var refreshIntervalSeconds: TimeInterval
     public var slowRefreshIntervalSeconds: TimeInterval
     public var historyRetentionHours: Int
@@ -22,6 +24,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     public init(
         appearanceMode: AppAppearanceMode = .system,
+        dashboardCardOrder: [DashboardCardID] = DashboardCardID.defaultOrder,
+        dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode] = DashboardCardID.defaultWidthModes,
         refreshIntervalSeconds: TimeInterval = 2,
         slowRefreshIntervalSeconds: TimeInterval = 60,
         historyRetentionHours: Int = 24,
@@ -40,6 +44,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         latencyHosts: [String] = ["1.1.1.1:443", "8.8.8.8:443"]
     ) {
         self.appearanceMode = appearanceMode
+        self.dashboardCardOrder = DashboardCardID.sanitizedOrder(dashboardCardOrder)
+        self.dashboardCardWidthModes = DashboardCardID.sanitizedWidthModes(dashboardCardWidthModes)
         self.refreshIntervalSeconds = refreshIntervalSeconds
         self.slowRefreshIntervalSeconds = slowRefreshIntervalSeconds
         self.historyRetentionHours = historyRetentionHours
@@ -60,6 +66,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case appearanceMode
+        case dashboardCardOrder
+        case dashboardCardWidthModes
         case refreshIntervalSeconds
         case slowRefreshIntervalSeconds
         case historyRetentionHours
@@ -82,6 +90,22 @@ public struct AppSettings: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         appearanceMode = try container.decodeIfPresent(AppAppearanceMode.self, forKey: .appearanceMode) ?? .system
+        let persistedCardOrder = (try? container.decodeIfPresent([String].self, forKey: .dashboardCardOrder))?
+            .compactMap(DashboardCardID.init(rawValue:))
+        dashboardCardOrder = DashboardCardID.sanitizedOrder(persistedCardOrder ?? DashboardCardID.defaultOrder)
+        let persistedCardWidthModes = (try? container.decodeIfPresent([String: String].self, forKey: .dashboardCardWidthModes))?
+            .reduce(into: [DashboardCardID: DashboardCardWidthMode]()) { result, entry in
+                guard let cardID = DashboardCardID(rawValue: entry.key),
+                      let widthMode = DashboardCardWidthMode(rawValue: entry.value)
+                else {
+                    return
+                }
+
+                result[cardID] = widthMode
+            }
+        dashboardCardWidthModes = DashboardCardID.sanitizedWidthModes(
+            persistedCardWidthModes ?? DashboardCardID.defaultWidthModes
+        )
         refreshIntervalSeconds = try container.decode(TimeInterval.self, forKey: .refreshIntervalSeconds)
         slowRefreshIntervalSeconds = try container.decode(TimeInterval.self, forKey: .slowRefreshIntervalSeconds)
         historyRetentionHours = try container.decode(Int.self, forKey: .historyRetentionHours)
@@ -98,6 +122,34 @@ public struct AppSettings: Codable, Equatable, Sendable {
         surfSpotLatitude = try container.decodeIfPresent(Double.self, forKey: .surfSpotLatitude)
         surfSpotLongitude = try container.decodeIfPresent(Double.self, forKey: .surfSpotLongitude)
         latencyHosts = try container.decode([String].self, forKey: .latencyHosts)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(appearanceMode, forKey: .appearanceMode)
+        try container.encode(dashboardCardOrder.map(\.rawValue), forKey: .dashboardCardOrder)
+        try container.encode(
+            dashboardCardWidthModes.reduce(into: [String: String]()) { result, entry in
+                result[entry.key.rawValue] = entry.value.rawValue
+            },
+            forKey: .dashboardCardWidthModes
+        )
+        try container.encode(refreshIntervalSeconds, forKey: .refreshIntervalSeconds)
+        try container.encode(slowRefreshIntervalSeconds, forKey: .slowRefreshIntervalSeconds)
+        try container.encode(historyRetentionHours, forKey: .historyRetentionHours)
+        try container.encode(publicIPGeolocationEnabled, forKey: .publicIPGeolocationEnabled)
+        try container.encode(automaticUpdateChecksEnabled, forKey: .automaticUpdateChecksEnabled)
+        try container.encode(launchAtLoginEnabled, forKey: .launchAtLoginEnabled)
+        try container.encode(useCurrentLocationForWeather, forKey: .useCurrentLocationForWeather)
+        try container.encode(fuelPricesEnabled, forKey: .fuelPricesEnabled)
+        try container.encode(visitedPlacesEnabled, forKey: .visitedPlacesEnabled)
+        try container.encode(travelAdvisoryEnabled, forKey: .travelAdvisoryEnabled)
+        try container.encode(travelWeatherAlertsEnabled, forKey: .travelWeatherAlertsEnabled)
+        try container.encode(regionalSecurityEnabled, forKey: .regionalSecurityEnabled)
+        try container.encode(surfSpotName, forKey: .surfSpotName)
+        try container.encodeIfPresent(surfSpotLatitude, forKey: .surfSpotLatitude)
+        try container.encodeIfPresent(surfSpotLongitude, forKey: .surfSpotLongitude)
+        try container.encode(latencyHosts, forKey: .latencyHosts)
     }
 }
 

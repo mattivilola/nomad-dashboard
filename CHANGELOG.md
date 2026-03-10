@@ -20,6 +20,16 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.17] - 2026-03-10
+
+### Changed
+
+- Add dashboard card reordering and persistence
+- Optimize dashboard data refreshes and UI animations
+- Add dashboard card width customization and persistence
+- Refine BadgeView for compact display and streamline FuelPriceRow
+- Remove network throughput, power trend charts, and marine forecast from dashboard.
+
 ## [0.1.16] - 2026-03-10
 
 ### Changed
