@@ -1674,11 +1674,6 @@ private struct FuelPriceRow: View {
                                 .font(.caption)
                                 .foregroundStyle(NomadTheme.primaryText)
                                 .lineLimit(2)
-
-                            Text(model.stationDetail)
-                                .font(.caption2)
-                                .foregroundStyle(NomadTheme.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
                         }
 
                         Spacer(minLength: 8)
@@ -2512,21 +2507,40 @@ private struct BadgeView: View {
     var isCompact: Bool = false
 
     var body: some View {
-        Label(badge.title, systemImage: badge.symbolName)
-            .font((isCompact ? Font.caption2 : Font.caption).weight(.semibold))
-            .lineLimit(1)
-            .minimumScaleFactor(isCompact ? 0.7 : 0.85)
-            .padding(.horizontal, isCompact ? 8 : 10)
-            .padding(.vertical, isCompact ? 5 : 6)
-            .foregroundStyle(badge.tint)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(badge.tint.opacity(0.12))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(badge.tint.opacity(0.18), lineWidth: 1)
-            )
+        Group {
+            if isCompact {
+                Image(systemName: badge.symbolName)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(badge.tint)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(badge.tint.opacity(0.12))
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(badge.tint.opacity(0.18), lineWidth: 1)
+                    )
+                    .help(badge.title)
+                    .accessibilityLabel(badge.title)
+            } else {
+                Label(badge.title, systemImage: badge.symbolName)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .foregroundStyle(badge.tint)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(badge.tint.opacity(0.12))
+                    )
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(badge.tint.opacity(0.18), lineWidth: 1)
+                    )
+            }
+        }
     }
 }
 
