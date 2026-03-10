@@ -1,5 +1,3 @@
-import AppKit
-import Combine
 import NomadCore
 import NomadUI
 import SwiftUI
@@ -35,10 +33,6 @@ struct NomadDashboardApp: App {
 
         if settingsStore.settings.launchAtLoginEnabled != launchAtLoginController.isEnabled {
             settingsStore.settings.launchAtLoginEnabled = launchAtLoginController.isEnabled
-        }
-
-        DispatchQueue.main.async {
-            applyWindowAppearance(persistedSettings.appearanceMode)
         }
 
         _settingsStore = StateObject(wrappedValue: settingsStore)
@@ -127,26 +121,11 @@ private func tankerkonigAPIKey() -> String? {
     return nil
 }
 
-@MainActor
-private func applyWindowAppearance(_ appearanceMode: AppAppearanceMode) {
-    let appearance = appearanceMode.appKitAppearance
-
-    for window in NSApp.windows {
-        window.appearance = appearance
-    }
-}
-
 private struct SceneAppearanceSync: ViewModifier {
     @ObservedObject var settingsStore: AppSettingsStore
 
     func body(content: Content) -> some View {
         content
             .preferredColorScheme(settingsStore.settings.appearanceMode.preferredColorScheme)
-            .task {
-                applyWindowAppearance(settingsStore.settings.appearanceMode)
-            }
-            .onReceive(settingsStore.$settings.map(\.appearanceMode).removeDuplicates()) { appearanceMode in
-                applyWindowAppearance(appearanceMode)
-            }
     }
 }
