@@ -337,6 +337,7 @@ struct NomadUITests {
         #expect(presentation.visualMode == .animatedCamper)
         #expect(presentation.rows.count == 2)
         #expect(presentation.rows.first?.title == "Diesel")
+        #expect(presentation.rows.map(\.hasMapActions) == [true, true])
     }
 
     @Test
@@ -439,6 +440,110 @@ struct NomadUITests {
         #expect(presentation.badge.title == "Unsupported")
         #expect(presentation.visualMode == .ambient)
         #expect(presentation.emptyMessage == "Fuel prices are not supported in Finland yet.")
+    }
+
+    @Test
+    func fuelPricesSectionPresentationKeepsNormalizedDiagnosticNote() {
+        var settings = AppSettings()
+        settings.fuelPricesEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            fuelPrices: FuelPriceSnapshot(
+                status: .unavailable,
+                sourceName: "Spanish Ministry Fuel Prices",
+                sourceURL: URL(string: "https://example.com/fuel"),
+                countryCode: "ES",
+                countryName: "Spain",
+                searchRadiusKilometers: 50,
+                diesel: nil,
+                gasoline: nil,
+                fetchedAt: .now,
+                detail: "Nearby fuel prices are unavailable right now.",
+                note: "Fuel source TLS handshake failed."
+            ),
+            fuelDiagnostics: FuelDiagnosticsSnapshot(
+                status: .unavailable,
+                stage: .requestStarted,
+                countryCode: "ES",
+                countryName: "Spain",
+                latitude: 39.4699,
+                longitude: -0.3763,
+                searchRadiusKilometers: 50,
+                providerName: "Spanish Ministry Fuel Prices",
+                sourceURL: URL(string: "https://example.com/fuel"),
+                startedAt: .now.addingTimeInterval(-1),
+                finishedAt: .now,
+                elapsedMilliseconds: 1_000,
+                summary: "Fuel source TLS handshake failed.",
+                error: nil
+            ),
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = FuelPricesSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.visualMode == .ambient)
+        #expect(presentation.note == "Fuel source TLS handshake failed.")
+    }
+
+    @Test
+    func fuelPricesSectionPresentationShowsGoogleFallbackOnlyForInvalidCoordinates() {
+        var settings = AppSettings()
+        settings.fuelPricesEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            fuelPrices: FuelPriceSnapshot(
+                status: .ready,
+                sourceName: "Spanish Ministry Fuel Prices",
+                sourceURL: URL(string: "https://example.com/fuel"),
+                countryCode: "ES",
+                countryName: "Spain",
+                searchRadiusKilometers: 50,
+                diesel: FuelStationPrice(
+                    fuelType: .diesel,
+                    stationName: "Broken Station",
+                    address: "Harbor Road 12",
+                    locality: "Valencia",
+                    pricePerLiter: 1.429,
+                    distanceKilometers: 4.8,
+                    latitude: 190,
+                    longitude: -0.3763,
+                    updatedAt: .now
+                ),
+                gasoline: nil,
+                fetchedAt: .now,
+                detail: "Cheapest prices within 50 km.",
+                note: nil
+            ),
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = FuelPricesSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.rows.count == 1)
+        #expect(presentation.rows.first?.hasPreviewMapAction == false)
+        #expect(presentation.rows.first?.hasGoogleMapsAction == true)
+        #expect(presentation.rows.first?.hasMapActions == true)
     }
 }
 

@@ -445,6 +445,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
     public let travelAlerts: TravelAlertsSnapshot?
     public let weather: WeatherSnapshot?
     public let fuelPrices: FuelPriceSnapshot?
+    public let fuelDiagnostics: FuelDiagnosticsSnapshot?
     public let marine: MarineSnapshot?
     public let appState: AppStatusSnapshot
     public let healthSummary: DashboardHealthSummary
@@ -456,6 +457,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         travelAlerts: TravelAlertsSnapshot? = nil,
         weather: WeatherSnapshot?,
         fuelPrices: FuelPriceSnapshot? = nil,
+        fuelDiagnostics: FuelDiagnosticsSnapshot? = nil,
         marine: MarineSnapshot? = nil,
         appState: AppStatusSnapshot,
         healthSummary: DashboardHealthSummary? = nil
@@ -466,6 +468,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         self.travelAlerts = travelAlerts
         self.weather = weather
         self.fuelPrices = fuelPrices
+        self.fuelDiagnostics = fuelDiagnostics
         self.marine = marine
         self.appState = appState
         self.healthSummary = healthSummary ?? DashboardHealthEvaluator.makeSummary(
@@ -702,6 +705,22 @@ public extension DashboardSnapshot {
             detail: "Cheapest prices within 50 km.",
             note: nil
         ),
+        fuelDiagnostics: FuelDiagnosticsSnapshot(
+            status: .ready,
+            stage: .bestPriceSelection,
+            countryCode: "ES",
+            countryName: "Spain",
+            latitude: 39.4699,
+            longitude: -0.3763,
+            searchRadiusKilometers: 50,
+            providerName: "Spanish Ministry for the Ecological Transition",
+            sourceURL: URL(string: "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/"),
+            startedAt: Date().addingTimeInterval(-1.2),
+            finishedAt: .now,
+            elapsedMilliseconds: 1_200,
+            summary: "Fuel prices loaded successfully.",
+            error: nil
+        ),
         marine: MarineSnapshot(
             spotName: "El Saler",
             coordinate: CLLocationCoordinate2D(latitude: 39.355, longitude: -0.314),
@@ -738,6 +757,7 @@ public extension DashboardSnapshot {
             travelAlerts: travelAlerts,
             weather: weather,
             fuelPrices: fuelPrices,
+            fuelDiagnostics: fuelDiagnostics,
             marine: marine,
             appState: appState,
             healthSummary: healthSummary

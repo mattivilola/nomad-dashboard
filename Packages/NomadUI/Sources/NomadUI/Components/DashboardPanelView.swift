@@ -18,6 +18,8 @@ public struct DashboardPanelView: View {
     private let copyIPAddressAction: () -> Void
     private let openVisitedMapAction: () -> Void
     private let openNetworkSettingsAction: () -> Void
+    private let openFuelStationMapPreviewAction: (FuelStationMapDestination) -> Void
+    private let openFuelStationInGoogleMapsAction: (FuelStationMapDestination) -> Void
     private let checkForUpdatesAction: (() -> Void)?
     private let openSettingsAction: () -> Void
     private let openSurfSpotSettingsAction: () -> Void
@@ -41,6 +43,8 @@ public struct DashboardPanelView: View {
         copyIPAddressAction: @escaping () -> Void,
         openVisitedMapAction: @escaping () -> Void,
         openNetworkSettingsAction: @escaping () -> Void,
+        openFuelStationMapPreviewAction: @escaping (FuelStationMapDestination) -> Void = { _ in },
+        openFuelStationInGoogleMapsAction: @escaping (FuelStationMapDestination) -> Void = { _ in },
         checkForUpdatesAction: (() -> Void)? = nil,
         openSettingsAction: @escaping () -> Void,
         openSurfSpotSettingsAction: @escaping () -> Void,
@@ -61,6 +65,8 @@ public struct DashboardPanelView: View {
         self.copyIPAddressAction = copyIPAddressAction
         self.openVisitedMapAction = openVisitedMapAction
         self.openNetworkSettingsAction = openNetworkSettingsAction
+        self.openFuelStationMapPreviewAction = openFuelStationMapPreviewAction
+        self.openFuelStationInGoogleMapsAction = openFuelStationInGoogleMapsAction
         self.checkForUpdatesAction = checkForUpdatesAction
         self.openSettingsAction = openSettingsAction
         self.openSurfSpotSettingsAction = openSurfSpotSettingsAction
@@ -378,7 +384,11 @@ public struct DashboardPanelView: View {
                 if presentation.rows.isEmpty == false {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(presentation.rows) { row in
-                            FuelPriceRow(model: row)
+                            FuelPriceRow(
+                                model: row,
+                                previewMapAction: openFuelStationMapPreviewAction,
+                                openGoogleMapsAction: openFuelStationInGoogleMapsAction
+                            )
                         }
                     }
                 } else {
@@ -1109,10 +1119,25 @@ struct FuelPriceRowModel: Identifiable, Equatable {
     let priceValue: String
     let updatedText: String?
     let tint: Color
+    let stationDestination: FuelStationMapDestination?
+
+    var hasPreviewMapAction: Bool {
+        stationDestination?.isCoordinateValid == true
+    }
+
+    var hasGoogleMapsAction: Bool {
+        stationDestination?.googleMapsURL != nil
+    }
+
+    var hasMapActions: Bool {
+        hasPreviewMapAction || hasGoogleMapsAction
+    }
 }
 
 private struct FuelPriceRow: View {
     let model: FuelPriceRowModel
+    let previewMapAction: (FuelStationMapDestination) -> Void
+    let openGoogleMapsAction: (FuelStationMapDestination) -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -1146,6 +1171,28 @@ private struct FuelPriceRow: View {
                         .font(.caption2)
                         .foregroundStyle(NomadTheme.tertiaryText)
                 }
+
+                if let stationDestination = model.stationDestination, model.hasMapActions {
+                    HStack(spacing: 6) {
+                        if model.hasPreviewMapAction {
+                            FuelRowActionButton(
+                                title: "Map",
+                                systemImage: "map.fill"
+                            ) {
+                                previewMapAction(stationDestination)
+                            }
+                        }
+
+                        if model.hasGoogleMapsAction {
+                            FuelRowActionButton(
+                                title: "Google",
+                                systemImage: "arrow.up.right.square.fill"
+                            ) {
+                                openGoogleMapsAction(stationDestination)
+                            }
+                        }
+                    }
+                }
             }
         }
         .padding(10)
@@ -1157,6 +1204,31 @@ private struct FuelPriceRow: View {
                         .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
                 )
         )
+    }
+}
+
+private struct FuelRowActionButton: View {
+    let title: String
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(NomadTheme.primaryText)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(NomadTheme.inlineButtonBackground)
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(NomadTheme.cardBorder.opacity(0.85), lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -2030,7 +2102,18 @@ struct FuelPricesSectionPresentation {
                     stationDetail: Self.stationDetail(for: station),
                     priceValue: NomadFormatters.fuelPricePerLiter(station.pricePerLiter),
                     updatedText: station.updatedAt.map { "Updated \(NomadFormatters.compactClockTime($0))" },
-                    tint: station.fuelType == .diesel ? NomadTheme.teal : NomadTheme.sand
+                    tint: station.fuelType == .diesel ? NomadTheme.teal : NomadTheme.sand,
+                    stationDestination: FuelStationMapDestination(
+                        fuelType: station.fuelType,
+                        stationName: station.stationName,
+                        address: station.address,
+                        locality: station.locality,
+                        pricePerLiter: station.pricePerLiter,
+                        currencyCode: station.currencyCode,
+                        latitude: station.latitude,
+                        longitude: station.longitude,
+                        updatedAt: station.updatedAt
+                    )
                 )
             }
             emptyTitle = ""

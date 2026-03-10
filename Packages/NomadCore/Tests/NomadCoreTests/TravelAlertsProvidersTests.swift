@@ -56,13 +56,13 @@ struct TravelAlertsProvidersTests {
                     detailsURL: #require(URL(string: "https://weather.example/minor")),
                     source: "National Weather Service",
                     summary: "Wind advisory.",
-                    severity: .minor
+                    severity: .info
                 ),
                 WeatherAlertPayload(
                     detailsURL: #require(URL(string: "https://weather.example/severe")),
                     source: "National Weather Service",
                     summary: "Flood warning.",
-                    severity: .severe
+                    severity: .warning
                 )
             ],
             fetchedAt: .now

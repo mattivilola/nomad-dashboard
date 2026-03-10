@@ -28,11 +28,22 @@ struct NomadSourceProbeTests {
         let lines = errorLines(for: FuelPriceProviderError(
             sourceName: "Spanish Ministry Fuel Prices",
             sourceURL: URL(string: "https://example.com/fuel"),
-            underlyingDescription: "A server with the specified hostname could not be found."
+            stage: .requestStarted,
+            details: FuelDiagnosticsError(
+                failureKind: .dnsResolution,
+                domain: NSURLErrorDomain,
+                code: URLError.cannotFindHost.rawValue,
+                localizedDescription: "A server with the specified hostname could not be found.",
+                failingURL: URL(string: "https://example.com/fuel"),
+                urlErrorSymbol: "cannotFindHost",
+                summary: "Fuel source host could not be resolved."
+            )
         ))
 
         #expect(lines.contains("fuel source: Spanish Ministry Fuel Prices"))
         #expect(lines.contains("fuel source URL: https://example.com/fuel"))
+        #expect(lines.contains("fuel failure kind: dnsResolution"))
+        #expect(lines.contains("fuel URL error symbol: cannotFindHost"))
         #expect(lines.contains("underlying: A server with the specified hostname could not be found."))
     }
 
@@ -41,7 +52,16 @@ struct NomadSourceProbeTests {
         let hint = errorHint(for: FuelPriceProviderError(
             sourceName: "Spanish Ministry Fuel Prices",
             sourceURL: nil,
-            underlyingDescription: "A server with the specified hostname could not be found."
+            stage: .requestStarted,
+            details: FuelDiagnosticsError(
+                failureKind: .dnsResolution,
+                domain: NSURLErrorDomain,
+                code: URLError.cannotFindHost.rawValue,
+                localizedDescription: "A server with the specified hostname could not be found.",
+                failingURL: nil,
+                urlErrorSymbol: "cannotFindHost",
+                summary: "Fuel source host could not be resolved."
+            )
         ))
 
         #expect(hint == "Apple URLSession could not resolve the host. Compare this with curl or nscurl --ats-diagnostics; curl reachability does not guarantee app reachability.")

@@ -161,6 +161,150 @@ struct DashboardSnapshotStoreTests {
         #expect(store.snapshot.fuelPrices?.status == .ready)
         #expect(store.snapshot.fuelPrices?.diesel?.stationName == "Plenoil Valencia Puerto")
         #expect(await fuelPriceProvider.requestedCountryCodes() == ["ES"])
+        #expect(store.snapshot.fuelDiagnostics?.status == .ready)
+        #expect(store.snapshot.fuelDiagnostics?.stage == .bestPriceSelection)
+        #expect(store.snapshot.fuelDiagnostics?.providerName == "Spanish Ministry Fuel Prices")
+        #expect(store.snapshot.fuelDiagnostics?.elapsedMilliseconds == 800)
+        #expect(store.snapshot.fuelDiagnostics?.error == nil)
+    }
+
+    @Test
+    func refreshStoresFuelDiagnosticsWhenReverseGeocodingHasNoCountryCode() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.fuelPricesEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let dependencies = makeDependencies(
+            reverseGeocodingProvider: MissingFuelCountryReverseGeocodingProvider(),
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        store.setCurrentLocation(CLLocation(latitude: 39.4699, longitude: -0.3763))
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.fuelPrices?.status == .unavailable)
+        #expect(store.snapshot.fuelDiagnostics?.stage == .reverseGeocoding)
+        #expect(store.snapshot.fuelDiagnostics?.summary == "Current location country could not be resolved.")
+        #expect(store.snapshot.fuelDiagnostics?.countryName == "Spain")
+    }
+
+    @Test
+    func refreshPreservesStructuredFuelFailureDiagnostics() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.fuelPricesEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let failure = FuelPriceProviderError(
+            sourceName: "Spanish Ministry Fuel Prices",
+            sourceURL: URL(string: "https://example.com/fuel"),
+            stage: .requestStarted,
+            details: FuelDiagnosticsError(
+                failureKind: .tlsHandshake,
+                domain: NSURLErrorDomain,
+                code: URLError.secureConnectionFailed.rawValue,
+                localizedDescription: "An SSL error has occurred and a secure connection to the server cannot be made.",
+                failingURL: URL(string: "https://example.com/fuel"),
+                responseMIMEType: "application/json",
+                payloadByteCount: 0,
+                urlErrorSymbol: "secureConnectionFailed",
+                summary: "Fuel source TLS handshake failed."
+            )
+        )
+        let dependencies = makeDependencies(
+            reverseGeocodingProvider: SpanishReverseGeocodingProvider(),
+            fuelPriceProvider: FailingFuelPriceProvider(failure: failure),
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        store.setCurrentLocation(CLLocation(latitude: 39.4699, longitude: -0.3763))
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.fuelPrices?.status == .unavailable)
+        #expect(store.snapshot.fuelPrices?.note == "Fuel source TLS handshake failed.")
+        #expect(store.snapshot.fuelDiagnostics?.stage == .requestStarted)
+        #expect(store.snapshot.fuelDiagnostics?.error?.failureKind == .tlsHandshake)
+        #expect(store.snapshot.fuelDiagnostics?.error?.urlErrorSymbol == "secureConnectionFailed")
+        #expect(store.snapshot.fuelDiagnostics?.error?.failingURL?.absoluteString == "https://example.com/fuel")
+    }
+
+    @Test
+    func fuelDiagnosticsReportTextIncludesProviderCountryAndNormalizedError() {
+        let diagnostics = FuelDiagnosticsSnapshot(
+            status: .unavailable,
+            stage: .requestStarted,
+            countryCode: "ES",
+            countryName: "Spain",
+            latitude: 39.4699,
+            longitude: -0.3763,
+            searchRadiusKilometers: 50,
+            providerName: "Spanish Ministry Fuel Prices",
+            sourceURL: URL(string: "https://example.com/fuel"),
+            startedAt: .now.addingTimeInterval(-1),
+            finishedAt: .now,
+            elapsedMilliseconds: 1_000,
+            summary: "Fuel source TLS handshake failed.",
+            error: FuelDiagnosticsError(
+                failureKind: .tlsHandshake,
+                domain: NSURLErrorDomain,
+                code: URLError.secureConnectionFailed.rawValue,
+                localizedDescription: "An SSL error has occurred and a secure connection to the server cannot be made.",
+                failingURL: URL(string: "https://example.com/fuel"),
+                urlErrorSymbol: "secureConnectionFailed",
+                summary: "Fuel source TLS handshake failed."
+            )
+        )
+
+        let report = diagnostics.reportText(fuelPrices: nil)
+
+        #expect(report.contains("Provider: Spanish Ministry Fuel Prices"))
+        #expect(report.contains("Country: Spain · ES"))
+        #expect(report.contains("Failure kind: TLS Handshake"))
+        #expect(report.contains("URL error symbol: secureConnectionFailed"))
+        #expect(report.contains("Summary: Fuel source TLS handshake failed."))
+    }
+
+    @Test
+    func fuelStationMapDestinationBuildsGoogleMapsDirectionsURLFromCoordinates() throws {
+        let destination = FuelStationMapDestination(
+            fuelType: .diesel,
+            stationName: "Cheap Diesel",
+            address: "Harbor Road 12",
+            locality: "Valencia",
+            pricePerLiter: 1.429,
+            latitude: 39.4699,
+            longitude: -0.3763,
+            updatedAt: nil
+        )
+
+        let url = try #require(destination.googleMapsURL)
+
+        #expect(url.absoluteString.contains("https://www.google.com/maps/dir/"))
+        #expect(url.absoluteString.contains("destination=39.4699,-0.3763"))
+        #expect(url.absoluteString.contains("travelmode=driving"))
+    }
+
+    @Test
+    func fuelStationMapDestinationFallsBackToSearchQueryWhenCoordinatesAreInvalid() throws {
+        let destination = FuelStationMapDestination(
+            fuelType: .gasoline,
+            stationName: "Ballenoil Alfafar",
+            address: "Avinguda del Port 3",
+            locality: "Valencia",
+            pricePerLiter: 1.519,
+            latitude: 190,
+            longitude: -500,
+            updatedAt: nil
+        )
+
+        let url = try #require(destination.googleMapsURL)
+
+        #expect(url.absoluteString.contains("https://www.google.com/maps/search/"))
+        #expect(url.absoluteString.contains("Ballenoil"))
+        #expect(destination.isCoordinateValid == false)
     }
 
     @Test
@@ -825,11 +969,31 @@ private struct FixedFuelPriceProvider: FuelPriceProvider {
     }
 }
 
-private actor RecordingFuelPriceProvider: FuelPriceProvider {
+extension FixedFuelPriceProvider: FuelPriceDiagnosticsProviding {
+    func latestRequestDiagnostics() async -> FuelProviderRequestDiagnostics? {
+        FuelProviderRequestDiagnostics(
+            stage: .bestPriceSelection,
+            providerName: "Spanish Ministry Fuel Prices",
+            sourceURL: URL(string: "https://example.com/spain-fuel"),
+            startedAt: Date().addingTimeInterval(-0.8),
+            finishedAt: .now,
+            elapsedMilliseconds: 800,
+            responseMIMEType: "application/json",
+            payloadByteCount: 2_048,
+            httpStatusCode: 200,
+            summary: "Fuel prices loaded successfully.",
+            error: nil
+        )
+    }
+}
+
+private actor RecordingFuelPriceProvider: FuelPriceProvider, FuelPriceDiagnosticsProviding {
     private var requests: [FuelSearchRequest] = []
+    private var latestDiagnosticsValue: FuelProviderRequestDiagnostics?
 
     func prices(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot {
         requests.append(request)
+        latestDiagnosticsValue = await FixedFuelPriceProvider().latestRequestDiagnostics()
         return try await FixedFuelPriceProvider().prices(for: request, forceRefresh: forceRefresh)
     }
 
@@ -839,6 +1003,10 @@ private actor RecordingFuelPriceProvider: FuelPriceProvider {
 
     func requestedCountryCodes() -> [String] {
         requests.map(\.countryCode)
+    }
+
+    func latestRequestDiagnostics() async -> FuelProviderRequestDiagnostics? {
+        latestDiagnosticsValue
     }
 }
 
@@ -850,6 +1018,46 @@ private struct SpanishReverseGeocodingProvider: ReverseGeocodingProvider {
             country: "Spain",
             countryCode: "ES",
             timeZoneIdentifier: "Europe/Madrid"
+        )
+    }
+}
+
+private struct MissingFuelCountryReverseGeocodingProvider: ReverseGeocodingProvider {
+    func details(for location: CLLocation) async throws -> ReverseGeocodedLocation {
+        ReverseGeocodedLocation(
+            city: "Valencia",
+            region: "Valencian Community",
+            country: "Spain",
+            countryCode: nil,
+            timeZoneIdentifier: "Europe/Madrid"
+        )
+    }
+}
+
+private actor FailingFuelPriceProvider: FuelPriceProvider, FuelPriceDiagnosticsProviding {
+    private let failure: FuelPriceProviderError
+
+    init(failure: FuelPriceProviderError) {
+        self.failure = failure
+    }
+
+    func prices(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot {
+        throw failure
+    }
+
+    func latestRequestDiagnostics() async -> FuelProviderRequestDiagnostics? {
+        FuelProviderRequestDiagnostics(
+            stage: failure.stage,
+            providerName: failure.sourceName,
+            sourceURL: failure.sourceURL,
+            startedAt: Date().addingTimeInterval(-1),
+            finishedAt: .now,
+            elapsedMilliseconds: 1_000,
+            responseMIMEType: failure.responseMIMEType,
+            payloadByteCount: failure.payloadByteCount,
+            httpStatusCode: failure.httpStatusCode,
+            summary: failure.diagnosticSummary,
+            error: failure.details
         )
     }
 }

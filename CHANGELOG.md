@@ -20,6 +20,14 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.16] - 2026-03-10
+
+### Changed
+
+- Add detailed fuel price fetch diagnostics
+- Add fuel station map preview and Google Maps integration
+- Refine Swift Concurrency `Sendable` conformance and travel alert severity types. Improve conditional display of fuel price map actions.
+
 ## [0.1.15] - 2026-03-09
 
 ### Changed
