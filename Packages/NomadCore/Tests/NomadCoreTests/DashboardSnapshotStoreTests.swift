@@ -30,6 +30,57 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func projectedMetricHistoryCapsLargeSeriesPreservingEndpoints() {
+        let start = Date(timeIntervalSince1970: 10_000)
+        let points = (0..<400).map { index in
+            MetricPoint(timestamp: start.addingTimeInterval(Double(index)), value: Double(index))
+        }
+
+        let projected = projectedMetricHistory(points)
+
+        #expect(projected.count == 120)
+        #expect(projected.first == points.first)
+        #expect(projected.last == points.last)
+        #expect(zip(projected, projected.dropFirst()).allSatisfy { lhs, rhs in
+            lhs.timestamp < rhs.timestamp
+        })
+    }
+
+    @Test
+    func overlappingRefreshesCoalesceIntoSingleManualFollowUp() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let throughputMonitor = SlowThroughputMonitor()
+        let publicIPProvider = RecordingPublicIPProvider()
+        let dependencies = makeDependencies(
+            throughputMonitor: throughputMonitor,
+            publicIPProvider: publicIPProvider,
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        let firstRefresh = Task {
+            await store.refresh(manual: true)
+        }
+
+        try await Task.sleep(for: .milliseconds(10))
+
+        let overlappingRefreshes = [
+            Task { await store.refresh(manual: false) },
+            Task { await store.refresh(manual: true) },
+            Task { await store.refresh(manual: true) }
+        ]
+
+        await firstRefresh.value
+        for task in overlappingRefreshes {
+            await task.value
+        }
+
+        #expect(await throughputMonitor.callCount() == 2)
+        #expect(await publicIPProvider.callCount() == 2)
+    }
+
+    @Test
     func refreshStoresUniqueVisitedPlaceFromIPAndDeviceLocation() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = true
@@ -829,6 +880,20 @@ private struct FixedThroughputMonitor: ThroughputMonitor {
     }
 }
 
+private actor SlowThroughputMonitor: ThroughputMonitor {
+    private var calls = 0
+
+    func currentSample() async -> NetworkThroughputSample? {
+        calls += 1
+        try? await Task.sleep(for: .milliseconds(50))
+        return await FixedThroughputMonitor().currentSample()
+    }
+
+    func callCount() -> Int {
+        calls
+    }
+}
+
 private struct NilThroughputMonitor: ThroughputMonitor {
     func currentSample() async -> NetworkThroughputSample? {
         nil
@@ -871,6 +936,19 @@ private struct FixedVPNProvider: VPNStatusProvider {
 private struct FixedPublicIPProvider: PublicIPProvider {
     func currentIP(forceRefresh: Bool) async throws -> PublicIPSnapshot {
         PublicIPSnapshot(address: "198.51.100.12", provider: "test", fetchedAt: .now)
+    }
+}
+
+private actor RecordingPublicIPProvider: PublicIPProvider {
+    private var calls = 0
+
+    func currentIP(forceRefresh: Bool) async throws -> PublicIPSnapshot {
+        calls += 1
+        return try await FixedPublicIPProvider().currentIP(forceRefresh: forceRefresh)
+    }
+
+    func callCount() -> Int {
+        calls
     }
 }
 

@@ -84,17 +84,20 @@ public struct DashboardPanelView: View {
     }
 
     public var body: some View {
-        ZStack {
-            NomadTheme.background.ignoresSafeArea()
+        GeometryReader { viewport in
+            ZStack {
+                NomadTheme.background.ignoresSafeArea()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    header
-                    summaryStrip
-                    orderedCardSections
-                    footer
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        header
+                        summaryStrip
+                        orderedCardSections(viewportHeight: viewport.size.height)
+                        footer
+                    }
+                    .padding(18)
                 }
-                .padding(18)
+                .coordinateSpace(name: DashboardScrollCoordinateSpace.name)
             }
         }
         .frame(width: 430, height: 640)
@@ -196,12 +199,12 @@ public struct DashboardPanelView: View {
         }
     }
 
-    private var orderedCardSections: some View {
+    private func orderedCardSections(viewportHeight: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             cardDropZone(at: 0, topPadding: 0, bottomPadding: 8)
 
             ForEach(Array(resolvedCardOrder.enumerated()), id: \.element) { index, cardID in
-                dashboardCard(for: cardID)
+                dashboardCard(for: cardID, viewportHeight: viewportHeight)
 
                 if index < resolvedCardOrder.count - 1 {
                     cardDropZone(at: index + 1, topPadding: 8, bottomPadding: 8)
@@ -213,7 +216,7 @@ public struct DashboardPanelView: View {
     }
 
     @ViewBuilder
-    private func dashboardCard(for cardID: DashboardCardID) -> some View {
+    private func dashboardCard(for cardID: DashboardCardID, viewportHeight: CGFloat) -> some View {
         switch cardID {
         case .connectivity:
             connectivitySection
@@ -222,7 +225,7 @@ public struct DashboardPanelView: View {
         case .travelContext:
             travelSection
         case .fuelPrices:
-            fuelPricesSection
+            fuelPricesSection(viewportHeight: viewportHeight)
         case .travelAlerts:
             travelAlertsSection
         case .weather:
@@ -467,49 +470,15 @@ public struct DashboardPanelView: View {
         }
     }
 
-    private var fuelPricesSection: some View {
-        let presentation = fuelPricesSectionPresentation
-
-        return DashboardCard(
-            title: "Fuel Prices",
-            subtitle: presentation.subtitle,
-            badge: presentation.badge,
+    private func fuelPricesSection(viewportHeight: CGFloat) -> some View {
+        FuelPricesSectionView(
+            presentation: fuelPricesSectionPresentation,
+            viewportHeight: viewportHeight,
             accessory: dragHandle(for: .fuelPrices, title: "Fuel Prices"),
-            backgroundDecoration: AnyView(
-                FuelCardBackdrop(
-                    visualMode: presentation.visualMode,
-                    badgeTint: presentation.badge.tint
-                )
-            )
-        ) {
-            VStack(alignment: .leading, spacing: 10) {
-                if presentation.rows.isEmpty == false {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(presentation.rows) { row in
-                            FuelPriceRow(
-                                model: row,
-                                previewMapAction: openFuelStationMapPreviewAction,
-                                openGoogleMapsAction: openFuelStationInGoogleMapsAction
-                            )
-                        }
-                    }
-                } else {
-                    WeatherEmptyState(
-                        title: presentation.emptyTitle,
-                        systemImage: presentation.emptySystemImage,
-                        message: presentation.emptyMessage,
-                        actionTitle: presentation.emptyActionTitle,
-                        action: presentation.isActionable ? openSettingsAction : nil
-                    )
-                }
-
-                if let note = presentation.note {
-                    Text(note)
-                        .font(.caption2)
-                        .foregroundStyle(NomadTheme.tertiaryText)
-                }
-            }
-        }
+            openSettingsAction: openSettingsAction,
+            previewMapAction: openFuelStationMapPreviewAction,
+            openGoogleMapsAction: openFuelStationInGoogleMapsAction
+        )
     }
 
     private var travelAlertsSection: some View {
@@ -1382,70 +1351,220 @@ private struct FuelRowActionButton: View {
     }
 }
 
+private enum DashboardScrollCoordinateSpace {
+    static let name = "DashboardPanelScrollSpace"
+}
+
+private struct FuelCardFramePreferenceKey: PreferenceKey {
+    static var defaultValue: CGRect { .null }
+
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let nextFrame = nextValue()
+        if nextFrame.isNull == false {
+            value = nextFrame
+        }
+    }
+}
+
 enum FuelCardVisualMode: Equatable {
     case animatedCamper
     case ambient
     case staticScene
 }
 
+struct FuelBackdropAnimationState: Equatable {
+    let visibilityRatio: Double
+    let isAnimating: Bool
+}
+
+func fuelCardVisibilityRatio(frame: CGRect, viewportHeight: CGFloat) -> Double {
+    guard frame.isNull == false, frame.height > 0, viewportHeight > 0 else {
+        return 0
+    }
+
+    let visibleMinY = max(frame.minY, 0)
+    let visibleMaxY = min(frame.maxY, viewportHeight)
+    let visibleHeight = max(visibleMaxY - visibleMinY, 0)
+    return min(max(visibleHeight / frame.height, 0), 1)
+}
+
+func fuelBackdropAnimationState(
+    frame: CGRect,
+    viewportHeight: CGFloat,
+    visualMode: FuelCardVisualMode,
+    reduceMotion: Bool,
+    threshold: Double = 0.35
+) -> FuelBackdropAnimationState {
+    let visibilityRatio = fuelCardVisibilityRatio(frame: frame, viewportHeight: viewportHeight)
+    return FuelBackdropAnimationState(
+        visibilityRatio: visibilityRatio,
+        isAnimating: visualMode == .animatedCamper && reduceMotion == false && visibilityRatio >= threshold
+    )
+}
+
+private struct FuelPricesSectionView: View {
+    let presentation: FuelPricesSectionPresentation
+    let viewportHeight: CGFloat
+    let accessory: AnyView
+    let openSettingsAction: () -> Void
+    let previewMapAction: (FuelStationMapDestination) -> Void
+    let openGoogleMapsAction: (FuelStationMapDestination) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var cardFrame: CGRect = .null
+
+    var body: some View {
+        let animationState = fuelBackdropAnimationState(
+            frame: cardFrame,
+            viewportHeight: viewportHeight,
+            visualMode: presentation.visualMode,
+            reduceMotion: reduceMotion
+        )
+
+        DashboardCard(
+            title: "Fuel Prices",
+            subtitle: presentation.subtitle,
+            badge: presentation.badge,
+            accessory: accessory,
+            backgroundDecoration: AnyView(
+                FuelCardBackdrop(
+                    visualMode: presentation.visualMode,
+                    badgeTint: presentation.badge.tint,
+                    isAnimating: animationState.isAnimating
+                )
+            )
+        ) {
+            VStack(alignment: .leading, spacing: 10) {
+                if presentation.rows.isEmpty == false {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(presentation.rows) { row in
+                            FuelPriceRow(
+                                model: row,
+                                previewMapAction: previewMapAction,
+                                openGoogleMapsAction: openGoogleMapsAction
+                            )
+                        }
+                    }
+                } else {
+                    WeatherEmptyState(
+                        title: presentation.emptyTitle,
+                        systemImage: presentation.emptySystemImage,
+                        message: presentation.emptyMessage,
+                        actionTitle: presentation.emptyActionTitle,
+                        action: presentation.isActionable ? openSettingsAction : nil
+                    )
+                }
+
+                if let note = presentation.note {
+                    Text(note)
+                        .font(.caption2)
+                        .foregroundStyle(NomadTheme.tertiaryText)
+                }
+            }
+        }
+        .background(
+            GeometryReader { geometry in
+                Color.clear
+                    .preference(
+                        key: FuelCardFramePreferenceKey.self,
+                        value: geometry.frame(in: .named(DashboardScrollCoordinateSpace.name))
+                    )
+            }
+        )
+        .onPreferenceChange(FuelCardFramePreferenceKey.self) { frame in
+            cardFrame = frame
+        }
+    }
+}
+
 private struct FuelCardBackdrop: View {
     let visualMode: FuelCardVisualMode
     let badgeTint: Color
+    let isAnimating: Bool
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var lastResolvedPhase = 0.18
 
     var body: some View {
         GeometryReader { geometry in
-            TimelineView(.animation) { context in
-                let phase = effectivePhase(for: context.date)
-
-                ZStack {
-                    FuelCardGlowLayer(phase: phase, visualMode: visualMode, badgeTint: badgeTint)
-
-                    VStack {
-                        Spacer(minLength: 0)
-
-                        ZStack(alignment: .bottomLeading) {
-                            FuelRoadScene(phase: phase, visualMode: visualMode)
-
-                            if shouldShowCamper {
-                                FuelCamperTrack(
-                                    phase: phase,
-                                    width: geometry.size.width
-                                )
-                                .transition(.opacity)
+            Group {
+                if isAnimating {
+                    TimelineView(.animation) { context in
+                        let phase = context.date.timeIntervalSinceReferenceDate
+                        backdropContents(size: geometry.size, phase: phase)
+                            .onAppear {
+                                lastResolvedPhase = phase
                             }
-                        }
-                        .frame(height: geometry.size.height * 0.34)
+                            .onChange(of: phase) { _, newPhase in
+                                lastResolvedPhase = newPhase
+                            }
                     }
-
-                    FuelAtmosphereLayer(phase: phase, visualMode: visualMode)
-                        .allowsHitTesting(false)
+                } else {
+                    backdropContents(size: geometry.size, phase: resolvedStaticPhase)
                 }
-                .mask(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                )
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
-    private var shouldShowCamper: Bool {
-        visualMode == .animatedCamper && reduceMotion == false
+    @ViewBuilder
+    private func backdropContents(size: CGSize, phase: Double) -> some View {
+        let metrics = FuelBackdropMetrics(size: size)
+
+        ZStack {
+            FuelCardGlowLayer(phase: phase, visualMode: visualMode, badgeTint: badgeTint, metrics: metrics)
+
+            VStack {
+                Spacer(minLength: 0)
+
+                ZStack(alignment: .bottomLeading) {
+                    FuelRoadScene(phase: phase, visualMode: visualMode, metrics: metrics)
+
+                    if visualMode == .animatedCamper {
+                        FuelCamperTrack(phase: phase, metrics: metrics)
+                            .transition(.opacity)
+                    }
+                }
+                .frame(width: metrics.roadWidth, height: metrics.roadHeight)
+                .frame(maxWidth: .infinity)
+            }
+
+            FuelAtmosphereLayer(phase: phase, visualMode: visualMode, metrics: metrics)
+                .allowsHitTesting(false)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .mask(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
     }
 
-    private func effectivePhase(for date: Date) -> Double {
-        guard reduceMotion == false else {
-            return 0.18
-        }
-
+    private var resolvedStaticPhase: Double {
         switch visualMode {
-        case .animatedCamper, .ambient:
-            return date.timeIntervalSinceReferenceDate
-        case .staticScene:
+        case .animatedCamper:
+            return lastResolvedPhase
+        case .ambient, .staticScene:
             return 0.18
         }
+    }
+}
+
+private struct FuelBackdropMetrics {
+    let width: CGFloat
+    let height: CGFloat
+    let roadWidth: CGFloat
+    let roadHeight: CGFloat
+    let laneMarkerCount: Int
+    let laneMarkerSpacing: CGFloat
+    let camperInset: CGFloat
+
+    init(size: CGSize) {
+        width = max(size.width, 1)
+        height = max(size.height, 1)
+        roadWidth = width * 0.94
+        roadHeight = max(height * 0.34, 72)
+        laneMarkerSpacing = max(12, roadWidth * 0.032)
+        laneMarkerCount = max(7, Int((roadWidth * 0.72) / (18 + laneMarkerSpacing)))
+        camperInset = roadWidth * 0.08
     }
 }
 
@@ -1453,6 +1572,7 @@ private struct FuelCardGlowLayer: View {
     let phase: Double
     let visualMode: FuelCardVisualMode
     let badgeTint: Color
+    let metrics: FuelBackdropMetrics
 
     var body: some View {
         ZStack {
@@ -1466,11 +1586,11 @@ private struct FuelCardGlowLayer: View {
                         ],
                         center: .center,
                         startRadius: 6,
-                        endRadius: 120
+                        endRadius: max(metrics.width * 0.34, 120)
                     )
                 )
-                .frame(width: 180, height: 88)
-                .offset(x: 78, y: 44)
+                .frame(width: max(metrics.width * 0.58, 180), height: max(metrics.height * 0.26, 88))
+                .offset(x: -metrics.width * 0.12, y: metrics.height * 0.08)
                 .blur(radius: 10)
 
             Ellipse()
@@ -1484,8 +1604,8 @@ private struct FuelCardGlowLayer: View {
                         endPoint: .trailing
                     )
                 )
-                .frame(width: 220, height: 52)
-                .offset(x: CGFloat(sin(phase / 4.7)) * 18, y: 10)
+                .frame(width: max(metrics.width * 0.82, 220), height: max(metrics.height * 0.15, 52))
+                .offset(x: CGFloat(sin(phase / 4.7)) * metrics.width * 0.08, y: metrics.height * 0.02)
                 .blur(radius: 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1495,18 +1615,20 @@ private struct FuelCardGlowLayer: View {
 private struct FuelAtmosphereLayer: View {
     let phase: Double
     let visualMode: FuelCardVisualMode
+    let metrics: FuelBackdropMetrics
 
     var body: some View {
         ZStack {
             ForEach(0..<3, id: \.self) { index in
                 let drift = visualMode == .staticScene ? 0 : sin(phase / (6.5 + Double(index)))
+                let xFractions: [CGFloat] = [0.18, 0.5, 0.82]
                 Capsule(style: .continuous)
                     .fill(index == 1 ? NomadTheme.teal.opacity(0.06) : NomadTheme.fuelGlow.opacity(0.05))
-                    .frame(width: 42 - CGFloat(index * 8), height: 7)
+                    .frame(width: max(22, metrics.width * (0.11 - CGFloat(index) * 0.018)), height: 7)
                     .rotationEffect(.degrees(Double(index * 6) - 7))
                     .offset(
-                        x: CGFloat(-116 + (index * 76)) + CGFloat(drift) * 12,
-                        y: CGFloat(-48 + (index * 10))
+                        x: metrics.width * (xFractions[index] - 0.5) + CGFloat(drift) * metrics.width * 0.04,
+                        y: -metrics.height * 0.15 + CGFloat(index) * 10
                     )
                     .blur(radius: 1.2)
             }
@@ -1517,6 +1639,7 @@ private struct FuelAtmosphereLayer: View {
 private struct FuelRoadScene: View {
     let phase: Double
     let visualMode: FuelCardVisualMode
+    let metrics: FuelBackdropMetrics
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -1532,8 +1655,8 @@ private struct FuelRoadScene: View {
                         endPoint: .bottom
                     )
                 )
-                .frame(height: 66)
-                .offset(y: 14)
+                .frame(width: metrics.roadWidth, height: metrics.roadHeight)
+                .offset(y: metrics.roadHeight * 0.2)
 
             Capsule(style: .continuous)
                 .fill(
@@ -1547,18 +1670,19 @@ private struct FuelRoadScene: View {
                         endPoint: .trailing
                     )
                 )
-                .frame(width: 84, height: 3)
-                .offset(x: laneOffset, y: -16)
+                .frame(width: metrics.roadWidth * 0.28, height: 3)
+                .offset(x: laneOffset, y: -metrics.roadHeight * 0.24)
                 .blur(radius: 0.6)
 
-            HStack(spacing: 18) {
-                ForEach(0..<7, id: \.self) { _ in
+            HStack(spacing: metrics.laneMarkerSpacing) {
+                ForEach(0..<metrics.laneMarkerCount, id: \.self) { _ in
                     Capsule(style: .continuous)
                         .fill(NomadTheme.cardBorder.opacity(0.24))
                         .frame(width: 18, height: 2)
                 }
             }
-            .offset(x: laneOffset * 0.8, y: -16)
+            .frame(width: metrics.roadWidth * 0.84)
+            .offset(x: laneOffset * 0.8, y: -metrics.roadHeight * 0.24)
 
             Rectangle()
                 .fill(
@@ -1572,9 +1696,10 @@ private struct FuelRoadScene: View {
                         endPoint: .bottom
                     )
                 )
-                .frame(height: 22)
-                .offset(y: -40)
+                .frame(width: metrics.roadWidth, height: metrics.roadHeight * 0.32)
+                .offset(y: -metrics.roadHeight * 0.6)
         }
+        .frame(width: metrics.roadWidth, height: metrics.roadHeight)
         .mask(horizontalSoftMask)
     }
 
@@ -1584,7 +1709,7 @@ private struct FuelRoadScene: View {
         }
 
         let loop = phase.truncatingRemainder(dividingBy: 8.5) / 8.5
-        return CGFloat((loop - 0.5) * 150)
+        return CGFloat((loop - 0.5) * Double(metrics.roadWidth * 0.42))
     }
 
     private var horizontalSoftMask: some View {
@@ -1603,18 +1728,20 @@ private struct FuelRoadScene: View {
 
 private struct FuelCamperTrack: View {
     let phase: Double
-    let width: CGFloat
+    let metrics: FuelBackdropMetrics
 
     var body: some View {
         let loopDuration = 12.4
         let loop = phase.truncatingRemainder(dividingBy: loopDuration) / loopDuration
-        let x = (width + 92) * CGFloat(loop) - 70
+        let travelWidth = max(metrics.roadWidth - (metrics.camperInset * 2) - 66, 1)
+        let x = metrics.camperInset + travelWidth * CGFloat(loop)
         let bounce = sin(loop * .pi * 10) * 1.2
 
         FuelCamperVan()
             .frame(width: 66, height: 32)
             .offset(x: x, y: CGFloat(-10 + bounce))
             .shadow(color: NomadTheme.primaryText.opacity(0.08), radius: 6, y: 2)
+            .frame(width: metrics.roadWidth, height: metrics.roadHeight, alignment: .leading)
             .mask(
                 LinearGradient(
                     stops: [

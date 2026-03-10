@@ -27,6 +27,9 @@ public final class DashboardSnapshotStore: ObservableObject {
     private var currentCoordinate: CLLocationCoordinate2D?
     private var pendingVisitedDeviceLocation: CLLocation?
     private var lastSlowRefresh: Date?
+    private var refreshInFlight = false
+    private var pendingAutomaticRefresh = false
+    private var pendingManualRefresh = false
 
     public init(settingsStore: AppSettingsStore, dependencies: DashboardDependencies, initialSnapshot: DashboardSnapshot = .placeholder) {
         self.settingsStore = settingsStore
@@ -108,6 +111,42 @@ public final class DashboardSnapshotStore: ObservableObject {
     }
 
     public func refresh(manual: Bool = false) async {
+        if refreshInFlight {
+            if manual {
+                pendingManualRefresh = true
+                pendingAutomaticRefresh = false
+            } else if pendingManualRefresh == false {
+                pendingAutomaticRefresh = true
+            }
+            return
+        }
+
+        refreshInFlight = true
+        var nextRefreshIsManual = manual
+
+        while true {
+            await performRefresh(manual: nextRefreshIsManual)
+
+            if pendingManualRefresh {
+                pendingManualRefresh = false
+                pendingAutomaticRefresh = false
+                nextRefreshIsManual = true
+                continue
+            }
+
+            if pendingAutomaticRefresh {
+                pendingAutomaticRefresh = false
+                nextRefreshIsManual = false
+                continue
+            }
+
+            break
+        }
+
+        refreshInFlight = false
+    }
+
+    private func performRefresh(manual: Bool) async {
         let now = Date()
         let settings = settingsStore.settings
         let surfSpotConfiguration = settings.surfSpotConfiguration
@@ -246,6 +285,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         let history = await (try? dependencies.historyStore.loadAll()) ?? [:]
+        let projectedHistory = projectedDashboardHistory(history)
         let updateState = await dependencies.updateCoordinator.currentState()
         let timeZoneIdentifier = locationSnapshot?.timeZone ?? TimeZone.current.identifier
 
@@ -253,14 +293,14 @@ public final class DashboardSnapshotStore: ObservableObject {
             network: NetworkSectionSnapshot(
                 throughput: throughputSample ?? snapshot.network.throughput,
                 latency: latencySample,
-                downloadHistory: history[.downloadMbps] ?? snapshot.network.downloadHistory,
-                uploadHistory: history[.uploadMbps] ?? snapshot.network.uploadHistory,
-                latencyHistory: history[.latencyMilliseconds] ?? snapshot.network.latencyHistory
+                downloadHistory: projectedHistory[.downloadMbps] ?? snapshot.network.downloadHistory,
+                uploadHistory: projectedHistory[.uploadMbps] ?? snapshot.network.uploadHistory,
+                latencyHistory: projectedHistory[.latencyMilliseconds] ?? snapshot.network.latencyHistory
             ),
             power: PowerSectionSnapshot(
                 snapshot: powerSnapshot,
-                chargeHistory: history[.batteryChargePercent] ?? snapshot.power.chargeHistory,
-                dischargeHistory: history[.batteryDischargeWatts] ?? snapshot.power.dischargeHistory
+                chargeHistory: projectedHistory[.batteryChargePercent] ?? snapshot.power.chargeHistory,
+                dischargeHistory: projectedHistory[.batteryDischargeWatts] ?? snapshot.power.dischargeHistory
             ),
             travelContext: TravelContextSnapshot(
                 wifi: wifiSnapshot,
@@ -288,6 +328,10 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         return now.timeIntervalSince(lastSlowRefresh) >= interval
+    }
+
+    private func projectedDashboardHistory(_ history: [MetricSeriesKind: [MetricPoint]]) -> [MetricSeriesKind: [MetricPoint]] {
+        history.mapValues { projectedMetricHistory($0, maxPoints: dashboardChartPointLimit) }
     }
 
     private func configureSettingsObservation() {
@@ -985,5 +1029,26 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         return value
+    }
+}
+
+public let dashboardChartPointLimit = 120
+
+public func projectedMetricHistory(_ points: [MetricPoint], maxPoints: Int = 120) -> [MetricPoint] {
+    guard maxPoints > 1, points.count > maxPoints else {
+        return points
+    }
+
+    let scale = Double(points.count - 1) / Double(maxPoints - 1)
+
+    return (0..<maxPoints).map { position in
+        let index: Int
+        if position == maxPoints - 1 {
+            index = points.count - 1
+        } else {
+            index = Int((Double(position) * scale).rounded(.down))
+        }
+
+        return points[index]
     }
 }
