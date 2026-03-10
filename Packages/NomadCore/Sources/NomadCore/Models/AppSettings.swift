@@ -3,6 +3,7 @@ import Foundation
 
 public struct AppSettings: Codable, Equatable, Sendable {
     public var appearanceMode: AppAppearanceMode
+    public var dashboardCardOrder: [DashboardCardID]
     public var refreshIntervalSeconds: TimeInterval
     public var slowRefreshIntervalSeconds: TimeInterval
     public var historyRetentionHours: Int
@@ -22,6 +23,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     public init(
         appearanceMode: AppAppearanceMode = .system,
+        dashboardCardOrder: [DashboardCardID] = DashboardCardID.defaultOrder,
         refreshIntervalSeconds: TimeInterval = 2,
         slowRefreshIntervalSeconds: TimeInterval = 60,
         historyRetentionHours: Int = 24,
@@ -40,6 +42,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         latencyHosts: [String] = ["1.1.1.1:443", "8.8.8.8:443"]
     ) {
         self.appearanceMode = appearanceMode
+        self.dashboardCardOrder = DashboardCardID.sanitizedOrder(dashboardCardOrder)
         self.refreshIntervalSeconds = refreshIntervalSeconds
         self.slowRefreshIntervalSeconds = slowRefreshIntervalSeconds
         self.historyRetentionHours = historyRetentionHours
@@ -60,6 +63,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case appearanceMode
+        case dashboardCardOrder
         case refreshIntervalSeconds
         case slowRefreshIntervalSeconds
         case historyRetentionHours
@@ -82,6 +86,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         appearanceMode = try container.decodeIfPresent(AppAppearanceMode.self, forKey: .appearanceMode) ?? .system
+        let persistedCardOrder = (try? container.decodeIfPresent([String].self, forKey: .dashboardCardOrder))?
+            .compactMap(DashboardCardID.init(rawValue:))
+        dashboardCardOrder = DashboardCardID.sanitizedOrder(persistedCardOrder ?? DashboardCardID.defaultOrder)
         refreshIntervalSeconds = try container.decode(TimeInterval.self, forKey: .refreshIntervalSeconds)
         slowRefreshIntervalSeconds = try container.decode(TimeInterval.self, forKey: .slowRefreshIntervalSeconds)
         historyRetentionHours = try container.decode(Int.self, forKey: .historyRetentionHours)

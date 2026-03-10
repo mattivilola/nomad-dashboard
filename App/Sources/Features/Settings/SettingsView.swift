@@ -86,6 +86,10 @@ struct SettingsView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
+
+                        Button("Reset Dashboard Layout") {
+                            settingsStore.settings.dashboardCardOrder = DashboardCardID.defaultOrder
+                        }
                     } header: {
                         Text("General")
                     } footer: {

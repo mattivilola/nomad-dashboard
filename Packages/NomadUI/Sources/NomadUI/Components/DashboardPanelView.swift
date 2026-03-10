@@ -6,6 +6,7 @@ import SwiftUI
 public struct DashboardPanelView: View {
     private let snapshot: DashboardSnapshot
     private let settings: AppSettings
+    private let dashboardCardOrder: [DashboardCardID]
     private let isPublicIPLocationEnabled: Bool
     private let travelAlertPreferences: TravelAlertPreferences
     private let versionDescription: String
@@ -25,12 +26,16 @@ public struct DashboardPanelView: View {
     private let openSurfSpotSettingsAction: () -> Void
     private let openAboutAction: () -> Void
     private let quitAction: () -> Void
+    private let onCardOrderChange: ([DashboardCardID]) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var resolvedCardOrder: [DashboardCardID]
+    @State private var activeDropInsertionIndex: Int?
 
     public init(
         snapshot: DashboardSnapshot,
         settings: AppSettings,
+        dashboardCardOrder: [DashboardCardID],
         isPublicIPLocationEnabled: Bool,
         travelAlertPreferences: TravelAlertPreferences,
         versionDescription: String = "",
@@ -49,10 +54,12 @@ public struct DashboardPanelView: View {
         openSettingsAction: @escaping () -> Void,
         openSurfSpotSettingsAction: @escaping () -> Void,
         openAboutAction: @escaping () -> Void,
-        quitAction: @escaping () -> Void
+        quitAction: @escaping () -> Void,
+        onCardOrderChange: @escaping ([DashboardCardID]) -> Void = { _ in }
     ) {
         self.snapshot = snapshot
         self.settings = settings
+        self.dashboardCardOrder = DashboardCardID.sanitizedOrder(dashboardCardOrder)
         self.isPublicIPLocationEnabled = isPublicIPLocationEnabled
         self.travelAlertPreferences = travelAlertPreferences
         self.versionDescription = versionDescription
@@ -72,6 +79,8 @@ public struct DashboardPanelView: View {
         self.openSurfSpotSettingsAction = openSurfSpotSettingsAction
         self.openAboutAction = openAboutAction
         self.quitAction = quitAction
+        self.onCardOrderChange = onCardOrderChange
+        _resolvedCardOrder = State(initialValue: DashboardCardID.sanitizedOrder(dashboardCardOrder))
     }
 
     public var body: some View {
@@ -82,18 +91,21 @@ public struct DashboardPanelView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     header
                     summaryStrip
-                    connectivitySection
-                    powerSection
-                    travelSection
-                    fuelPricesSection
-                    travelAlertsSection
-                    weatherSection
+                    orderedCardSections
                     footer
                 }
                 .padding(18)
             }
         }
         .frame(width: 430, height: 640)
+        .onChange(of: dashboardCardOrder) { _, newValue in
+            let sanitizedOrder = DashboardCardID.sanitizedOrder(newValue)
+            guard resolvedCardOrder != sanitizedOrder else {
+                return
+            }
+
+            resolvedCardOrder = sanitizedOrder
+        }
     }
 
     private var header: some View {
@@ -184,11 +196,97 @@ public struct DashboardPanelView: View {
         }
     }
 
+    private var orderedCardSections: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            cardDropZone(at: 0, topPadding: 0, bottomPadding: 8)
+
+            ForEach(Array(resolvedCardOrder.enumerated()), id: \.element) { index, cardID in
+                dashboardCard(for: cardID)
+
+                if index < resolvedCardOrder.count - 1 {
+                    cardDropZone(at: index + 1, topPadding: 8, bottomPadding: 8)
+                }
+            }
+
+            cardDropZone(at: resolvedCardOrder.count, topPadding: 8, bottomPadding: 0)
+        }
+    }
+
+    @ViewBuilder
+    private func dashboardCard(for cardID: DashboardCardID) -> some View {
+        switch cardID {
+        case .connectivity:
+            connectivitySection
+        case .power:
+            powerSection
+        case .travelContext:
+            travelSection
+        case .fuelPrices:
+            fuelPricesSection
+        case .travelAlerts:
+            travelAlertsSection
+        case .weather:
+            weatherSection
+        }
+    }
+
+    private func cardDropZone(at insertionIndex: Int, topPadding: CGFloat, bottomPadding: CGFloat) -> some View {
+        DashboardCardDropZone(isHighlighted: activeDropInsertionIndex == insertionIndex)
+            .padding(.top, topPadding)
+            .padding(.bottom, bottomPadding)
+            .dropDestination(for: String.self) { items, _ in
+                applyDrop(items, insertionIndex: insertionIndex)
+            } isTargeted: { isTargeted in
+                if isTargeted {
+                    activeDropInsertionIndex = insertionIndex
+                } else if activeDropInsertionIndex == insertionIndex {
+                    activeDropInsertionIndex = nil
+                }
+            }
+    }
+
+    @discardableResult
+    private func applyDrop(_ items: [String], insertionIndex: Int) -> Bool {
+        guard let rawValue = items.first,
+              let cardID = DashboardCardID(rawValue: rawValue)
+        else {
+            activeDropInsertionIndex = nil
+            return false
+        }
+
+        activeDropInsertionIndex = nil
+        return moveCard(cardID, to: insertionIndex)
+    }
+
+    @discardableResult
+    private func moveCard(_ cardID: DashboardCardID, to insertionIndex: Int) -> Bool {
+        let currentOrder = DashboardCardID.sanitizedOrder(resolvedCardOrder)
+        let reordered = reorderedCardIDs(from: currentOrder, moving: cardID, to: insertionIndex)
+
+        guard reordered != currentOrder else {
+            return false
+        }
+
+        resolvedCardOrder = reordered
+        onCardOrderChange(reordered)
+        return true
+    }
+
+    private func reorderedCardIDs(from order: [DashboardCardID], moving cardID: DashboardCardID, to insertionIndex: Int) -> [DashboardCardID] {
+        let remaining = order.filter { $0 != cardID }
+        let clampedIndex = min(max(insertionIndex, 0), remaining.count)
+
+        var reordered = remaining
+        reordered.insert(cardID, at: clampedIndex)
+        return DashboardCardID.sanitizedOrder(reordered)
+    }
+
     private var connectivitySection: some View {
         DashboardCard(
             title: "Connectivity",
             subtitle: snapshot.network.throughput?.activeInterface ?? "Interface unavailable",
-            badge: badge(for: snapshot.healthSummary.network)
+            badge: badge(for: snapshot.healthSummary.network),
+            accessory: dragHandle(for: .connectivity, title: "Connectivity")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
@@ -230,7 +328,8 @@ public struct DashboardPanelView: View {
         DashboardCard(
             title: "Power",
             subtitle: snapshot.power.snapshot.map(powerSubtitle) ?? "Power source unavailable",
-            badge: badge(for: snapshot.healthSummary.power)
+            badge: badge(for: snapshot.healthSummary.power),
+            accessory: dragHandle(for: .power, title: "Power")
         ) {
             let powerMetrics = PowerMetricsPresentation(snapshot: snapshot.power.snapshot)
 
@@ -267,7 +366,8 @@ public struct DashboardPanelView: View {
         DashboardCard(
             title: "Travel Context",
             subtitle: travelSubtitle,
-            badge: travelBadge
+            badge: travelBadge,
+            accessory: dragHandle(for: .travelContext, title: "Travel Context")
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 DetailRow(
@@ -304,7 +404,8 @@ public struct DashboardPanelView: View {
         return DashboardCard(
             title: "Weather",
             subtitle: presentation.subtitle,
-            badge: presentation.badge
+            badge: presentation.badge,
+            accessory: dragHandle(for: .weather, title: "Weather")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 if let weather = snapshot.weather {
@@ -373,6 +474,7 @@ public struct DashboardPanelView: View {
             title: "Fuel Prices",
             subtitle: presentation.subtitle,
             badge: presentation.badge,
+            accessory: dragHandle(for: .fuelPrices, title: "Fuel Prices"),
             backgroundDecoration: AnyView(
                 FuelCardBackdrop(
                     visualMode: presentation.visualMode,
@@ -414,7 +516,8 @@ public struct DashboardPanelView: View {
         DashboardCard(
             title: "Travel Alerts",
             subtitle: travelAlertsSubtitle,
-            badge: travelAlertsBadge
+            badge: travelAlertsBadge,
+            accessory: dragHandle(for: .travelAlerts, title: "Travel Alerts")
         ) {
             if travelAlertPreferences.enabledKinds.isEmpty {
                 WeatherEmptyState(
@@ -699,6 +802,10 @@ public struct DashboardPanelView: View {
         PillBadge(title: health.label, symbolName: health.symbolName, tint: health.level.tint)
     }
 
+    private func dragHandle(for cardID: DashboardCardID, title: String) -> AnyView {
+        AnyView(DashboardCardDragHandle(cardID: cardID, title: title))
+    }
+
     private func metricValue(
         _ value: Double?,
         formatter: (Double?) -> String,
@@ -861,6 +968,49 @@ private struct DashboardCard<Content: View>: View {
                     .stroke(NomadTheme.cardBorder, lineWidth: 1)
             }
         )
+    }
+}
+
+private struct DashboardCardDragHandle: View {
+    let cardID: DashboardCardID
+    let title: String
+
+    var body: some View {
+        Image(systemName: "line.3.horizontal")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(NomadTheme.tertiaryText)
+            .frame(width: 28, height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(NomadTheme.inlineButtonBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .draggable(cardID.rawValue)
+            .help("Drag to reorder \(title)")
+            .accessibilityLabel("Drag to reorder \(title)")
+    }
+}
+
+private struct DashboardCardDropZone: View {
+    let isHighlighted: Bool
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+            .fill(isHighlighted ? NomadTheme.teal.opacity(0.28) : Color.clear)
+            .overlay(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .strokeBorder(
+                        isHighlighted ? NomadTheme.teal.opacity(0.9) : NomadTheme.cardBorder.opacity(0.001),
+                        style: StrokeStyle(lineWidth: isHighlighted ? 1.5 : 1, dash: [6, 4])
+                    )
+            )
+            .frame(height: 10)
+            .animation(.easeInOut(duration: 0.12), value: isHighlighted)
+            .accessibilityHidden(true)
     }
 }
 
