@@ -20,6 +20,13 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.18] - 2026-03-10
+
+### Changed
+
+- Refine dashboard layout for compact display
+- Refine compact display for dashboard metrics and fuel rows
+
 ## [0.1.17] - 2026-03-10
 
 ### Changed
