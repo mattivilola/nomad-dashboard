@@ -25,6 +25,7 @@ struct DashboardRootView: View {
             snapshot: snapshotStore.snapshot,
             settings: settingsStore.settings,
             dashboardCardOrder: settingsStore.settings.dashboardCardOrder,
+            dashboardCardWidthModes: settingsStore.settings.dashboardCardWidthModes,
             isPublicIPLocationEnabled: settingsStore.settings.publicIPGeolocationEnabled,
             travelAlertPreferences: settingsStore.settings.travelAlertPreferences,
             versionDescription: AppRuntimeInfo.versionDescription,
@@ -44,7 +45,8 @@ struct DashboardRootView: View {
             openSurfSpotSettingsAction: openSurfSpotSettings,
             openAboutAction: openAbout,
             quitAction: quitApplication,
-            onCardOrderChange: persistDashboardCardOrder
+            onCardOrderChange: persistDashboardCardOrder,
+            onCardWidthModesChange: persistDashboardCardWidthModes
         )
         .task {
             snapshotStore.setCurrentLocation(locationStore.currentLocation)
@@ -146,6 +148,15 @@ struct DashboardRootView: View {
         }
 
         settingsStore.settings.dashboardCardOrder = sanitizedOrder
+    }
+
+    private func persistDashboardCardWidthModes(_ widthModes: [DashboardCardID: DashboardCardWidthMode]) {
+        let sanitizedWidthModes = DashboardCardID.sanitizedWidthModes(widthModes)
+        guard settingsStore.settings.dashboardCardWidthModes != sanitizedWidthModes else {
+            return
+        }
+
+        settingsStore.settings.dashboardCardWidthModes = sanitizedWidthModes
     }
 
     private func openDashboardWindow(_ destination: AppWindowDestination) {

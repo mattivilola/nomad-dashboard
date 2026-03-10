@@ -89,6 +89,7 @@ struct SettingsView: View {
 
                         Button("Reset Dashboard Layout") {
                             settingsStore.settings.dashboardCardOrder = DashboardCardID.defaultOrder
+                            settingsStore.settings.dashboardCardWidthModes = DashboardCardID.defaultWidthModes
                         }
                     } header: {
                         Text("General")
