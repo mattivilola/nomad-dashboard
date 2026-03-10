@@ -183,12 +183,15 @@ public struct FuelDiagnosticsSnapshot: Equatable, Sendable {
     }
 
     public func reportText(fuelPrices: FuelPriceSnapshot?) -> String {
+        let countryDescription = [countryName, countryCode]
+            .compactMap(\.self)
+            .joined(separator: " · ")
         var lines = [
             "Fuel diagnostics",
             "Status: \(status.rawValue)",
             "Stage: \(stage.displayName)",
             "Summary: \(summary)",
-            "Country: \(([countryName, countryCode].compactMap { $0 }.joined(separator: " · ")).isEmpty ? "n/a" : [countryName, countryCode].compactMap { $0 }.joined(separator: " · "))",
+            "Country: \(countryDescription.isEmpty ? "n/a" : countryDescription)",
             "Coordinate: \(coordinateDescription)",
             "Radius km: \(Int(searchRadiusKilometers))",
             "Provider: \(providerName ?? "n/a")",

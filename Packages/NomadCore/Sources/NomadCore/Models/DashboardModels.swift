@@ -717,7 +717,7 @@ public extension DashboardSnapshot {
             sourceURL: URL(string: "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/"),
             startedAt: Date().addingTimeInterval(-1.2),
             finishedAt: .now,
-            elapsedMilliseconds: 1200,
+            elapsedMilliseconds: 1_200,
             summary: "Fuel prices loaded successfully.",
             error: nil
         ),

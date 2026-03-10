@@ -329,7 +329,7 @@ public actor WeatherKitAlertProvider: TravelWeatherAlertsProvider {
 
     static func signal(from alerts: [WeatherAlertPayload], fetchedAt: Date) -> TravelAlertSignalSnapshot {
         guard let worst = alerts.max(by: { lhs, rhs in
-            Self.severity(for: lhs.severity) < Self.severity(for: rhs.severity)
+            lhs.severity < rhs.severity
         }) else {
             return TravelAlertSignalSnapshot(
                 kind: .weather,
@@ -347,7 +347,7 @@ public actor WeatherKitAlertProvider: TravelWeatherAlertsProvider {
         let prefix = itemCount > 1 ? "\(itemCount) active weather alerts. " : ""
         return TravelAlertSignalSnapshot(
             kind: .weather,
-            severity: Self.severity(for: worst.severity),
+            severity: worst.severity,
             title: "Weather alerts",
             summary: prefix + worst.summary,
             sourceName: worst.source.isEmpty ? "WeatherKit" : worst.source,
@@ -394,7 +394,7 @@ private enum WeatherKitAlertProjector {
                 detailsURL: $0.detailsURL,
                 source: $0.source,
                 summary: $0.summary,
-                severity: $0.severity
+                severity: WeatherKitAlertProvider.severity(for: $0.severity)
             )
         }
     }
@@ -728,7 +728,7 @@ struct WeatherAlertPayload {
     let detailsURL: URL
     let source: String
     let summary: String
-    let severity: WeatherSeverity
+    let severity: TravelAlertSeverity
 }
 
 struct SecurityReportPayload {

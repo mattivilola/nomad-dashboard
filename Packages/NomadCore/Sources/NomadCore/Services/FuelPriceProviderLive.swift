@@ -1,7 +1,7 @@
 import CoreLocation
 import Foundation
 
-private struct FuelSourceDescriptor: Sendable {
+private struct FuelSourceDescriptor {
     let name: String
     let url: URL?
     let note: String?
@@ -15,7 +15,7 @@ private struct FuelSourceDescriptor: Sendable {
     }
 }
 
-struct FuelProviderRequestDiagnostics: Sendable {
+struct FuelProviderRequestDiagnostics {
     let stage: FuelDiagnosticsStage
     let providerName: String
     let sourceURL: URL?
@@ -33,7 +33,7 @@ protocol FuelPriceDiagnosticsProviding: Sendable {
     func latestRequestDiagnostics() async -> FuelProviderRequestDiagnostics?
 }
 
-private struct FuelStationCandidate: Sendable {
+private struct FuelStationCandidate {
     let identifier: String
     let stationName: String
     let address: String?
@@ -45,13 +45,13 @@ private struct FuelStationCandidate: Sendable {
     let prices: [FuelType: Double]
 }
 
-private struct ScoredFuelStationCandidate: Sendable {
+private struct ScoredFuelStationCandidate {
     let candidate: FuelStationCandidate
     let distanceKilometers: Double
 }
 
-private struct FuelHTTPFetchResult: Sendable {
-    enum Transport: String, Sendable {
+private struct FuelHTTPFetchResult {
+    enum Transport: String {
         case urlSession
         case curlFallback
     }
@@ -72,7 +72,7 @@ private struct FuelHTTPFetchResult: Sendable {
     }
 }
 
-private struct CountryFuelPriceSourceResult: Sendable {
+private struct CountryFuelPriceSourceResult {
     let snapshot: FuelPriceSnapshot
     let stage: FuelDiagnosticsStage
     let startedAt: Date?
@@ -1546,7 +1546,7 @@ private struct CSVTable {
     }
 }
 
-private struct CSVRow: Sendable {
+private struct CSVRow {
     let values: [String: String]
 
     init(header: [String], values: [String]) {
@@ -1618,7 +1618,7 @@ private enum CSVParser {
             } else if character == separator, isInsideQuotes == false {
                 row.append(field)
                 field = ""
-            } else if (character == "\n" || character == "\r"), isInsideQuotes == false {
+            } else if character == "\n" || character == "\r", isInsideQuotes == false {
                 if character == "\r", index + 1 < characters.count, characters[index + 1] == "\n" {
                     index += 1
                 }

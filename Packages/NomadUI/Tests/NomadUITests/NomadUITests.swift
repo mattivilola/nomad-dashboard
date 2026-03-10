@@ -497,7 +497,7 @@ struct NomadUITests {
     }
 
     @Test
-    func fuelPricesSectionPresentationSuppressesMapActionsForInvalidCoordinates() {
+    func fuelPricesSectionPresentationShowsGoogleFallbackOnlyForInvalidCoordinates() {
         var settings = AppSettings()
         settings.fuelPricesEnabled = true
 
@@ -541,7 +541,9 @@ struct NomadUITests {
         )
 
         #expect(presentation.rows.count == 1)
-        #expect(presentation.rows.first?.hasMapActions == false)
+        #expect(presentation.rows.first?.hasPreviewMapAction == false)
+        #expect(presentation.rows.first?.hasGoogleMapsAction == true)
+        #expect(presentation.rows.first?.hasMapActions == true)
     }
 }
 

@@ -1121,8 +1121,16 @@ struct FuelPriceRowModel: Identifiable, Equatable {
     let tint: Color
     let stationDestination: FuelStationMapDestination?
 
-    var hasMapActions: Bool {
+    var hasPreviewMapAction: Bool {
+        stationDestination?.isCoordinateValid == true
+    }
+
+    var hasGoogleMapsAction: Bool {
         stationDestination?.googleMapsURL != nil
+    }
+
+    var hasMapActions: Bool {
+        hasPreviewMapAction || hasGoogleMapsAction
     }
 }
 
@@ -1166,18 +1174,22 @@ private struct FuelPriceRow: View {
 
                 if let stationDestination = model.stationDestination, model.hasMapActions {
                     HStack(spacing: 6) {
-                        FuelRowActionButton(
-                            title: "Map",
-                            systemImage: "map.fill"
-                        ) {
-                            previewMapAction(stationDestination)
+                        if model.hasPreviewMapAction {
+                            FuelRowActionButton(
+                                title: "Map",
+                                systemImage: "map.fill"
+                            ) {
+                                previewMapAction(stationDestination)
+                            }
                         }
 
-                        FuelRowActionButton(
-                            title: "Google",
-                            systemImage: "arrow.up.right.square.fill"
-                        ) {
-                            openGoogleMapsAction(stationDestination)
+                        if model.hasGoogleMapsAction {
+                            FuelRowActionButton(
+                                title: "Google",
+                                systemImage: "arrow.up.right.square.fill"
+                            ) {
+                                openGoogleMapsAction(stationDestination)
+                            }
                         }
                     }
                 }
