@@ -431,6 +431,12 @@ public struct DashboardPanelView: View {
                         isCompact: true
                     )
 
+                    Text(compactThroughputSummary)
+                        .font(.caption2)
+                        .foregroundStyle(NomadTheme.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+
                     Text(jitterDescription)
                         .font(.caption2)
                         .foregroundStyle(NomadTheme.secondaryText)
@@ -503,6 +509,12 @@ public struct DashboardPanelView: View {
                         unitLabel: "%",
                         isCompact: true
                     )
+
+                    Text(compactDrainSummary(powerMetrics))
+                        .font(.caption2)
+                        .foregroundStyle(NomadTheme.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
             } else {
                 VStack(alignment: .leading, spacing: 12) {
@@ -921,6 +933,7 @@ public struct DashboardPanelView: View {
                         Text("Sea \(NomadFormatters.celsius(seaSurfaceTemperature))")
                             .font(.caption)
                             .foregroundStyle(NomadTheme.secondaryText)
+                            .frame(maxWidth: widthMode == .narrow ? .infinity : nil, alignment: widthMode == .narrow ? .center : .leading)
                     }
                 }
             } else {
@@ -1017,6 +1030,24 @@ public struct DashboardPanelView: View {
 
     private func badge(for health: SectionHealth) -> PillBadge {
         PillBadge(title: health.label, symbolName: health.symbolName, tint: health.level.tint)
+    }
+
+    private var compactThroughputSummary: String {
+        let download = metricValue(
+            snapshot.network.throughput?.downloadMegabitsPerSecond,
+            formatter: NomadFormatters.megabitsPerSecond,
+            fallback: "Waiting"
+        )
+        let upload = metricValue(
+            snapshot.network.throughput?.uploadMegabitsPerSecond,
+            formatter: NomadFormatters.megabitsPerSecond,
+            fallback: "Waiting"
+        )
+        return "Throughput \(download) down · \(upload) up"
+    }
+
+    private func compactDrainSummary(_ metrics: PowerMetricsPresentation) -> String {
+        "Drain status: \(metrics.drainValue)"
     }
 
     private func cardControls(for cardID: DashboardCardID, title: String) -> AnyView {
@@ -1685,6 +1716,11 @@ struct FuelPriceRowModel: Identifiable, Equatable {
     var hasMapActions: Bool {
         hasPreviewMapAction || hasGoogleMapsAction
     }
+
+    var compactPriceValue: String {
+        let filtered = priceValue.filter { $0.isNumber || $0 == "." || $0 == "," }
+        return filtered.isEmpty ? priceValue : filtered
+    }
 }
 
 private struct FuelPriceRow: View {
@@ -1711,7 +1747,7 @@ private struct FuelPriceRow: View {
 
                         Spacer(minLength: 8)
 
-                        Text(model.priceValue)
+                        Text(model.compactPriceValue)
                             .font(.system(size: 18, weight: .semibold, design: .rounded))
                             .foregroundStyle(model.tint)
                             .lineLimit(1)
@@ -1783,11 +1819,12 @@ private struct FuelPriceRow: View {
     @ViewBuilder
     private var mapActions: some View {
         if let stationDestination = model.stationDestination, model.hasMapActions {
-            HStack(spacing: 6) {
+            HStack(spacing: isCompact ? 4 : 6) {
                 if model.hasPreviewMapAction {
                     FuelRowActionButton(
                         title: "Map",
-                        systemImage: "map.fill"
+                        systemImage: "map.fill",
+                        isCompact: isCompact
                     ) {
                         previewMapAction(stationDestination)
                     }
@@ -1796,7 +1833,8 @@ private struct FuelPriceRow: View {
                 if model.hasGoogleMapsAction {
                     FuelRowActionButton(
                         title: "Google",
-                        systemImage: "arrow.up.right.square.fill"
+                        systemImage: "arrow.up.right.square.fill",
+                        isCompact: isCompact
                     ) {
                         openGoogleMapsAction(stationDestination)
                     }
@@ -1809,15 +1847,18 @@ private struct FuelPriceRow: View {
 private struct FuelRowActionButton: View {
     let title: String
     let systemImage: String
+    var isCompact: Bool = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
-                .font(.caption2.weight(.semibold))
+                .font(.system(size: isCompact ? 10 : 11, weight: .semibold))
                 .foregroundStyle(NomadTheme.primaryText)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .padding(.horizontal, isCompact ? 5 : 8)
+                .padding(.vertical, isCompact ? 4 : 5)
                 .background(
                     Capsule(style: .continuous)
                         .fill(NomadTheme.inlineButtonBackground)
