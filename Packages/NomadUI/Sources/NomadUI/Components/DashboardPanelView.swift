@@ -423,11 +423,6 @@ public struct DashboardPanelView: View {
                         typography: .compact
                     )
 
-                    ThroughputTrendChart(
-                        downloadPoints: snapshot.network.downloadHistory,
-                        uploadPoints: snapshot.network.uploadHistory,
-                        isCompact: true
-                    )
                     MiniTrendChart(
                         points: snapshot.network.latencyHistory,
                         color: NomadTheme.coral,
@@ -506,14 +501,6 @@ public struct DashboardPanelView: View {
                         color: NomadTheme.sand,
                         yLabel: "Charge",
                         unitLabel: "%",
-                        isCompact: true
-                    )
-                    MiniTrendChart(
-                        points: snapshot.power.dischargeHistory,
-                        color: NomadTheme.coral,
-                        yLabel: "Drain",
-                        unitLabel: "W",
-                        placeholderText: snapshot.power.snapshot?.state == .battery ? "Collecting trend…" : "Plugged in",
                         isCompact: true
                     )
                 }
@@ -671,9 +658,11 @@ public struct DashboardPanelView: View {
 
                 surfSection(widthMode: widthMode)
 
-                Text(weatherAttributionLine)
-                    .font(.caption2)
-                    .foregroundStyle(NomadTheme.tertiaryText)
+                if widthMode != .narrow {
+                    Text(weatherAttributionLine)
+                        .font(.caption2)
+                        .foregroundStyle(NomadTheme.tertiaryText)
+                }
             }
         }
     }
@@ -885,19 +874,6 @@ public struct DashboardPanelView: View {
                         }
 
                         MetricBlock(title: "Wind", value: presentation.windSummary, typography: .compact)
-
-                        LazyVGrid(
-                            columns: [
-                                GridItem(.flexible(), spacing: 8),
-                                GridItem(.flexible(), spacing: 8)
-                            ],
-                            alignment: .leading,
-                            spacing: 8
-                        ) {
-                            ForEach(presentation.forecastSlots) { slot in
-                                MarineForecastChip(model: slot, isCompact: true)
-                            }
-                        }
                     } else {
                         HStack(spacing: 12) {
                             MetricBlock(title: "Wave", value: presentation.waveSummary, typography: .compact)
