@@ -548,6 +548,7 @@ public struct DashboardPanelView: View {
                     label: "Public IP",
                     value: publicIPValue,
                     isCompact: widthMode == .narrow,
+                    compactLineLimit: 1,
                     action: DetailRowAction(
                         title: "Copy Public IP",
                         systemImage: "document.on.document",
@@ -555,14 +556,15 @@ public struct DashboardPanelView: View {
                         action: copyIPAddressAction
                     )
                 )
-                DetailRow(label: "Wi-Fi", value: snapshot.travelContext.wifi?.ssid ?? "Not connected", isCompact: widthMode == .narrow)
-                DetailRow(label: "Signal", value: signalDescription(snapshot.travelContext.wifi), isCompact: widthMode == .narrow)
-                DetailRow(label: "VPN", value: vpnDescription, isCompact: widthMode == .narrow)
-                DetailRow(label: "Time Zone", value: snapshot.travelContext.timeZoneIdentifier, isCompact: widthMode == .narrow)
+                DetailRow(label: "Wi-Fi", value: snapshot.travelContext.wifi?.ssid ?? "Not connected", isCompact: widthMode == .narrow, compactLineLimit: 1)
+                DetailRow(label: "Signal", value: signalDescription(snapshot.travelContext.wifi), isCompact: widthMode == .narrow, compactLineLimit: 2)
+                DetailRow(label: "VPN", value: vpnDescription, isCompact: widthMode == .narrow, compactLineLimit: 1)
+                DetailRow(label: "Time Zone", value: snapshot.travelContext.timeZoneIdentifier, isCompact: widthMode == .narrow, compactLineLimit: 1)
                 DetailRow(
                     label: "Location",
                     value: locationValue,
                     isCompact: widthMode == .narrow,
+                    compactLineLimit: 2,
                     action: DetailRowAction(
                         title: "Open Visited Map",
                         systemImage: "map",
@@ -710,16 +712,43 @@ public struct DashboardPanelView: View {
                 )
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(travelAlertRows) { row in
-                        CompactAlertRow(
-                            title: row.title,
-                            summary: row.summary,
-                            sourceName: row.sourceName,
-                            count: row.count,
-                            tint: row.tint,
-                            symbolName: row.symbolName,
-                            isCompact: widthMode == .narrow
-                        )
+                    if widthMode == .narrow {
+                        ForEach(compactTravelAlertRows) { row in
+                            switch row {
+                            case let .alert(alertRow):
+                                CompactAlertRow(
+                                    title: alertRow.title,
+                                    summary: alertRow.summary,
+                                    sourceName: alertRow.sourceName,
+                                    count: alertRow.count,
+                                    tint: alertRow.tint,
+                                    symbolName: alertRow.symbolName,
+                                    isCompact: true
+                                )
+                            case let .overflow(count):
+                                CompactAlertRow(
+                                    title: "More alerts",
+                                    summary: "+\(count) more active travel signals.",
+                                    sourceName: "Nomad",
+                                    count: nil,
+                                    tint: NomadTheme.secondaryText,
+                                    symbolName: "ellipsis.circle.fill",
+                                    isCompact: true
+                                )
+                            }
+                        }
+                    } else {
+                        ForEach(travelAlertRows) { row in
+                            CompactAlertRow(
+                                title: row.title,
+                                summary: row.summary,
+                                sourceName: row.sourceName,
+                                count: row.count,
+                                tint: row.tint,
+                                symbolName: row.symbolName,
+                                isCompact: false
+                            )
+                        }
                     }
                 }
             }
@@ -969,6 +998,16 @@ public struct DashboardPanelView: View {
         travelAlertsPresentation.rows
     }
 
+    private var compactTravelAlertRows: [TravelAlertCompactDisplayRow] {
+        guard travelAlertRows.count > 3 else {
+            return travelAlertRows.map { .alert($0) }
+        }
+
+        return Array(travelAlertRows.prefix(2)).map { .alert($0) } + [
+            .overflow(count: travelAlertRows.count - 2)
+        ]
+    }
+
     private var travelAlertsPresentation: TravelAlertsCardPresentation {
         TravelAlertsCardPresentation(
             preferences: travelAlertPreferences,
@@ -1161,6 +1200,8 @@ private struct DashboardCard<Content: View>: View {
 
             content
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(height: isCompact ? DashboardCompactLayout.cardHeight : nil, alignment: .topLeading)
         .padding(16)
         .background(
             ZStack {
@@ -1176,6 +1217,7 @@ private struct DashboardCard<Content: View>: View {
                     .stroke(NomadTheme.cardBorder, lineWidth: 1)
             }
         )
+        .clipped()
     }
 }
 
@@ -1232,6 +1274,10 @@ private struct DashboardCardWidthToggleButton: View {
 private enum DashboardCardRenderWidth {
     case full
     case half
+}
+
+private enum DashboardCompactLayout {
+    static let cardHeight: CGFloat = 320
 }
 
 private struct DashboardCardRowItem: Identifiable {
@@ -1426,12 +1472,20 @@ private struct DetailRow: View {
     let label: String
     let value: String
     let isCompact: Bool
+    let compactLineLimit: Int
     let action: DetailRowAction?
 
-    init(label: String, value: String, isCompact: Bool = false, action: DetailRowAction? = nil) {
+    init(
+        label: String,
+        value: String,
+        isCompact: Bool = false,
+        compactLineLimit: Int = 1,
+        action: DetailRowAction? = nil
+    ) {
         self.label = label
         self.value = value
         self.isCompact = isCompact
+        self.compactLineLimit = compactLineLimit
         self.action = action
     }
 
@@ -1447,7 +1501,9 @@ private struct DetailRow: View {
                         Text(value)
                             .font(.caption)
                             .foregroundStyle(NomadTheme.primaryText)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(compactLineLimit)
+                            .minimumScaleFactor(0.8)
+                            .truncationMode(compactLineLimit == 1 ? .middle : .tail)
 
                         Spacer(minLength: 0)
 
@@ -1536,11 +1592,12 @@ private struct CompactAlertRow: View {
                             Text(title)
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(NomadTheme.primaryText)
+                                .lineLimit(1)
 
                             Text(summary)
                                 .font(.caption)
                                 .foregroundStyle(NomadTheme.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
+                                .lineLimit(2)
                         }
                     }
 
@@ -1666,6 +1723,7 @@ private struct FuelPriceRow: View {
                             Text(updatedText)
                                 .font(.caption2)
                                 .foregroundStyle(NomadTheme.tertiaryText)
+                                .lineLimit(1)
                         }
 
                         Spacer(minLength: 0)
@@ -1881,7 +1939,7 @@ private struct FuelPricesSectionView: View {
                     )
                 }
 
-                if let note = presentation.note {
+                if widthMode != .narrow, let note = presentation.note {
                     Text(note)
                         .font(.caption2)
                         .foregroundStyle(NomadTheme.tertiaryText)
@@ -2335,6 +2393,20 @@ struct TravelAlertRowModel: Identifiable, Equatable {
             && lhs.severity == rhs.severity
             && lhs.symbolName == rhs.symbolName
             && lhs.status == rhs.status
+    }
+}
+
+private enum TravelAlertCompactDisplayRow: Identifiable {
+    case alert(TravelAlertRowModel)
+    case overflow(count: Int)
+
+    var id: String {
+        switch self {
+        case let .alert(row):
+            return row.id.rawValue
+        case let .overflow(count):
+            return "overflow-\(count)"
+        }
     }
 }
 
