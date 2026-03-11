@@ -1,4 +1,5 @@
 #include "Version.xcconfig"
+RELIEFWEB_APPNAME =
 #include? "AppConfig.local.xcconfig"
 #include? "Signing.debug.local.xcconfig"
 
@@ -9,4 +10,3 @@ ASSETCATALOG_COMPILER_APPICON_NAME = AppIconDebug
 CODE_SIGN_ENTITLEMENTS = $(DEBUG_CODE_SIGN_ENTITLEMENTS)
 SPARKLE_FEED_URL =
 SPARKLE_PUBLIC_ED_KEY =
-RELIEFWEB_APPNAME =
