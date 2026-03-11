@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.20] - 2026-03-11
+
+### Changed
+
+- Refine Tankerkonig API key check in release script
+
 ## [0.1.19] - 2026-03-11
 
 ### Changed
