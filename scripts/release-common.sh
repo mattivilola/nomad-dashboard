@@ -271,8 +271,9 @@ assert_archive_has_no_tankerkonig_api_key() {
 
   assert_file_exists "$info_plist"
 
-  /usr/libexec/PlistBuddy -c "Print :TankerkonigAPIKey" "$info_plist" >/dev/null 2>&1 \
-    && fail "Archived app must not contain TankerkonigAPIKey in Info.plist."
+  if /usr/libexec/PlistBuddy -c "Print :TankerkonigAPIKey" "$info_plist" >/dev/null 2>&1; then
+    fail "Archived app must not contain TankerkonigAPIKey in Info.plist."
+  fi
 }
 
 assert_archive_weatherkit_entitlement() {

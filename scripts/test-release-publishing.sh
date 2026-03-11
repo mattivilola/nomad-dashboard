@@ -311,6 +311,29 @@ EOF
   assert_contains "$output" "must not contain TankerkonigAPIKey" "archive secret guard should explain the rejected plist key"
 }
 
+run_archive_secret_guard_absent_key_set_e_test() {
+  local repo_path="$TEST_ROOT/archive-secret-guard-no-key"
+  local output
+
+  bootstrap_repo "$repo_path"
+  mkdir -p "$repo_path/artifacts/NomadDashboard.xcarchive/Products/Applications/Nomad Dashboard.app/Contents"
+
+  cat > "$repo_path/artifacts/NomadDashboard.xcarchive/Products/Applications/Nomad Dashboard.app/Contents/Info.plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>ReliefWebAppName</key>
+  <string>local-only-name</string>
+</dict>
+</plist>
+EOF
+
+  output="$(cd "$repo_path" && zsh -c 'set -e; source ./scripts/release-common.sh; assert_archive_has_no_tankerkonig_api_key; echo OK' 2>&1)"
+
+  assert_contains "$output" "OK" "archive secret guard should succeed under set -e when TankerkonigAPIKey is absent"
+}
+
 run_sign_dry_run_test
 run_publish_dry_run_test
 run_dirty_tree_rejection_test
@@ -319,5 +342,6 @@ run_publish_auth_failure_test
 run_release_preflight_missing_remote_tag_test
 run_publish_missing_remote_tag_test
 run_archive_secret_guard_test
+run_archive_secret_guard_absent_key_set_e_test
 
 echo "release publishing tests passed"
