@@ -23,6 +23,7 @@ struct SettingsView: View {
 
     private enum FocusField: Hashable {
         case surfSpotName
+        case tankerkonigAPIKey
     }
 
     init(
@@ -100,6 +101,16 @@ struct SettingsView: View {
                     Section {
                         Toggle("Use current location for weather", isOn: weatherLocationBinding)
                         Toggle("Show nearby fuel prices", isOn: fuelPricesBinding)
+                        TextField("Tankerkönig API key (Germany only)", text: binding(\.tankerkonigAPIKey))
+                            .textFieldStyle(.roundedBorder)
+                            .focused($focusedField, equals: .tankerkonigAPIKey)
+                        if let tankerkonigConfigurationMessage {
+                            Text(tankerkonigConfigurationMessage)
+                                .font(.caption)
+                                .foregroundStyle(tankerkonigConfigurationWarning ? .orange : .secondary)
+                        }
+                        Link("Get a Tankerkönig API key", destination: URL(string: "https://creativecommons.tankerkoenig.de/")!)
+                            .font(.caption)
                         Toggle("Show external IP location", isOn: binding(\.publicIPGeolocationEnabled))
                         Toggle("Save visited places locally", isOn: visitedPlacesBinding)
 
@@ -121,7 +132,7 @@ struct SettingsView: View {
                     } header: {
                         Text("Privacy & Location")
                     } footer: {
-                        Text("Weather, nearby fuel prices, and local weather alerts use device location only when you opt in. Fuel price support is country-dependent and currently best in Spain, France, Italy, and Germany. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs. Visited places stay on this Mac until you clear them.")
+                        Text("Weather, nearby fuel prices, and local weather alerts use device location only when you opt in. Fuel price support is country-dependent and currently best in Spain, France, Italy, and Germany. Germany requires your own Tankerkönig API key, while Spain, France, and Italy work without one. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs. Visited places stay on this Mac until you clear them.")
                     }
 
                     Section {
@@ -424,6 +435,26 @@ struct SettingsView: View {
                 }
             }
         )
+    }
+
+    private var tankerkonigConfigurationWarning: Bool {
+        guard let diagnostics = snapshotStore.snapshot.fuelDiagnostics else {
+            return false
+        }
+
+        return diagnostics.status == .configurationRequired && diagnostics.countryCode == "DE"
+    }
+
+    private var tankerkonigConfigurationMessage: String? {
+        if tankerkonigConfigurationWarning {
+            return "Germany fuel prices need your Tankerkönig API key. Add it here, then refresh."
+        }
+
+        if settingsStore.settings.tankerkonigAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Only needed for Germany. Leave blank unless you want Germany fuel prices."
+        }
+
+        return "Stored locally in app settings and used only for Germany fuel lookups on this Mac."
     }
 
     private var fastRefreshBinding: Binding<Int> {

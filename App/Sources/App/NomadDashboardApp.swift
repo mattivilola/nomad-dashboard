@@ -26,7 +26,9 @@ struct NomadDashboardApp: App {
             latencyHosts: persistedSettings.latencyHosts,
             historyRetentionHours: persistedSettings.historyRetentionHours,
             reliefWebAppName: reliefWebAppName(),
-            tankerkonigAPIKey: tankerkonigAPIKey(),
+            tankerkonigAPIKey: AppRuntimeConfiguration.resolveTankerkonigAPIKey(
+                userSetting: persistedSettings.tankerkonigAPIKey
+            ),
             updateCoordinator: updateCoordinator
         )
         let launchAtLoginController = LaunchAtLoginController(initialEnabled: persistedSettings.launchAtLoginEnabled)
@@ -103,24 +105,6 @@ private func reliefWebAppName() -> String? {
 
     return Bundle.main.bundleIdentifier
 }
-
-private func tankerkonigAPIKey() -> String? {
-    if let environmentValue = ProcessInfo.processInfo.environment["TANKERKOENIG_APIKEY"]?
-        .trimmingCharacters(in: .whitespacesAndNewlines), environmentValue.isEmpty == false
-    {
-        return environmentValue
-    }
-
-    if let plistValue = Bundle.main.object(forInfoDictionaryKey: "TankerkonigAPIKey") as? String {
-        let trimmedValue = plistValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedValue.isEmpty == false {
-            return trimmedValue
-        }
-    }
-
-    return nil
-}
-
 private struct SceneAppearanceSync: ViewModifier {
     @ObservedObject var settingsStore: AppSettingsStore
 

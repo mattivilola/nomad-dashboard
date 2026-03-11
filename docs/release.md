@@ -2,6 +2,10 @@
 
 Nomad Dashboard is distributed directly outside the Mac App Store.
 
+Read [docs/security.md](security.md) before adding any new integration that
+needs credentials. Release-time convenience is not a valid reason to embed
+private keys into tracked config or the shipped app bundle.
+
 ## Branch Policy
 
 - `staging` is the integration branch.
@@ -27,11 +31,13 @@ Nomad Dashboard is distributed directly outside the Mac App Store.
    - `NOMAD_SPARKLE_PRIVATE_KEY_PATH`
    - `NOMAD_SPARKLE_PUBLIC_ED_KEY`
    - optional `NOMAD_SPARKLE_BIN_DIR` if Sparkle CLI tools are not auto-discovered
-6. In the Apple Developer portal, open the App ID for `com.iloapps.NomadDashboard` and enable the WeatherKit capability before shipping a release build.
-7. Local Debug builds default to unsigned mode so `make build`, `make run`, and `make rerun` work without Apple provisioning setup. If you want local WeatherKit access in the separate debug app, create a second App ID for `com.iloapps.NomadDashboard.dev`, enable WeatherKit there too, and add local values plus `DEBUG_CODE_SIGN_ENTITLEMENTS = App/NomadDashboard.entitlements` in `Config/Signing.debug.local.xcconfig`.
-8. Optional for signed local Debug builds: set `NOMAD_DEBUG_ALLOW_PROVISIONING_UPDATES = true` in `Config/Signing.debug.local.xcconfig` to let `xcodebuild` request or refresh the `com.iloapps.NomadDashboard.dev` provisioning profile automatically.
+6. Create `Config/AppConfig.local.xcconfig` from `Config/AppConfig.local.example.xcconfig` and set the approved `RELIEFWEB_APPNAME` there on the release machine. Keep this file local and out of git.
+7. In the Apple Developer portal, open the App ID for `com.iloapps.NomadDashboard` and enable the WeatherKit capability before shipping a release build.
+8. Local Debug builds default to unsigned mode so `make build`, `make run`, and `make rerun` work without Apple provisioning setup. If you want local WeatherKit access in the separate debug app, create a second App ID for `com.iloapps.NomadDashboard.dev`, enable WeatherKit there too, and add local values plus `DEBUG_CODE_SIGN_ENTITLEMENTS = App/NomadDashboard.entitlements` in `Config/Signing.debug.local.xcconfig`.
+9. Optional for signed local Debug builds: set `NOMAD_DEBUG_ALLOW_PROVISIONING_UPDATES = true` in `Config/Signing.debug.local.xcconfig` to let `xcodebuild` request or refresh the `com.iloapps.NomadDashboard.dev` provisioning profile automatically.
 
 `Config/Signing.env` is ignored by git and should stay local to the release machine.
+`Config/AppConfig.local.xcconfig` is also ignored by git and should stay local to developer or release machines.
 
 ## Release Artifacts
 
@@ -56,6 +62,7 @@ Nomad Dashboard is distributed directly outside the Mac App Store.
 7. Build, sign, notarize, staple, and package the release:
    `make release`
    - `make release` now does an upfront GitHub preflight and aborts immediately if the release tag has not been pushed yet.
+   - Before publishing, verify any new integration follows the credential rules in `docs/security.md`: public values may be injected locally, but private credentials must not be bundled into the app.
 8. Verify the GitHub release includes:
    - `NomadDashboard-<version>.zip`
    - `NomadDashboard-<version>.dmg`
@@ -66,7 +73,7 @@ Nomad Dashboard is distributed directly outside the Mac App Store.
 ## Commands
 
 - `make archive`
-  Creates the release archive. When `Config/Signing.env` is present, release signing metadata is injected at build time.
+  Creates the release archive. When local config files are present, release signing metadata and the ReliefWeb app name are injected at build time.
 - `make dmg`
   Creates a DMG from the archived app without regenerating tracked branding exports.
 - `make release-dry-run`
@@ -80,6 +87,8 @@ Nomad Dashboard is distributed directly outside the Mac App Store.
 
 - Version metadata lives in `Config/Version.xcconfig`.
 - Sparkle remains unavailable in local/dev builds until both `SUFeedURL` and `SUPublicEDKey` are injected into the app bundle.
+- Release builds must not ship a shared `TankerkonigAPIKey`; Germany fuel support now depends on a user-supplied key stored in app settings.
+- Treat any new provider the same way: if it needs a private credential, redesign the feature so the client does not ship that shared secret.
 - Debug builds use a separate app identity (`Nomad Dashboard Dev`, bundle ID `com.iloapps.NomadDashboard.dev`) so they can run alongside production with separate macOS privacy permissions.
 - Local Debug builds are unsigned unless `Config/Signing.debug.local.xcconfig` enables local automatic signing.
 - Signed local Debug builds use your normal macOS home directory so Xcode can access the local developer account state; unsigned and CI builds still use an isolated temporary home for reproducible caches.

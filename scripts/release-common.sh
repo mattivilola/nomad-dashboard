@@ -266,6 +266,15 @@ assert_archive_update_configuration() {
   [[ "$actual_key" == "$expected_key" ]] || fail "Archived app has SUPublicEDKey='$actual_key', expected the configured public key."
 }
 
+assert_archive_has_no_tankerkonig_api_key() {
+  local info_plist="$ARCHIVE_APP_PATH/Contents/Info.plist"
+
+  assert_file_exists "$info_plist"
+
+  /usr/libexec/PlistBuddy -c "Print :TankerkonigAPIKey" "$info_plist" >/dev/null 2>&1 \
+    && fail "Archived app must not contain TankerkonigAPIKey in Info.plist."
+}
+
 assert_archive_weatherkit_entitlement() {
   local entitlements
 

@@ -280,6 +280,37 @@ EOF
   assert_contains "$output" "Push it first" "publish-update should explain that the tag must be pushed before publishing"
 }
 
+run_archive_secret_guard_test() {
+  local repo_path="$TEST_ROOT/archive-secret-guard"
+  local output
+  local exit_code
+
+  bootstrap_repo "$repo_path"
+  mkdir -p "$repo_path/artifacts/NomadDashboard.xcarchive/Products/Applications/Nomad Dashboard.app/Contents"
+
+  cat > "$repo_path/artifacts/NomadDashboard.xcarchive/Products/Applications/Nomad Dashboard.app/Contents/Info.plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>TankerkonigAPIKey</key>
+  <string>leaked-key</string>
+</dict>
+</plist>
+EOF
+
+  set +e
+  output="$(cd "$repo_path" && zsh -c 'source ./scripts/release-common.sh; assert_archive_has_no_tankerkonig_api_key' 2>&1)"
+  exit_code=$?
+  set -e
+
+  if [[ "$exit_code" -eq 0 ]]; then
+    fail "assert_archive_has_no_tankerkonig_api_key should fail when the archive plist contains TankerkonigAPIKey"
+  fi
+
+  assert_contains "$output" "must not contain TankerkonigAPIKey" "archive secret guard should explain the rejected plist key"
+}
+
 run_sign_dry_run_test
 run_publish_dry_run_test
 run_dirty_tree_rejection_test
@@ -287,5 +318,6 @@ run_missing_signing_config_test
 run_publish_auth_failure_test
 run_release_preflight_missing_remote_tag_test
 run_publish_missing_remote_tag_test
+run_archive_secret_guard_test
 
 echo "release publishing tests passed"

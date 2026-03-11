@@ -148,10 +148,10 @@ public struct FuelPriceProviderError: Error, Sendable {
     }
 }
 
-public actor LiveEuropeanFuelPriceProvider: FuelPriceProvider, FuelPriceDiagnosticsProviding {
+public actor LiveEuropeanFuelPriceProvider: FuelPriceProvider, FuelPriceDiagnosticsProviding, FuelPriceProviderConfigurationUpdating {
     private let session: URLSession
     private let ttl: TimeInterval
-    private let tankerkonigAPIKey: String?
+    private var tankerkonigAPIKey: String?
     private var cache: [String: FuelPriceSnapshot] = [:]
     private var latestDiagnostics: FuelProviderRequestDiagnostics?
 
@@ -163,6 +163,14 @@ public actor LiveEuropeanFuelPriceProvider: FuelPriceProvider, FuelPriceDiagnost
         self.session = session
         self.ttl = ttl
         self.tankerkonigAPIKey = tankerkonigAPIKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public func setTankerkonigAPIKey(_ apiKey: String?) async {
+        let trimmedKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+        tankerkonigAPIKey = trimmedKey?.isEmpty == false ? trimmedKey : nil
+        cache = cache.filter { key, _ in
+            key.hasPrefix("DE|") == false
+        }
     }
 
     public func prices(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot {
@@ -634,7 +642,7 @@ private struct GermanyFuelPriceSource: CountryFuelPriceSource {
                 diesel: nil,
                 gasoline: nil,
                 fetchedAt: Date(),
-                detail: "Germany needs a Tankerkönig API key in app config.",
+                detail: "Germany needs your Tankerkönig API key in Settings.",
                 note: descriptor.note
             )
             return CountryFuelPriceSourceResult(
@@ -646,7 +654,7 @@ private struct GermanyFuelPriceSource: CountryFuelPriceSource {
                 responseMIMEType: nil,
                 payloadByteCount: nil,
                 httpStatusCode: nil,
-                summary: snapshot.detail ?? "Germany needs Tankerkönig configuration."
+                summary: snapshot.detail ?? "Germany needs your Tankerkönig API key in Settings."
             )
         }
 

@@ -93,6 +93,7 @@ resign_sparkle_components
 codesign --verify --deep --strict --verbose=2 "$ARCHIVE_APP_PATH"
 assert_archive_is_not_adhoc
 assert_archive_update_configuration
+assert_archive_has_no_tankerkonig_api_key
 assert_archive_weatherkit_entitlement
 
 rm -f "$TEMP_NOTARY_ZIP" "$FINAL_ZIP_PATH" "$FINAL_DMG_PATH"

@@ -382,6 +382,15 @@ public final class DashboardSnapshotStore: ObservableObject {
             needsManualRefresh = true
         }
 
+        if previousSettings.tankerkonigAPIKey != newSettings.tankerkonigAPIKey {
+            if let configurableFuelProvider = dependencies.fuelPriceProvider as? FuelPriceProviderConfigurationUpdating {
+                await configurableFuelProvider.setTankerkonigAPIKey(
+                    AppRuntimeConfiguration.resolveTankerkonigAPIKey(userSetting: newSettings.tankerkonigAPIKey)
+                )
+            }
+            needsManualRefresh = true
+        }
+
         if previousSettings.surfSpotName != newSettings.surfSpotName
             || previousSettings.surfSpotLatitude != newSettings.surfSpotLatitude
             || previousSettings.surfSpotLongitude != newSettings.surfSpotLongitude
