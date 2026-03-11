@@ -1,5 +1,3 @@
-import AppKit
-import Combine
 import NomadCore
 import NomadUI
 import SwiftUI
@@ -28,17 +26,15 @@ struct NomadDashboardApp: App {
             latencyHosts: persistedSettings.latencyHosts,
             historyRetentionHours: persistedSettings.historyRetentionHours,
             reliefWebAppName: reliefWebAppName(),
-            tankerkonigAPIKey: tankerkonigAPIKey(),
+            tankerkonigAPIKey: AppRuntimeConfiguration.resolveTankerkonigAPIKey(
+                userSetting: persistedSettings.tankerkonigAPIKey
+            ),
             updateCoordinator: updateCoordinator
         )
         let launchAtLoginController = LaunchAtLoginController(initialEnabled: persistedSettings.launchAtLoginEnabled)
 
         if settingsStore.settings.launchAtLoginEnabled != launchAtLoginController.isEnabled {
             settingsStore.settings.launchAtLoginEnabled = launchAtLoginController.isEnabled
-        }
-
-        DispatchQueue.main.async {
-            applyWindowAppearance(persistedSettings.appearanceMode)
         }
 
         _settingsStore = StateObject(wrappedValue: settingsStore)
@@ -109,44 +105,11 @@ private func reliefWebAppName() -> String? {
 
     return Bundle.main.bundleIdentifier
 }
-
-private func tankerkonigAPIKey() -> String? {
-    if let environmentValue = ProcessInfo.processInfo.environment["TANKERKOENIG_APIKEY"]?
-        .trimmingCharacters(in: .whitespacesAndNewlines), environmentValue.isEmpty == false
-    {
-        return environmentValue
-    }
-
-    if let plistValue = Bundle.main.object(forInfoDictionaryKey: "TankerkonigAPIKey") as? String {
-        let trimmedValue = plistValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedValue.isEmpty == false {
-            return trimmedValue
-        }
-    }
-
-    return nil
-}
-
-@MainActor
-private func applyWindowAppearance(_ appearanceMode: AppAppearanceMode) {
-    let appearance = appearanceMode.appKitAppearance
-
-    for window in NSApp.windows {
-        window.appearance = appearance
-    }
-}
-
 private struct SceneAppearanceSync: ViewModifier {
     @ObservedObject var settingsStore: AppSettingsStore
 
     func body(content: Content) -> some View {
         content
             .preferredColorScheme(settingsStore.settings.appearanceMode.preferredColorScheme)
-            .task {
-                applyWindowAppearance(settingsStore.settings.appearanceMode)
-            }
-            .onReceive(settingsStore.$settings.map(\.appearanceMode).removeDuplicates()) { appearanceMode in
-                applyWindowAppearance(appearanceMode)
-            }
     }
 }

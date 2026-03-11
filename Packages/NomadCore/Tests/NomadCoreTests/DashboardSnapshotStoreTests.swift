@@ -220,6 +220,34 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func refreshUpdatesFuelProviderConfigurationWhenTankerkonigKeyChanges() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.fuelPricesEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let fuelPriceProvider = RecordingConfigurableFuelPriceProvider()
+        let dependencies = makeDependencies(
+            reverseGeocodingProvider: GermanReverseGeocodingProvider(),
+            fuelPriceProvider: fuelPriceProvider,
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        store.setCurrentLocation(CLLocation(latitude: 52.52, longitude: 13.405))
+
+        await store.refresh(manual: true)
+        #expect(store.snapshot.fuelPrices?.status == .configurationRequired)
+
+        settingsStore.settings.tankerkonigAPIKey = "user-key-123"
+
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(await fuelPriceProvider.latestConfiguredAPIKey() == "user-key-123")
+        #expect(store.snapshot.fuelPrices?.status == .ready)
+        #expect(store.snapshot.fuelPrices?.sourceName == "Tankerkönig")
+    }
+
+    @Test
     func refreshStoresFuelDiagnosticsWhenReverseGeocodingHasNoCountryCode() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.fuelPricesEnabled = true
@@ -1088,6 +1116,91 @@ private actor RecordingFuelPriceProvider: FuelPriceProvider, FuelPriceDiagnostic
     }
 }
 
+private actor RecordingConfigurableFuelPriceProvider: FuelPriceProvider, FuelPriceDiagnosticsProviding, FuelPriceProviderConfigurationUpdating {
+    private var apiKey: String?
+    private var latestDiagnosticsValue: FuelProviderRequestDiagnostics?
+
+    func prices(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot {
+        if request.countryCode == "DE", apiKey == nil {
+            latestDiagnosticsValue = FuelProviderRequestDiagnostics(
+                stage: .providerSelection,
+                providerName: "Tankerkönig",
+                sourceURL: URL(string: "https://creativecommons.tankerkoenig.de/"),
+                startedAt: nil,
+                finishedAt: .now,
+                elapsedMilliseconds: nil,
+                responseMIMEType: nil,
+                payloadByteCount: nil,
+                httpStatusCode: nil,
+                summary: "Germany needs your Tankerkönig API key in Settings.",
+                error: nil
+            )
+            return FuelPriceSnapshot(
+                status: .configurationRequired,
+                sourceName: "Tankerkönig",
+                sourceURL: URL(string: "https://creativecommons.tankerkoenig.de/"),
+                countryCode: request.countryCode,
+                countryName: request.countryName,
+                searchRadiusKilometers: request.searchRadiusKilometers,
+                diesel: nil,
+                gasoline: nil,
+                fetchedAt: .now,
+                detail: "Germany needs your Tankerkönig API key in Settings.",
+                note: "Germany uses the free Tankerkönig API."
+            )
+        }
+
+        latestDiagnosticsValue = FuelProviderRequestDiagnostics(
+            stage: .bestPriceSelection,
+            providerName: "Tankerkönig",
+            sourceURL: URL(string: "https://creativecommons.tankerkoenig.de/"),
+            startedAt: .now.addingTimeInterval(-0.4),
+            finishedAt: .now,
+            elapsedMilliseconds: 400,
+            responseMIMEType: "application/json",
+            payloadByteCount: 1_024,
+            httpStatusCode: 200,
+            summary: "Fuel prices loaded successfully.",
+            error: nil
+        )
+        return FuelPriceSnapshot(
+            status: .ready,
+            sourceName: "Tankerkönig",
+            sourceURL: URL(string: "https://creativecommons.tankerkoenig.de/"),
+            countryCode: request.countryCode,
+            countryName: request.countryName,
+            searchRadiusKilometers: request.searchRadiusKilometers,
+            diesel: FuelStationPrice(
+                fuelType: .diesel,
+                stationName: "Berlin Diesel",
+                address: "Alexanderplatz 1",
+                locality: "Berlin",
+                pricePerLiter: 1.649,
+                distanceKilometers: 3.2,
+                latitude: request.coordinate.latitude,
+                longitude: request.coordinate.longitude,
+                updatedAt: .now
+            ),
+            gasoline: nil,
+            fetchedAt: .now,
+            detail: "Cheapest prices within 50 km.",
+            note: "Germany uses the free Tankerkönig API."
+        )
+    }
+
+    func latestRequestDiagnostics() async -> FuelProviderRequestDiagnostics? {
+        latestDiagnosticsValue
+    }
+
+    func setTankerkonigAPIKey(_ apiKey: String?) async {
+        self.apiKey = apiKey
+    }
+
+    func latestConfiguredAPIKey() -> String? {
+        apiKey
+    }
+}
+
 private struct SpanishReverseGeocodingProvider: ReverseGeocodingProvider {
     func details(for location: CLLocation) async throws -> ReverseGeocodedLocation {
         ReverseGeocodedLocation(
@@ -1096,6 +1209,18 @@ private struct SpanishReverseGeocodingProvider: ReverseGeocodingProvider {
             country: "Spain",
             countryCode: "ES",
             timeZoneIdentifier: "Europe/Madrid"
+        )
+    }
+}
+
+private struct GermanReverseGeocodingProvider: ReverseGeocodingProvider {
+    func details(for location: CLLocation) async throws -> ReverseGeocodedLocation {
+        ReverseGeocodedLocation(
+            city: "Berlin",
+            region: "Berlin",
+            country: "Germany",
+            countryCode: "DE",
+            timeZoneIdentifier: "Europe/Berlin"
         )
     }
 }

@@ -8,6 +8,7 @@ Nomad Dashboard.
 - Never remove files without explicit approval from Matti Vilola.
 - Keep the app native to macOS and menu-bar-first.
 - Do not commit generated `.xcodeproj` output. Regenerate from `project.yml`.
+- Never add private API keys, secrets, tokens, or customer credentials to tracked config, app bundle metadata, or any file that can ship to the public repo or release artifacts. Follow `docs/security.md`.
 
 ## Working Agreements
 
@@ -22,4 +23,3 @@ Nomad Dashboard.
 - `make test` for package tests
 - `make build` for app compilation after project generation
 - `make lint` when formatter tooling is available
-

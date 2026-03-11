@@ -52,6 +52,11 @@ docs/                   Architecture, UX, release, roadmap, privacy notes
 .github/                CI, issue templates, pull request template
 ```
 
+Before adding any third-party integration or credentialed feature, read
+[docs/security.md](docs/security.md). The short version: if the app ships it,
+users can read it, so private credentials must not live in tracked config,
+`Info.plist`, or other bundled settings.
+
 ## Quick Start
 
 1. Install toolchain helpers:
@@ -124,6 +129,8 @@ and is loaded by both Debug and Release builds.
 - Release automation is local-first. Signing, notarization, DMG packaging, and
   Sparkle publishing are wired through scripts and documented in
   [docs/release.md](docs/release.md).
+- Credential-handling rules for new integrations are documented in
+  [docs/security.md](docs/security.md).
 - Version metadata is centralized in `Config/Version.xcconfig`.
 
 ## Open Source Collaboration

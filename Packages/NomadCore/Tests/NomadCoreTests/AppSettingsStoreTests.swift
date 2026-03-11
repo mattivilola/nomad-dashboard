@@ -21,6 +21,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.travelAdvisoryEnabled == true)
         #expect(store.settings.travelWeatherAlertsEnabled == false)
         #expect(store.settings.regionalSecurityEnabled == false)
+        #expect(store.settings.tankerkonigAPIKey.isEmpty)
         #expect(store.settings.surfSpotName.isEmpty)
         #expect(store.settings.surfSpotLatitude == nil)
         #expect(store.settings.surfSpotLongitude == nil)
@@ -129,6 +130,19 @@ struct AppSettingsStoreTests {
     }
 
     @Test
+    func persistsTankerkonigAPIKeyToUserDefaults() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.settings.tankerkonigAPIKey = "user-key-123"
+
+        let reloaded = AppSettingsStore(defaults: defaults)
+        #expect(reloaded.settings.tankerkonigAPIKey == "user-key-123")
+    }
+
+    @Test
     func decodesLegacyPayloadWithoutAppearanceMode() throws {
         let suiteName = UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -164,6 +178,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.travelAdvisoryEnabled == true)
         #expect(store.settings.travelWeatherAlertsEnabled == false)
         #expect(store.settings.regionalSecurityEnabled == false)
+        #expect(store.settings.tankerkonigAPIKey.isEmpty)
         #expect(store.settings.surfSpotName.isEmpty)
         #expect(store.settings.surfSpotLatitude == nil)
         #expect(store.settings.surfSpotLongitude == nil)

@@ -1,5 +1,5 @@
 // Copy to Config/AppConfig.local.xcconfig for local app-only overrides.
 // This file is included by both Debug.xcconfig and Release.xcconfig and is ignored by git.
+// Keep the approved ReliefWeb app name local to your machine or release builder.
 
-RELIEFWEB_APPNAME = iloapps-nomad-dashboard-x7m4
-TANKERKOENIG_APIKEY =
+RELIEFWEB_APPNAME =

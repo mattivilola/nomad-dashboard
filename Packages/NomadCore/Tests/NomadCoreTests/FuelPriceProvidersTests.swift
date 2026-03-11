@@ -73,7 +73,7 @@ struct FuelPriceProvidersTests {
         )
 
         #expect(snapshot.status == .configurationRequired)
-        #expect(snapshot.detail == "Germany needs a Tankerkönig API key in app config.")
+        #expect(snapshot.detail == "Germany needs your Tankerkönig API key in Settings.")
     }
 
     @Test

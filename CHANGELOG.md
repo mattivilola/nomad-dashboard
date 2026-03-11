@@ -20,6 +20,13 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.19] - 2026-03-11
+
+### Changed
+
+- Remove AppKit-specific window appearance management
+- Move Tankerkonig API key to user settings and remove from app bundle
+
 ## [0.1.18] - 2026-03-10
 
 ### Changed
