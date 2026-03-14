@@ -1561,10 +1561,10 @@ private struct FixedMarineProvider: MarineProvider {
             windDirectionDegrees: 315,
             seaSurfaceTemperatureCelsius: 9,
             forecastSlots: [
-                MarineForecastSlot(date: .now, waveHeightMeters: 1.6, swellHeightMeters: 1.2, windSpeedKph: 18, windDirectionDegrees: 315),
                 MarineForecastSlot(date: Date().addingTimeInterval(3 * 3_600), waveHeightMeters: 1.4, swellHeightMeters: 1.0, windSpeedKph: 16, windDirectionDegrees: 300),
                 MarineForecastSlot(date: Date().addingTimeInterval(6 * 3_600), waveHeightMeters: 1.3, swellHeightMeters: 0.9, windSpeedKph: 13, windDirectionDegrees: 285),
-                MarineForecastSlot(date: Date().addingTimeInterval(12 * 3_600), waveHeightMeters: 1.1, swellHeightMeters: 0.8, windSpeedKph: 10, windDirectionDegrees: 270)
+                MarineForecastSlot(date: Date().addingTimeInterval(12 * 3_600), waveHeightMeters: 1.1, swellHeightMeters: 0.8, windSpeedKph: 10, windDirectionDegrees: 270),
+                MarineForecastSlot(date: Date().addingTimeInterval(24 * 3_600), waveHeightMeters: 0.9, swellHeightMeters: 0.7, windSpeedKph: 8, windDirectionDegrees: 255)
             ],
             fetchedAt: .now
         )

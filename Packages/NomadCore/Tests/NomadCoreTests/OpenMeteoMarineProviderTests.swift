@@ -14,7 +14,8 @@ struct OpenMeteoMarineProviderTests {
             now.roundedDownToHour(),
             now.roundedDownToHour().addingTimeInterval(3 * 3_600),
             now.roundedDownToHour().addingTimeInterval(6 * 3_600),
-            now.roundedDownToHour().addingTimeInterval(12 * 3_600)
+            now.roundedDownToHour().addingTimeInterval(12 * 3_600),
+            now.roundedDownToHour().addingTimeInterval(24 * 3_600)
         ]
 
         MockURLProtocol.handler = { request in
@@ -56,8 +57,10 @@ struct OpenMeteoMarineProviderTests {
         #expect(snapshot.windDirectionDegrees == 315)
         #expect(snapshot.seaSurfaceTemperatureCelsius == 17)
         #expect(snapshot.forecastSlots.count == 4)
-        #expect(snapshot.forecastSlots.first?.waveHeightMeters == 1.6)
-        #expect(snapshot.forecastSlots[1].windSpeedKph == 16)
+        #expect(abs(snapshot.forecastSlots[0].date.timeIntervalSince(snapshot.fetchedAt) - (3 * 3_600)) < 1)
+        #expect(abs(snapshot.forecastSlots[3].date.timeIntervalSince(snapshot.fetchedAt) - (24 * 3_600)) < 1)
+        #expect(snapshot.forecastSlots.first?.waveHeightMeters == 1.4)
+        #expect(snapshot.forecastSlots[3].windSpeedKph == 8)
     }
 }
 
@@ -68,12 +71,12 @@ private func marinePayload(times: [Date]) throws -> Data {
             "utc_offset_seconds": 0,
             "hourly": [
                 "time": times.map(\.openMeteoHourString),
-                "wave_height": [1.6, 1.4, 1.3, 1.1],
-                "wave_period": [11, 10, 9, 8],
-                "swell_wave_height": [1.2, 1.0, 0.9, 0.8],
-                "swell_wave_period": [10, 9, 8, 7],
-                "swell_wave_direction": [90, 80, 70, 60],
-                "sea_surface_temperature": [17, 17, 16, 16]
+                "wave_height": [1.6, 1.4, 1.3, 1.1, 0.9],
+                "wave_period": [11, 10, 9, 8, 7],
+                "swell_wave_height": [1.2, 1.0, 0.9, 0.8, 0.7],
+                "swell_wave_period": [10, 9, 8, 7, 6],
+                "swell_wave_direction": [90, 80, 70, 60, 50],
+                "sea_surface_temperature": [17, 17, 16, 16, 15]
             ]
         ]
     )
@@ -86,9 +89,9 @@ private func forecastPayload(times: [Date]) throws -> Data {
             "utc_offset_seconds": 0,
             "hourly": [
                 "time": times.map(\.openMeteoHourString),
-                "wind_speed_10m": [18, 16, 13, 10],
-                "wind_gusts_10m": [24, 22, 18, 14],
-                "wind_direction_10m": [315, 300, 285, 270]
+                "wind_speed_10m": [18, 16, 13, 10, 8],
+                "wind_gusts_10m": [24, 22, 18, 14, 11],
+                "wind_direction_10m": [315, 300, 285, 270, 255]
             ]
         ]
     )

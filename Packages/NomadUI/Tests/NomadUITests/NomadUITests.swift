@@ -324,7 +324,7 @@ struct NomadUITests {
         #expect(presentation.swellSummary == "1.2 m · E")
         #expect(presentation.windSummary == "18 km/h · NW")
         #expect(presentation.forecastSlots.count == 4)
-        #expect(presentation.forecastSlots.first?.title == "Now")
+        #expect(presentation.forecastSlots.first?.title == "+3h")
     }
 
     @Test

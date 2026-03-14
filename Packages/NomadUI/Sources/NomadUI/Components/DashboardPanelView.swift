@@ -3323,7 +3323,7 @@ struct SurfSectionPresentation {
             swellSummary = Self.swellSummary(for: marine)
             windSummary = Self.windSummary(for: marine)
             forecastSlots = marine.forecastSlots.enumerated().map { index, slot in
-                SurfForecastSlotPresentation(index: index, slot: slot)
+                SurfForecastSlotPresentation(index: index, slot: slot, referenceDate: marine.fetchedAt)
             }
             emptyTitle = ""
             emptySystemImage = "water.waves"
@@ -3403,14 +3403,10 @@ struct SurfForecastSlotPresentation: Identifiable, Equatable {
     let waveValue: String
     let windValue: String
 
-    init(index: Int, slot: MarineForecastSlot) {
+    init(index: Int, slot: MarineForecastSlot, referenceDate: Date) {
         id = "\(index)-\(slot.date.timeIntervalSinceReferenceDate)"
-        title = switch index {
-        case 0: "Now"
-        case 1: "+3h"
-        case 2: "+6h"
-        default: "+12h"
-        }
+        let hourOffset = max(0, Int((slot.date.timeIntervalSince(referenceDate) / 3_600).rounded()))
+        title = "+\(hourOffset)h"
         waveValue = NomadFormatters.meters(slot.waveHeightMeters)
         windValue = slot.windSpeedKph.map {
             "\(NomadFormatters.kilometersPerHour($0)) · \(NomadFormatters.compassDirection(slot.windDirectionDegrees))"

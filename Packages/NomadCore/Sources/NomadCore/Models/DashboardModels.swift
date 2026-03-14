@@ -768,10 +768,10 @@ public extension DashboardSnapshot {
             windDirectionDegrees: 315,
             seaSurfaceTemperatureCelsius: 17,
             forecastSlots: [
-                MarineForecastSlot(date: .now, waveHeightMeters: 1.6, swellHeightMeters: 1.2, windSpeedKph: 18, windDirectionDegrees: 315),
                 MarineForecastSlot(date: Date().addingTimeInterval(3 * 3_600), waveHeightMeters: 1.5, swellHeightMeters: 1.1, windSpeedKph: 16, windDirectionDegrees: 300),
                 MarineForecastSlot(date: Date().addingTimeInterval(6 * 3_600), waveHeightMeters: 1.3, swellHeightMeters: 1.0, windSpeedKph: 14, windDirectionDegrees: 290),
-                MarineForecastSlot(date: Date().addingTimeInterval(12 * 3_600), waveHeightMeters: 1.1, swellHeightMeters: 0.9, windSpeedKph: 11, windDirectionDegrees: 270)
+                MarineForecastSlot(date: Date().addingTimeInterval(12 * 3_600), waveHeightMeters: 1.1, swellHeightMeters: 0.9, windSpeedKph: 11, windDirectionDegrees: 270),
+                MarineForecastSlot(date: Date().addingTimeInterval(24 * 3_600), waveHeightMeters: 0.9, swellHeightMeters: 0.7, windSpeedKph: 9, windDirectionDegrees: 255)
             ],
             fetchedAt: .now
         ),

@@ -115,7 +115,7 @@ public actor LiveOpenMeteoMarineProvider: MarineProvider {
             throw ProviderError.invalidResponse
         }
 
-        let forecastHourOffsets: [Int] = [0, 3, 6, 12]
+        let forecastHourOffsets: [Int] = [3, 6, 12, 24]
         let forecastSlots: [MarineForecastSlot] = forecastHourOffsets.compactMap { hourOffset in
             let targetDate = now.addingTimeInterval(TimeInterval(hourOffset * 3_600))
             guard let marineIndex = Self.nearestIndex(in: marineSeries.times, to: targetDate),
