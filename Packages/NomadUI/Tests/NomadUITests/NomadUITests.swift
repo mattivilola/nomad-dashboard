@@ -76,6 +76,47 @@ struct NomadUITests {
     }
 
     @Test
+    func internetStatusIndicatorModelShowsWideOnlineState() {
+        let model = InternetStatusIndicatorModel(
+            connectivity: ConnectivitySnapshot(pathAvailable: true, internetState: .online, lastCheckedAt: .now),
+            style: .wideInline
+        )
+
+        #expect(model.symbolName == "checkmark.circle.fill")
+        #expect(model.label == "Online")
+        #expect(model.accessibilityLabel == "Internet online")
+        #expect(model.tone == .online)
+        #expect(model.style == .wideInline)
+    }
+
+    @Test
+    func internetStatusIndicatorModelCollapsesToIconInCompactMode() {
+        let model = InternetStatusIndicatorModel(
+            connectivity: ConnectivitySnapshot(pathAvailable: true, internetState: .offline, lastCheckedAt: .now),
+            style: .compactIcon
+        )
+
+        #expect(model.symbolName == "wifi.slash")
+        #expect(model.label == nil)
+        #expect(model.accessibilityLabel == "Internet offline")
+        #expect(model.tone == .offline)
+        #expect(model.style == .compactIcon)
+    }
+
+    @Test
+    func internetStatusIndicatorModelShowsCheckingLabelInWideMode() {
+        let model = InternetStatusIndicatorModel(
+            connectivity: ConnectivitySnapshot(pathAvailable: nil, internetState: .checking, lastCheckedAt: nil),
+            style: .wideInline
+        )
+
+        #expect(model.symbolName == "ellipsis.circle.fill")
+        #expect(model.label == "Checking")
+        #expect(model.accessibilityLabel == "Checking internet")
+        #expect(model.tone == .checking)
+    }
+
+    @Test
     func travelAlertsPresentationShowsAllClearState() {
         let presentation = TravelAlertsCardPresentation(
             preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: true, securityEnabled: true),

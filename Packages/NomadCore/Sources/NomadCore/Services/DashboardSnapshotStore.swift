@@ -160,6 +160,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         let throughputSample = await dependencies.throughputMonitor.currentSample()
+        let connectivitySnapshot = await dependencies.connectivityMonitor.currentSnapshot()
 
         if let throughputSample {
             await appendHistory(from: throughputSample)
@@ -292,6 +293,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         snapshot = DashboardSnapshot(
             network: NetworkSectionSnapshot(
                 throughput: throughputSample ?? snapshot.network.throughput,
+                connectivity: connectivitySnapshot,
                 latency: latencySample,
                 downloadHistory: projectedHistory[.downloadMbps] ?? snapshot.network.downloadHistory,
                 uploadHistory: projectedHistory[.uploadMbps] ?? snapshot.network.uploadHistory,

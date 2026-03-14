@@ -68,6 +68,15 @@ public enum DashboardHealthEvaluator {
         travelContext: TravelContextSnapshot,
         appState: AppStatusSnapshot
     ) -> SectionHealth {
+        if network.connectivity.internetState == .offline {
+            return SectionHealth(
+                label: "Attention",
+                level: .attention,
+                reason: network.connectivity.pathAvailable == false ? "No network route" : "Internet unreachable",
+                symbolName: "wifi.slash"
+            )
+        }
+
         guard let latency = network.latency else {
             return SectionHealth(
                 label: "Waiting",

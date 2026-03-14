@@ -15,6 +15,10 @@ public protocol ThroughputMonitor: Sendable {
     func currentSample() async -> NetworkThroughputSample?
 }
 
+public protocol ConnectivityMonitor: Sendable {
+    func currentSnapshot() async -> ConnectivitySnapshot
+}
+
 public protocol LatencyProbe: Sendable {
     func currentSample() async -> LatencySample?
 }

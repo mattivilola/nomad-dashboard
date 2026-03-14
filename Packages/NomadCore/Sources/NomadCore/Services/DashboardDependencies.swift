@@ -2,6 +2,7 @@ import Foundation
 
 public struct DashboardDependencies: Sendable {
     public let throughputMonitor: any ThroughputMonitor
+    public let connectivityMonitor: any ConnectivityMonitor
     public let latencyProbe: any LatencyProbe
     public let powerMonitor: any PowerMonitor
     public let wifiMonitor: any WiFiMonitor
@@ -22,6 +23,7 @@ public struct DashboardDependencies: Sendable {
 
     public init(
         throughputMonitor: any ThroughputMonitor,
+        connectivityMonitor: any ConnectivityMonitor,
         latencyProbe: any LatencyProbe,
         powerMonitor: any PowerMonitor,
         wifiMonitor: any WiFiMonitor,
@@ -41,6 +43,7 @@ public struct DashboardDependencies: Sendable {
         updateCoordinator: any UpdateCoordinator
     ) {
         self.throughputMonitor = throughputMonitor
+        self.connectivityMonitor = connectivityMonitor
         self.latencyProbe = latencyProbe
         self.powerMonitor = powerMonitor
         self.wifiMonitor = wifiMonitor
@@ -68,11 +71,13 @@ public struct DashboardDependencies: Sendable {
         tankerkonigAPIKey: String? = nil,
         updateCoordinator: any UpdateCoordinator
     ) -> DashboardDependencies {
+        let latencyEndpoints = latencyHosts.compactMap(LatencyEndpoint.from(hostString:))
         let publicIPClient = CachedFreeIPAPIClient()
 
         return DashboardDependencies(
             throughputMonitor: LiveThroughputMonitor(),
-            latencyProbe: LiveLatencyProbe(endpoints: latencyHosts.compactMap(LatencyEndpoint.from(hostString:))),
+            connectivityMonitor: LiveConnectivityMonitor(endpoints: latencyEndpoints),
+            latencyProbe: LiveLatencyProbe(endpoints: latencyEndpoints),
             powerMonitor: LivePowerMonitor(),
             wifiMonitor: LiveWiFiMonitor(),
             vpnStatusProvider: LiveVPNStatusProvider(),

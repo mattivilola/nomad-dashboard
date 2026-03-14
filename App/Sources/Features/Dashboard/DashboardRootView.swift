@@ -295,11 +295,21 @@ struct MenuBarStatusLabel: View {
         let presentation = snapshot.menuBarStatusPresentation
 
         HStack(spacing: 6) {
-            Image(systemName: presentation.symbolName)
+            statusIcon(for: presentation)
             if let text = presentation.text {
                 Text(text)
                     .monospacedDigit()
             }
+        }
+    }
+
+    @ViewBuilder
+    private func statusIcon(for presentation: MenuBarStatusPresentation) -> some View {
+        if presentation.tone == .attention {
+            Image(systemName: presentation.symbolName)
+                .foregroundStyle(NomadTheme.coral)
+        } else {
+            Image(systemName: presentation.symbolName)
         }
     }
 }

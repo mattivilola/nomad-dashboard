@@ -759,6 +759,7 @@ struct DashboardSnapshotStoreTests {
 
 private func makeDependencies(
     throughputMonitor: any ThroughputMonitor = FixedThroughputMonitor(),
+    connectivityMonitor: any ConnectivityMonitor = FixedConnectivityMonitor(),
     latencyProbe: any LatencyProbe = FixedLatencyProbe(),
     powerMonitor: any PowerMonitor = FixedPowerMonitor(),
     wifiMonitor: any WiFiMonitor = FixedWiFiMonitor(),
@@ -779,6 +780,7 @@ private func makeDependencies(
 ) -> DashboardDependencies {
     DashboardDependencies(
         throughputMonitor: throughputMonitor,
+        connectivityMonitor: connectivityMonitor,
         latencyProbe: latencyProbe,
         powerMonitor: powerMonitor,
         wifiMonitor: wifiMonitor,
@@ -905,6 +907,12 @@ private struct FixedThroughputMonitor: ThroughputMonitor {
             activeInterface: "en0",
             collectedAt: .now
         )
+    }
+}
+
+private struct FixedConnectivityMonitor: ConnectivityMonitor {
+    func currentSnapshot() async -> ConnectivitySnapshot {
+        ConnectivitySnapshot(pathAvailable: true, internetState: .online, lastCheckedAt: .now)
     }
 }
 

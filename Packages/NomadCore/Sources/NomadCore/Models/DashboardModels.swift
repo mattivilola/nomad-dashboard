@@ -64,6 +64,28 @@ public struct LatencySample: Equatable, Sendable {
     }
 }
 
+public enum InternetReachabilityState: String, Codable, CaseIterable, Equatable, Sendable {
+    case checking
+    case online
+    case offline
+}
+
+public struct ConnectivitySnapshot: Equatable, Sendable {
+    public let pathAvailable: Bool?
+    public let internetState: InternetReachabilityState
+    public let lastCheckedAt: Date?
+
+    public init(pathAvailable: Bool?, internetState: InternetReachabilityState, lastCheckedAt: Date?) {
+        self.pathAvailable = pathAvailable
+        self.internetState = internetState
+        self.lastCheckedAt = lastCheckedAt
+    }
+}
+
+public extension ConnectivitySnapshot {
+    static let checking = ConnectivitySnapshot(pathAvailable: nil, internetState: .checking, lastCheckedAt: nil)
+}
+
 public enum PowerSourceState: String, Codable, Equatable, Sendable {
     case battery
     case charging
@@ -372,6 +394,7 @@ public struct UpdateStateSnapshot: Equatable, Sendable {
 
 public struct NetworkSectionSnapshot: Equatable, Sendable {
     public let throughput: NetworkThroughputSample?
+    public let connectivity: ConnectivitySnapshot
     public let latency: LatencySample?
     public let downloadHistory: [MetricPoint]
     public let uploadHistory: [MetricPoint]
@@ -379,12 +402,14 @@ public struct NetworkSectionSnapshot: Equatable, Sendable {
 
     public init(
         throughput: NetworkThroughputSample?,
+        connectivity: ConnectivitySnapshot = .checking,
         latency: LatencySample?,
         downloadHistory: [MetricPoint],
         uploadHistory: [MetricPoint],
         latencyHistory: [MetricPoint]
     ) {
         self.throughput = throughput
+        self.connectivity = connectivity
         self.latency = latency
         self.downloadHistory = downloadHistory
         self.uploadHistory = uploadHistory
@@ -489,6 +514,7 @@ public extension DashboardSnapshot {
                 activeInterface: nil,
                 collectedAt: .now
             ),
+            connectivity: .checking,
             latency: nil,
             downloadHistory: [],
             uploadHistory: [],
@@ -535,6 +561,7 @@ public extension DashboardSnapshot {
                 activeInterface: "en0",
                 collectedAt: .now
             ),
+            connectivity: ConnectivitySnapshot(pathAvailable: true, internetState: .online, lastCheckedAt: .now),
             latency: LatencySample(
                 host: "1.1.1.1",
                 milliseconds: 28,

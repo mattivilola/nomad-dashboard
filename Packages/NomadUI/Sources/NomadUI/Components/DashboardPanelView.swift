@@ -398,6 +398,14 @@ public struct DashboardPanelView: View {
         DashboardCard(
             title: "Connectivity",
             subtitle: snapshot.network.throughput?.activeInterface ?? "Interface unavailable",
+            subtitleAccessory: AnyView(
+                InternetStatusIndicator(
+                    model: InternetStatusIndicatorModel(
+                        connectivity: snapshot.network.connectivity,
+                        style: widthMode == .narrow ? .compactIcon : .wideInline
+                    )
+                )
+            ),
             badge: badge(for: snapshot.healthSummary.network),
             accessory: cardControls(for: .connectivity, title: "Connectivity"),
             isCompact: widthMode == .narrow
@@ -1172,6 +1180,7 @@ struct PowerMetricsPresentation {
 private struct DashboardCard<Content: View>: View {
     let title: String
     let subtitle: String
+    let subtitleAccessory: AnyView?
     let badge: PillBadge?
     let accessory: AnyView?
     let backgroundDecoration: AnyView?
@@ -1181,6 +1190,7 @@ private struct DashboardCard<Content: View>: View {
     init(
         title: String,
         subtitle: String,
+        subtitleAccessory: AnyView? = nil,
         badge: PillBadge? = nil,
         accessory: AnyView? = nil,
         backgroundDecoration: AnyView? = nil,
@@ -1189,6 +1199,7 @@ private struct DashboardCard<Content: View>: View {
     ) {
         self.title = title
         self.subtitle = subtitle
+        self.subtitleAccessory = subtitleAccessory
         self.badge = badge
         self.accessory = accessory
         self.backgroundDecoration = backgroundDecoration
@@ -1208,11 +1219,17 @@ private struct DashboardCard<Content: View>: View {
                         .lineLimit(1)
                         .minimumScaleFactor(isCompact ? 0.75 : 0.9)
 
-                    Text(subtitle)
-                        .font(isCompact ? .caption2 : .caption)
-                        .foregroundStyle(NomadTheme.secondaryText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    HStack(spacing: isCompact ? 6 : 8) {
+                        Text(subtitle)
+                            .font(isCompact ? .caption2 : .caption)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+
+                        if let subtitleAccessory {
+                            subtitleAccessory
+                        }
+                    }
                 }
                 .layoutPriority(1)
 
@@ -1249,6 +1266,93 @@ private struct DashboardCard<Content: View>: View {
             }
         )
         .clipped()
+    }
+}
+
+enum InternetStatusIndicatorStyle: Equatable {
+    case wideInline
+    case compactIcon
+}
+
+enum InternetStatusIndicatorTone: Equatable {
+    case online
+    case checking
+    case offline
+}
+
+struct InternetStatusIndicatorModel: Equatable {
+    let symbolName: String
+    let label: String?
+    let accessibilityLabel: String
+    let tone: InternetStatusIndicatorTone
+    let style: InternetStatusIndicatorStyle
+
+    init(connectivity: ConnectivitySnapshot, style: InternetStatusIndicatorStyle) {
+        self.style = style
+
+        switch connectivity.internetState {
+        case .online:
+            symbolName = "checkmark.circle.fill"
+            label = style == .wideInline ? "Online" : nil
+            accessibilityLabel = "Internet online"
+            tone = .online
+        case .checking:
+            symbolName = "ellipsis.circle.fill"
+            label = style == .wideInline ? "Checking" : nil
+            accessibilityLabel = "Checking internet"
+            tone = .checking
+        case .offline:
+            symbolName = "wifi.slash"
+            label = style == .wideInline ? "Offline" : nil
+            accessibilityLabel = "Internet offline"
+            tone = .offline
+        }
+    }
+}
+
+struct InternetStatusIndicator: View {
+    let model: InternetStatusIndicatorModel
+
+    var body: some View {
+        Group {
+            switch model.style {
+            case .wideInline:
+                HStack(spacing: 6) {
+                    Text("•")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(NomadTheme.tertiaryText)
+
+                    Image(systemName: model.symbolName)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(tint)
+
+                    if let label = model.label {
+                        Text(label)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(tint)
+                            .lineLimit(1)
+                    }
+                }
+            case .compactIcon:
+                Image(systemName: model.symbolName)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(tint)
+            }
+        }
+        .help(model.accessibilityLabel)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(model.accessibilityLabel)
+    }
+
+    private var tint: Color {
+        switch model.tone {
+        case .online:
+            NomadTheme.teal
+        case .checking:
+            NomadTheme.secondaryText
+        case .offline:
+            NomadTheme.coral
+        }
     }
 }
 

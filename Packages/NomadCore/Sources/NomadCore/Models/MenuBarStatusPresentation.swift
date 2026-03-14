@@ -3,6 +3,7 @@ import Foundation
 public struct MenuBarStatusPresentation: Equatable, Sendable {
     public enum Branch: Equatable, Sendable {
         case battery
+        case offline
         case latencyCaution
         case latencyAttention
         case weather
@@ -10,14 +11,21 @@ public struct MenuBarStatusPresentation: Equatable, Sendable {
         case empty
     }
 
+    public enum Tone: Equatable, Sendable {
+        case standard
+        case attention
+    }
+
     public let text: String?
     public let symbolName: String
     public let branch: Branch
+    public let tone: Tone
 
-    public init(text: String?, symbolName: String, branch: Branch) {
+    public init(text: String?, symbolName: String, branch: Branch, tone: Tone = .standard) {
         self.text = text
         self.symbolName = symbolName
         self.branch = branch
+        self.tone = tone
     }
 }
 
@@ -28,6 +36,15 @@ public extension DashboardSnapshot {
                 text: Self.formatBatteryPercentage(chargePercent),
                 symbolName: Self.batterySymbolName(for: chargePercent),
                 branch: .battery
+            )
+        }
+
+        if network.connectivity.internetState == .offline {
+            return MenuBarStatusPresentation(
+                text: nil,
+                symbolName: "wifi.slash",
+                branch: .offline,
+                tone: .attention
             )
         }
 

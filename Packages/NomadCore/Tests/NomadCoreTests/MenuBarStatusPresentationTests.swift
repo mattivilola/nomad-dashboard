@@ -28,6 +28,7 @@ struct MenuBarStatusPresentationTests {
         #expect(presentation.text == "88 ms")
         #expect(presentation.symbolName == "wifi")
         #expect(presentation.branch == .latencyCaution)
+        #expect(presentation.tone == .standard)
     }
 
     @Test
@@ -37,6 +38,7 @@ struct MenuBarStatusPresentationTests {
         #expect(presentation.text == "130 ms")
         #expect(presentation.symbolName == "wifi.exclamationmark")
         #expect(presentation.branch == .latencyAttention)
+        #expect(presentation.tone == .standard)
     }
 
     @Test
@@ -46,6 +48,36 @@ struct MenuBarStatusPresentationTests {
         #expect(presentation.text == "22C")
         #expect(presentation.symbolName == "sun.max.fill")
         #expect(presentation.branch == .weather)
+    }
+
+    @Test
+    func offlineWinsOverLatencyAndWeather() {
+        let presentation = makeSnapshot(
+            chargePercent: 0.51,
+            connectivity: ConnectivitySnapshot(pathAvailable: true, internetState: .offline, lastCheckedAt: .now),
+            latency: 28,
+            weather: makeWeather()
+        ).menuBarStatusPresentation
+
+        #expect(presentation.text == nil)
+        #expect(presentation.symbolName == "wifi.slash")
+        #expect(presentation.branch == .offline)
+        #expect(presentation.tone == .attention)
+    }
+
+    @Test
+    func batteryStillWinsOverOffline() {
+        let presentation = makeSnapshot(
+            chargePercent: 0.49,
+            connectivity: ConnectivitySnapshot(pathAvailable: true, internetState: .offline, lastCheckedAt: .now),
+            latency: 28,
+            weather: makeWeather()
+        ).menuBarStatusPresentation
+
+        #expect(presentation.text == "49%")
+        #expect(presentation.symbolName == "battery.50percent")
+        #expect(presentation.branch == .battery)
+        #expect(presentation.tone == .standard)
     }
 
     @Test
@@ -84,6 +116,7 @@ struct MenuBarStatusPresentationTests {
 
 private func makeSnapshot(
     chargePercent: Double?,
+    connectivity: ConnectivitySnapshot = ConnectivitySnapshot(pathAvailable: true, internetState: .online, lastCheckedAt: .now),
     latency: Double?,
     weather: WeatherSnapshot?,
     rssi: Int? = -56,
@@ -97,6 +130,7 @@ private func makeSnapshot(
                 activeInterface: "en0",
                 collectedAt: .now
             ),
+            connectivity: connectivity,
             latency: latency.map {
                 LatencySample(host: "1.1.1.1", milliseconds: $0, jitterMilliseconds: 3, collectedAt: .now)
             },
