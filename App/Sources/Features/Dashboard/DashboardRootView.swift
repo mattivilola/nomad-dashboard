@@ -23,6 +23,7 @@ struct DashboardRootView: View {
     var body: some View {
         DashboardPanelView(
             snapshot: snapshotStore.snapshot,
+            refreshActivity: snapshotStore.refreshActivity,
             settings: settingsStore.settings,
             dashboardCardOrder: settingsStore.settings.dashboardCardOrder,
             dashboardCardWidthModes: settingsStore.settings.dashboardCardWidthModes,

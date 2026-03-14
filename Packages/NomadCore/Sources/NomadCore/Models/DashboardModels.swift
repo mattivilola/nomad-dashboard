@@ -392,6 +392,12 @@ public struct UpdateStateSnapshot: Equatable, Sendable {
     public static let idle = UpdateStateSnapshot(kind: .idle, detail: nil, lastCheckedAt: nil)
 }
 
+public enum DashboardRefreshActivity: Equatable, Sendable {
+    case idle
+    case manualInProgress
+    case slowAutomaticInProgress
+}
+
 public struct NetworkSectionSnapshot: Equatable, Sendable {
     public let throughput: NetworkThroughputSample?
     public let connectivity: ConnectivitySnapshot

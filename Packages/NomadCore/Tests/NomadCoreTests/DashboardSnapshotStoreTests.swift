@@ -47,6 +47,82 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func manualRefreshPublishesVisibleActivityUntilCompletion() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(
+                throughputMonitor: SlowThroughputMonitor(),
+                historyStore: InMemoryHistoryStore()
+            )
+        )
+
+        let refreshTask = Task {
+            await store.refresh(manual: true)
+        }
+
+        try await Task.sleep(for: .milliseconds(10))
+
+        #expect(store.refreshActivity == .manualInProgress)
+
+        await refreshTask.value
+
+        #expect(store.refreshActivity == .idle)
+    }
+
+    @Test
+    func automaticSlowRefreshPublishesVisibleActivityUntilCompletion() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(
+                throughputMonitor: SlowThroughputMonitor(),
+                historyStore: InMemoryHistoryStore()
+            )
+        )
+
+        let refreshTask = Task {
+            await store.refresh(manual: false)
+        }
+
+        try await Task.sleep(for: .milliseconds(10))
+
+        #expect(store.refreshActivity == .slowAutomaticInProgress)
+
+        await refreshTask.value
+
+        #expect(store.refreshActivity == .idle)
+    }
+
+    @Test
+    func automaticFastRefreshKeepsVisibleActivityIdle() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.slowRefreshIntervalSeconds = 60
+
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(
+                throughputMonitor: SlowThroughputMonitor(),
+                historyStore: InMemoryHistoryStore()
+            )
+        )
+
+        await store.refresh(manual: true)
+
+        let refreshTask = Task {
+            await store.refresh(manual: false)
+        }
+
+        try await Task.sleep(for: .milliseconds(10))
+
+        #expect(store.refreshActivity == .idle)
+
+        await refreshTask.value
+
+        #expect(store.refreshActivity == .idle)
+    }
+
+    @Test
     func overlappingRefreshesCoalesceIntoSingleManualFollowUp() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         let throughputMonitor = SlowThroughputMonitor()

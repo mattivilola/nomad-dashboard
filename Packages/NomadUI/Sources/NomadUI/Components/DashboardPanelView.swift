@@ -5,6 +5,7 @@ import SwiftUI
 
 public struct DashboardPanelView: View {
     private let snapshot: DashboardSnapshot
+    private let refreshActivity: DashboardRefreshActivity
     private let settings: AppSettings
     private let dashboardCardOrder: [DashboardCardID]
     private let dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode]
@@ -37,6 +38,7 @@ public struct DashboardPanelView: View {
 
     public init(
         snapshot: DashboardSnapshot,
+        refreshActivity: DashboardRefreshActivity,
         settings: AppSettings,
         dashboardCardOrder: [DashboardCardID],
         dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode],
@@ -63,6 +65,7 @@ public struct DashboardPanelView: View {
         onCardWidthModesChange: @escaping ([DashboardCardID: DashboardCardWidthMode]) -> Void = { _ in }
     ) {
         self.snapshot = snapshot
+        self.refreshActivity = refreshActivity
         self.settings = settings
         self.dashboardCardOrder = DashboardCardID.sanitizedOrder(dashboardCardOrder)
         self.dashboardCardWidthModes = DashboardCardID.sanitizedWidthModes(dashboardCardWidthModes)
@@ -128,7 +131,12 @@ public struct DashboardPanelView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 14) {
+        let refreshHeader = DashboardRefreshHeaderPresentation(
+            lastRefresh: snapshot.appState.lastRefresh,
+            refreshActivity: refreshActivity
+        )
+
+        return HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     Text("Nomad Dashboard")
@@ -155,9 +163,9 @@ public struct DashboardPanelView: View {
 
                     Spacer(minLength: 12)
 
-                    Text("Last refresh \(NomadFormatters.relativeDate(snapshot.appState.lastRefresh))")
+                    Text(refreshHeader.statusText)
                         .font(.caption)
-                        .foregroundStyle(NomadTheme.tertiaryText)
+                        .foregroundStyle(refreshStatusTint)
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                 }
@@ -165,7 +173,13 @@ public struct DashboardPanelView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 8) {
-                HeaderIconButton(systemImage: "arrow.clockwise", title: "Refresh", action: refreshAction)
+                HeaderIconButton(
+                    systemImage: "arrow.clockwise",
+                    title: refreshHeader.buttonTitle,
+                    isEnabled: refreshHeader.isButtonEnabled,
+                    activity: refreshActivity,
+                    action: refreshAction
+                )
                 HeaderIconButton(systemImage: appearanceToggleSystemImage, title: appearanceToggleTitle, action: toggleAppearanceAction)
 
                 Menu {
@@ -808,6 +822,17 @@ public struct DashboardPanelView: View {
 
     private var appearanceToggleTitle: String {
         colorScheme == .dark ? "Switch to Light Appearance" : "Switch to Dark Appearance"
+    }
+
+    private var refreshStatusTint: Color {
+        switch refreshActivity {
+        case .idle:
+            NomadTheme.tertiaryText
+        case .manualInProgress:
+            NomadTheme.teal
+        case .slowAutomaticInProgress:
+            NomadTheme.teal.opacity(0.82)
+        }
     }
 
     private var jitterDescription: String {
@@ -1473,36 +1498,152 @@ private struct DashboardCardDropTarget<Content: View>: View {
     }
 }
 
+struct DashboardRefreshHeaderPresentation: Equatable {
+    let statusText: String
+    let buttonTitle: String
+    let isButtonEnabled: Bool
+
+    init(lastRefresh: Date?, refreshActivity: DashboardRefreshActivity) {
+        switch refreshActivity {
+        case .idle:
+            statusText = "Last refresh \(NomadFormatters.relativeDate(lastRefresh))"
+            buttonTitle = "Refresh"
+            isButtonEnabled = true
+        case .manualInProgress:
+            statusText = "Refreshing dashboard…"
+            buttonTitle = "Refreshing dashboard"
+            isButtonEnabled = false
+        case .slowAutomaticInProgress:
+            statusText = "Background refresh…"
+            buttonTitle = "Background refresh in progress"
+            isButtonEnabled = false
+        }
+    }
+}
+
 private struct HeaderIconButton: View {
     let systemImage: String
     let title: String
+    var isEnabled = true
+    var activity: DashboardRefreshActivity = .idle
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HeaderActionIcon(systemImage: systemImage)
+            HeaderActionIcon(systemImage: systemImage, activity: activity)
         }
         .buttonStyle(.plain)
+        .disabled(isEnabled == false)
         .help(title)
+        .accessibilityLabel(title)
     }
 }
 
 private struct HeaderActionIcon: View {
     let systemImage: String
+    var activity: DashboardRefreshActivity = .idle
 
     var body: some View {
-        Image(systemName: systemImage)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(NomadTheme.actionIconForeground)
-            .frame(width: 34, height: 34)
-            .background(
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: activity == .idle)) { context in
+            let phase = context.date.timeIntervalSinceReferenceDate
+            let rotation = rotationAngle(for: phase)
+            let pulse = pulseValue(for: phase)
+
+            ZStack {
+                if activity != .idle {
+                    Circle()
+                        .stroke(activityTint.opacity(activity == .manualInProgress ? 0.26 : 0.18), lineWidth: 2)
+                        .scaleEffect(1.02 + pulse * (activity == .manualInProgress ? 0.24 : 0.18))
+                        .opacity(activity == .manualInProgress ? 0.65 - pulse * 0.22 : 0.45 - pulse * 0.16)
+                }
+
                 Circle()
-                    .fill(NomadTheme.actionIconBackground)
+                    .fill(backgroundTint)
                     .overlay(
                         Circle()
-                            .stroke(NomadTheme.actionIconBorder, lineWidth: 1)
+                            .stroke(borderTint, lineWidth: 1)
                     )
-            )
+
+                Image(systemName: systemImage)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(foregroundTint)
+                    .rotationEffect(rotation)
+            }
+            .frame(width: 34, height: 34)
+        }
+    }
+
+    private var foregroundTint: Color {
+        switch activity {
+        case .idle:
+            NomadTheme.actionIconForeground
+        case .manualInProgress:
+            NomadTheme.teal
+        case .slowAutomaticInProgress:
+            NomadTheme.teal.opacity(0.82)
+        }
+    }
+
+    private var backgroundTint: Color {
+        switch activity {
+        case .idle:
+            NomadTheme.actionIconBackground
+        case .manualInProgress:
+            NomadTheme.actionIconBackground.opacity(0.96)
+        case .slowAutomaticInProgress:
+            NomadTheme.actionIconBackground.opacity(0.9)
+        }
+    }
+
+    private var borderTint: Color {
+        switch activity {
+        case .idle:
+            NomadTheme.actionIconBorder
+        case .manualInProgress:
+            NomadTheme.teal.opacity(0.42)
+        case .slowAutomaticInProgress:
+            NomadTheme.teal.opacity(0.28)
+        }
+    }
+
+    private var isSpinning: Bool {
+        switch activity {
+        case .idle:
+            false
+        case .manualInProgress, .slowAutomaticInProgress:
+            true
+        }
+    }
+
+    private var activityTint: Color {
+        switch activity {
+        case .idle:
+            .clear
+        case .manualInProgress:
+            NomadTheme.teal
+        case .slowAutomaticInProgress:
+            NomadTheme.teal.opacity(0.82)
+        }
+    }
+
+    private func rotationAngle(for phase: TimeInterval) -> Angle {
+        guard isSpinning else {
+            return .degrees(0)
+        }
+
+        let cycleDuration = activity == .manualInProgress ? 0.95 : 1.2
+        let progress = phase.truncatingRemainder(dividingBy: cycleDuration) / cycleDuration
+        return .degrees(progress * 360)
+    }
+
+    private func pulseValue(for phase: TimeInterval) -> Double {
+        guard activity != .idle else {
+            return 0
+        }
+
+        let cycleDuration = activity == .manualInProgress ? 1.05 : 1.35
+        let progress = phase.truncatingRemainder(dividingBy: cycleDuration) / cycleDuration
+        return (sin(progress * .pi * 2) + 1) / 2
     }
 }
 

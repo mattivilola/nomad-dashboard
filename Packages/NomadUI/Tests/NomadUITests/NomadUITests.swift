@@ -117,6 +117,43 @@ struct NomadUITests {
     }
 
     @Test
+    func dashboardRefreshHeaderPresentationShowsManualRefreshStatus() {
+        let presentation = DashboardRefreshHeaderPresentation(
+            lastRefresh: .now.addingTimeInterval(-30),
+            refreshActivity: .manualInProgress
+        )
+
+        #expect(presentation.statusText == "Refreshing dashboard…")
+        #expect(presentation.buttonTitle == "Refreshing dashboard")
+        #expect(presentation.isButtonEnabled == false)
+    }
+
+    @Test
+    func dashboardRefreshHeaderPresentationShowsBackgroundRefreshStatus() {
+        let presentation = DashboardRefreshHeaderPresentation(
+            lastRefresh: .now.addingTimeInterval(-30),
+            refreshActivity: .slowAutomaticInProgress
+        )
+
+        #expect(presentation.statusText == "Background refresh…")
+        #expect(presentation.buttonTitle == "Background refresh in progress")
+        #expect(presentation.isButtonEnabled == false)
+    }
+
+    @Test
+    func dashboardRefreshHeaderPresentationShowsLastRefreshWhenIdle() {
+        let referenceDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let presentation = DashboardRefreshHeaderPresentation(
+            lastRefresh: referenceDate,
+            refreshActivity: .idle
+        )
+
+        #expect(presentation.statusText == "Last refresh \(NomadFormatters.relativeDate(referenceDate))")
+        #expect(presentation.buttonTitle == "Refresh")
+        #expect(presentation.isButtonEnabled)
+    }
+
+    @Test
     func travelAlertsPresentationShowsAllClearState() {
         let presentation = TravelAlertsCardPresentation(
             preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: true, securityEnabled: true),
