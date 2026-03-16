@@ -51,7 +51,7 @@ struct NomadDashboardApp: App {
         }
 
         _settingsStore = StateObject(wrappedValue: settingsStore)
-        _snapshotStore = StateObject(wrappedValue: DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies))
+        _snapshotStore = StateObject(wrappedValue: DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies, analytics: analytics))
         _locationStore = StateObject(wrappedValue: CurrentLocationStore())
         _launchAtLoginController = StateObject(wrappedValue: launchAtLoginController)
         _settingsNavigationController = StateObject(wrappedValue: SettingsNavigationController())

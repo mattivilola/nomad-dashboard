@@ -123,6 +123,148 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func startupStartDoesNotEmitBackgroundActiveDayDuringInitialManualRefresh() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.refreshIntervalSeconds = 60
+        let recorder = RecordingDashboardAnalyticsClient()
+        let analytics = makeTestAnalytics(client: recorder, keyPrefix: "startup-start")
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(historyStore: InMemoryHistoryStore()),
+            analytics: analytics
+        )
+
+        store.start()
+        try await waitUntil { store.snapshot.appState.lastRefresh != nil }
+        store.stop()
+
+        #expect(recorder.events.map(\.event).contains(.appBackgroundActiveDay) == false)
+    }
+
+    @Test
+    func firstAutomaticSlowRefreshEmitsBackgroundActiveDay() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.slowRefreshIntervalSeconds = 0
+        let recorder = RecordingDashboardAnalyticsClient()
+        let analytics = makeTestAnalytics(client: recorder, keyPrefix: "first-automatic-slow-refresh")
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(historyStore: InMemoryHistoryStore()),
+            analytics: analytics
+        )
+
+        await store.refresh(manual: true)
+        await store.refresh(manual: false)
+
+        #expect(recorder.events.map(\.event) == [.appBackgroundActiveDay])
+    }
+
+    @Test
+    func automaticSlowRefreshEmitsBackgroundActiveDayOncePerDay() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.slowRefreshIntervalSeconds = 0
+        let recorder = RecordingDashboardAnalyticsClient()
+        let analytics = makeTestAnalytics(client: recorder, keyPrefix: "once-per-day")
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(historyStore: InMemoryHistoryStore()),
+            analytics: analytics
+        )
+
+        await store.refresh(manual: true)
+        await store.refresh(manual: false)
+        await store.refresh(manual: false)
+
+        #expect(recorder.events.map(\.event) == [.appBackgroundActiveDay])
+    }
+
+    @Test
+    func automaticSlowRefreshEmitsBackgroundActiveDayAgainOnNewDay() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.slowRefreshIntervalSeconds = 0
+        let recorder = RecordingDashboardAnalyticsClient()
+        let dateSource = MutableAnalyticsDateSource(current: Date(timeIntervalSince1970: 1_710_547_200))
+        let analytics = makeTestAnalytics(
+            client: recorder,
+            keyPrefix: "new-day",
+            dateSource: dateSource
+        )
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(historyStore: InMemoryHistoryStore()),
+            analytics: analytics
+        )
+
+        await store.refresh(manual: true)
+        await store.refresh(manual: false)
+        dateSource.current = dateSource.current.addingTimeInterval(24 * 60 * 60)
+        await store.refresh(manual: false)
+
+        #expect(recorder.events.map(\.event) == [
+            .appBackgroundActiveDay,
+            .appBackgroundActiveDay
+        ])
+    }
+
+    @Test
+    func automaticFastRefreshDoesNotEmitBackgroundActiveDay() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.slowRefreshIntervalSeconds = 60
+        let recorder = RecordingDashboardAnalyticsClient()
+        let analytics = makeTestAnalytics(client: recorder, keyPrefix: "automatic-fast-refresh")
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(historyStore: InMemoryHistoryStore()),
+            analytics: analytics
+        )
+
+        await store.refresh(manual: true)
+        await store.refresh(manual: false)
+
+        #expect(recorder.events.isEmpty)
+    }
+
+    @Test
+    func manualSlowRefreshDoesNotEmitBackgroundActiveDay() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.slowRefreshIntervalSeconds = 0
+        let recorder = RecordingDashboardAnalyticsClient()
+        let analytics = makeTestAnalytics(client: recorder, keyPrefix: "manual-slow-refresh")
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(historyStore: InMemoryHistoryStore()),
+            analytics: analytics
+        )
+
+        await store.refresh(manual: true)
+
+        #expect(recorder.events.isEmpty)
+    }
+
+    @Test
+    func automaticSlowRefreshEmitsBackgroundActiveDayEvenWhenProvidersFail() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.slowRefreshIntervalSeconds = 0
+        let recorder = RecordingDashboardAnalyticsClient()
+        let analytics = makeTestAnalytics(client: recorder, keyPrefix: "provider-failure")
+        let dependencies = makeDependencies(
+            publicIPLocationProvider: FailingLocationProvider(),
+            historyStore: InMemoryHistoryStore()
+        )
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: dependencies,
+            analytics: analytics
+        )
+
+        await store.refresh(manual: true)
+        await store.refresh(manual: false)
+
+        #expect(recorder.events.map(\.event) == [.appBackgroundActiveDay])
+        #expect(store.snapshot.appState.issues.contains(.ipLocationUnavailable))
+    }
+
+    @Test
     func overlappingRefreshesCoalesceIntoSingleManualFollowUp() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         let throughputMonitor = SlowThroughputMonitor()
@@ -831,6 +973,43 @@ struct DashboardSnapshotStoreTests {
     private func waitForSettingsPropagation() async throws {
         try await Task.sleep(for: .milliseconds(50))
     }
+
+    private func makeTestAnalytics(
+        client: some AnalyticsClient,
+        keyPrefix: String,
+        dateSource: MutableAnalyticsDateSource = MutableAnalyticsDateSource(current: Date(timeIntervalSince1970: 1_710_547_200))
+    ) -> AppAnalytics {
+        AppAnalytics(
+            client: client,
+            defaults: try! isolatedDefaults(),
+            keyPrefix: keyPrefix,
+            calendar: Calendar(identifier: .gregorian),
+            now: { dateSource.current }
+        )
+    }
+
+    private func isolatedDefaults() throws -> UserDefaults {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        return defaults
+    }
+
+    private func waitUntil(
+        timeout: Duration = .seconds(1),
+        pollInterval: Duration = .milliseconds(10),
+        condition: @escaping () -> Bool
+    ) async throws {
+        let deadline = ContinuousClock.now + timeout
+        while condition() == false {
+            if ContinuousClock.now >= deadline {
+                Issue.record("Condition was not met before timeout.")
+                return
+            }
+
+            try await Task.sleep(for: pollInterval)
+        }
+    }
 }
 
 private func makeDependencies(
@@ -1003,6 +1182,28 @@ private actor SlowThroughputMonitor: ThroughputMonitor {
 
     func callCount() -> Int {
         calls
+    }
+}
+
+private final class MutableAnalyticsDateSource: @unchecked Sendable {
+    var current: Date
+
+    init(current: Date) {
+        self.current = current
+    }
+}
+
+@MainActor
+private final class RecordingDashboardAnalyticsClient: @unchecked Sendable, AnalyticsClient {
+    struct EventRecord: Sendable, Equatable {
+        let event: AnalyticsEvent
+        let properties: [String: String]
+    }
+
+    private(set) var events: [EventRecord] = []
+
+    func track(_ event: AnalyticsEvent, properties: [String: String]) {
+        events.append(EventRecord(event: event, properties: properties))
     }
 }
 

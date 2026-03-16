@@ -21,6 +21,7 @@ public final class DashboardSnapshotStore: ObservableObject {
     public let settingsStore: AppSettingsStore
 
     private let dependencies: DashboardDependencies
+    private let analytics: AppAnalytics?
     private var refreshTask: Task<Void, Never>?
     private var settingsObservation: AnyCancellable?
     private var appliedSettings: AppSettings
@@ -32,9 +33,15 @@ public final class DashboardSnapshotStore: ObservableObject {
     private var pendingAutomaticRefresh = false
     private var pendingManualRefresh = false
 
-    public init(settingsStore: AppSettingsStore, dependencies: DashboardDependencies, initialSnapshot: DashboardSnapshot = .placeholder) {
+    public init(
+        settingsStore: AppSettingsStore,
+        dependencies: DashboardDependencies,
+        initialSnapshot: DashboardSnapshot = .placeholder,
+        analytics: AppAnalytics? = nil
+    ) {
         self.settingsStore = settingsStore
         self.dependencies = dependencies
+        self.analytics = analytics
         snapshot = initialSnapshot
         appliedSettings = settingsStore.settings
         snapshot = snapshot.replacingTravelAlerts(
@@ -138,6 +145,10 @@ public final class DashboardSnapshotStore: ObservableObject {
                 settings: settings,
                 includeSlowMetrics: includeSlowMetrics
             )
+
+            if nextRefreshIsManual == false, includeSlowMetrics {
+                analytics?.recordBackgroundActiveDay()
+            }
 
             if pendingManualRefresh {
                 pendingManualRefresh = false
