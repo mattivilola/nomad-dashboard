@@ -9,7 +9,7 @@
 - Advisory and regional security scope use the current country plus bordering countries when country context is available.
 - External lookups are cached to reduce noise, latency, and battery impact.
 - Anonymous TelemetryDeck analytics are enabled by default.
-- `app_install_first_seen` and `app_launch` are always sent to estimate install and launch reach.
+- `app_install_first_seen`, `app_launch`, and `app_background_active_day` are always sent to estimate install, launch, and background reach.
 - `app_active_day`, `primary_ui_opened`, and `settings_opened` follow the in-app `Share anonymous analytics` setting.
 - Analytics payloads include only app name, version, build number, distribution channel, and app type.
 - Analytics do not include usernames, emails, locations, IP addresses, file names, or document titles.

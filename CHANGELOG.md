@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.22] - 2026-03-16
+
+### Changed
+
+- Add background activity tracking for usage estimation
+
 ## [0.1.21] - 2026-03-16
 
 ### Changed

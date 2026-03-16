@@ -4,6 +4,7 @@ public enum AnalyticsEvent: String, Sendable, CaseIterable {
     case appInstallFirstSeen = "app_install_first_seen"
     case appLaunch = "app_launch"
     case appActiveDay = "app_active_day"
+    case appBackgroundActiveDay = "app_background_active_day"
     case primaryUIOpened = "primary_ui_opened"
     case settingsOpened = "settings_opened"
 }
@@ -118,17 +119,28 @@ public final class AppAnalytics {
         recordUserActivity(event: .settingsOpened, analyticsEnabled: analyticsEnabled)
     }
 
+    public func recordBackgroundActiveDay() {
+        let dayStart = currentDayStart()
+        if stateStore.markBackgroundActiveDayIfNeeded(dayStart: dayStart) {
+            client.track(.appBackgroundActiveDay, properties: [:])
+        }
+    }
+
     private func recordUserActivity(event: AnalyticsEvent, analyticsEnabled: Bool) {
         guard analyticsEnabled else {
             return
         }
 
-        let dayStart = calendar.startOfDay(for: now())
+        let dayStart = currentDayStart()
         if stateStore.markActiveDayIfNeeded(dayStart: dayStart) {
             client.track(.appActiveDay, properties: [:])
         }
 
         client.track(event, properties: [:])
+    }
+
+    private func currentDayStart() -> Date {
+        calendar.startOfDay(for: now())
     }
 }
 
@@ -136,11 +148,13 @@ final class AnalyticsStateStore: @unchecked Sendable {
     private let defaults: UserDefaults
     private let firstLaunchSeenKey: String
     private let lastActiveDayKey: String
+    private let lastBackgroundActiveDayKey: String
 
     init(defaults: UserDefaults, keyPrefix: String) {
         self.defaults = defaults
         firstLaunchSeenKey = "\(keyPrefix).firstLaunchSeen"
         lastActiveDayKey = "\(keyPrefix).lastActiveDaySent"
+        lastBackgroundActiveDayKey = "\(keyPrefix).lastBackgroundActiveDaySent"
     }
 
     func markFirstLaunchSeenIfNeeded() -> Bool {
@@ -158,6 +172,15 @@ final class AnalyticsStateStore: @unchecked Sendable {
         }
 
         defaults.set(dayStart, forKey: lastActiveDayKey)
+        return true
+    }
+
+    func markBackgroundActiveDayIfNeeded(dayStart: Date) -> Bool {
+        if let lastDay = defaults.object(forKey: lastBackgroundActiveDayKey) as? Date, lastDay == dayStart {
+            return false
+        }
+
+        defaults.set(dayStart, forKey: lastBackgroundActiveDayKey)
         return true
     }
 }

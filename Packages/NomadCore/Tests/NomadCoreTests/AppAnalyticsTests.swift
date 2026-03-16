@@ -50,6 +50,25 @@ struct AppAnalyticsTests {
     }
 
     @Test
+    func backgroundActiveDayTracksOncePerLocalDay() throws {
+        let defaults = try isolatedDefaults()
+        let recorder = RecordingAnalyticsClient()
+        let keyPrefix = "background-day"
+
+        let firstDayAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2026, 3, 16))
+        firstDayAnalytics.recordBackgroundActiveDay()
+        firstDayAnalytics.recordBackgroundActiveDay()
+
+        let secondDayAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2026, 3, 17))
+        secondDayAnalytics.recordBackgroundActiveDay()
+
+        #expect(recorder.events.map(\.event) == [
+            .appBackgroundActiveDay,
+            .appBackgroundActiveDay
+        ])
+    }
+
+    @Test
     func disabledAnalyticsSuppressesGatedEventsButNotLaunch() throws {
         let defaults = try isolatedDefaults()
         let recorder = RecordingAnalyticsClient()
@@ -60,6 +79,18 @@ struct AppAnalyticsTests {
         analytics.recordAppLaunch()
 
         #expect(recorder.events.map(\.event) == [.appInstallFirstSeen, .appLaunch])
+    }
+
+    @Test
+    func backgroundActiveDayIsNotBlockedByDisabledUIAnalytics() throws {
+        let defaults = try isolatedDefaults()
+        let recorder = RecordingAnalyticsClient()
+        let analytics = analytics(defaults: defaults, keyPrefix: "background-with-disabled-ui", client: recorder, now: day(2026, 3, 16))
+
+        analytics.recordPrimaryUIOpened(analyticsEnabled: false)
+        analytics.recordBackgroundActiveDay()
+
+        #expect(recorder.events.map(\.event) == [.appBackgroundActiveDay])
     }
 
     @Test
@@ -80,6 +111,25 @@ struct AppAnalyticsTests {
             .appInstallFirstSeen,
             .appLaunch,
             .appLaunch,
+            .appActiveDay,
+            .primaryUIOpened
+        ])
+    }
+
+    @Test
+    func backgroundActiveDayDoesNotInterfereWithLaunchOrUIActivityMarkers() throws {
+        let defaults = try isolatedDefaults()
+        let recorder = RecordingAnalyticsClient()
+        let analytics = analytics(defaults: defaults, keyPrefix: "independent-markers", client: recorder, now: day(2026, 3, 16))
+
+        analytics.recordAppLaunch()
+        analytics.recordBackgroundActiveDay()
+        analytics.recordPrimaryUIOpened(analyticsEnabled: true)
+
+        #expect(recorder.events.map(\.event) == [
+            .appInstallFirstSeen,
+            .appLaunch,
+            .appBackgroundActiveDay,
             .appActiveDay,
             .primaryUIOpened
         ])
