@@ -12,6 +12,7 @@ struct DashboardRootView: View {
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
     @ObservedObject var settingsNavigationController: SettingsNavigationController
     let updatesEnabled: Bool
+    let analytics: AppAnalytics
 
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
@@ -73,6 +74,9 @@ struct DashboardRootView: View {
         }
         .onDisappear {
             locationRefreshTask?.cancel()
+        }
+        .onAppear {
+            analytics.recordPrimaryUIOpened(analyticsEnabled: settingsStore.settings.shareAnonymousAnalytics)
         }
     }
 

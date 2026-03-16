@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import NomadCore
 import Security
 
 enum AppRuntimeInfo {
@@ -7,6 +8,10 @@ enum AppRuntimeInfo {
 
     static var marketingVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+    }
+
+    static var appName: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "Nomad Dashboard"
     }
 
     static var buildNumber: String {
@@ -23,6 +28,10 @@ enum AppRuntimeInfo {
 #else
         false
 #endif
+    }
+
+    static var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
     static var isProductionIdentity: Bool {
@@ -82,10 +91,40 @@ enum AppRuntimeInfo {
         buildFlavorDescription
     }
 
+    static var telemetryDeckAppID: String? {
+        let value = Bundle.main.object(forInfoDictionaryKey: "TelemetryDeckAppID") as? String
+        let trimmedValue = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedValue?.isEmpty == false ? trimmedValue : nil
+    }
+
+    static var analyticsDistributionChannel: AnalyticsDistributionChannel {
+        if isRunningTests {
+            return .test
+        }
+
+        if isDebugBuild {
+            return .debug
+        }
+
+        if isAppStoreBuild {
+            return .appStore
+        }
+
+        return .directSparkle
+    }
+
     static var applicationIconImage: NSImage {
         let image = NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
         image.size = NSSize(width: 512, height: 512)
         return image
+    }
+
+    private static var isAppStoreBuild: Bool {
+        guard let receiptURL = Bundle.main.appStoreReceiptURL else {
+            return false
+        }
+
+        return receiptURL.path.contains("/Contents/_MASReceipt/receipt")
     }
 
     private static var signingCertificates: [SecCertificate] {

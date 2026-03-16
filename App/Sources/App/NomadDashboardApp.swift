@@ -9,6 +9,7 @@ struct NomadDashboardApp: App {
     @StateObject private var locationStore: CurrentLocationStore
     @StateObject private var launchAtLoginController: LaunchAtLoginController
     @StateObject private var settingsNavigationController: SettingsNavigationController
+    private let analytics: AppAnalytics
 
     init() {
         let settingsStore = AppSettingsStore()
@@ -32,6 +33,18 @@ struct NomadDashboardApp: App {
             updateCoordinator: updateCoordinator
         )
         let launchAtLoginController = LaunchAtLoginController(initialEnabled: persistedSettings.launchAtLoginEnabled)
+        let analyticsContext = AnalyticsContext(
+            appID: AppRuntimeInfo.telemetryDeckAppID,
+            appName: AppRuntimeInfo.appName,
+            appVersion: AppRuntimeInfo.marketingVersion,
+            buildNumber: AppRuntimeInfo.buildNumber,
+            distributionChannel: AppRuntimeInfo.analyticsDistributionChannel,
+            appType: .menuBar
+        )
+        let analytics = AppAnalytics(
+            client: AnalyticsClientFactory.makeClient(context: analyticsContext),
+            keyPrefix: "\(AppRuntimeInfo.bundleIdentifier).Analytics"
+        )
 
         if settingsStore.settings.launchAtLoginEnabled != launchAtLoginController.isEnabled {
             settingsStore.settings.launchAtLoginEnabled = launchAtLoginController.isEnabled
@@ -42,6 +55,8 @@ struct NomadDashboardApp: App {
         _locationStore = StateObject(wrappedValue: CurrentLocationStore())
         _launchAtLoginController = StateObject(wrappedValue: launchAtLoginController)
         _settingsNavigationController = StateObject(wrappedValue: SettingsNavigationController())
+        self.analytics = analytics
+        analytics.recordAppLaunch()
     }
 
     var body: some Scene {
@@ -52,7 +67,8 @@ struct NomadDashboardApp: App {
                 locationStore: locationStore,
                 launchAtLoginController: launchAtLoginController,
                 settingsNavigationController: settingsNavigationController,
-                updatesEnabled: UpdateFeatureConfiguration.isEnabled
+                updatesEnabled: UpdateFeatureConfiguration.isEnabled,
+                analytics: analytics
             )
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         } label: {
@@ -67,7 +83,8 @@ struct NomadDashboardApp: App {
                 locationStore: locationStore,
                 launchAtLoginController: launchAtLoginController,
                 settingsNavigationController: settingsNavigationController,
-                updatesEnabled: UpdateFeatureConfiguration.isEnabled
+                updatesEnabled: UpdateFeatureConfiguration.isEnabled,
+                analytics: analytics
             )
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
