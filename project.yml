@@ -25,6 +25,7 @@ settings:
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     SPARKLE_FEED_URL: ""
     SPARKLE_PUBLIC_ED_KEY: ""
+    TELEMETRYDECK_APP_ID: "CF490A0E-DC17-41E0-B7B5-04CED6171D48"
 targets:
   NomadDashboard:
     type: application
@@ -45,9 +46,11 @@ targets:
         LSUIElement: true
         NSLocationUsageDescription: Nomad Dashboard uses your location to show local weather and travel context.
         NSLocationWhenInUseUsageDescription: Nomad Dashboard uses your location to show local weather and travel context.
+        ReliefWebAppName: $(RELIEFWEB_APPNAME)
         SUEnableAutomaticChecks: true
         SUFeedURL: $(SPARKLE_FEED_URL)
         SUPublicEDKey: $(SPARKLE_PUBLIC_ED_KEY)
+        TelemetryDeckAppID: $(TELEMETRYDECK_APP_ID)
     settings:
       base:
         INFOPLIST_FILE: App/Info.plist

@@ -10,6 +10,7 @@ struct SettingsView: View {
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
     @ObservedObject var settingsNavigationController: SettingsNavigationController
     let updatesEnabled: Bool
+    let analytics: AppAnalytics
 
     @State private var surfSpotNameText: String
     @State private var surfSpotLatitudeText: String
@@ -32,7 +33,8 @@ struct SettingsView: View {
         locationStore: CurrentLocationStore,
         launchAtLoginController: LaunchAtLoginController,
         settingsNavigationController: SettingsNavigationController,
-        updatesEnabled: Bool
+        updatesEnabled: Bool,
+        analytics: AppAnalytics
     ) {
         self.settingsStore = settingsStore
         self.snapshotStore = snapshotStore
@@ -40,6 +42,7 @@ struct SettingsView: View {
         self.launchAtLoginController = launchAtLoginController
         self.settingsNavigationController = settingsNavigationController
         self.updatesEnabled = updatesEnabled
+        self.analytics = analytics
         _surfSpotNameText = State(initialValue: settingsStore.settings.surfSpotName)
         _surfSpotLatitudeText = State(initialValue: Self.coordinateText(for: settingsStore.settings.surfSpotLatitude))
         _surfSpotLongitudeText = State(initialValue: Self.coordinateText(for: settingsStore.settings.surfSpotLongitude))
@@ -113,6 +116,7 @@ struct SettingsView: View {
                             .font(.caption)
                         Toggle("Show external IP location", isOn: binding(\.publicIPGeolocationEnabled))
                         Toggle("Save visited places locally", isOn: visitedPlacesBinding)
+                        Toggle("Share anonymous analytics", isOn: binding(\.shareAnonymousAnalytics))
 
                         LabeledContent("Location status") {
                             Text(locationStore.authorizationSummary)
@@ -132,7 +136,7 @@ struct SettingsView: View {
                     } header: {
                         Text("Privacy & Location")
                     } footer: {
-                        Text("Weather, nearby fuel prices, and local weather alerts use device location only when you opt in. Fuel price support is country-dependent and currently best in Spain, France, Italy, and Germany. Germany requires your own Tankerkönig API key, while Spain, France, and Italy work without one. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs. Visited places stay on this Mac until you clear them.")
+                        Text("Weather, nearby fuel prices, and local weather alerts use device location only when you opt in. Fuel price support is country-dependent and currently best in Spain, France, Italy, and Germany. Germany requires your own Tankerkönig API key, while Spain, France, and Italy work without one. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs. Visited places stay on this Mac until you clear them. Anonymous install and launch counts are always sent so app reach can be estimated; turn analytics off here to stop daily activity and window-open events.")
                     }
 
                     Section {
@@ -345,6 +349,7 @@ struct SettingsView: View {
         .frame(width: 560, height: 520, alignment: .topLeading)
         .onAppear {
             syncSurfSpotFields()
+            analytics.recordSettingsOpened(analyticsEnabled: settingsStore.settings.shareAnonymousAnalytics)
         }
         .onReceive(locationStore.$currentLocation) { location in
             snapshotStore.setCurrentLocation(location)

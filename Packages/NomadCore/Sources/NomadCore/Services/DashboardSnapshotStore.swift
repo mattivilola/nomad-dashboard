@@ -16,6 +16,7 @@ public final class DashboardSnapshotStore: ObservableObject {
 
     @Published public private(set) var snapshot: DashboardSnapshot
     @Published public private(set) var visitedPlaces: [VisitedPlace] = []
+    @Published public private(set) var refreshActivity: DashboardRefreshActivity = .idle
 
     public let settingsStore: AppSettingsStore
 
@@ -115,6 +116,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             if manual {
                 pendingManualRefresh = true
                 pendingAutomaticRefresh = false
+                refreshActivity = .manualInProgress
             } else if pendingManualRefresh == false {
                 pendingAutomaticRefresh = true
             }
@@ -125,7 +127,17 @@ public final class DashboardSnapshotStore: ObservableObject {
         var nextRefreshIsManual = manual
 
         while true {
-            await performRefresh(manual: nextRefreshIsManual)
+            let now = Date()
+            let settings = settingsStore.settings
+            let includeSlowMetrics = nextRefreshIsManual || shouldRefreshSlowMetrics(now: now, interval: settings.slowRefreshIntervalSeconds)
+            refreshActivity = refreshActivity(forManual: nextRefreshIsManual, includeSlowMetrics: includeSlowMetrics)
+
+            await performRefresh(
+                manual: nextRefreshIsManual,
+                now: now,
+                settings: settings,
+                includeSlowMetrics: includeSlowMetrics
+            )
 
             if pendingManualRefresh {
                 pendingManualRefresh = false
@@ -144,13 +156,16 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         refreshInFlight = false
+        refreshActivity = .idle
     }
 
-    private func performRefresh(manual: Bool) async {
-        let now = Date()
-        let settings = settingsStore.settings
+    private func performRefresh(
+        manual: Bool,
+        now: Date,
+        settings: AppSettings,
+        includeSlowMetrics: Bool
+    ) async {
         let surfSpotConfiguration = settings.surfSpotConfiguration
-        let includeSlowMetrics = manual || shouldRefreshSlowMetrics(now: now, interval: settings.slowRefreshIntervalSeconds)
         var issues: [DashboardIssue] = []
 
         if surfSpotConfiguration.isConfigured == false {
@@ -160,6 +175,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         let throughputSample = await dependencies.throughputMonitor.currentSample()
+        let connectivitySnapshot = await dependencies.connectivityMonitor.currentSnapshot()
 
         if let throughputSample {
             await appendHistory(from: throughputSample)
@@ -292,6 +308,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         snapshot = DashboardSnapshot(
             network: NetworkSectionSnapshot(
                 throughput: throughputSample ?? snapshot.network.throughput,
+                connectivity: connectivitySnapshot,
                 latency: latencySample,
                 downloadHistory: projectedHistory[.downloadMbps] ?? snapshot.network.downloadHistory,
                 uploadHistory: projectedHistory[.uploadMbps] ?? snapshot.network.uploadHistory,
@@ -320,6 +337,18 @@ public final class DashboardSnapshotStore: ObservableObject {
                 issues: issues
             )
         )
+    }
+
+    private func refreshActivity(forManual manual: Bool, includeSlowMetrics: Bool) -> DashboardRefreshActivity {
+        if manual {
+            return .manualInProgress
+        }
+
+        if includeSlowMetrics {
+            return .slowAutomaticInProgress
+        }
+
+        return .idle
     }
 
     private func shouldRefreshSlowMetrics(now: Date, interval: TimeInterval) -> Bool {

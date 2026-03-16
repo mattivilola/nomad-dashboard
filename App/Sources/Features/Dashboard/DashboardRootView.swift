@@ -12,6 +12,7 @@ struct DashboardRootView: View {
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
     @ObservedObject var settingsNavigationController: SettingsNavigationController
     let updatesEnabled: Bool
+    let analytics: AppAnalytics
 
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
@@ -23,6 +24,7 @@ struct DashboardRootView: View {
     var body: some View {
         DashboardPanelView(
             snapshot: snapshotStore.snapshot,
+            refreshActivity: snapshotStore.refreshActivity,
             settings: settingsStore.settings,
             dashboardCardOrder: settingsStore.settings.dashboardCardOrder,
             dashboardCardWidthModes: settingsStore.settings.dashboardCardWidthModes,
@@ -72,6 +74,9 @@ struct DashboardRootView: View {
         }
         .onDisappear {
             locationRefreshTask?.cancel()
+        }
+        .onAppear {
+            analytics.recordPrimaryUIOpened(analyticsEnabled: settingsStore.settings.shareAnonymousAnalytics)
         }
     }
 
@@ -295,11 +300,21 @@ struct MenuBarStatusLabel: View {
         let presentation = snapshot.menuBarStatusPresentation
 
         HStack(spacing: 6) {
-            Image(systemName: presentation.symbolName)
+            statusIcon(for: presentation)
             if let text = presentation.text {
                 Text(text)
                     .monospacedDigit()
             }
+        }
+    }
+
+    @ViewBuilder
+    private func statusIcon(for presentation: MenuBarStatusPresentation) -> some View {
+        if presentation.tone == .attention {
+            Image(systemName: presentation.symbolName)
+                .foregroundStyle(NomadTheme.coral)
+        } else {
+            Image(systemName: presentation.symbolName)
         }
     }
 }

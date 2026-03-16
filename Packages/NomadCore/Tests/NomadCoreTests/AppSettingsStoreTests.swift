@@ -16,6 +16,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.dashboardCardOrder == DashboardCardID.defaultOrder)
         #expect(store.settings.dashboardCardWidthModes == DashboardCardID.defaultWidthModes)
         #expect(store.settings.publicIPGeolocationEnabled == true)
+        #expect(store.settings.shareAnonymousAnalytics == true)
         #expect(store.settings.visitedPlacesEnabled == true)
         #expect(store.settings.fuelPricesEnabled == false)
         #expect(store.settings.travelAdvisoryEnabled == true)
@@ -95,6 +96,19 @@ struct AppSettingsStoreTests {
     }
 
     @Test
+    func preservesPersistedAnonymousAnalyticsPreference() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.settings.shareAnonymousAnalytics = false
+
+        let reloaded = AppSettingsStore(defaults: defaults)
+        #expect(reloaded.settings.shareAnonymousAnalytics == false)
+    }
+
+    @Test
     func persistsTravelAlertPreferencesToUserDefaults() throws {
         let suiteName = UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -170,6 +184,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.slowRefreshIntervalSeconds == 120)
         #expect(store.settings.historyRetentionHours == 36)
         #expect(store.settings.publicIPGeolocationEnabled == false)
+        #expect(store.settings.shareAnonymousAnalytics == true)
         #expect(store.settings.automaticUpdateChecksEnabled == false)
         #expect(store.settings.launchAtLoginEnabled == true)
         #expect(store.settings.useCurrentLocationForWeather == false)

@@ -41,6 +41,7 @@ struct DashboardHealthEvaluatorTests {
         let summary = DashboardHealthEvaluator.makeSummary(
             network: NetworkSectionSnapshot(
                 throughput: nil,
+                connectivity: .checking,
                 latency: nil,
                 downloadHistory: [],
                 uploadHistory: [],
@@ -61,10 +62,23 @@ struct DashboardHealthEvaluatorTests {
         #expect(summary.power.level == .unavailable)
         #expect(summary.overall.level == .unavailable)
     }
+
+    @Test
+    func offlineConnectivityTriggersAttentionWithoutLatencySample() {
+        let summary = makeSummary(
+            connectivity: ConnectivitySnapshot(pathAvailable: true, internetState: .offline, lastCheckedAt: .now),
+            latency: nil
+        )
+
+        #expect(summary.network.level == .attention)
+        #expect(summary.network.reason == "Internet unreachable")
+        #expect(summary.overall.level == .attention)
+    }
 }
 
 private func makeSummary(
     activeInterface: String? = "en0",
+    connectivity: ConnectivitySnapshot = ConnectivitySnapshot(pathAvailable: true, internetState: .online, lastCheckedAt: .now),
     latency: Double? = 24,
     jitter: Double? = 3,
     rssi: Int? = -56,
@@ -81,6 +95,7 @@ private func makeSummary(
                 activeInterface: activeInterface,
                 collectedAt: .now
             ),
+            connectivity: connectivity,
             latency: latency.map {
                 LatencySample(host: "1.1.1.1", milliseconds: $0, jitterMilliseconds: jitter, collectedAt: .now)
             },

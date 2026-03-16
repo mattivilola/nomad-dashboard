@@ -9,6 +9,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var slowRefreshIntervalSeconds: TimeInterval
     public var historyRetentionHours: Int
     public var publicIPGeolocationEnabled: Bool
+    public var shareAnonymousAnalytics: Bool
     public var automaticUpdateChecksEnabled: Bool
     public var launchAtLoginEnabled: Bool
     public var useCurrentLocationForWeather: Bool
@@ -31,6 +32,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         slowRefreshIntervalSeconds: TimeInterval = 60,
         historyRetentionHours: Int = 24,
         publicIPGeolocationEnabled: Bool = true,
+        shareAnonymousAnalytics: Bool = true,
         automaticUpdateChecksEnabled: Bool = true,
         launchAtLoginEnabled: Bool = false,
         useCurrentLocationForWeather: Bool = true,
@@ -52,6 +54,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.slowRefreshIntervalSeconds = slowRefreshIntervalSeconds
         self.historyRetentionHours = historyRetentionHours
         self.publicIPGeolocationEnabled = publicIPGeolocationEnabled
+        self.shareAnonymousAnalytics = shareAnonymousAnalytics
         self.automaticUpdateChecksEnabled = automaticUpdateChecksEnabled
         self.launchAtLoginEnabled = launchAtLoginEnabled
         self.useCurrentLocationForWeather = useCurrentLocationForWeather
@@ -75,6 +78,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case slowRefreshIntervalSeconds
         case historyRetentionHours
         case publicIPGeolocationEnabled
+        case shareAnonymousAnalytics
         case automaticUpdateChecksEnabled
         case launchAtLoginEnabled
         case useCurrentLocationForWeather
@@ -114,6 +118,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         slowRefreshIntervalSeconds = try container.decode(TimeInterval.self, forKey: .slowRefreshIntervalSeconds)
         historyRetentionHours = try container.decode(Int.self, forKey: .historyRetentionHours)
         publicIPGeolocationEnabled = try container.decode(Bool.self, forKey: .publicIPGeolocationEnabled)
+        shareAnonymousAnalytics = try container.decodeIfPresent(Bool.self, forKey: .shareAnonymousAnalytics) ?? true
         automaticUpdateChecksEnabled = try container.decode(Bool.self, forKey: .automaticUpdateChecksEnabled)
         launchAtLoginEnabled = try container.decode(Bool.self, forKey: .launchAtLoginEnabled)
         useCurrentLocationForWeather = try container.decode(Bool.self, forKey: .useCurrentLocationForWeather)
@@ -143,6 +148,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encode(slowRefreshIntervalSeconds, forKey: .slowRefreshIntervalSeconds)
         try container.encode(historyRetentionHours, forKey: .historyRetentionHours)
         try container.encode(publicIPGeolocationEnabled, forKey: .publicIPGeolocationEnabled)
+        try container.encode(shareAnonymousAnalytics, forKey: .shareAnonymousAnalytics)
         try container.encode(automaticUpdateChecksEnabled, forKey: .automaticUpdateChecksEnabled)
         try container.encode(launchAtLoginEnabled, forKey: .launchAtLoginEnabled)
         try container.encode(useCurrentLocationForWeather, forKey: .useCurrentLocationForWeather)

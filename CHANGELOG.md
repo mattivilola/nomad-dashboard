@@ -20,6 +20,15 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.1.21] - 2026-03-16
+
+### Changed
+
+- Introduce internet connectivity monitoring and status UI
+- Add visual feedback for dashboard refresh activity
+- Update marine forecast to provide a 24-hour outlook
+- Integrate TelemetryDeck for anonymous usage analytics
+
 ## [0.1.20] - 2026-03-11
 
 ### Changed

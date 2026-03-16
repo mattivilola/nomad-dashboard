@@ -3,3 +3,4 @@
 // Keep the approved ReliefWeb app name local to your machine or release builder.
 
 RELIEFWEB_APPNAME =
+TELEMETRYDECK_APP_ID =
