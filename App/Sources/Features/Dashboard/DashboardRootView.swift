@@ -310,11 +310,10 @@ struct MenuBarStatusLabel: View {
 
     @ViewBuilder
     private func statusIcon(for presentation: MenuBarStatusPresentation) -> some View {
-        if presentation.tone == .attention {
-            Image(systemName: presentation.symbolName)
-                .foregroundStyle(NomadTheme.coral)
-        } else {
-            Image(systemName: presentation.symbolName)
-        }
+        StatusSymbolView(
+            systemName: presentation.symbolName,
+            treatment: presentation.tone == .attention ? .warningBadge : .plain,
+            size: .menuBar
+        )
     }
 }
