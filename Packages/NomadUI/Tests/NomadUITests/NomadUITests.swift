@@ -83,6 +83,7 @@ struct NomadUITests {
         )
 
         #expect(model.symbolName == "checkmark.circle.fill")
+        #expect(model.iconTreatment == .plain)
         #expect(model.label == "Online")
         #expect(model.accessibilityLabel == "Internet online")
         #expect(model.tone == .online)
@@ -97,6 +98,7 @@ struct NomadUITests {
         )
 
         #expect(model.symbolName == "wifi.slash")
+        #expect(model.iconTreatment == .warningBadge)
         #expect(model.label == nil)
         #expect(model.accessibilityLabel == "Internet offline")
         #expect(model.tone == .offline)
@@ -111,6 +113,7 @@ struct NomadUITests {
         )
 
         #expect(model.symbolName == "ellipsis.circle.fill")
+        #expect(model.iconTreatment == .plain)
         #expect(model.label == "Checking")
         #expect(model.accessibilityLabel == "Checking internet")
         #expect(model.tone == .checking)

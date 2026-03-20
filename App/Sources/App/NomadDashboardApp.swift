@@ -1,3 +1,4 @@
+import AppKit
 import NomadCore
 import NomadUI
 import SwiftUI
@@ -122,11 +123,20 @@ private func reliefWebAppName() -> String? {
 
     return Bundle.main.bundleIdentifier
 }
+
 private struct SceneAppearanceSync: ViewModifier {
     @ObservedObject var settingsStore: AppSettingsStore
 
     func body(content: Content) -> some View {
         content
             .preferredColorScheme(settingsStore.settings.appearanceMode.preferredColorScheme)
+            .overlay {
+                // Keep window chrome on the macOS system appearance. Only the scene content
+                // gets the app-selected appearance override so MenuBarExtra/titlebar controls
+                // continue rendering with the native toolbar theme.
+                ContentAppearanceBridge(appearance: settingsStore.settings.appearanceMode.appKitAppearance)
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
+            }
     }
 }

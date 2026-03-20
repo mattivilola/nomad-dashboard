@@ -1307,6 +1307,7 @@ enum InternetStatusIndicatorTone: Equatable {
 
 struct InternetStatusIndicatorModel: Equatable {
     let symbolName: String
+    let iconTreatment: StatusSymbolTreatment
     let label: String?
     let accessibilityLabel: String
     let tone: InternetStatusIndicatorTone
@@ -1318,16 +1319,19 @@ struct InternetStatusIndicatorModel: Equatable {
         switch connectivity.internetState {
         case .online:
             symbolName = "checkmark.circle.fill"
+            iconTreatment = .plain
             label = style == .wideInline ? "Online" : nil
             accessibilityLabel = "Internet online"
             tone = .online
         case .checking:
             symbolName = "ellipsis.circle.fill"
+            iconTreatment = .plain
             label = style == .wideInline ? "Checking" : nil
             accessibilityLabel = "Checking internet"
             tone = .checking
         case .offline:
             symbolName = "wifi.slash"
+            iconTreatment = .warningBadge
             label = style == .wideInline ? "Offline" : nil
             accessibilityLabel = "Internet offline"
             tone = .offline
@@ -1347,9 +1351,12 @@ struct InternetStatusIndicator: View {
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(NomadTheme.tertiaryText)
 
-                    Image(systemName: model.symbolName)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(tint)
+                    StatusSymbolView(
+                        systemName: model.symbolName,
+                        treatment: model.iconTreatment,
+                        size: .panel,
+                        foregroundColor: tint
+                    )
 
                     if let label = model.label {
                         Text(label)
@@ -1359,9 +1366,12 @@ struct InternetStatusIndicator: View {
                     }
                 }
             case .compactIcon:
-                Image(systemName: model.symbolName)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(tint)
+                StatusSymbolView(
+                    systemName: model.symbolName,
+                    treatment: model.iconTreatment,
+                    size: .panel,
+                    foregroundColor: tint
+                )
             }
         }
         .help(model.accessibilityLabel)
