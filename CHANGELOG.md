@@ -20,6 +20,14 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.2.0] - 2026-03-20
+
+### Changed
+
+- Introduce `StatusSymbolView` to standardize status icon styling
+- Apply app-selected appearance to content while preserving system window chrome
+- Add self-documenting help target to Makefile
+
 ## [0.1.22] - 2026-03-16
 
 ### Changed
