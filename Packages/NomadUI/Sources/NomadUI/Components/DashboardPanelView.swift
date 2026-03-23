@@ -23,6 +23,8 @@ public struct DashboardPanelView: View {
     private let openNetworkSettingsAction: () -> Void
     private let openFuelStationMapPreviewAction: (FuelStationMapDestination) -> Void
     private let openFuelStationInGoogleMapsAction: (FuelStationMapDestination) -> Void
+    private let openEmergencyHospitalMapPreviewAction: (EmergencyHospitalMapDestination) -> Void
+    private let openEmergencyHospitalInGoogleMapsAction: (EmergencyHospitalMapDestination) -> Void
     private let checkForUpdatesAction: (() -> Void)?
     private let openSettingsAction: () -> Void
     private let openSurfSpotSettingsAction: () -> Void
@@ -30,6 +32,8 @@ public struct DashboardPanelView: View {
     private let quitAction: () -> Void
     private let onCardOrderChange: ([DashboardCardID]) -> Void
     private let onCardWidthModesChange: ([DashboardCardID: DashboardCardWidthMode]) -> Void
+    private let onWeatherHourlyForecastExpandedChange: (Bool) -> Void
+    private let onWeatherDailyForecastExpandedChange: (Bool) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var resolvedCardOrder: [DashboardCardID]
@@ -56,13 +60,17 @@ public struct DashboardPanelView: View {
         openNetworkSettingsAction: @escaping () -> Void,
         openFuelStationMapPreviewAction: @escaping (FuelStationMapDestination) -> Void = { _ in },
         openFuelStationInGoogleMapsAction: @escaping (FuelStationMapDestination) -> Void = { _ in },
+        openEmergencyHospitalMapPreviewAction: @escaping (EmergencyHospitalMapDestination) -> Void = { _ in },
+        openEmergencyHospitalInGoogleMapsAction: @escaping (EmergencyHospitalMapDestination) -> Void = { _ in },
         checkForUpdatesAction: (() -> Void)? = nil,
         openSettingsAction: @escaping () -> Void,
         openSurfSpotSettingsAction: @escaping () -> Void,
         openAboutAction: @escaping () -> Void,
         quitAction: @escaping () -> Void,
         onCardOrderChange: @escaping ([DashboardCardID]) -> Void = { _ in },
-        onCardWidthModesChange: @escaping ([DashboardCardID: DashboardCardWidthMode]) -> Void = { _ in }
+        onCardWidthModesChange: @escaping ([DashboardCardID: DashboardCardWidthMode]) -> Void = { _ in },
+        onWeatherHourlyForecastExpandedChange: @escaping (Bool) -> Void = { _ in },
+        onWeatherDailyForecastExpandedChange: @escaping (Bool) -> Void = { _ in }
     ) {
         self.snapshot = snapshot
         self.refreshActivity = refreshActivity
@@ -83,6 +91,8 @@ public struct DashboardPanelView: View {
         self.openNetworkSettingsAction = openNetworkSettingsAction
         self.openFuelStationMapPreviewAction = openFuelStationMapPreviewAction
         self.openFuelStationInGoogleMapsAction = openFuelStationInGoogleMapsAction
+        self.openEmergencyHospitalMapPreviewAction = openEmergencyHospitalMapPreviewAction
+        self.openEmergencyHospitalInGoogleMapsAction = openEmergencyHospitalInGoogleMapsAction
         self.checkForUpdatesAction = checkForUpdatesAction
         self.openSettingsAction = openSettingsAction
         self.openSurfSpotSettingsAction = openSurfSpotSettingsAction
@@ -90,6 +100,8 @@ public struct DashboardPanelView: View {
         self.quitAction = quitAction
         self.onCardOrderChange = onCardOrderChange
         self.onCardWidthModesChange = onCardWidthModesChange
+        self.onWeatherHourlyForecastExpandedChange = onWeatherHourlyForecastExpandedChange
+        self.onWeatherDailyForecastExpandedChange = onWeatherDailyForecastExpandedChange
         _resolvedCardOrder = State(initialValue: DashboardCardID.sanitizedOrder(dashboardCardOrder))
         _resolvedCardWidthModes = State(initialValue: DashboardCardID.sanitizedWidthModes(dashboardCardWidthModes))
     }
@@ -321,6 +333,8 @@ public struct DashboardPanelView: View {
             travelSection(widthMode: widthMode)
         case .fuelPrices:
             fuelPricesSection(widthMode: widthMode, viewportHeight: viewportHeight)
+        case .emergencyCare:
+            emergencyCareSection(widthMode: widthMode)
         case .travelAlerts:
             travelAlertsSection(widthMode: widthMode)
         case .weather:
@@ -612,6 +626,11 @@ public struct DashboardPanelView: View {
 
     private func weatherSection(widthMode: DashboardCardWidthMode) -> some View {
         let presentation = weatherSectionPresentation
+        let forecastPresentation = WeatherForecastPresentation(
+            settings: settings,
+            weather: snapshot.weather,
+            widthMode: widthMode
+        )
 
         return DashboardCard(
             title: "Weather",
@@ -662,7 +681,9 @@ public struct DashboardPanelView: View {
                             }
                         }
 
-                        if let tomorrow = weather.tomorrow {
+                        if forecastPresentation.shouldShowTomorrowSummary,
+                           let tomorrow = weather.tomorrow
+                        {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Tomorrow")
                                     .font(.caption.weight(.semibold))
@@ -677,6 +698,36 @@ public struct DashboardPanelView: View {
                                     Text(temperatureRangeText(for: tomorrow))
                                         .foregroundStyle(NomadTheme.secondaryText)
                                         .multilineTextAlignment(.trailing)
+                                }
+                            }
+                        }
+
+                        if forecastPresentation.showsHourlyDisclosure {
+                            ForecastDisclosureSection(
+                                title: "Next 24h",
+                                summary: "4 checkpoints",
+                                isExpanded: forecastPresentation.isHourlyExpanded,
+                                action: toggleWeatherHourlyForecastExpanded
+                            ) {
+                                HStack(spacing: 8) {
+                                    ForEach(forecastPresentation.hourlySlots) { slot in
+                                        WeatherHourlyForecastChip(model: slot)
+                                    }
+                                }
+                            }
+                        }
+
+                        if forecastPresentation.showsDailyDisclosure {
+                            ForecastDisclosureSection(
+                                title: "7-Day Forecast",
+                                summary: "Tomorrow + 6 days",
+                                isExpanded: forecastPresentation.isDailyExpanded,
+                                action: toggleWeatherDailyForecastExpanded
+                            ) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(Array(forecastPresentation.dailyRows.enumerated()), id: \.offset) { _, row in
+                                        WeatherDailyForecastRow(summary: row)
+                                    }
                                 }
                             }
                         }
@@ -712,6 +763,17 @@ public struct DashboardPanelView: View {
             openSettingsAction: openSettingsAction,
             previewMapAction: openFuelStationMapPreviewAction,
             openGoogleMapsAction: openFuelStationInGoogleMapsAction
+        )
+    }
+
+    private func emergencyCareSection(widthMode: DashboardCardWidthMode) -> some View {
+        EmergencyCareSectionView(
+            presentation: emergencyCareSectionPresentation,
+            widthMode: widthMode,
+            accessory: cardControls(for: .emergencyCare, title: "Emergency Care"),
+            openSettingsAction: openSettingsAction,
+            previewMapAction: openEmergencyHospitalMapPreviewAction,
+            openGoogleMapsAction: openEmergencyHospitalInGoogleMapsAction
         )
     }
 
@@ -1002,6 +1064,14 @@ public struct DashboardPanelView: View {
         )
     }
 
+    private var emergencyCareSectionPresentation: EmergencyCareSectionPresentation {
+        EmergencyCareSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: locationStatusDetail
+        )
+    }
+
     private var weatherAttributionLine: String {
         if settings.surfSpotConfiguration.isConfigured || snapshot.marine != nil {
             return "Weather: WeatherKit · Surf: Open-Meteo"
@@ -1107,6 +1177,14 @@ public struct DashboardPanelView: View {
         let sanitizedWidthModes = DashboardCardID.sanitizedWidthModes(updatedWidthModes)
         resolvedCardWidthModes = sanitizedWidthModes
         onCardWidthModesChange(sanitizedWidthModes)
+    }
+
+    private func toggleWeatherHourlyForecastExpanded() {
+        onWeatherHourlyForecastExpandedChange(settings.weatherHourlyForecastExpanded == false)
+    }
+
+    private func toggleWeatherDailyForecastExpanded() {
+        onWeatherDailyForecastExpandedChange(settings.weatherDailyForecastExpanded == false)
     }
 
     private func metricValue(
@@ -1950,6 +2028,160 @@ private struct CompactAlertRow: View {
     }
 }
 
+struct EmergencyHospitalRowModel: Identifiable, Equatable {
+    let id: String
+    let hospitalName: String
+    let hospitalDetail: String
+    let distanceText: String
+    let ownershipTitle: String?
+    let ownershipTint: Color?
+    let destination: EmergencyHospitalMapDestination?
+
+    var hasPreviewMapAction: Bool {
+        destination?.isCoordinateValid == true
+    }
+
+    var hasGoogleMapsAction: Bool {
+        destination?.googleMapsURL != nil
+    }
+
+    var hasMapActions: Bool {
+        hasPreviewMapAction || hasGoogleMapsAction
+    }
+}
+
+private struct EmergencyHospitalRow: View {
+    let model: EmergencyHospitalRowModel
+    var isCompact: Bool = false
+    let previewMapAction: (EmergencyHospitalMapDestination) -> Void
+    let openGoogleMapsAction: (EmergencyHospitalMapDestination) -> Void
+
+    var body: some View {
+        Group {
+            if isCompact {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(model.hospitalName)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(NomadTheme.primaryText)
+                                .lineLimit(2)
+
+                            Text(model.hospitalDetail)
+                                .font(.caption2)
+                                .foregroundStyle(NomadTheme.secondaryText)
+                                .lineLimit(2)
+                        }
+
+                        Spacer(minLength: 8)
+
+                        Text(model.distanceText)
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .foregroundStyle(NomadTheme.teal)
+                            .lineLimit(1)
+                    }
+
+                    HStack(spacing: 8) {
+                        if let ownershipTitle = model.ownershipTitle,
+                           let ownershipTint = model.ownershipTint
+                        {
+                            OwnershipBadge(title: ownershipTitle, tint: ownershipTint)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        mapActions
+                    }
+                }
+            } else {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(model.hospitalName)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(NomadTheme.primaryText)
+                            .lineLimit(2)
+
+                        Text(model.hospitalDetail)
+                            .font(.caption2)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                            .lineLimit(2)
+
+                        if let ownershipTitle = model.ownershipTitle,
+                           let ownershipTint = model.ownershipTint
+                        {
+                            OwnershipBadge(title: ownershipTitle, tint: ownershipTint)
+                        }
+                    }
+
+                    Spacer(minLength: 12)
+
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Text(model.distanceText)
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .foregroundStyle(NomadTheme.teal)
+                            .lineLimit(1)
+
+                        mapActions
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(NomadTheme.chartBackground.opacity(0.95))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+                )
+        )
+    }
+
+    @ViewBuilder
+    private var mapActions: some View {
+        if let destination = model.destination, model.hasMapActions {
+            HStack(spacing: isCompact ? 4 : 6) {
+                if model.hasPreviewMapAction {
+                    FuelRowActionButton(
+                        title: "Map",
+                        systemImage: "map.fill",
+                        isCompact: isCompact
+                    ) {
+                        previewMapAction(destination)
+                    }
+                }
+
+                if model.hasGoogleMapsAction {
+                    FuelRowActionButton(
+                        title: "Google",
+                        systemImage: "arrow.up.right.square.fill",
+                        isCompact: isCompact
+                    ) {
+                        openGoogleMapsAction(destination)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct OwnershipBadge: View {
+    let title: String
+    let tint: Color
+
+    var body: some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(tint.opacity(0.12))
+            )
+    }
+}
+
 struct FuelPriceRowModel: Identifiable, Equatable {
     let id: FuelType
     let title: String
@@ -2176,6 +2408,46 @@ func fuelBackdropAnimationState(
         visibilityRatio: visibilityRatio,
         isAnimating: visualMode == .animatedCamper && reduceMotion == false && visibilityRatio >= threshold
     )
+}
+
+private struct EmergencyCareSectionView: View {
+    let presentation: EmergencyCareSectionPresentation
+    let widthMode: DashboardCardWidthMode
+    let accessory: AnyView
+    let openSettingsAction: () -> Void
+    let previewMapAction: (EmergencyHospitalMapDestination) -> Void
+    let openGoogleMapsAction: (EmergencyHospitalMapDestination) -> Void
+
+    var body: some View {
+        DashboardCard(
+            title: "Emergency Care",
+            subtitle: presentation.subtitle,
+            badge: presentation.badge,
+            accessory: accessory,
+            isCompact: widthMode == .narrow
+        ) {
+            if presentation.rows.isEmpty == false {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(presentation.rows) { row in
+                        EmergencyHospitalRow(
+                            model: row,
+                            isCompact: widthMode == .narrow,
+                            previewMapAction: previewMapAction,
+                            openGoogleMapsAction: openGoogleMapsAction
+                        )
+                    }
+                }
+            } else {
+                WeatherEmptyState(
+                    title: presentation.emptyTitle,
+                    systemImage: presentation.emptySystemImage,
+                    message: presentation.emptyMessage,
+                    actionTitle: presentation.emptyActionTitle,
+                    action: presentation.isActionable ? openSettingsAction : nil
+                )
+            }
+        }
+    }
 }
 
 private struct FuelPricesSectionView: View {
@@ -3136,6 +3408,189 @@ struct WeatherSectionPresentation {
     }
 }
 
+struct WeatherForecastPresentation {
+    let hourlySlots: [WeatherHourlyForecastSlotPresentation]
+    let dailyRows: [WeatherDaySummary]
+    let isHourlyExpanded: Bool
+    let isDailyExpanded: Bool
+    let showsHourlyDisclosure: Bool
+    let showsDailyDisclosure: Bool
+    let shouldShowTomorrowSummary: Bool
+
+    init(settings: AppSettings, weather: WeatherSnapshot?, widthMode: DashboardCardWidthMode) {
+        guard let weather else {
+            hourlySlots = []
+            dailyRows = []
+            isHourlyExpanded = false
+            isDailyExpanded = false
+            showsHourlyDisclosure = false
+            showsDailyDisclosure = false
+            shouldShowTomorrowSummary = false
+            return
+        }
+
+        hourlySlots = weather.hourlyForecastSlots.enumerated().map { index, slot in
+            WeatherHourlyForecastSlotPresentation(index: index, slot: slot, referenceDate: weather.fetchedAt)
+        }
+        dailyRows = weather.dailyForecast
+        let canShowExpandedForecast = widthMode != .narrow
+        isHourlyExpanded = canShowExpandedForecast && settings.weatherHourlyForecastExpanded
+        isDailyExpanded = canShowExpandedForecast && settings.weatherDailyForecastExpanded
+        showsHourlyDisclosure = canShowExpandedForecast && hourlySlots.isEmpty == false
+        showsDailyDisclosure = canShowExpandedForecast && dailyRows.isEmpty == false
+        shouldShowTomorrowSummary = weather.tomorrow != nil && (showsDailyDisclosure == false || isDailyExpanded == false)
+    }
+}
+
+struct WeatherHourlyForecastSlotPresentation: Identifiable, Equatable {
+    let id: String
+    let title: String
+    let symbolName: String
+    let temperatureValue: String
+    let detailValue: String
+
+    init(index: Int, slot: WeatherHourlyForecastSlot, referenceDate: Date) {
+        id = "\(index)-\(slot.date.timeIntervalSinceReferenceDate)"
+        let hourOffset = max(0, Int((slot.date.timeIntervalSince(referenceDate) / 3_600).rounded()))
+        title = "+\(hourOffset)h"
+        symbolName = slot.symbolName
+        temperatureValue = NomadFormatters.celsius(slot.temperatureCelsius)
+
+        if let precipitationChance = slot.precipitationChance {
+            detailValue = "Rain \(NomadFormatters.precipitation(precipitationChance))"
+        } else if let windSpeedKph = slot.windSpeedKph {
+            detailValue = NomadFormatters.kilometersPerHour(windSpeedKph)
+        } else {
+            detailValue = slot.conditionDescription
+        }
+    }
+}
+
+private struct ForecastDisclosureSection<Content: View>: View {
+    let title: String
+    let summary: String
+    let isExpanded: Bool
+    let action: () -> Void
+    let content: Content
+
+    init(
+        title: String,
+        summary: String,
+        isExpanded: Bool,
+        action: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.summary = summary
+        self.isExpanded = isExpanded
+        self.action = action
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button(action: action) {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(NomadTheme.primaryText)
+
+                        Text(summary)
+                            .font(.caption2)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(NomadTheme.tertiaryText)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(NomadTheme.chartBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                content
+            }
+        }
+    }
+}
+
+private struct WeatherHourlyForecastChip: View {
+    let model: WeatherHourlyForecastSlotPresentation
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(model.title)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(NomadTheme.tertiaryText)
+
+            Label(model.temperatureValue, systemImage: model.symbolName)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(NomadTheme.primaryText)
+                .lineLimit(1)
+
+            Text(model.detailValue)
+                .font(.caption2)
+                .foregroundStyle(NomadTheme.secondaryText)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(NomadTheme.chartBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+                )
+        )
+    }
+}
+
+private struct WeatherDailyForecastRow: View {
+    let summary: WeatherDaySummary
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Label(dayLabel, systemImage: summary.symbolName)
+                .foregroundStyle(NomadTheme.primaryText)
+
+            Spacer(minLength: 10)
+
+            Text(summary.summary)
+                .font(.caption)
+                .foregroundStyle(NomadTheme.secondaryText)
+                .lineLimit(1)
+
+            Text(temperatureRange)
+                .foregroundStyle(NomadTheme.secondaryText)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+
+    private var dayLabel: String {
+        summary.date.formatted(.dateTime.weekday(.abbreviated))
+    }
+
+    private var temperatureRange: String {
+        let minimum = summary.temperatureMinCelsius.map { NomadFormatters.celsius($0) } ?? "Estimating"
+        let maximum = summary.temperatureMaxCelsius.map { NomadFormatters.celsius($0) } ?? "Estimating"
+        return "\(minimum) / \(maximum)"
+    }
+}
+
 struct FuelPricesSectionPresentation {
     let badge: PillBadge
     let visualMode: FuelCardVisualMode
@@ -3293,6 +3748,119 @@ struct FuelPricesSectionPresentation {
         }
 
         return PillBadge(title: "Live", symbolName: "fuelpump.fill", tint: NomadTheme.teal)
+    }
+}
+
+struct EmergencyCareSectionPresentation {
+    let badge: PillBadge
+    let subtitle: String
+    let rows: [EmergencyHospitalRowModel]
+    let emptyTitle: String
+    let emptySystemImage: String
+    let emptyMessage: String
+    let emptyActionTitle: String?
+
+    init(
+        settings: AppSettings,
+        snapshot: DashboardSnapshot,
+        locationStatusDetail: String?
+    ) {
+        guard settings.emergencyCareEnabled else {
+            badge = PillBadge(title: "Off", symbolName: "cross.case", tint: NomadTheme.primaryText)
+            subtitle = "Nearby emergency hospitals are disabled"
+            rows = []
+            emptyTitle = "Emergency Care Off"
+            emptySystemImage = "cross.case"
+            emptyMessage = "Enable nearby emergency hospitals in Settings."
+            emptyActionTitle = "Open Settings"
+            return
+        }
+
+        guard let emergencyCare = snapshot.emergencyCare else {
+            badge = PillBadge(title: "Checking", symbolName: "cross.case.fill", tint: NomadTheme.secondaryText)
+            subtitle = "Looking for nearby hospitals"
+            rows = []
+            emptyTitle = "Checking Emergency Care"
+            emptySystemImage = "cross.case.fill"
+            emptyMessage = "Looking for nearby emergency hospitals."
+            emptyActionTitle = nil
+            return
+        }
+
+        switch emergencyCare.status {
+        case .ready:
+            badge = PillBadge(title: "Nearby", symbolName: "cross.case.fill", tint: NomadTheme.teal)
+            subtitle = "Within \(Int(emergencyCare.searchRadiusKilometers)) km"
+            rows = emergencyCare.hospitals.map { hospital in
+                EmergencyHospitalRowModel(
+                    id: hospital.id,
+                    hospitalName: hospital.name,
+                    hospitalDetail: Self.hospitalDetail(for: hospital),
+                    distanceText: NomadFormatters.kilometers(hospital.distanceKilometers),
+                    ownershipTitle: hospital.ownership == .unknown ? nil : hospital.ownership.displayName,
+                    ownershipTint: Self.ownershipTint(for: hospital.ownership),
+                    destination: EmergencyHospitalMapDestination(
+                        hospitalName: hospital.name,
+                        address: hospital.address,
+                        locality: hospital.locality,
+                        ownership: hospital.ownership,
+                        latitude: hospital.latitude,
+                        longitude: hospital.longitude
+                    )
+                )
+            }
+            emptyTitle = ""
+            emptySystemImage = "cross.case.fill"
+            emptyMessage = ""
+            emptyActionTitle = nil
+        case .locationRequired:
+            badge = PillBadge(title: "Location Needed", symbolName: "location.slash.fill", tint: NomadTheme.sand)
+            subtitle = "Precise location is required"
+            rows = []
+            emptyTitle = "Current Location Needed"
+            emptySystemImage = "location.slash.fill"
+            emptyMessage = locationStatusDetail ?? emergencyCare.detail ?? "Allow current location to look up nearby emergency hospitals."
+            emptyActionTitle = "Open Settings"
+        case .unavailable:
+            badge = PillBadge(title: "Unavailable", symbolName: "wifi.exclamationmark", tint: NomadTheme.primaryText)
+            subtitle = emergencyCare.sourceName
+            rows = []
+            emptyTitle = "Emergency Care Unavailable"
+            emptySystemImage = "wifi.exclamationmark"
+            emptyMessage = emergencyCare.detail ?? "Nearby emergency hospitals are unavailable right now."
+            emptyActionTitle = nil
+        case .noHospitalsFound:
+            badge = PillBadge(title: "No Matches", symbolName: "mappin.slash", tint: NomadTheme.primaryText)
+            subtitle = "Within \(Int(emergencyCare.searchRadiusKilometers)) km"
+            rows = []
+            emptyTitle = "No Nearby Hospitals"
+            emptySystemImage = "mappin.slash"
+            emptyMessage = emergencyCare.detail ?? "No nearby emergency hospitals were found."
+            emptyActionTitle = nil
+        }
+    }
+
+    var isActionable: Bool {
+        emptyActionTitle != nil
+    }
+
+    private static func hospitalDetail(for hospital: EmergencyHospital) -> String {
+        let pieces = [
+            hospital.address,
+            hospital.locality
+        ].compactMap(\.self)
+        return pieces.joined(separator: " · ")
+    }
+
+    private static func ownershipTint(for ownership: HospitalOwnership) -> Color? {
+        switch ownership {
+        case .public:
+            NomadTheme.teal
+        case .private:
+            NomadTheme.sand
+        case .unknown:
+            nil
+        }
     }
 }
 

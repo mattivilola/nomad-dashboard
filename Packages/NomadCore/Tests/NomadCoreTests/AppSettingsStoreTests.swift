@@ -19,6 +19,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.shareAnonymousAnalytics == true)
         #expect(store.settings.visitedPlacesEnabled == true)
         #expect(store.settings.fuelPricesEnabled == false)
+        #expect(store.settings.emergencyCareEnabled == false)
         #expect(store.settings.travelAdvisoryEnabled == true)
         #expect(store.settings.travelWeatherAlertsEnabled == false)
         #expect(store.settings.regionalSecurityEnabled == false)
@@ -26,6 +27,8 @@ struct AppSettingsStoreTests {
         #expect(store.settings.surfSpotName.isEmpty)
         #expect(store.settings.surfSpotLatitude == nil)
         #expect(store.settings.surfSpotLongitude == nil)
+        #expect(store.settings.weatherHourlyForecastExpanded == false)
+        #expect(store.settings.weatherDailyForecastExpanded == false)
     }
 
     @Test
@@ -55,6 +58,7 @@ struct AppSettingsStoreTests {
             .weather,
             .travelAlerts,
             .fuelPrices,
+            .emergencyCare,
             .travelContext,
             .power,
             .connectivity
@@ -80,6 +84,21 @@ struct AppSettingsStoreTests {
         #expect(reloaded.settings.dashboardCardWidthModes[.connectivity] == .narrow)
         #expect(reloaded.settings.dashboardCardWidthModes[.weather] == .narrow)
         #expect(reloaded.settings.dashboardCardWidthModes[.power] == .wide)
+    }
+
+    @Test
+    func persistsWeatherForecastDisclosureStateToUserDefaults() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.settings.weatherHourlyForecastExpanded = true
+        store.settings.weatherDailyForecastExpanded = true
+
+        let reloaded = AppSettingsStore(defaults: defaults)
+        #expect(reloaded.settings.weatherHourlyForecastExpanded == true)
+        #expect(reloaded.settings.weatherDailyForecastExpanded == true)
     }
 
     @Test
@@ -157,6 +176,19 @@ struct AppSettingsStoreTests {
     }
 
     @Test
+    func persistsEmergencyCarePreferenceToUserDefaults() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.settings.emergencyCareEnabled = true
+
+        let reloaded = AppSettingsStore(defaults: defaults)
+        #expect(reloaded.settings.emergencyCareEnabled == true)
+    }
+
+    @Test
     func decodesLegacyPayloadWithoutAppearanceMode() throws {
         let suiteName = UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -189,6 +221,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.launchAtLoginEnabled == true)
         #expect(store.settings.useCurrentLocationForWeather == false)
         #expect(store.settings.fuelPricesEnabled == false)
+        #expect(store.settings.emergencyCareEnabled == false)
         #expect(store.settings.visitedPlacesEnabled == false)
         #expect(store.settings.travelAdvisoryEnabled == true)
         #expect(store.settings.travelWeatherAlertsEnabled == false)
@@ -197,6 +230,8 @@ struct AppSettingsStoreTests {
         #expect(store.settings.surfSpotName.isEmpty)
         #expect(store.settings.surfSpotLatitude == nil)
         #expect(store.settings.surfSpotLongitude == nil)
+        #expect(store.settings.weatherHourlyForecastExpanded == false)
+        #expect(store.settings.weatherDailyForecastExpanded == false)
         #expect(store.settings.latencyHosts == ["example.com:443"])
     }
 
@@ -233,6 +268,7 @@ struct AppSettingsStoreTests {
             .connectivity,
             .travelContext,
             .fuelPrices,
+            .emergencyCare,
             .travelAlerts
         ])
     }

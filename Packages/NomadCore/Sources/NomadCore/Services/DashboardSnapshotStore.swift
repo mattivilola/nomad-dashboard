@@ -206,6 +206,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         var weatherSnapshot = snapshot.weather
         var fuelPricesSnapshot = snapshot.fuelPrices
         var fuelDiagnosticsSnapshot = snapshot.fuelDiagnostics
+        var emergencyCareSnapshot = snapshot.emergencyCare
         var marineSnapshot = surfSpotConfiguration.isValid ? snapshot.marine : nil
         var didUpdateVisitedPlaces = false
 
@@ -263,6 +264,12 @@ public final class DashboardSnapshotStore: ObservableObject {
                 fuelDiagnosticsSnapshot = fuelRefresh.diagnostics
             } else {
                 fuelPricesSnapshot = nil
+            }
+
+            if settings.emergencyCareEnabled {
+                emergencyCareSnapshot = await refreshEmergencyCare(manual: manual)
+            } else {
+                emergencyCareSnapshot = nil
             }
 
             if surfSpotConfiguration.isValid,
@@ -341,6 +348,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             weather: weatherSnapshot,
             fuelPrices: fuelPricesSnapshot,
             fuelDiagnostics: fuelDiagnosticsSnapshot,
+            emergencyCare: emergencyCareSnapshot,
             marine: marineSnapshot,
             appState: AppStatusSnapshot(
                 lastRefresh: now,
@@ -419,6 +427,10 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         if previousSettings.fuelPricesEnabled != newSettings.fuelPricesEnabled {
+            needsManualRefresh = true
+        }
+
+        if previousSettings.emergencyCareEnabled != newSettings.emergencyCareEnabled {
             needsManualRefresh = true
         }
 
@@ -652,6 +664,43 @@ public final class DashboardSnapshotStore: ObservableObject {
             )
             Self.fuelLogger.error("Fuel fetch failed before provider request: \(diagnosticsError.preferredSummary, privacy: .public)")
             return (fuelSnapshot, diagnostics)
+        }
+    }
+
+    private func refreshEmergencyCare(manual: Bool) async -> EmergencyCareSnapshot {
+        let radiusKilometers = 25.0
+
+        guard let currentLocation else {
+            return EmergencyCareSnapshot(
+                status: .locationRequired,
+                sourceName: "Apple Maps",
+                sourceURL: URL(string: "https://maps.apple.com"),
+                searchRadiusKilometers: radiusKilometers,
+                hospitals: [],
+                fetchedAt: nil,
+                detail: "Allow current location to look up nearby emergency hospitals."
+            )
+        }
+
+        do {
+            return try await dependencies.emergencyCareProvider.nearbyHospitals(
+                for: EmergencyCareSearchRequest(
+                    coordinate: currentLocation.coordinate,
+                    searchRadiusKilometers: radiusKilometers,
+                    maximumResults: 3
+                ),
+                forceRefresh: manual
+            )
+        } catch {
+            return EmergencyCareSnapshot(
+                status: .unavailable,
+                sourceName: "Apple Maps",
+                sourceURL: URL(string: "https://maps.apple.com"),
+                searchRadiusKilometers: radiusKilometers,
+                hospitals: [],
+                fetchedAt: Date(),
+                detail: "Nearby emergency hospitals are unavailable right now."
+            )
         }
     }
 

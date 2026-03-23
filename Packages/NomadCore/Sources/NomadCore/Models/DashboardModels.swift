@@ -231,6 +231,35 @@ public struct WeatherDaySummary: Equatable, Sendable {
     }
 }
 
+public struct WeatherHourlyForecastSlot: Equatable, Sendable, Identifiable {
+    public let date: Date
+    public let symbolName: String
+    public let conditionDescription: String
+    public let temperatureCelsius: Double?
+    public let precipitationChance: Double?
+    public let windSpeedKph: Double?
+
+    public var id: Date {
+        date
+    }
+
+    public init(
+        date: Date,
+        symbolName: String,
+        conditionDescription: String,
+        temperatureCelsius: Double?,
+        precipitationChance: Double?,
+        windSpeedKph: Double?
+    ) {
+        self.date = date
+        self.symbolName = symbolName
+        self.conditionDescription = conditionDescription
+        self.temperatureCelsius = temperatureCelsius
+        self.precipitationChance = precipitationChance
+        self.windSpeedKph = windSpeedKph
+    }
+}
+
 public struct WeatherSnapshot: Equatable, Sendable {
     public let currentTemperatureCelsius: Double?
     public let apparentTemperatureCelsius: Double?
@@ -238,6 +267,8 @@ public struct WeatherSnapshot: Equatable, Sendable {
     public let symbolName: String
     public let precipitationChance: Double?
     public let windSpeedKph: Double?
+    public let hourlyForecastSlots: [WeatherHourlyForecastSlot]
+    public let dailyForecast: [WeatherDaySummary]
     public let tomorrow: WeatherDaySummary?
     public let fetchedAt: Date
 
@@ -248,7 +279,9 @@ public struct WeatherSnapshot: Equatable, Sendable {
         symbolName: String,
         precipitationChance: Double?,
         windSpeedKph: Double?,
-        tomorrow: WeatherDaySummary?,
+        hourlyForecastSlots: [WeatherHourlyForecastSlot] = [],
+        dailyForecast: [WeatherDaySummary] = [],
+        tomorrow: WeatherDaySummary? = nil,
         fetchedAt: Date
     ) {
         self.currentTemperatureCelsius = currentTemperatureCelsius
@@ -257,7 +290,9 @@ public struct WeatherSnapshot: Equatable, Sendable {
         self.symbolName = symbolName
         self.precipitationChance = precipitationChance
         self.windSpeedKph = windSpeedKph
-        self.tomorrow = tomorrow
+        self.hourlyForecastSlots = hourlyForecastSlots
+        self.dailyForecast = dailyForecast.isEmpty ? tomorrow.map { [$0] } ?? [] : dailyForecast
+        self.tomorrow = self.dailyForecast.first ?? tomorrow
         self.fetchedAt = fetchedAt
     }
 }
@@ -477,6 +512,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
     public let weather: WeatherSnapshot?
     public let fuelPrices: FuelPriceSnapshot?
     public let fuelDiagnostics: FuelDiagnosticsSnapshot?
+    public let emergencyCare: EmergencyCareSnapshot?
     public let marine: MarineSnapshot?
     public let appState: AppStatusSnapshot
     public let healthSummary: DashboardHealthSummary
@@ -489,6 +525,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         weather: WeatherSnapshot?,
         fuelPrices: FuelPriceSnapshot? = nil,
         fuelDiagnostics: FuelDiagnosticsSnapshot? = nil,
+        emergencyCare: EmergencyCareSnapshot? = nil,
         marine: MarineSnapshot? = nil,
         appState: AppStatusSnapshot,
         healthSummary: DashboardHealthSummary? = nil
@@ -500,6 +537,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         self.weather = weather
         self.fuelPrices = fuelPrices
         self.fuelDiagnostics = fuelDiagnostics
+        self.emergencyCare = emergencyCare
         self.marine = marine
         self.appState = appState
         self.healthSummary = healthSummary ?? DashboardHealthEvaluator.makeSummary(
@@ -555,6 +593,7 @@ public extension DashboardSnapshot {
         ),
         weather: nil,
         fuelPrices: nil,
+        emergencyCare: nil,
         marine: nil,
         appState: AppStatusSnapshot(lastRefresh: nil, updateState: .idle, issues: [])
     )
@@ -693,14 +732,98 @@ public extension DashboardSnapshot {
             symbolName: "cloud.sun.fill",
             precipitationChance: 0.18,
             windSpeedKph: 14,
-            tomorrow: WeatherDaySummary(
-                date: Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now,
-                symbolName: "sun.max.fill",
-                summary: "Clear and mild",
-                temperatureMinCelsius: 13,
-                temperatureMaxCelsius: 23,
-                precipitationChance: 0.04
-            ),
+            hourlyForecastSlots: [
+                WeatherHourlyForecastSlot(
+                    date: Date().addingTimeInterval(3 * 3_600),
+                    symbolName: "cloud.sun.fill",
+                    conditionDescription: "Partly Cloudy",
+                    temperatureCelsius: 20,
+                    precipitationChance: 0.10,
+                    windSpeedKph: 12
+                ),
+                WeatherHourlyForecastSlot(
+                    date: Date().addingTimeInterval(6 * 3_600),
+                    symbolName: "sun.max.fill",
+                    conditionDescription: "Clear",
+                    temperatureCelsius: 21,
+                    precipitationChance: 0.02,
+                    windSpeedKph: 10
+                ),
+                WeatherHourlyForecastSlot(
+                    date: Date().addingTimeInterval(12 * 3_600),
+                    symbolName: "cloud.fill",
+                    conditionDescription: "Cloudy",
+                    temperatureCelsius: 17,
+                    precipitationChance: 0.22,
+                    windSpeedKph: 15
+                ),
+                WeatherHourlyForecastSlot(
+                    date: Date().addingTimeInterval(24 * 3_600),
+                    symbolName: "cloud.rain.fill",
+                    conditionDescription: "Light Rain",
+                    temperatureCelsius: 16,
+                    precipitationChance: 0.45,
+                    windSpeedKph: 18
+                )
+            ],
+            dailyForecast: [
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now,
+                    symbolName: "sun.max.fill",
+                    summary: "Clear and mild",
+                    temperatureMinCelsius: 13,
+                    temperatureMaxCelsius: 23,
+                    precipitationChance: 0.04
+                ),
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 2, to: .now) ?? .now,
+                    symbolName: "cloud.sun.fill",
+                    summary: "Partly cloudy",
+                    temperatureMinCelsius: 14,
+                    temperatureMaxCelsius: 22,
+                    precipitationChance: 0.12
+                ),
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 3, to: .now) ?? .now,
+                    symbolName: "cloud.fill",
+                    summary: "Overcast",
+                    temperatureMinCelsius: 12,
+                    temperatureMaxCelsius: 19,
+                    precipitationChance: 0.20
+                ),
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 4, to: .now) ?? .now,
+                    symbolName: "cloud.rain.fill",
+                    summary: "Rain showers",
+                    temperatureMinCelsius: 11,
+                    temperatureMaxCelsius: 17,
+                    precipitationChance: 0.55
+                ),
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 5, to: .now) ?? .now,
+                    symbolName: "cloud.bolt.rain.fill",
+                    summary: "Storm risk",
+                    temperatureMinCelsius: 10,
+                    temperatureMaxCelsius: 16,
+                    precipitationChance: 0.62
+                ),
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 6, to: .now) ?? .now,
+                    symbolName: "cloud.sun.fill",
+                    summary: "Brighter later",
+                    temperatureMinCelsius: 12,
+                    temperatureMaxCelsius: 18,
+                    precipitationChance: 0.18
+                ),
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 7, to: .now) ?? .now,
+                    symbolName: "sun.max.fill",
+                    summary: "Sunny",
+                    temperatureMinCelsius: 13,
+                    temperatureMaxCelsius: 21,
+                    precipitationChance: 0.03
+                )
+            ],
             fetchedAt: .now
         ),
         fuelPrices: FuelPriceSnapshot(
@@ -754,6 +877,43 @@ public extension DashboardSnapshot {
             summary: "Fuel prices loaded successfully.",
             error: nil
         ),
+        emergencyCare: EmergencyCareSnapshot(
+            status: .ready,
+            sourceName: "Apple Maps",
+            sourceURL: URL(string: "https://maps.apple.com"),
+            searchRadiusKilometers: 25,
+            hospitals: [
+                EmergencyHospital(
+                    name: "Hospital Universitari i Politècnic La Fe",
+                    address: "Avinguda de Fernando Abril Martorell 106",
+                    locality: "Valencia",
+                    distanceKilometers: 3.2,
+                    latitude: 39.4468,
+                    longitude: -0.3762,
+                    ownership: .public
+                ),
+                EmergencyHospital(
+                    name: "Hospital IMED Valencia Private",
+                    address: "Avinguda de la Ilustració 1",
+                    locality: "Burjassot",
+                    distanceKilometers: 6.8,
+                    latitude: 39.5092,
+                    longitude: -0.4188,
+                    ownership: .private
+                ),
+                EmergencyHospital(
+                    name: "Hospital Casa de Salut",
+                    address: "Carrer del Doctor Manuel Candela 41",
+                    locality: "Valencia",
+                    distanceKilometers: 2.4,
+                    latitude: 39.4662,
+                    longitude: -0.3473,
+                    ownership: .unknown
+                )
+            ],
+            fetchedAt: .now,
+            detail: "Nearby emergency hospitals within 25 km."
+        ),
         marine: MarineSnapshot(
             spotName: "El Saler",
             coordinate: CLLocationCoordinate2D(latitude: 39.355, longitude: -0.314),
@@ -791,6 +951,7 @@ public extension DashboardSnapshot {
             weather: weather,
             fuelPrices: fuelPrices,
             fuelDiagnostics: fuelDiagnostics,
+            emergencyCare: emergencyCare,
             marine: marine,
             appState: appState,
             healthSummary: healthSummary

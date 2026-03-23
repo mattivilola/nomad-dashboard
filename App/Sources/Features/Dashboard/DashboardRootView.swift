@@ -17,6 +17,7 @@ struct DashboardRootView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
     @State private var selectedFuelStation: FuelStationMapDestination?
+    @State private var selectedEmergencyHospital: EmergencyHospitalMapDestination?
     @State private var locationRefreshTask: Task<Void, Never>?
     @State private var pendingLocationRefresh: CLLocation?
     @State private var lastLocationRefreshLocation: CLLocation?
@@ -42,13 +43,17 @@ struct DashboardRootView: View {
             openNetworkSettingsAction: openNetworkSettings,
             openFuelStationMapPreviewAction: openFuelStationMapPreview,
             openFuelStationInGoogleMapsAction: openFuelStationInGoogleMaps,
+            openEmergencyHospitalMapPreviewAction: openEmergencyHospitalMapPreview,
+            openEmergencyHospitalInGoogleMapsAction: openEmergencyHospitalInGoogleMaps,
             checkForUpdatesAction: checkForUpdatesAction,
             openSettingsAction: openSettings,
             openSurfSpotSettingsAction: openSurfSpotSettings,
             openAboutAction: openAbout,
             quitAction: quitApplication,
             onCardOrderChange: persistDashboardCardOrder,
-            onCardWidthModesChange: persistDashboardCardWidthModes
+            onCardWidthModesChange: persistDashboardCardWidthModes,
+            onWeatherHourlyForecastExpandedChange: persistWeatherHourlyForecastExpanded,
+            onWeatherDailyForecastExpandedChange: persistWeatherDailyForecastExpanded
         )
         .task {
             snapshotStore.setCurrentLocation(locationStore.currentLocation)
@@ -70,6 +75,12 @@ struct DashboardRootView: View {
             FuelStationPreviewSheet(
                 station: station,
                 openInGoogleMapsAction: { openFuelStationInGoogleMaps(station) }
+            )
+        }
+        .sheet(item: $selectedEmergencyHospital) { hospital in
+            EmergencyHospitalPreviewSheet(
+                hospital: hospital,
+                openInGoogleMapsAction: { openEmergencyHospitalInGoogleMaps(hospital) }
             )
         }
         .onDisappear {
@@ -142,6 +153,22 @@ struct DashboardRootView: View {
         NSWorkspace.shared.open(url)
     }
 
+    private func openEmergencyHospitalMapPreview(_ hospital: EmergencyHospitalMapDestination) {
+        guard hospital.isCoordinateValid else {
+            return
+        }
+
+        selectedEmergencyHospital = hospital
+    }
+
+    private func openEmergencyHospitalInGoogleMaps(_ hospital: EmergencyHospitalMapDestination) {
+        guard let url = hospital.googleMapsURL else {
+            return
+        }
+
+        NSWorkspace.shared.open(url)
+    }
+
     private func quitApplication() {
         NSApp.terminate(nil)
     }
@@ -162,6 +189,22 @@ struct DashboardRootView: View {
         }
 
         settingsStore.settings.dashboardCardWidthModes = sanitizedWidthModes
+    }
+
+    private func persistWeatherHourlyForecastExpanded(_ isExpanded: Bool) {
+        guard settingsStore.settings.weatherHourlyForecastExpanded != isExpanded else {
+            return
+        }
+
+        settingsStore.settings.weatherHourlyForecastExpanded = isExpanded
+    }
+
+    private func persistWeatherDailyForecastExpanded(_ isExpanded: Bool) {
+        guard settingsStore.settings.weatherDailyForecastExpanded != isExpanded else {
+            return
+        }
+
+        settingsStore.settings.weatherDailyForecastExpanded = isExpanded
     }
 
     private func openDashboardWindow(_ destination: AppWindowDestination) {
@@ -285,6 +328,65 @@ private struct FuelStationPreviewSheet: View {
                 Text("Updated \(NomadFormatters.compactClockTime(updatedAt))")
                     .font(.caption)
                     .foregroundStyle(NomadTheme.tertiaryText)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 460, minHeight: 420, alignment: .topLeading)
+        .background(NomadTheme.background)
+    }
+}
+
+private struct EmergencyHospitalPreviewSheet: View {
+    let hospital: EmergencyHospitalMapDestination
+    let openInGoogleMapsAction: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(hospital.hospitalName)
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .foregroundStyle(NomadTheme.primaryText)
+
+                    if hospital.ownership != .unknown {
+                        Text(hospital.ownership.displayName)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(hospital.ownership == .public ? NomadTheme.teal : NomadTheme.sand)
+                    }
+
+                    if let addressLine = hospital.addressLine {
+                        Text(addressLine)
+                            .font(.subheadline)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                    }
+                }
+
+                Spacer(minLength: 12)
+            }
+
+            EmergencyHospitalMapView(
+                hospitalName: hospital.hospitalName,
+                coordinate: hospital.coordinate
+            )
+            .frame(width: 420, height: 280)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(NomadTheme.cardBorder.opacity(0.85), lineWidth: 1)
+            )
+
+            HStack(spacing: 10) {
+                Button("Open in Google Maps") {
+                    openInGoogleMapsAction()
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button("Close") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
             }
         }
         .padding(20)

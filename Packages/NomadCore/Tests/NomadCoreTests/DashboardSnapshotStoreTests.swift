@@ -605,6 +605,100 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func refreshMarksEmergencyCareLocationRequirementWhenCurrentLocationIsMissing() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.emergencyCareEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let dependencies = makeDependencies(historyStore: InMemoryHistoryStore())
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.emergencyCare?.status == .locationRequired)
+        #expect(store.snapshot.emergencyCare?.detail == "Allow current location to look up nearby emergency hospitals.")
+    }
+
+    @Test
+    func refreshLoadsEmergencyCareForCurrentLocation() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.emergencyCareEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let emergencyCareProvider = RecordingEmergencyCareProvider()
+        let dependencies = makeDependencies(
+            emergencyCareProvider: emergencyCareProvider,
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        store.setCurrentLocation(CLLocation(latitude: 39.4699, longitude: -0.3763))
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.emergencyCare?.status == .ready)
+        #expect(store.snapshot.emergencyCare?.hospitals.count == 3)
+        #expect(store.snapshot.emergencyCare?.hospitals.first?.ownership == .public)
+        #expect(await emergencyCareProvider.callCount() == 1)
+    }
+
+    @Test
+    func refreshMarksEmergencyCareUnavailableWhenProviderFails() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.emergencyCareEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let dependencies = makeDependencies(
+            emergencyCareProvider: FailingEmergencyCareProvider(),
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        store.setCurrentLocation(CLLocation(latitude: 39.4699, longitude: -0.3763))
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.emergencyCare?.status == .unavailable)
+        #expect(store.snapshot.emergencyCare?.detail == "Nearby emergency hospitals are unavailable right now.")
+    }
+
+    @Test
+    func emergencyHospitalMapDestinationBuildsGoogleMapsDirectionsURLFromCoordinates() throws {
+        let destination = EmergencyHospitalMapDestination(
+            hospitalName: "Hospital Universitari i Politècnic La Fe",
+            address: "Avinguda de Fernando Abril Martorell 106",
+            locality: "Valencia",
+            ownership: .public,
+            latitude: 39.4468,
+            longitude: -0.3762
+        )
+
+        let url = try #require(destination.googleMapsURL)
+
+        #expect(url.absoluteString.contains("https://www.google.com/maps/dir/"))
+        #expect(url.absoluteString.contains("destination=39.4468,-0.3762"))
+        #expect(url.absoluteString.contains("travelmode=driving"))
+    }
+
+    @Test
+    func emergencyHospitalMapDestinationFallsBackToSearchQueryWhenCoordinatesAreInvalid() throws {
+        let destination = EmergencyHospitalMapDestination(
+            hospitalName: "Hospital IMED Valencia Private",
+            address: "Avinguda de la Ilustració 1",
+            locality: "Burjassot",
+            ownership: .private,
+            latitude: 190,
+            longitude: -500
+        )
+
+        let url = try #require(destination.googleMapsURL)
+
+        #expect(url.absoluteString.contains("https://www.google.com/maps/search/"))
+        #expect(url.absoluteString.contains("Hospital"))
+        #expect(destination.isCoordinateValid == false)
+    }
+
+    @Test
     func refreshSkipsMarineLookupWhenSurfSpotIsBlank() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         let marineProvider = RecordingMarineProvider()
@@ -1024,6 +1118,7 @@ private func makeDependencies(
     reverseGeocodingProvider: any ReverseGeocodingProvider = FixedReverseGeocodingProvider(),
     weatherProvider: any WeatherProvider = FixedWeatherProvider(),
     fuelPriceProvider: any FuelPriceProvider = FixedFuelPriceProvider(),
+    emergencyCareProvider: any EmergencyCareProvider = FixedEmergencyCareProvider(),
     marineProvider: any MarineProvider = FixedMarineProvider(),
     neighborCountryResolver: any NeighborCountryResolver = FixedNeighborCountryResolver(),
     travelAdvisoryProvider: any TravelAdvisoryProvider = FixedTravelAdvisoryProvider(),
@@ -1045,6 +1140,7 @@ private func makeDependencies(
         reverseGeocodingProvider: reverseGeocodingProvider,
         weatherProvider: weatherProvider,
         fuelPriceProvider: fuelPriceProvider,
+        emergencyCareProvider: emergencyCareProvider,
         marineProvider: marineProvider,
         neighborCountryResolver: neighborCountryResolver,
         travelAdvisoryProvider: travelAdvisoryProvider,
@@ -1375,6 +1471,78 @@ extension FixedFuelPriceProvider: FuelPriceDiagnosticsProviding {
             summary: "Fuel prices loaded successfully.",
             error: nil
         )
+    }
+}
+
+private struct FixedEmergencyCareProvider: EmergencyCareProvider {
+    func nearbyHospitals(
+        for request: EmergencyCareSearchRequest,
+        forceRefresh: Bool
+    ) async throws -> EmergencyCareSnapshot {
+        EmergencyCareSnapshot(
+            status: .ready,
+            sourceName: "Apple Maps",
+            sourceURL: URL(string: "https://maps.apple.com"),
+            searchRadiusKilometers: request.searchRadiusKilometers,
+            hospitals: [
+                EmergencyHospital(
+                    name: "Hospital Universitari i Politècnic La Fe",
+                    address: "Avinguda de Fernando Abril Martorell 106",
+                    locality: "Valencia",
+                    distanceKilometers: 3.2,
+                    latitude: 39.4468,
+                    longitude: -0.3762,
+                    ownership: .public
+                ),
+                EmergencyHospital(
+                    name: "Hospital IMED Valencia Private",
+                    address: "Avinguda de la Ilustració 1",
+                    locality: "Burjassot",
+                    distanceKilometers: 6.8,
+                    latitude: 39.5092,
+                    longitude: -0.4188,
+                    ownership: .private
+                ),
+                EmergencyHospital(
+                    name: "Hospital Casa de Salut",
+                    address: "Carrer del Doctor Manuel Candela 41",
+                    locality: "Valencia",
+                    distanceKilometers: 2.4,
+                    latitude: 39.4662,
+                    longitude: -0.3473,
+                    ownership: .unknown
+                )
+            ],
+            fetchedAt: .now,
+            detail: "Nearby emergency hospitals within \(Int(request.searchRadiusKilometers)) km."
+        )
+    }
+}
+
+private actor RecordingEmergencyCareProvider: EmergencyCareProvider {
+    private var calls = 0
+
+    func nearbyHospitals(
+        for request: EmergencyCareSearchRequest,
+        forceRefresh: Bool
+    ) async throws -> EmergencyCareSnapshot {
+        calls += 1
+        return try await FixedEmergencyCareProvider().nearbyHospitals(for: request, forceRefresh: forceRefresh)
+    }
+
+    func callCount() -> Int {
+        calls
+    }
+}
+
+private struct FailingEmergencyCareProvider: EmergencyCareProvider {
+    struct Failure: Error {}
+
+    func nearbyHospitals(
+        for request: EmergencyCareSearchRequest,
+        forceRefresh: Bool
+    ) async throws -> EmergencyCareSnapshot {
+        throw Failure()
     }
 }
 

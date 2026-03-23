@@ -5,6 +5,7 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
     case power
     case travelContext
     case fuelPrices
+    case emergencyCare
     case travelAlerts
     case weather
 
@@ -13,6 +14,7 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
         .power,
         .travelContext,
         .fuelPrices,
+        .emergencyCare,
         .travelAlerts,
         .weather
     ]
