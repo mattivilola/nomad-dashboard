@@ -404,6 +404,57 @@ struct NomadUITests {
     }
 
     @Test
+    func weatherForecastPresentationDefaultsToCollapsedDisclosures() {
+        let presentation = WeatherForecastPresentation(
+            settings: AppSettings(),
+            weather: makeWeatherSnapshot(),
+            widthMode: .wide
+        )
+
+        #expect(presentation.showsHourlyDisclosure)
+        #expect(presentation.showsDailyDisclosure)
+        #expect(presentation.isHourlyExpanded == false)
+        #expect(presentation.isDailyExpanded == false)
+        #expect(presentation.shouldShowTomorrowSummary)
+    }
+
+    @Test
+    func weatherForecastPresentationReflectsPersistedExpandedState() {
+        var settings = AppSettings()
+        settings.weatherHourlyForecastExpanded = true
+        settings.weatherDailyForecastExpanded = true
+
+        let presentation = WeatherForecastPresentation(
+            settings: settings,
+            weather: makeWeatherSnapshot(),
+            widthMode: .wide
+        )
+
+        #expect(presentation.isHourlyExpanded)
+        #expect(presentation.isDailyExpanded)
+        #expect(presentation.shouldShowTomorrowSummary == false)
+    }
+
+    @Test
+    func weatherForecastPresentationKeepsNarrowCardsCompact() {
+        var settings = AppSettings()
+        settings.weatherHourlyForecastExpanded = true
+        settings.weatherDailyForecastExpanded = true
+
+        let presentation = WeatherForecastPresentation(
+            settings: settings,
+            weather: makeWeatherSnapshot(),
+            widthMode: .narrow
+        )
+
+        #expect(presentation.showsHourlyDisclosure == false)
+        #expect(presentation.showsDailyDisclosure == false)
+        #expect(presentation.isHourlyExpanded == false)
+        #expect(presentation.isDailyExpanded == false)
+        #expect(presentation.shouldShowTomorrowSummary)
+    }
+
+    @Test
     func fuelPricesSectionPresentationShowsRowsForReadySnapshot() {
         var settings = AppSettings()
         settings.fuelPricesEnabled = true
@@ -675,6 +726,64 @@ struct NomadUITests {
         #expect(abs(state.visibilityRatio - 1) < 0.000_1)
         #expect(state.isAnimating == false)
     }
+}
+
+private func makeWeatherSnapshot() -> WeatherSnapshot {
+    let dailyForecast = (1...7).map { dayOffset in
+        WeatherDaySummary(
+            date: Calendar.current.date(byAdding: .day, value: dayOffset, to: .now) ?? .now,
+            symbolName: dayOffset == 1 ? "cloud.sun.fill" : "sun.max.fill",
+            summary: dayOffset == 1 ? "Tomorrow outlook" : "Day \(dayOffset)",
+            temperatureMinCelsius: Double(10 + dayOffset),
+            temperatureMaxCelsius: Double(18 + dayOffset),
+            precipitationChance: Double(dayOffset) / 100
+        )
+    }
+
+    return WeatherSnapshot(
+        currentTemperatureCelsius: 18,
+        apparentTemperatureCelsius: 17,
+        conditionDescription: "Partly Cloudy",
+        symbolName: "cloud.sun.fill",
+        precipitationChance: 0.18,
+        windSpeedKph: 14,
+        hourlyForecastSlots: [
+            WeatherHourlyForecastSlot(
+                date: Date().addingTimeInterval(3 * 3_600),
+                symbolName: "cloud.sun.fill",
+                conditionDescription: "Partly Cloudy",
+                temperatureCelsius: 19,
+                precipitationChance: 0.1,
+                windSpeedKph: 12
+            ),
+            WeatherHourlyForecastSlot(
+                date: Date().addingTimeInterval(6 * 3_600),
+                symbolName: "sun.max.fill",
+                conditionDescription: "Clear",
+                temperatureCelsius: 20,
+                precipitationChance: 0.05,
+                windSpeedKph: 10
+            ),
+            WeatherHourlyForecastSlot(
+                date: Date().addingTimeInterval(12 * 3_600),
+                symbolName: "cloud.fill",
+                conditionDescription: "Cloudy",
+                temperatureCelsius: 16,
+                precipitationChance: 0.22,
+                windSpeedKph: 15
+            ),
+            WeatherHourlyForecastSlot(
+                date: Date().addingTimeInterval(24 * 3_600),
+                symbolName: "cloud.rain.fill",
+                conditionDescription: "Rain",
+                temperatureCelsius: 15,
+                precipitationChance: 0.48,
+                windSpeedKph: 18
+            )
+        ],
+        dailyForecast: dailyForecast,
+        fetchedAt: .now
+    )
 }
 
 private func makeTravelAlertsSnapshot(

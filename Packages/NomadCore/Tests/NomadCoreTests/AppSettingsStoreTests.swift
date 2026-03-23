@@ -26,6 +26,8 @@ struct AppSettingsStoreTests {
         #expect(store.settings.surfSpotName.isEmpty)
         #expect(store.settings.surfSpotLatitude == nil)
         #expect(store.settings.surfSpotLongitude == nil)
+        #expect(store.settings.weatherHourlyForecastExpanded == false)
+        #expect(store.settings.weatherDailyForecastExpanded == false)
     }
 
     @Test
@@ -80,6 +82,21 @@ struct AppSettingsStoreTests {
         #expect(reloaded.settings.dashboardCardWidthModes[.connectivity] == .narrow)
         #expect(reloaded.settings.dashboardCardWidthModes[.weather] == .narrow)
         #expect(reloaded.settings.dashboardCardWidthModes[.power] == .wide)
+    }
+
+    @Test
+    func persistsWeatherForecastDisclosureStateToUserDefaults() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.settings.weatherHourlyForecastExpanded = true
+        store.settings.weatherDailyForecastExpanded = true
+
+        let reloaded = AppSettingsStore(defaults: defaults)
+        #expect(reloaded.settings.weatherHourlyForecastExpanded == true)
+        #expect(reloaded.settings.weatherDailyForecastExpanded == true)
     }
 
     @Test
@@ -197,6 +214,8 @@ struct AppSettingsStoreTests {
         #expect(store.settings.surfSpotName.isEmpty)
         #expect(store.settings.surfSpotLatitude == nil)
         #expect(store.settings.surfSpotLongitude == nil)
+        #expect(store.settings.weatherHourlyForecastExpanded == false)
+        #expect(store.settings.weatherDailyForecastExpanded == false)
         #expect(store.settings.latencyHosts == ["example.com:443"])
     }
 
