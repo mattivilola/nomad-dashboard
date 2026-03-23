@@ -23,6 +23,8 @@ public struct DashboardPanelView: View {
     private let openNetworkSettingsAction: () -> Void
     private let openFuelStationMapPreviewAction: (FuelStationMapDestination) -> Void
     private let openFuelStationInGoogleMapsAction: (FuelStationMapDestination) -> Void
+    private let openEmergencyHospitalMapPreviewAction: (EmergencyHospitalMapDestination) -> Void
+    private let openEmergencyHospitalInGoogleMapsAction: (EmergencyHospitalMapDestination) -> Void
     private let checkForUpdatesAction: (() -> Void)?
     private let openSettingsAction: () -> Void
     private let openSurfSpotSettingsAction: () -> Void
@@ -58,6 +60,8 @@ public struct DashboardPanelView: View {
         openNetworkSettingsAction: @escaping () -> Void,
         openFuelStationMapPreviewAction: @escaping (FuelStationMapDestination) -> Void = { _ in },
         openFuelStationInGoogleMapsAction: @escaping (FuelStationMapDestination) -> Void = { _ in },
+        openEmergencyHospitalMapPreviewAction: @escaping (EmergencyHospitalMapDestination) -> Void = { _ in },
+        openEmergencyHospitalInGoogleMapsAction: @escaping (EmergencyHospitalMapDestination) -> Void = { _ in },
         checkForUpdatesAction: (() -> Void)? = nil,
         openSettingsAction: @escaping () -> Void,
         openSurfSpotSettingsAction: @escaping () -> Void,
@@ -87,6 +91,8 @@ public struct DashboardPanelView: View {
         self.openNetworkSettingsAction = openNetworkSettingsAction
         self.openFuelStationMapPreviewAction = openFuelStationMapPreviewAction
         self.openFuelStationInGoogleMapsAction = openFuelStationInGoogleMapsAction
+        self.openEmergencyHospitalMapPreviewAction = openEmergencyHospitalMapPreviewAction
+        self.openEmergencyHospitalInGoogleMapsAction = openEmergencyHospitalInGoogleMapsAction
         self.checkForUpdatesAction = checkForUpdatesAction
         self.openSettingsAction = openSettingsAction
         self.openSurfSpotSettingsAction = openSurfSpotSettingsAction
@@ -327,6 +333,8 @@ public struct DashboardPanelView: View {
             travelSection(widthMode: widthMode)
         case .fuelPrices:
             fuelPricesSection(widthMode: widthMode, viewportHeight: viewportHeight)
+        case .emergencyCare:
+            emergencyCareSection(widthMode: widthMode)
         case .travelAlerts:
             travelAlertsSection(widthMode: widthMode)
         case .weather:
@@ -758,6 +766,17 @@ public struct DashboardPanelView: View {
         )
     }
 
+    private func emergencyCareSection(widthMode: DashboardCardWidthMode) -> some View {
+        EmergencyCareSectionView(
+            presentation: emergencyCareSectionPresentation,
+            widthMode: widthMode,
+            accessory: cardControls(for: .emergencyCare, title: "Emergency Care"),
+            openSettingsAction: openSettingsAction,
+            previewMapAction: openEmergencyHospitalMapPreviewAction,
+            openGoogleMapsAction: openEmergencyHospitalInGoogleMapsAction
+        )
+    }
+
     private func travelAlertsSection(widthMode: DashboardCardWidthMode) -> some View {
         DashboardCard(
             title: "Travel Alerts",
@@ -1039,6 +1058,14 @@ public struct DashboardPanelView: View {
 
     private var fuelPricesSectionPresentation: FuelPricesSectionPresentation {
         FuelPricesSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: locationStatusDetail
+        )
+    }
+
+    private var emergencyCareSectionPresentation: EmergencyCareSectionPresentation {
+        EmergencyCareSectionPresentation(
             settings: settings,
             snapshot: snapshot,
             locationStatusDetail: locationStatusDetail
@@ -2001,6 +2028,160 @@ private struct CompactAlertRow: View {
     }
 }
 
+struct EmergencyHospitalRowModel: Identifiable, Equatable {
+    let id: String
+    let hospitalName: String
+    let hospitalDetail: String
+    let distanceText: String
+    let ownershipTitle: String?
+    let ownershipTint: Color?
+    let destination: EmergencyHospitalMapDestination?
+
+    var hasPreviewMapAction: Bool {
+        destination?.isCoordinateValid == true
+    }
+
+    var hasGoogleMapsAction: Bool {
+        destination?.googleMapsURL != nil
+    }
+
+    var hasMapActions: Bool {
+        hasPreviewMapAction || hasGoogleMapsAction
+    }
+}
+
+private struct EmergencyHospitalRow: View {
+    let model: EmergencyHospitalRowModel
+    var isCompact: Bool = false
+    let previewMapAction: (EmergencyHospitalMapDestination) -> Void
+    let openGoogleMapsAction: (EmergencyHospitalMapDestination) -> Void
+
+    var body: some View {
+        Group {
+            if isCompact {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(model.hospitalName)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(NomadTheme.primaryText)
+                                .lineLimit(2)
+
+                            Text(model.hospitalDetail)
+                                .font(.caption2)
+                                .foregroundStyle(NomadTheme.secondaryText)
+                                .lineLimit(2)
+                        }
+
+                        Spacer(minLength: 8)
+
+                        Text(model.distanceText)
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .foregroundStyle(NomadTheme.teal)
+                            .lineLimit(1)
+                    }
+
+                    HStack(spacing: 8) {
+                        if let ownershipTitle = model.ownershipTitle,
+                           let ownershipTint = model.ownershipTint
+                        {
+                            OwnershipBadge(title: ownershipTitle, tint: ownershipTint)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        mapActions
+                    }
+                }
+            } else {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(model.hospitalName)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(NomadTheme.primaryText)
+                            .lineLimit(2)
+
+                        Text(model.hospitalDetail)
+                            .font(.caption2)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                            .lineLimit(2)
+
+                        if let ownershipTitle = model.ownershipTitle,
+                           let ownershipTint = model.ownershipTint
+                        {
+                            OwnershipBadge(title: ownershipTitle, tint: ownershipTint)
+                        }
+                    }
+
+                    Spacer(minLength: 12)
+
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Text(model.distanceText)
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .foregroundStyle(NomadTheme.teal)
+                            .lineLimit(1)
+
+                        mapActions
+                    }
+                }
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(NomadTheme.chartBackground.opacity(0.95))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+                )
+        )
+    }
+
+    @ViewBuilder
+    private var mapActions: some View {
+        if let destination = model.destination, model.hasMapActions {
+            HStack(spacing: isCompact ? 4 : 6) {
+                if model.hasPreviewMapAction {
+                    FuelRowActionButton(
+                        title: "Map",
+                        systemImage: "map.fill",
+                        isCompact: isCompact
+                    ) {
+                        previewMapAction(destination)
+                    }
+                }
+
+                if model.hasGoogleMapsAction {
+                    FuelRowActionButton(
+                        title: "Google",
+                        systemImage: "arrow.up.right.square.fill",
+                        isCompact: isCompact
+                    ) {
+                        openGoogleMapsAction(destination)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct OwnershipBadge: View {
+    let title: String
+    let tint: Color
+
+    var body: some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(tint.opacity(0.12))
+            )
+    }
+}
+
 struct FuelPriceRowModel: Identifiable, Equatable {
     let id: FuelType
     let title: String
@@ -2227,6 +2408,46 @@ func fuelBackdropAnimationState(
         visibilityRatio: visibilityRatio,
         isAnimating: visualMode == .animatedCamper && reduceMotion == false && visibilityRatio >= threshold
     )
+}
+
+private struct EmergencyCareSectionView: View {
+    let presentation: EmergencyCareSectionPresentation
+    let widthMode: DashboardCardWidthMode
+    let accessory: AnyView
+    let openSettingsAction: () -> Void
+    let previewMapAction: (EmergencyHospitalMapDestination) -> Void
+    let openGoogleMapsAction: (EmergencyHospitalMapDestination) -> Void
+
+    var body: some View {
+        DashboardCard(
+            title: "Emergency Care",
+            subtitle: presentation.subtitle,
+            badge: presentation.badge,
+            accessory: accessory,
+            isCompact: widthMode == .narrow
+        ) {
+            if presentation.rows.isEmpty == false {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(presentation.rows) { row in
+                        EmergencyHospitalRow(
+                            model: row,
+                            isCompact: widthMode == .narrow,
+                            previewMapAction: previewMapAction,
+                            openGoogleMapsAction: openGoogleMapsAction
+                        )
+                    }
+                }
+            } else {
+                WeatherEmptyState(
+                    title: presentation.emptyTitle,
+                    systemImage: presentation.emptySystemImage,
+                    message: presentation.emptyMessage,
+                    actionTitle: presentation.emptyActionTitle,
+                    action: presentation.isActionable ? openSettingsAction : nil
+                )
+            }
+        }
+    }
 }
 
 private struct FuelPricesSectionView: View {
@@ -3527,6 +3748,119 @@ struct FuelPricesSectionPresentation {
         }
 
         return PillBadge(title: "Live", symbolName: "fuelpump.fill", tint: NomadTheme.teal)
+    }
+}
+
+struct EmergencyCareSectionPresentation {
+    let badge: PillBadge
+    let subtitle: String
+    let rows: [EmergencyHospitalRowModel]
+    let emptyTitle: String
+    let emptySystemImage: String
+    let emptyMessage: String
+    let emptyActionTitle: String?
+
+    init(
+        settings: AppSettings,
+        snapshot: DashboardSnapshot,
+        locationStatusDetail: String?
+    ) {
+        guard settings.emergencyCareEnabled else {
+            badge = PillBadge(title: "Off", symbolName: "cross.case", tint: NomadTheme.primaryText)
+            subtitle = "Nearby emergency hospitals are disabled"
+            rows = []
+            emptyTitle = "Emergency Care Off"
+            emptySystemImage = "cross.case"
+            emptyMessage = "Enable nearby emergency hospitals in Settings."
+            emptyActionTitle = "Open Settings"
+            return
+        }
+
+        guard let emergencyCare = snapshot.emergencyCare else {
+            badge = PillBadge(title: "Checking", symbolName: "cross.case.fill", tint: NomadTheme.secondaryText)
+            subtitle = "Looking for nearby hospitals"
+            rows = []
+            emptyTitle = "Checking Emergency Care"
+            emptySystemImage = "cross.case.fill"
+            emptyMessage = "Looking for nearby emergency hospitals."
+            emptyActionTitle = nil
+            return
+        }
+
+        switch emergencyCare.status {
+        case .ready:
+            badge = PillBadge(title: "Nearby", symbolName: "cross.case.fill", tint: NomadTheme.teal)
+            subtitle = "Within \(Int(emergencyCare.searchRadiusKilometers)) km"
+            rows = emergencyCare.hospitals.map { hospital in
+                EmergencyHospitalRowModel(
+                    id: hospital.id,
+                    hospitalName: hospital.name,
+                    hospitalDetail: Self.hospitalDetail(for: hospital),
+                    distanceText: NomadFormatters.kilometers(hospital.distanceKilometers),
+                    ownershipTitle: hospital.ownership == .unknown ? nil : hospital.ownership.displayName,
+                    ownershipTint: Self.ownershipTint(for: hospital.ownership),
+                    destination: EmergencyHospitalMapDestination(
+                        hospitalName: hospital.name,
+                        address: hospital.address,
+                        locality: hospital.locality,
+                        ownership: hospital.ownership,
+                        latitude: hospital.latitude,
+                        longitude: hospital.longitude
+                    )
+                )
+            }
+            emptyTitle = ""
+            emptySystemImage = "cross.case.fill"
+            emptyMessage = ""
+            emptyActionTitle = nil
+        case .locationRequired:
+            badge = PillBadge(title: "Location Needed", symbolName: "location.slash.fill", tint: NomadTheme.sand)
+            subtitle = "Precise location is required"
+            rows = []
+            emptyTitle = "Current Location Needed"
+            emptySystemImage = "location.slash.fill"
+            emptyMessage = locationStatusDetail ?? emergencyCare.detail ?? "Allow current location to look up nearby emergency hospitals."
+            emptyActionTitle = "Open Settings"
+        case .unavailable:
+            badge = PillBadge(title: "Unavailable", symbolName: "wifi.exclamationmark", tint: NomadTheme.primaryText)
+            subtitle = emergencyCare.sourceName
+            rows = []
+            emptyTitle = "Emergency Care Unavailable"
+            emptySystemImage = "wifi.exclamationmark"
+            emptyMessage = emergencyCare.detail ?? "Nearby emergency hospitals are unavailable right now."
+            emptyActionTitle = nil
+        case .noHospitalsFound:
+            badge = PillBadge(title: "No Matches", symbolName: "mappin.slash", tint: NomadTheme.primaryText)
+            subtitle = "Within \(Int(emergencyCare.searchRadiusKilometers)) km"
+            rows = []
+            emptyTitle = "No Nearby Hospitals"
+            emptySystemImage = "mappin.slash"
+            emptyMessage = emergencyCare.detail ?? "No nearby emergency hospitals were found."
+            emptyActionTitle = nil
+        }
+    }
+
+    var isActionable: Bool {
+        emptyActionTitle != nil
+    }
+
+    private static func hospitalDetail(for hospital: EmergencyHospital) -> String {
+        let pieces = [
+            hospital.address,
+            hospital.locality
+        ].compactMap(\.self)
+        return pieces.joined(separator: " · ")
+    }
+
+    private static func ownershipTint(for ownership: HospitalOwnership) -> Color? {
+        switch ownership {
+        case .public:
+            NomadTheme.teal
+        case .private:
+            NomadTheme.sand
+        case .unknown:
+            nil
+        }
     }
 }
 

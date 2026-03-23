@@ -16,6 +16,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var weatherHourlyForecastExpanded: Bool
     public var weatherDailyForecastExpanded: Bool
     public var fuelPricesEnabled: Bool
+    public var emergencyCareEnabled: Bool
     public var visitedPlacesEnabled: Bool
     public var travelAdvisoryEnabled: Bool
     public var travelWeatherAlertsEnabled: Bool
@@ -41,6 +42,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         weatherHourlyForecastExpanded: Bool = false,
         weatherDailyForecastExpanded: Bool = false,
         fuelPricesEnabled: Bool = false,
+        emergencyCareEnabled: Bool = false,
         visitedPlacesEnabled: Bool = true,
         travelAdvisoryEnabled: Bool = true,
         travelWeatherAlertsEnabled: Bool = false,
@@ -65,6 +67,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.weatherHourlyForecastExpanded = weatherHourlyForecastExpanded
         self.weatherDailyForecastExpanded = weatherDailyForecastExpanded
         self.fuelPricesEnabled = fuelPricesEnabled
+        self.emergencyCareEnabled = emergencyCareEnabled
         self.visitedPlacesEnabled = visitedPlacesEnabled
         self.travelAdvisoryEnabled = travelAdvisoryEnabled
         self.travelWeatherAlertsEnabled = travelWeatherAlertsEnabled
@@ -91,6 +94,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case weatherHourlyForecastExpanded
         case weatherDailyForecastExpanded
         case fuelPricesEnabled
+        case emergencyCareEnabled
         case visitedPlacesEnabled
         case travelAdvisoryEnabled
         case travelWeatherAlertsEnabled
@@ -133,6 +137,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         weatherHourlyForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherHourlyForecastExpanded) ?? false
         weatherDailyForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherDailyForecastExpanded) ?? false
         fuelPricesEnabled = try container.decodeIfPresent(Bool.self, forKey: .fuelPricesEnabled) ?? false
+        emergencyCareEnabled = try container.decodeIfPresent(Bool.self, forKey: .emergencyCareEnabled) ?? false
         visitedPlacesEnabled = try container.decodeIfPresent(Bool.self, forKey: .visitedPlacesEnabled) ?? false
         travelAdvisoryEnabled = try container.decodeIfPresent(Bool.self, forKey: .travelAdvisoryEnabled) ?? true
         travelWeatherAlertsEnabled = try container.decodeIfPresent(Bool.self, forKey: .travelWeatherAlertsEnabled) ?? false
@@ -165,6 +170,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encode(weatherHourlyForecastExpanded, forKey: .weatherHourlyForecastExpanded)
         try container.encode(weatherDailyForecastExpanded, forKey: .weatherDailyForecastExpanded)
         try container.encode(fuelPricesEnabled, forKey: .fuelPricesEnabled)
+        try container.encode(emergencyCareEnabled, forKey: .emergencyCareEnabled)
         try container.encode(visitedPlacesEnabled, forKey: .visitedPlacesEnabled)
         try container.encode(travelAdvisoryEnabled, forKey: .travelAdvisoryEnabled)
         try container.encode(travelWeatherAlertsEnabled, forKey: .travelWeatherAlertsEnabled)

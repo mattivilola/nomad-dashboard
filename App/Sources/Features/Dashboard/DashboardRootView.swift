@@ -17,6 +17,7 @@ struct DashboardRootView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
     @State private var selectedFuelStation: FuelStationMapDestination?
+    @State private var selectedEmergencyHospital: EmergencyHospitalMapDestination?
     @State private var locationRefreshTask: Task<Void, Never>?
     @State private var pendingLocationRefresh: CLLocation?
     @State private var lastLocationRefreshLocation: CLLocation?
@@ -42,6 +43,8 @@ struct DashboardRootView: View {
             openNetworkSettingsAction: openNetworkSettings,
             openFuelStationMapPreviewAction: openFuelStationMapPreview,
             openFuelStationInGoogleMapsAction: openFuelStationInGoogleMaps,
+            openEmergencyHospitalMapPreviewAction: openEmergencyHospitalMapPreview,
+            openEmergencyHospitalInGoogleMapsAction: openEmergencyHospitalInGoogleMaps,
             checkForUpdatesAction: checkForUpdatesAction,
             openSettingsAction: openSettings,
             openSurfSpotSettingsAction: openSurfSpotSettings,
@@ -72,6 +75,12 @@ struct DashboardRootView: View {
             FuelStationPreviewSheet(
                 station: station,
                 openInGoogleMapsAction: { openFuelStationInGoogleMaps(station) }
+            )
+        }
+        .sheet(item: $selectedEmergencyHospital) { hospital in
+            EmergencyHospitalPreviewSheet(
+                hospital: hospital,
+                openInGoogleMapsAction: { openEmergencyHospitalInGoogleMaps(hospital) }
             )
         }
         .onDisappear {
@@ -138,6 +147,22 @@ struct DashboardRootView: View {
 
     private func openFuelStationInGoogleMaps(_ station: FuelStationMapDestination) {
         guard let url = station.googleMapsURL else {
+            return
+        }
+
+        NSWorkspace.shared.open(url)
+    }
+
+    private func openEmergencyHospitalMapPreview(_ hospital: EmergencyHospitalMapDestination) {
+        guard hospital.isCoordinateValid else {
+            return
+        }
+
+        selectedEmergencyHospital = hospital
+    }
+
+    private func openEmergencyHospitalInGoogleMaps(_ hospital: EmergencyHospitalMapDestination) {
+        guard let url = hospital.googleMapsURL else {
             return
         }
 
@@ -303,6 +328,65 @@ private struct FuelStationPreviewSheet: View {
                 Text("Updated \(NomadFormatters.compactClockTime(updatedAt))")
                     .font(.caption)
                     .foregroundStyle(NomadTheme.tertiaryText)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 460, minHeight: 420, alignment: .topLeading)
+        .background(NomadTheme.background)
+    }
+}
+
+private struct EmergencyHospitalPreviewSheet: View {
+    let hospital: EmergencyHospitalMapDestination
+    let openInGoogleMapsAction: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(hospital.hospitalName)
+                        .font(.system(size: 22, weight: .semibold, design: .rounded))
+                        .foregroundStyle(NomadTheme.primaryText)
+
+                    if hospital.ownership != .unknown {
+                        Text(hospital.ownership.displayName)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(hospital.ownership == .public ? NomadTheme.teal : NomadTheme.sand)
+                    }
+
+                    if let addressLine = hospital.addressLine {
+                        Text(addressLine)
+                            .font(.subheadline)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                    }
+                }
+
+                Spacer(minLength: 12)
+            }
+
+            EmergencyHospitalMapView(
+                hospitalName: hospital.hospitalName,
+                coordinate: hospital.coordinate
+            )
+            .frame(width: 420, height: 280)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(NomadTheme.cardBorder.opacity(0.85), lineWidth: 1)
+            )
+
+            HStack(spacing: 10) {
+                Button("Open in Google Maps") {
+                    openInGoogleMapsAction()
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button("Close") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
             }
         }
         .padding(20)

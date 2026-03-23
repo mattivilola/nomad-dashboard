@@ -19,6 +19,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.shareAnonymousAnalytics == true)
         #expect(store.settings.visitedPlacesEnabled == true)
         #expect(store.settings.fuelPricesEnabled == false)
+        #expect(store.settings.emergencyCareEnabled == false)
         #expect(store.settings.travelAdvisoryEnabled == true)
         #expect(store.settings.travelWeatherAlertsEnabled == false)
         #expect(store.settings.regionalSecurityEnabled == false)
@@ -57,6 +58,7 @@ struct AppSettingsStoreTests {
             .weather,
             .travelAlerts,
             .fuelPrices,
+            .emergencyCare,
             .travelContext,
             .power,
             .connectivity
@@ -174,6 +176,19 @@ struct AppSettingsStoreTests {
     }
 
     @Test
+    func persistsEmergencyCarePreferenceToUserDefaults() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = AppSettingsStore(defaults: defaults)
+        store.settings.emergencyCareEnabled = true
+
+        let reloaded = AppSettingsStore(defaults: defaults)
+        #expect(reloaded.settings.emergencyCareEnabled == true)
+    }
+
+    @Test
     func decodesLegacyPayloadWithoutAppearanceMode() throws {
         let suiteName = UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -206,6 +221,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.launchAtLoginEnabled == true)
         #expect(store.settings.useCurrentLocationForWeather == false)
         #expect(store.settings.fuelPricesEnabled == false)
+        #expect(store.settings.emergencyCareEnabled == false)
         #expect(store.settings.visitedPlacesEnabled == false)
         #expect(store.settings.travelAdvisoryEnabled == true)
         #expect(store.settings.travelWeatherAlertsEnabled == false)
@@ -252,6 +268,7 @@ struct AppSettingsStoreTests {
             .connectivity,
             .travelContext,
             .fuelPrices,
+            .emergencyCare,
             .travelAlerts
         ])
     }

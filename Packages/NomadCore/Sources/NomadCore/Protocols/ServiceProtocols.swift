@@ -55,6 +55,10 @@ public protocol FuelPriceProvider: Sendable {
     func prices(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot
 }
 
+public protocol EmergencyCareProvider: Sendable {
+    func nearbyHospitals(for request: EmergencyCareSearchRequest, forceRefresh: Bool) async throws -> EmergencyCareSnapshot
+}
+
 public protocol FuelPriceProviderConfigurationUpdating: Sendable {
     func setTankerkonigAPIKey(_ apiKey: String?) async
 }

@@ -104,6 +104,7 @@ struct SettingsView: View {
                     Section {
                         Toggle("Use current location for weather", isOn: weatherLocationBinding)
                         Toggle("Show nearby fuel prices", isOn: fuelPricesBinding)
+                        Toggle("Show nearby emergency hospitals", isOn: emergencyCareBinding)
                         TextField("Tankerkönig API key (Germany only)", text: binding(\.tankerkonigAPIKey))
                             .textFieldStyle(.roundedBorder)
                             .focused($focusedField, equals: .tankerkonigAPIKey)
@@ -136,7 +137,7 @@ struct SettingsView: View {
                     } header: {
                         Text("Privacy & Location")
                     } footer: {
-                        Text("Weather, nearby fuel prices, and local weather alerts use device location only when you opt in. Fuel price support is country-dependent and currently best in Spain, France, Italy, and Germany. Germany requires your own Tankerkönig API key, while Spain, France, and Italy work without one. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs. Visited places stay on this Mac until you clear them. Anonymous install, launch, and daily background activity counts are always sent so app reach can be estimated; turn analytics off here to stop UI-based daily activity and window-open events.")
+                        Text("Weather, nearby fuel prices, nearby emergency hospitals, and local weather alerts use device location only when you opt in. Emergency care uses Apple Maps hospital points of interest and opens selected hospitals in maps. Fuel price support is country-dependent and currently best in Spain, France, Italy, and Germany. Germany requires your own Tankerkönig API key, while Spain, France, and Italy work without one. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs. Visited places stay on this Mac until you clear them. Anonymous install, launch, and daily background activity counts are always sent so app reach can be estimated; turn analytics off here to stop UI-based daily activity and window-open events.")
                     }
 
                     Section {
@@ -419,6 +420,20 @@ struct SettingsView: View {
             get: { settingsStore.settings.fuelPricesEnabled },
             set: { isEnabled in
                 settingsStore.settings.fuelPricesEnabled = isEnabled
+                snapshotStore.setCurrentLocation(locationStore.currentLocation)
+
+                if settingsStore.settings.usesDeviceLocation {
+                    locationStore.prepareForWeather()
+                }
+            }
+        )
+    }
+
+    private var emergencyCareBinding: Binding<Bool> {
+        Binding(
+            get: { settingsStore.settings.emergencyCareEnabled },
+            set: { isEnabled in
+                settingsStore.settings.emergencyCareEnabled = isEnabled
                 snapshotStore.setCurrentLocation(locationStore.currentLocation)
 
                 if settingsStore.settings.usesDeviceLocation {

@@ -512,6 +512,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
     public let weather: WeatherSnapshot?
     public let fuelPrices: FuelPriceSnapshot?
     public let fuelDiagnostics: FuelDiagnosticsSnapshot?
+    public let emergencyCare: EmergencyCareSnapshot?
     public let marine: MarineSnapshot?
     public let appState: AppStatusSnapshot
     public let healthSummary: DashboardHealthSummary
@@ -524,6 +525,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         weather: WeatherSnapshot?,
         fuelPrices: FuelPriceSnapshot? = nil,
         fuelDiagnostics: FuelDiagnosticsSnapshot? = nil,
+        emergencyCare: EmergencyCareSnapshot? = nil,
         marine: MarineSnapshot? = nil,
         appState: AppStatusSnapshot,
         healthSummary: DashboardHealthSummary? = nil
@@ -535,6 +537,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         self.weather = weather
         self.fuelPrices = fuelPrices
         self.fuelDiagnostics = fuelDiagnostics
+        self.emergencyCare = emergencyCare
         self.marine = marine
         self.appState = appState
         self.healthSummary = healthSummary ?? DashboardHealthEvaluator.makeSummary(
@@ -590,6 +593,7 @@ public extension DashboardSnapshot {
         ),
         weather: nil,
         fuelPrices: nil,
+        emergencyCare: nil,
         marine: nil,
         appState: AppStatusSnapshot(lastRefresh: nil, updateState: .idle, issues: [])
     )
@@ -873,6 +877,43 @@ public extension DashboardSnapshot {
             summary: "Fuel prices loaded successfully.",
             error: nil
         ),
+        emergencyCare: EmergencyCareSnapshot(
+            status: .ready,
+            sourceName: "Apple Maps",
+            sourceURL: URL(string: "https://maps.apple.com"),
+            searchRadiusKilometers: 25,
+            hospitals: [
+                EmergencyHospital(
+                    name: "Hospital Universitari i Politècnic La Fe",
+                    address: "Avinguda de Fernando Abril Martorell 106",
+                    locality: "Valencia",
+                    distanceKilometers: 3.2,
+                    latitude: 39.4468,
+                    longitude: -0.3762,
+                    ownership: .public
+                ),
+                EmergencyHospital(
+                    name: "Hospital IMED Valencia Private",
+                    address: "Avinguda de la Ilustració 1",
+                    locality: "Burjassot",
+                    distanceKilometers: 6.8,
+                    latitude: 39.5092,
+                    longitude: -0.4188,
+                    ownership: .private
+                ),
+                EmergencyHospital(
+                    name: "Hospital Casa de Salut",
+                    address: "Carrer del Doctor Manuel Candela 41",
+                    locality: "Valencia",
+                    distanceKilometers: 2.4,
+                    latitude: 39.4662,
+                    longitude: -0.3473,
+                    ownership: .unknown
+                )
+            ],
+            fetchedAt: .now,
+            detail: "Nearby emergency hospitals within 25 km."
+        ),
         marine: MarineSnapshot(
             spotName: "El Saler",
             coordinate: CLLocationCoordinate2D(latitude: 39.355, longitude: -0.314),
@@ -910,6 +951,7 @@ public extension DashboardSnapshot {
             weather: weather,
             fuelPrices: fuelPrices,
             fuelDiagnostics: fuelDiagnostics,
+            emergencyCare: emergencyCare,
             marine: marine,
             appState: appState,
             healthSummary: healthSummary

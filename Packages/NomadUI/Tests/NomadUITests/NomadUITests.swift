@@ -679,6 +679,125 @@ struct NomadUITests {
     }
 
     @Test
+    func emergencyCareSectionPresentationShowsRowsForReadySnapshot() {
+        var settings = AppSettings()
+        settings.emergencyCareEnabled = true
+
+        let presentation = EmergencyCareSectionPresentation(
+            settings: settings,
+            snapshot: DashboardSnapshot.preview,
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.badge.title == "Nearby")
+        #expect(presentation.rows.count == 3)
+        #expect(presentation.rows.first?.ownershipTitle == "Public")
+        #expect(presentation.rows.last?.ownershipTitle == nil)
+        #expect(presentation.rows.map(\.hasMapActions) == [true, true, true])
+    }
+
+    @Test
+    func emergencyCareSectionPresentationUsesCheckingStateWhileSnapshotIsMissing() {
+        var settings = AppSettings()
+        settings.emergencyCareEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            fuelPrices: DashboardSnapshot.preview.fuelPrices,
+            fuelDiagnostics: DashboardSnapshot.preview.fuelDiagnostics,
+            emergencyCare: nil,
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = EmergencyCareSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.badge.title == "Checking")
+        #expect(presentation.emptyTitle == "Checking Emergency Care")
+    }
+
+    @Test
+    func emergencyCareSectionPresentationUsesLocationDetailWhenLocationIsMissing() {
+        var settings = AppSettings()
+        settings.emergencyCareEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            fuelPrices: DashboardSnapshot.preview.fuelPrices,
+            fuelDiagnostics: DashboardSnapshot.preview.fuelDiagnostics,
+            emergencyCare: EmergencyCareSnapshot(
+                status: .locationRequired,
+                sourceName: "Apple Maps",
+                sourceURL: URL(string: "https://maps.apple.com"),
+                searchRadiusKilometers: 25,
+                hospitals: [],
+                fetchedAt: nil,
+                detail: "Allow current location to look up nearby emergency hospitals."
+            ),
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = EmergencyCareSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: "Allow location access to use current emergency care."
+        )
+
+        #expect(presentation.badge.title == "Location Needed")
+        #expect(presentation.emptyMessage == "Allow location access to use current emergency care.")
+    }
+
+    @Test
+    func emergencyCareSectionPresentationShowsNoMatchesCopy() {
+        var settings = AppSettings()
+        settings.emergencyCareEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            fuelPrices: DashboardSnapshot.preview.fuelPrices,
+            fuelDiagnostics: DashboardSnapshot.preview.fuelDiagnostics,
+            emergencyCare: EmergencyCareSnapshot(
+                status: .noHospitalsFound,
+                sourceName: "Apple Maps",
+                sourceURL: URL(string: "https://maps.apple.com"),
+                searchRadiusKilometers: 25,
+                hospitals: [],
+                fetchedAt: .now,
+                detail: "No nearby emergency hospitals were found."
+            ),
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = EmergencyCareSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.badge.title == "No Matches")
+        #expect(presentation.emptyTitle == "No Nearby Hospitals")
+        #expect(presentation.emptyMessage == "No nearby emergency hospitals were found.")
+    }
+
+    @Test
     func fuelCardVisibilityRatioReflectsVisibleHeight() {
         let ratio = fuelCardVisibilityRatio(
             frame: CGRect(x: 0, y: 520, width: 300, height: 200),
@@ -729,14 +848,17 @@ struct NomadUITests {
 }
 
 private func makeWeatherSnapshot() -> WeatherSnapshot {
-    let dailyForecast = (1...7).map { dayOffset in
-        WeatherDaySummary(
-            date: Calendar.current.date(byAdding: .day, value: dayOffset, to: .now) ?? .now,
-            symbolName: dayOffset == 1 ? "cloud.sun.fill" : "sun.max.fill",
-            summary: dayOffset == 1 ? "Tomorrow outlook" : "Day \(dayOffset)",
-            temperatureMinCelsius: Double(10 + dayOffset),
-            temperatureMaxCelsius: Double(18 + dayOffset),
-            precipitationChance: Double(dayOffset) / 100
+    var dailyForecast: [WeatherDaySummary] = []
+    for dayOffset in 1...7 {
+        dailyForecast.append(
+            WeatherDaySummary(
+                date: Calendar.current.date(byAdding: .day, value: dayOffset, to: .now) ?? .now,
+                symbolName: dayOffset == 1 ? "cloud.sun.fill" : "sun.max.fill",
+                summary: dayOffset == 1 ? "Tomorrow outlook" : "Day \(dayOffset)",
+                temperatureMinCelsius: Double(10 + dayOffset),
+                temperatureMaxCelsius: Double(18 + dayOffset),
+                precipitationChance: Double(dayOffset) / 100
+            )
         )
     }
 

@@ -12,6 +12,7 @@ public struct DashboardDependencies: Sendable {
     public let reverseGeocodingProvider: any ReverseGeocodingProvider
     public let weatherProvider: any WeatherProvider
     public let fuelPriceProvider: any FuelPriceProvider
+    public let emergencyCareProvider: any EmergencyCareProvider
     public let marineProvider: any MarineProvider
     public let neighborCountryResolver: any NeighborCountryResolver
     public let travelAdvisoryProvider: any TravelAdvisoryProvider
@@ -33,6 +34,7 @@ public struct DashboardDependencies: Sendable {
         reverseGeocodingProvider: any ReverseGeocodingProvider,
         weatherProvider: any WeatherProvider,
         fuelPriceProvider: any FuelPriceProvider,
+        emergencyCareProvider: any EmergencyCareProvider,
         marineProvider: any MarineProvider,
         neighborCountryResolver: any NeighborCountryResolver,
         travelAdvisoryProvider: any TravelAdvisoryProvider,
@@ -53,6 +55,7 @@ public struct DashboardDependencies: Sendable {
         self.reverseGeocodingProvider = reverseGeocodingProvider
         self.weatherProvider = weatherProvider
         self.fuelPriceProvider = fuelPriceProvider
+        self.emergencyCareProvider = emergencyCareProvider
         self.marineProvider = marineProvider
         self.neighborCountryResolver = neighborCountryResolver
         self.travelAdvisoryProvider = travelAdvisoryProvider
@@ -86,6 +89,7 @@ public struct DashboardDependencies: Sendable {
             reverseGeocodingProvider: CachedReverseGeocodingProvider(),
             weatherProvider: LiveWeatherProvider(),
             fuelPriceProvider: LiveEuropeanFuelPriceProvider(tankerkonigAPIKey: tankerkonigAPIKey),
+            emergencyCareProvider: LiveEmergencyCareProvider(),
             marineProvider: LiveOpenMeteoMarineProvider(),
             neighborCountryResolver: BundledNeighborCountryResolver(),
             travelAdvisoryProvider: SmartravellerAdvisoryProvider(),
