@@ -20,6 +20,14 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.3.0] - 2026-03-23
+
+### Changed
+
+- Add hourly and multi-day weather forecast models and display settings
+- Add expandable hourly and multi-day weather forecasts to dashboard
+- Add Emergency Care dashboard feature with map previews
+
 ## [0.2.0] - 2026-03-20
 
 ### Changed
