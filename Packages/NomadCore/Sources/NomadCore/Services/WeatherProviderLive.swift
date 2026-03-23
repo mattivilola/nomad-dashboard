@@ -6,6 +6,7 @@ public actor LiveWeatherProvider: WeatherProvider {
     private let service: WeatherService
     private let ttl: TimeInterval
     private var cache: (key: String, snapshot: WeatherSnapshot)?
+    static let forecastHourOffsets = [3, 6, 12, 24]
 
     public init(service: WeatherService = WeatherService(), ttl: TimeInterval = 1_800) {
         self.service = service
@@ -36,6 +37,20 @@ public actor LiveWeatherProvider: WeatherProvider {
         minuteForecastChance ?? hourlyForecastChance
     }
 
+    static func forecastTargetDates(from referenceDate: Date) -> [Date] {
+        forecastHourOffsets.map { referenceDate.addingTimeInterval(TimeInterval($0 * 3_600)) }
+    }
+
+    static func upcomingDailyForecasts(_ days: [WeatherDaySummary]) -> [WeatherDaySummary] {
+        Array(days.prefix(7))
+    }
+
+    static func nearestIndex(in dates: [Date], to targetDate: Date) -> Int? {
+        dates.enumerated().min { lhs, rhs in
+            abs(lhs.element.timeIntervalSince(targetDate)) < abs(rhs.element.timeIntervalSince(targetDate))
+        }?.offset
+    }
+
     private static func cacheKey(for coordinate: CLLocationCoordinate2D) -> String {
         let latitude = String(format: "%.3f", coordinate.latitude)
         let longitude = String(format: "%.3f", coordinate.longitude)
@@ -48,10 +63,17 @@ private enum WeatherKitSnapshotProjector {
         let weather = try await service.weather(
             for: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         )
-        let tomorrow = weather.dailyForecast.forecast.dropFirst().first ?? weather.dailyForecast.forecast.first
+        let fetchedAt = Date()
         let precipitationChance = LiveWeatherProvider.nearTermPrecipitationChance(
             minuteForecastChance: weather.minuteForecast?.forecast.first?.precipitationChance,
             hourlyForecastChance: weather.hourlyForecast.forecast.first?.precipitationChance
+        )
+        let dailyForecast = LiveWeatherProvider.upcomingDailyForecasts(
+            weather.dailyForecast.forecast.dropFirst().map(daySummary(from:))
+        )
+        let hourlyForecast = hourlyForecastSlots(
+            from: weather.hourlyForecast.forecast,
+            referenceDate: fetchedAt
         )
 
         return WeatherSnapshot(
@@ -61,18 +83,44 @@ private enum WeatherKitSnapshotProjector {
             symbolName: weather.currentWeather.symbolName,
             precipitationChance: precipitationChance,
             windSpeedKph: weather.currentWeather.wind.speed.converted(to: .kilometersPerHour).value,
-            tomorrow: tomorrow.map {
-                WeatherDaySummary(
-                    date: $0.date,
-                    symbolName: $0.symbolName,
-                    summary: $0.condition.description,
-                    temperatureMinCelsius: $0.lowTemperature.converted(to: .celsius).value,
-                    temperatureMaxCelsius: $0.highTemperature.converted(to: .celsius).value,
-                    precipitationChance: $0.precipitationChance
-                )
-            },
-            fetchedAt: Date()
+            hourlyForecastSlots: hourlyForecast,
+            dailyForecast: dailyForecast,
+            fetchedAt: fetchedAt
         )
+    }
+
+    private static func daySummary(from forecast: DayWeather) -> WeatherDaySummary {
+        WeatherDaySummary(
+            date: forecast.date,
+            symbolName: forecast.symbolName,
+            summary: forecast.condition.description,
+            temperatureMinCelsius: forecast.lowTemperature.converted(to: .celsius).value,
+            temperatureMaxCelsius: forecast.highTemperature.converted(to: .celsius).value,
+            precipitationChance: forecast.precipitationChance
+        )
+    }
+
+    private static func hourlyForecastSlots(
+        from forecast: [HourWeather],
+        referenceDate: Date
+    ) -> [WeatherHourlyForecastSlot] {
+        let forecastDates = forecast.map(\.date)
+
+        return LiveWeatherProvider.forecastTargetDates(from: referenceDate).compactMap { targetDate in
+            guard let index = LiveWeatherProvider.nearestIndex(in: forecastDates, to: targetDate) else {
+                return nil
+            }
+
+            let hour = forecast[index]
+            return WeatherHourlyForecastSlot(
+                date: targetDate,
+                symbolName: hour.symbolName,
+                conditionDescription: hour.condition.description,
+                temperatureCelsius: hour.temperature.converted(to: .celsius).value,
+                precipitationChance: hour.precipitationChance,
+                windSpeedKph: hour.wind.speed.converted(to: .kilometersPerHour).value
+            )
+        }
     }
 }
 

@@ -231,6 +231,35 @@ public struct WeatherDaySummary: Equatable, Sendable {
     }
 }
 
+public struct WeatherHourlyForecastSlot: Equatable, Sendable, Identifiable {
+    public let date: Date
+    public let symbolName: String
+    public let conditionDescription: String
+    public let temperatureCelsius: Double?
+    public let precipitationChance: Double?
+    public let windSpeedKph: Double?
+
+    public var id: Date {
+        date
+    }
+
+    public init(
+        date: Date,
+        symbolName: String,
+        conditionDescription: String,
+        temperatureCelsius: Double?,
+        precipitationChance: Double?,
+        windSpeedKph: Double?
+    ) {
+        self.date = date
+        self.symbolName = symbolName
+        self.conditionDescription = conditionDescription
+        self.temperatureCelsius = temperatureCelsius
+        self.precipitationChance = precipitationChance
+        self.windSpeedKph = windSpeedKph
+    }
+}
+
 public struct WeatherSnapshot: Equatable, Sendable {
     public let currentTemperatureCelsius: Double?
     public let apparentTemperatureCelsius: Double?
@@ -238,6 +267,8 @@ public struct WeatherSnapshot: Equatable, Sendable {
     public let symbolName: String
     public let precipitationChance: Double?
     public let windSpeedKph: Double?
+    public let hourlyForecastSlots: [WeatherHourlyForecastSlot]
+    public let dailyForecast: [WeatherDaySummary]
     public let tomorrow: WeatherDaySummary?
     public let fetchedAt: Date
 
@@ -248,7 +279,9 @@ public struct WeatherSnapshot: Equatable, Sendable {
         symbolName: String,
         precipitationChance: Double?,
         windSpeedKph: Double?,
-        tomorrow: WeatherDaySummary?,
+        hourlyForecastSlots: [WeatherHourlyForecastSlot] = [],
+        dailyForecast: [WeatherDaySummary] = [],
+        tomorrow: WeatherDaySummary? = nil,
         fetchedAt: Date
     ) {
         self.currentTemperatureCelsius = currentTemperatureCelsius
@@ -257,7 +290,9 @@ public struct WeatherSnapshot: Equatable, Sendable {
         self.symbolName = symbolName
         self.precipitationChance = precipitationChance
         self.windSpeedKph = windSpeedKph
-        self.tomorrow = tomorrow
+        self.hourlyForecastSlots = hourlyForecastSlots
+        self.dailyForecast = dailyForecast.isEmpty ? tomorrow.map { [$0] } ?? [] : dailyForecast
+        self.tomorrow = self.dailyForecast.first ?? tomorrow
         self.fetchedAt = fetchedAt
     }
 }
@@ -693,14 +728,98 @@ public extension DashboardSnapshot {
             symbolName: "cloud.sun.fill",
             precipitationChance: 0.18,
             windSpeedKph: 14,
-            tomorrow: WeatherDaySummary(
-                date: Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now,
-                symbolName: "sun.max.fill",
-                summary: "Clear and mild",
-                temperatureMinCelsius: 13,
-                temperatureMaxCelsius: 23,
-                precipitationChance: 0.04
-            ),
+            hourlyForecastSlots: [
+                WeatherHourlyForecastSlot(
+                    date: Date().addingTimeInterval(3 * 3_600),
+                    symbolName: "cloud.sun.fill",
+                    conditionDescription: "Partly Cloudy",
+                    temperatureCelsius: 20,
+                    precipitationChance: 0.10,
+                    windSpeedKph: 12
+                ),
+                WeatherHourlyForecastSlot(
+                    date: Date().addingTimeInterval(6 * 3_600),
+                    symbolName: "sun.max.fill",
+                    conditionDescription: "Clear",
+                    temperatureCelsius: 21,
+                    precipitationChance: 0.02,
+                    windSpeedKph: 10
+                ),
+                WeatherHourlyForecastSlot(
+                    date: Date().addingTimeInterval(12 * 3_600),
+                    symbolName: "cloud.fill",
+                    conditionDescription: "Cloudy",
+                    temperatureCelsius: 17,
+                    precipitationChance: 0.22,
+                    windSpeedKph: 15
+                ),
+                WeatherHourlyForecastSlot(
+                    date: Date().addingTimeInterval(24 * 3_600),
+                    symbolName: "cloud.rain.fill",
+                    conditionDescription: "Light Rain",
+                    temperatureCelsius: 16,
+                    precipitationChance: 0.45,
+                    windSpeedKph: 18
+                )
+            ],
+            dailyForecast: [
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now,
+                    symbolName: "sun.max.fill",
+                    summary: "Clear and mild",
+                    temperatureMinCelsius: 13,
+                    temperatureMaxCelsius: 23,
+                    precipitationChance: 0.04
+                ),
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 2, to: .now) ?? .now,
+                    symbolName: "cloud.sun.fill",
+                    summary: "Partly cloudy",
+                    temperatureMinCelsius: 14,
+                    temperatureMaxCelsius: 22,
+                    precipitationChance: 0.12
+                ),
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 3, to: .now) ?? .now,
+                    symbolName: "cloud.fill",
+                    summary: "Overcast",
+                    temperatureMinCelsius: 12,
+                    temperatureMaxCelsius: 19,
+                    precipitationChance: 0.20
+                ),
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 4, to: .now) ?? .now,
+                    symbolName: "cloud.rain.fill",
+                    summary: "Rain showers",
+                    temperatureMinCelsius: 11,
+                    temperatureMaxCelsius: 17,
+                    precipitationChance: 0.55
+                ),
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 5, to: .now) ?? .now,
+                    symbolName: "cloud.bolt.rain.fill",
+                    summary: "Storm risk",
+                    temperatureMinCelsius: 10,
+                    temperatureMaxCelsius: 16,
+                    precipitationChance: 0.62
+                ),
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 6, to: .now) ?? .now,
+                    symbolName: "cloud.sun.fill",
+                    summary: "Brighter later",
+                    temperatureMinCelsius: 12,
+                    temperatureMaxCelsius: 18,
+                    precipitationChance: 0.18
+                ),
+                WeatherDaySummary(
+                    date: Calendar.current.date(byAdding: .day, value: 7, to: .now) ?? .now,
+                    symbolName: "sun.max.fill",
+                    summary: "Sunny",
+                    temperatureMinCelsius: 13,
+                    temperatureMaxCelsius: 21,
+                    precipitationChance: 0.03
+                )
+            ],
             fetchedAt: .now
         ),
         fuelPrices: FuelPriceSnapshot(

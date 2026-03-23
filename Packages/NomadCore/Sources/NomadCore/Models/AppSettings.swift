@@ -13,6 +13,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var automaticUpdateChecksEnabled: Bool
     public var launchAtLoginEnabled: Bool
     public var useCurrentLocationForWeather: Bool
+    public var weatherHourlyForecastExpanded: Bool
+    public var weatherDailyForecastExpanded: Bool
     public var fuelPricesEnabled: Bool
     public var visitedPlacesEnabled: Bool
     public var travelAdvisoryEnabled: Bool
@@ -36,6 +38,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         automaticUpdateChecksEnabled: Bool = true,
         launchAtLoginEnabled: Bool = false,
         useCurrentLocationForWeather: Bool = true,
+        weatherHourlyForecastExpanded: Bool = false,
+        weatherDailyForecastExpanded: Bool = false,
         fuelPricesEnabled: Bool = false,
         visitedPlacesEnabled: Bool = true,
         travelAdvisoryEnabled: Bool = true,
@@ -58,6 +62,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.automaticUpdateChecksEnabled = automaticUpdateChecksEnabled
         self.launchAtLoginEnabled = launchAtLoginEnabled
         self.useCurrentLocationForWeather = useCurrentLocationForWeather
+        self.weatherHourlyForecastExpanded = weatherHourlyForecastExpanded
+        self.weatherDailyForecastExpanded = weatherDailyForecastExpanded
         self.fuelPricesEnabled = fuelPricesEnabled
         self.visitedPlacesEnabled = visitedPlacesEnabled
         self.travelAdvisoryEnabled = travelAdvisoryEnabled
@@ -82,6 +88,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case automaticUpdateChecksEnabled
         case launchAtLoginEnabled
         case useCurrentLocationForWeather
+        case weatherHourlyForecastExpanded
+        case weatherDailyForecastExpanded
         case fuelPricesEnabled
         case visitedPlacesEnabled
         case travelAdvisoryEnabled
@@ -122,6 +130,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         automaticUpdateChecksEnabled = try container.decode(Bool.self, forKey: .automaticUpdateChecksEnabled)
         launchAtLoginEnabled = try container.decode(Bool.self, forKey: .launchAtLoginEnabled)
         useCurrentLocationForWeather = try container.decode(Bool.self, forKey: .useCurrentLocationForWeather)
+        weatherHourlyForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherHourlyForecastExpanded) ?? false
+        weatherDailyForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherDailyForecastExpanded) ?? false
         fuelPricesEnabled = try container.decodeIfPresent(Bool.self, forKey: .fuelPricesEnabled) ?? false
         visitedPlacesEnabled = try container.decodeIfPresent(Bool.self, forKey: .visitedPlacesEnabled) ?? false
         travelAdvisoryEnabled = try container.decodeIfPresent(Bool.self, forKey: .travelAdvisoryEnabled) ?? true
@@ -152,6 +162,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encode(automaticUpdateChecksEnabled, forKey: .automaticUpdateChecksEnabled)
         try container.encode(launchAtLoginEnabled, forKey: .launchAtLoginEnabled)
         try container.encode(useCurrentLocationForWeather, forKey: .useCurrentLocationForWeather)
+        try container.encode(weatherHourlyForecastExpanded, forKey: .weatherHourlyForecastExpanded)
+        try container.encode(weatherDailyForecastExpanded, forKey: .weatherDailyForecastExpanded)
         try container.encode(fuelPricesEnabled, forKey: .fuelPricesEnabled)
         try container.encode(visitedPlacesEnabled, forKey: .visitedPlacesEnabled)
         try container.encode(travelAdvisoryEnabled, forKey: .travelAdvisoryEnabled)
