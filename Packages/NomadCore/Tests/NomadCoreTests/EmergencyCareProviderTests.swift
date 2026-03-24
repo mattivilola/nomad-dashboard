@@ -131,6 +131,134 @@ struct EmergencyCareProviderTests {
         #expect(snapshot.status == .noHospitalsFound)
         #expect(snapshot.hospitals.isEmpty)
     }
+
+    @Test
+    func providerExpandsSearchRadiusUntilItFindsPreferredThreeHospitals() async throws {
+        let searcher = RadiusAwareEmergencyCareSearcher(resultsByRadiusKilometers: [
+            25: [
+                EmergencyCareSearchResult(
+                    name: "Hospital Quironsalud Torrevieja",
+                    address: "Partida de La Loma",
+                    locality: "Torrevieja",
+                    latitude: 37.9820,
+                    longitude: -0.6750,
+                    ownershipHint: nil
+                )
+            ],
+            50: [
+                EmergencyCareSearchResult(
+                    name: "Hospital Quironsalud Torrevieja",
+                    address: "Partida de La Loma",
+                    locality: "Torrevieja",
+                    latitude: 37.9820,
+                    longitude: -0.6750,
+                    ownershipHint: nil
+                ),
+                EmergencyCareSearchResult(
+                    name: "Hospital Vega Baja",
+                    address: "Calle de Orihuela",
+                    locality: "Orihuela",
+                    latitude: 38.0850,
+                    longitude: -0.9440,
+                    ownershipHint: nil
+                )
+            ],
+            100: [
+                EmergencyCareSearchResult(
+                    name: "Hospital Quironsalud Torrevieja",
+                    address: "Partida de La Loma",
+                    locality: "Torrevieja",
+                    latitude: 37.9820,
+                    longitude: -0.6750,
+                    ownershipHint: nil
+                ),
+                EmergencyCareSearchResult(
+                    name: "Hospital Vega Baja",
+                    address: "Calle de Orihuela",
+                    locality: "Orihuela",
+                    latitude: 38.0850,
+                    longitude: -0.9440,
+                    ownershipHint: nil
+                ),
+                EmergencyCareSearchResult(
+                    name: "Hospital General Universitario de Alicante",
+                    address: "Pintor Baeza",
+                    locality: "Alicante",
+                    latitude: 38.3615,
+                    longitude: -0.4818,
+                    ownershipHint: "Hospital Publico"
+                )
+            ]
+        ])
+        let provider = LiveEmergencyCareProvider(searcher: searcher, ttl: 900, cacheDistanceMeters: 500)
+
+        let snapshot = try await provider.nearbyHospitals(
+            for: EmergencyCareSearchRequest(
+                coordinate: CLLocationCoordinate2D(latitude: 37.9780, longitude: -0.6820)
+            ),
+            forceRefresh: false
+        )
+
+        #expect(snapshot.status == .ready)
+        #expect(snapshot.hospitals.count == 3)
+        #expect(snapshot.searchRadiusKilometers == 100)
+        #expect(snapshot.detail == "Nearby emergency hospitals within 100 km.")
+        #expect(await searcher.requestedRadiiKilometers() == [25, 50, 100])
+    }
+
+    @Test
+    func providerStopsExpandingAfterFiftyKilometersWhenPreferredCountIsReached() async throws {
+        let searcher = RadiusAwareEmergencyCareSearcher(resultsByRadiusKilometers: [
+            25: [
+                EmergencyCareSearchResult(
+                    name: "Hospital Quironsalud Torrevieja",
+                    address: "Partida de La Loma",
+                    locality: "Torrevieja",
+                    latitude: 37.9820,
+                    longitude: -0.6750,
+                    ownershipHint: nil
+                )
+            ],
+            50: [
+                EmergencyCareSearchResult(
+                    name: "Hospital Quironsalud Torrevieja",
+                    address: "Partida de La Loma",
+                    locality: "Torrevieja",
+                    latitude: 37.9820,
+                    longitude: -0.6750,
+                    ownershipHint: nil
+                ),
+                EmergencyCareSearchResult(
+                    name: "Hospital Vega Baja",
+                    address: "Calle de Orihuela",
+                    locality: "Orihuela",
+                    latitude: 38.0850,
+                    longitude: -0.9440,
+                    ownershipHint: nil
+                ),
+                EmergencyCareSearchResult(
+                    name: "Hospital General Universitario de Elche",
+                    address: "Camino de l'Almazara",
+                    locality: "Elche",
+                    latitude: 38.2681,
+                    longitude: -0.6990,
+                    ownershipHint: "Hospital Publico"
+                )
+            ]
+        ])
+        let provider = LiveEmergencyCareProvider(searcher: searcher, ttl: 900, cacheDistanceMeters: 500)
+
+        let snapshot = try await provider.nearbyHospitals(
+            for: EmergencyCareSearchRequest(
+                coordinate: CLLocationCoordinate2D(latitude: 37.9780, longitude: -0.6820)
+            ),
+            forceRefresh: false
+        )
+
+        #expect(snapshot.hospitals.count == 3)
+        #expect(snapshot.searchRadiusKilometers == 50)
+        #expect(await searcher.requestedRadiiKilometers() == [25, 50])
+    }
 }
 
 private actor RecordingEmergencyCareSearcher: EmergencyCareSearchPerforming {
@@ -171,6 +299,28 @@ private actor RecordingEmergencyCareSearcher: EmergencyCareSearchPerforming {
 
     func callCount() -> Int {
         calls
+    }
+}
+
+private actor RadiusAwareEmergencyCareSearcher: EmergencyCareSearchPerforming {
+    private let resultsByRadiusKilometers: [Int: [EmergencyCareSearchResult]]
+    private var requestedRadii: [Int] = []
+
+    init(resultsByRadiusKilometers: [Int: [EmergencyCareSearchResult]]) {
+        self.resultsByRadiusKilometers = resultsByRadiusKilometers
+    }
+
+    func nearbyHospitalResults(
+        near coordinate: CLLocationCoordinate2D,
+        radiusMeters: CLLocationDistance
+    ) async throws -> [EmergencyCareSearchResult] {
+        let radiusKilometers = Int((radiusMeters / 1_000).rounded())
+        requestedRadii.append(radiusKilometers)
+        return resultsByRadiusKilometers[radiusKilometers] ?? []
+    }
+
+    func requestedRadiiKilometers() -> [Int] {
+        requestedRadii
     }
 }
 

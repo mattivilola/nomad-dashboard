@@ -24,6 +24,10 @@ struct EmergencyCareSearchResult: Equatable, Sendable {
 }
 
 public actor LiveEmergencyCareProvider: EmergencyCareProvider {
+    private static let fallbackSearchRadiiKilometers: [Double] = [50, 100]
+    private static let minimumFallbackResults = 2
+    private static let preferredFallbackResults = 3
+
     private let searcher: any EmergencyCareSearchPerforming
     private let ttl: TimeInterval
     private let cacheDistanceMeters: CLLocationDistance
@@ -64,24 +68,17 @@ public actor LiveEmergencyCareProvider: EmergencyCareProvider {
             return cachedResult.snapshot
         }
 
-        let searchResults = try await searcher.nearbyHospitalResults(
-            near: request.coordinate,
-            radiusMeters: request.searchRadiusKilometers * 1_000
-        )
-        let hospitals = selectEmergencyHospitals(
-            from: searchResults,
-            origin: request.coordinate,
-            maximumResults: request.maximumResults
-        )
+        let expandedSearch = try await expandedHospitalSearch(for: request)
+        let hospitals = expandedSearch.hospitals
 
         let snapshot = EmergencyCareSnapshot(
             status: hospitals.isEmpty ? .noHospitalsFound : .ready,
             sourceName: "Apple Maps",
             sourceURL: URL(string: "https://maps.apple.com"),
-            searchRadiusKilometers: request.searchRadiusKilometers,
+            searchRadiusKilometers: expandedSearch.radiusKilometers,
             hospitals: hospitals,
             fetchedAt: Date(),
-            detail: hospitals.isEmpty ? "No nearby emergency hospitals were found." : "Nearby emergency hospitals within \(Int(request.searchRadiusKilometers)) km."
+            detail: hospitals.isEmpty ? "No nearby emergency hospitals were found." : "Nearby emergency hospitals within \(Int(expandedSearch.radiusKilometers)) km."
         )
         cachedResult = CachedEmergencyCareResult(request: request, snapshot: snapshot)
         return snapshot
@@ -90,6 +87,47 @@ public actor LiveEmergencyCareProvider: EmergencyCareProvider {
     private static func distanceMeters(from lhs: CLLocationCoordinate2D, to rhs: CLLocationCoordinate2D) -> CLLocationDistance {
         CLLocation(latitude: lhs.latitude, longitude: lhs.longitude)
             .distance(from: CLLocation(latitude: rhs.latitude, longitude: rhs.longitude))
+    }
+
+    private func expandedHospitalSearch(
+        for request: EmergencyCareSearchRequest
+    ) async throws -> (hospitals: [EmergencyHospital], radiusKilometers: Double) {
+        let minimumResults = min(Self.minimumFallbackResults, request.maximumResults)
+        let preferredResults = min(Self.preferredFallbackResults, request.maximumResults)
+        var bestHospitals: [EmergencyHospital] = []
+        var bestRadiusKilometers = request.searchRadiusKilometers
+
+        for radiusKilometers in Self.searchRadii(startingAt: request.searchRadiusKilometers) {
+            let searchResults = try await searcher.nearbyHospitalResults(
+                near: request.coordinate,
+                radiusMeters: radiusKilometers * 1_000
+            )
+            let hospitals = selectEmergencyHospitals(
+                from: searchResults,
+                origin: request.coordinate,
+                maximumResults: request.maximumResults
+            )
+
+            if hospitals.count > bestHospitals.count {
+                bestHospitals = hospitals
+                bestRadiusKilometers = radiusKilometers
+            }
+
+            if hospitals.count >= preferredResults {
+                return (hospitals, radiusKilometers)
+            }
+
+            if hospitals.count >= minimumResults {
+                bestHospitals = hospitals
+                bestRadiusKilometers = radiusKilometers
+            }
+        }
+
+        return (bestHospitals, bestRadiusKilometers)
+    }
+
+    private static func searchRadii(startingAt requestedRadiusKilometers: Double) -> [Double] {
+        [requestedRadiusKilometers] + fallbackSearchRadiiKilometers.filter { $0 > requestedRadiusKilometers }
     }
 }
 
