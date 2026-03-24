@@ -96,12 +96,22 @@ public actor LiveEmergencyCareProvider: EmergencyCareProvider {
         let preferredResults = min(Self.preferredFallbackResults, request.maximumResults)
         var bestHospitals: [EmergencyHospital] = []
         var bestRadiusKilometers = request.searchRadiusKilometers
+        var lastSuccessfulRadiusKilometers: Double?
+        var lastError: Error?
 
         for radiusKilometers in Self.searchRadii(startingAt: request.searchRadiusKilometers) {
-            let searchResults = try await searcher.nearbyHospitalResults(
-                near: request.coordinate,
-                radiusMeters: radiusKilometers * 1_000
-            )
+            let searchResults: [EmergencyCareSearchResult]
+            do {
+                searchResults = try await searcher.nearbyHospitalResults(
+                    near: request.coordinate,
+                    radiusMeters: radiusKilometers * 1_000
+                )
+                lastSuccessfulRadiusKilometers = radiusKilometers
+            } catch {
+                lastError = error
+                continue
+            }
+
             let hospitals = selectEmergencyHospitals(
                 from: searchResults,
                 origin: request.coordinate,
@@ -121,6 +131,14 @@ public actor LiveEmergencyCareProvider: EmergencyCareProvider {
                 bestHospitals = hospitals
                 bestRadiusKilometers = radiusKilometers
             }
+        }
+
+        guard let lastSuccessfulRadiusKilometers else {
+            throw lastError ?? CocoaError(.fileReadUnknown)
+        }
+
+        if bestHospitals.isEmpty {
+            return ([], lastSuccessfulRadiusKilometers)
         }
 
         return (bestHospitals, bestRadiusKilometers)

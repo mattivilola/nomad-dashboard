@@ -133,6 +133,28 @@ struct EmergencyCareProviderTests {
     }
 
     @Test
+    func providerReportsLastExpandedRadiusWhenEverySearchReturnsNoHospitals() async throws {
+        let searcher = RadiusAwareEmergencyCareSearcher(resultsByRadiusKilometers: [
+            25: [],
+            50: [],
+            100: []
+        ])
+        let provider = LiveEmergencyCareProvider(searcher: searcher, ttl: 900, cacheDistanceMeters: 500)
+
+        let snapshot = try await provider.nearbyHospitals(
+            for: EmergencyCareSearchRequest(
+                coordinate: CLLocationCoordinate2D(latitude: 37.9780, longitude: -0.6820)
+            ),
+            forceRefresh: false
+        )
+
+        #expect(snapshot.status == .noHospitalsFound)
+        #expect(snapshot.hospitals.isEmpty)
+        #expect(snapshot.searchRadiusKilometers == 100)
+        #expect(await searcher.requestedRadiiKilometers() == [25, 50, 100])
+    }
+
+    @Test
     func providerExpandsSearchRadiusUntilItFindsPreferredThreeHospitals() async throws {
         let searcher = RadiusAwareEmergencyCareSearcher(resultsByRadiusKilometers: [
             25: [
@@ -259,6 +281,55 @@ struct EmergencyCareProviderTests {
         #expect(snapshot.searchRadiusKilometers == 50)
         #expect(await searcher.requestedRadiiKilometers() == [25, 50])
     }
+
+    @Test
+    func providerKeepsBestSuccessfulResultsWhenALaterExpandedSearchFails() async throws {
+        let searcher = ResilientRadiusAwareEmergencyCareSearcher(outcomesByRadiusKilometers: [
+            25: .results([
+                EmergencyCareSearchResult(
+                    name: "Hospital Quironsalud Torrevieja",
+                    address: "Partida de La Loma",
+                    locality: "Torrevieja",
+                    latitude: 37.9820,
+                    longitude: -0.6750,
+                    ownershipHint: nil
+                )
+            ]),
+            50: .results([
+                EmergencyCareSearchResult(
+                    name: "Hospital Quironsalud Torrevieja",
+                    address: "Partida de La Loma",
+                    locality: "Torrevieja",
+                    latitude: 37.9820,
+                    longitude: -0.6750,
+                    ownershipHint: nil
+                ),
+                EmergencyCareSearchResult(
+                    name: "Hospital Vega Baja",
+                    address: "Calle de Orihuela",
+                    locality: "Orihuela",
+                    latitude: 38.0850,
+                    longitude: -0.9440,
+                    ownershipHint: nil
+                )
+            ]),
+            100: .failure(TestSearchError.networkUnavailable)
+        ])
+        let provider = LiveEmergencyCareProvider(searcher: searcher, ttl: 900, cacheDistanceMeters: 500)
+
+        let snapshot = try await provider.nearbyHospitals(
+            for: EmergencyCareSearchRequest(
+                coordinate: CLLocationCoordinate2D(latitude: 37.9780, longitude: -0.6820)
+            ),
+            forceRefresh: false
+        )
+
+        #expect(snapshot.status == .ready)
+        #expect(snapshot.hospitals.count == 2)
+        #expect(snapshot.searchRadiusKilometers == 50)
+        #expect(snapshot.detail == "Nearby emergency hospitals within 50 km.")
+        #expect(await searcher.requestedRadiiKilometers() == [25, 50, 100])
+    }
 }
 
 private actor RecordingEmergencyCareSearcher: EmergencyCareSearchPerforming {
@@ -324,6 +395,34 @@ private actor RadiusAwareEmergencyCareSearcher: EmergencyCareSearchPerforming {
     }
 }
 
+private actor ResilientRadiusAwareEmergencyCareSearcher: EmergencyCareSearchPerforming {
+    private let outcomesByRadiusKilometers: [Int: RadiusSearchOutcome]
+    private var requestedRadii: [Int] = []
+
+    init(outcomesByRadiusKilometers: [Int: RadiusSearchOutcome]) {
+        self.outcomesByRadiusKilometers = outcomesByRadiusKilometers
+    }
+
+    func nearbyHospitalResults(
+        near coordinate: CLLocationCoordinate2D,
+        radiusMeters: CLLocationDistance
+    ) async throws -> [EmergencyCareSearchResult] {
+        let radiusKilometers = Int((radiusMeters / 1_000).rounded())
+        requestedRadii.append(radiusKilometers)
+
+        switch outcomesByRadiusKilometers[radiusKilometers] ?? .results([]) {
+        case let .results(results):
+            return results
+        case let .failure(error):
+            throw error
+        }
+    }
+
+    func requestedRadiiKilometers() -> [Int] {
+        requestedRadii
+    }
+}
+
 private struct StaticEmergencyCareSearcher: EmergencyCareSearchPerforming {
     let results: [EmergencyCareSearchResult]
 
@@ -333,4 +432,13 @@ private struct StaticEmergencyCareSearcher: EmergencyCareSearchPerforming {
     ) async throws -> [EmergencyCareSearchResult] {
         results
     }
+}
+
+private enum RadiusSearchOutcome: Sendable {
+    case results([EmergencyCareSearchResult])
+    case failure(TestSearchError)
+}
+
+private enum TestSearchError: Error, Sendable {
+    case networkUnavailable
 }
