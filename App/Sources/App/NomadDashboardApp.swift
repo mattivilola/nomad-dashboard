@@ -76,6 +76,16 @@ struct NomadDashboardApp: App {
             MenuBarStatusLabel(snapshot: snapshotStore.snapshot)
         }
         .menuBarExtraStyle(.window)
+        .commands {
+            if AppRuntimeInfo.isDebugBuild {
+                CommandGroup(replacing: .saveItem) {
+                    Button("Save Screenshot") {
+                        DebugScreenshotService.shared.saveFrontmostVisibleWindowScreenshot()
+                    }
+                    .keyboardShortcut("s", modifiers: [.command])
+                }
+            }
+        }
 
         Window("Settings", id: "settings") {
             SettingsView(

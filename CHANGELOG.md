@@ -20,6 +20,17 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.4.0] - 2026-03-24
+
+### Changed
+
+- Automatically expand emergency care search radius
+- Improve emergency care radius search resilience
+- Add broader text search fallback for emergency care
+- Add marketing documentation
+- Add debug command to save window screenshots
+- Refine emergency care search results with improved filtering and deduplication
+
 ## [0.3.0] - 2026-03-23
 
 ### Changed
