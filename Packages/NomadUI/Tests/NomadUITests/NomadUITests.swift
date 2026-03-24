@@ -697,6 +697,42 @@ struct NomadUITests {
     }
 
     @Test
+    func emergencyCareSectionPresentationUsesExpandedRadiusSubtitleForReadySnapshot() {
+        var settings = AppSettings()
+        settings.emergencyCareEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            fuelPrices: DashboardSnapshot.preview.fuelPrices,
+            fuelDiagnostics: DashboardSnapshot.preview.fuelDiagnostics,
+            emergencyCare: EmergencyCareSnapshot(
+                status: .ready,
+                sourceName: "Apple Maps",
+                sourceURL: URL(string: "https://maps.apple.com"),
+                searchRadiusKilometers: 50,
+                hospitals: DashboardSnapshot.preview.emergencyCare?.hospitals ?? [],
+                fetchedAt: .now,
+                detail: "Nearby emergency hospitals within 50 km."
+            ),
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = EmergencyCareSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.subtitle == "Within 50 km")
+        #expect(presentation.rows.count == 3)
+    }
+
+    @Test
     func emergencyCareSectionPresentationUsesCheckingStateWhileSnapshotIsMissing() {
         var settings = AppSettings()
         settings.emergencyCareEnabled = true

@@ -1,6 +1,7 @@
 import CoreLocation
 import Foundation
 import MapKit
+import OSLog
 
 private struct CachedEmergencyCareResult {
     let request: EmergencyCareSearchRequest
@@ -12,6 +13,22 @@ protocol EmergencyCareSearchPerforming: Sendable {
         near coordinate: CLLocationCoordinate2D,
         radiusMeters: CLLocationDistance
     ) async throws -> [EmergencyCareSearchResult]
+
+    func broaderHospitalResults(
+        near coordinate: CLLocationCoordinate2D,
+        radiusMeters: CLLocationDistance,
+        query: String
+    ) async throws -> [EmergencyCareSearchResult]
+}
+
+extension EmergencyCareSearchPerforming {
+    func broaderHospitalResults(
+        near coordinate: CLLocationCoordinate2D,
+        radiusMeters: CLLocationDistance,
+        query: String
+    ) async throws -> [EmergencyCareSearchResult] {
+        []
+    }
 }
 
 struct EmergencyCareSearchResult: Equatable, Sendable {
@@ -23,10 +40,27 @@ struct EmergencyCareSearchResult: Equatable, Sendable {
     let ownershipHint: String?
 }
 
+private enum EmergencyCareSearchMode: String {
+    case pointsOfInterest = "poi"
+    case text
+}
+
+private struct EmergencyCareSearchCandidate {
+    let hospitals: [EmergencyHospital]
+    let radiusKilometers: Double
+    let totalDistanceKilometers: Double
+}
+
 public actor LiveEmergencyCareProvider: EmergencyCareProvider {
     private static let fallbackSearchRadiiKilometers: [Double] = [50, 100]
     private static let minimumFallbackResults = 2
     private static let preferredFallbackResults = 3
+    private static let fallbackTextQueries = ["hospital", "emergency room", "urgent care", "urgencias", "emergencias"]
+    private static let broaderSearchKeywords = ["hospital", "emergency", "emergency room", "urgent care", "urgencias", "emergencias"]
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "NomadDashboard",
+        category: "EmergencyCare"
+    )
 
     private let searcher: any EmergencyCareSearchPerforming
     private let ttl: TimeInterval
@@ -92,44 +126,133 @@ public actor LiveEmergencyCareProvider: EmergencyCareProvider {
     private func expandedHospitalSearch(
         for request: EmergencyCareSearchRequest
     ) async throws -> (hospitals: [EmergencyHospital], radiusKilometers: Double) {
+        let searchRadii = Self.searchRadii(startingAt: request.searchRadiusKilometers)
         let minimumResults = min(Self.minimumFallbackResults, request.maximumResults)
         let preferredResults = min(Self.preferredFallbackResults, request.maximumResults)
-        var bestHospitals: [EmergencyHospital] = []
-        var bestRadiusKilometers = request.searchRadiusKilometers
+        var bestCandidate: EmergencyCareSearchCandidate?
+        var pointOfInterestResultsByRadius: [Double: [EmergencyCareSearchResult]] = [:]
+        var firstBroaderFallbackRadius: Double?
         var lastSuccessfulRadiusKilometers: Double?
         var lastError: Error?
 
-        for radiusKilometers in Self.searchRadii(startingAt: request.searchRadiusKilometers) {
-            let searchResults: [EmergencyCareSearchResult]
+        for radiusKilometers in searchRadii {
             do {
-                searchResults = try await searcher.nearbyHospitalResults(
+                let rawResults = try await searcher.nearbyHospitalResults(
                     near: request.coordinate,
                     radiusMeters: radiusKilometers * 1_000
                 )
                 lastSuccessfulRadiusKilometers = radiusKilometers
+                let radiusScopedResults = searchResults(
+                    within: radiusKilometers,
+                    from: rawResults,
+                    origin: request.coordinate
+                )
+                pointOfInterestResultsByRadius[radiusKilometers] = radiusScopedResults
+                let hospitals = selectEmergencyHospitals(
+                    from: radiusScopedResults,
+                    origin: request.coordinate,
+                    maximumResults: request.maximumResults
+                )
+                logSearchSuccess(
+                    mode: .pointsOfInterest,
+                    radiusKilometers: radiusKilometers,
+                    query: nil,
+                    rawResultCount: rawResults.count,
+                    acceptedResultCount: radiusScopedResults.count,
+                    displayedCount: hospitals.count
+                )
+                bestCandidate = betterCandidate(
+                    current: bestCandidate,
+                    hospitals: hospitals,
+                    radiusKilometers: radiusKilometers
+                )
+
+                if hospitals.count >= preferredResults {
+                    return (hospitals, radiusKilometers)
+                }
+
+                if hospitals.count < preferredResults, firstBroaderFallbackRadius == nil {
+                    firstBroaderFallbackRadius = radiusKilometers
+                }
             } catch {
                 lastError = error
+                logSearchFailure(
+                    mode: .pointsOfInterest,
+                    radiusKilometers: radiusKilometers,
+                    query: nil,
+                    error: error
+                )
+                if firstBroaderFallbackRadius == nil {
+                    firstBroaderFallbackRadius = radiusKilometers
+                }
                 continue
             }
+        }
 
-            let hospitals = selectEmergencyHospitals(
-                from: searchResults,
-                origin: request.coordinate,
-                maximumResults: request.maximumResults
-            )
+        if let firstBroaderFallbackRadius,
+           let startIndex = searchRadii.firstIndex(of: firstBroaderFallbackRadius)
+        {
+            for radiusKilometers in searchRadii[startIndex...] {
+                var combinedResults = pointOfInterestResultsByRadius[radiusKilometers] ?? []
+                var rawTextResultCount = 0
+                var acceptedTextResultCount = 0
+                var hadSuccessfulTextSearch = false
 
-            if hospitals.count > bestHospitals.count {
-                bestHospitals = hospitals
-                bestRadiusKilometers = radiusKilometers
-            }
+                for query in Self.fallbackTextQueries {
+                    do {
+                        let rawResults = try await searcher.broaderHospitalResults(
+                            near: request.coordinate,
+                            radiusMeters: radiusKilometers * 1_000,
+                            query: query
+                        )
+                        lastSuccessfulRadiusKilometers = radiusKilometers
+                        hadSuccessfulTextSearch = true
+                        rawTextResultCount += rawResults.count
 
-            if hospitals.count >= preferredResults {
-                return (hospitals, radiusKilometers)
-            }
+                        let acceptedResults = searchResults(
+                            within: radiusKilometers,
+                            from: rawResults,
+                            origin: request.coordinate
+                        ).filter(Self.isBroaderEmergencyCareMatch)
+                        acceptedTextResultCount += acceptedResults.count
+                        combinedResults.append(contentsOf: acceptedResults)
+                    } catch {
+                        lastError = error
+                        logSearchFailure(
+                            mode: .text,
+                            radiusKilometers: radiusKilometers,
+                            query: query,
+                            error: error
+                        )
+                    }
+                }
 
-            if hospitals.count >= minimumResults {
-                bestHospitals = hospitals
-                bestRadiusKilometers = radiusKilometers
+                guard hadSuccessfulTextSearch else {
+                    continue
+                }
+
+                let hospitals = selectEmergencyHospitals(
+                    from: combinedResults,
+                    origin: request.coordinate,
+                    maximumResults: request.maximumResults
+                )
+                logSearchSuccess(
+                    mode: .text,
+                    radiusKilometers: radiusKilometers,
+                    query: nil,
+                    rawResultCount: rawTextResultCount + (pointOfInterestResultsByRadius[radiusKilometers]?.count ?? 0),
+                    acceptedResultCount: combinedResults.count,
+                    displayedCount: hospitals.count
+                )
+                bestCandidate = betterCandidate(
+                    current: bestCandidate,
+                    hospitals: hospitals,
+                    radiusKilometers: radiusKilometers
+                )
+
+                if hospitals.count >= preferredResults {
+                    return (hospitals, radiusKilometers)
+                }
             }
         }
 
@@ -137,15 +260,130 @@ public actor LiveEmergencyCareProvider: EmergencyCareProvider {
             throw lastError ?? CocoaError(.fileReadUnknown)
         }
 
-        if bestHospitals.isEmpty {
-            return ([], lastSuccessfulRadiusKilometers)
+        if let bestCandidate {
+            if bestCandidate.hospitals.count >= minimumResults {
+                return (bestCandidate.hospitals, bestCandidate.radiusKilometers)
+            }
+
+            if bestCandidate.hospitals.isEmpty == false {
+                return (bestCandidate.hospitals, bestCandidate.radiusKilometers)
+            }
         }
 
-        return (bestHospitals, bestRadiusKilometers)
+        if minimumResults > 0 {
+            return ([], lastSuccessfulRadiusKilometers)
+        }
+        return ([], request.searchRadiusKilometers)
     }
 
     private static func searchRadii(startingAt requestedRadiusKilometers: Double) -> [Double] {
         [requestedRadiusKilometers] + fallbackSearchRadiiKilometers.filter { $0 > requestedRadiusKilometers }
+    }
+
+    private func betterCandidate(
+        current: EmergencyCareSearchCandidate?,
+        hospitals: [EmergencyHospital],
+        radiusKilometers: Double
+    ) -> EmergencyCareSearchCandidate? {
+        guard hospitals.isEmpty == false else {
+            return current
+        }
+
+        let candidate = EmergencyCareSearchCandidate(
+            hospitals: hospitals,
+            radiusKilometers: radiusKilometers,
+            totalDistanceKilometers: hospitals.reduce(0) { $0 + $1.distanceKilometers }
+        )
+
+        guard let current else {
+            return candidate
+        }
+
+        if candidate.hospitals.count > current.hospitals.count {
+            return candidate
+        }
+
+        if candidate.hospitals.count < current.hospitals.count {
+            return current
+        }
+
+        if candidate.radiusKilometers < current.radiusKilometers {
+            return candidate
+        }
+
+        if candidate.radiusKilometers > current.radiusKilometers {
+            return current
+        }
+
+        if candidate.totalDistanceKilometers < current.totalDistanceKilometers {
+            return candidate
+        }
+
+        return current
+    }
+
+    private func searchResults(
+        within radiusKilometers: Double,
+        from searchResults: [EmergencyCareSearchResult],
+        origin: CLLocationCoordinate2D
+    ) -> [EmergencyCareSearchResult] {
+        let originLocation = CLLocation(latitude: origin.latitude, longitude: origin.longitude)
+        let radiusMeters = radiusKilometers * 1_000
+
+        return searchResults.filter { result in
+            let coordinate = CLLocationCoordinate2D(latitude: result.latitude, longitude: result.longitude)
+            guard CLLocationCoordinate2DIsValid(coordinate) else {
+                return false
+            }
+
+            let location = CLLocation(latitude: result.latitude, longitude: result.longitude)
+            return originLocation.distance(from: location) <= radiusMeters
+        }
+    }
+
+    private static func isBroaderEmergencyCareMatch(_ result: EmergencyCareSearchResult) -> Bool {
+        let haystack = [result.name, result.ownershipHint]
+            .compactMap(\.self)
+            .joined(separator: " ")
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return broaderSearchKeywords.contains(where: { haystack.contains($0) })
+    }
+
+    private func logSearchSuccess(
+        mode: EmergencyCareSearchMode,
+        radiusKilometers: Double,
+        query: String?,
+        rawResultCount: Int,
+        acceptedResultCount: Int,
+        displayedCount: Int
+    ) {
+        if let query {
+            Self.logger.info(
+                "Emergency care search mode=\(mode.rawValue, privacy: .public) query=\(query, privacy: .public) radiusKm=\(radiusKilometers, privacy: .public) raw=\(rawResultCount, privacy: .public) accepted=\(acceptedResultCount, privacy: .public) displayed=\(displayedCount, privacy: .public)"
+            )
+        } else {
+            Self.logger.info(
+                "Emergency care search mode=\(mode.rawValue, privacy: .public) radiusKm=\(radiusKilometers, privacy: .public) raw=\(rawResultCount, privacy: .public) accepted=\(acceptedResultCount, privacy: .public) displayed=\(displayedCount, privacy: .public)"
+            )
+        }
+    }
+
+    private func logSearchFailure(
+        mode: EmergencyCareSearchMode,
+        radiusKilometers: Double,
+        query: String?,
+        error: Error
+    ) {
+        let description = String(describing: error)
+        if let query {
+            Self.logger.error(
+                "Emergency care search failed mode=\(mode.rawValue, privacy: .public) query=\(query, privacy: .public) radiusKm=\(radiusKilometers, privacy: .public) error=\(description, privacy: .public)"
+            )
+        } else {
+            Self.logger.error(
+                "Emergency care search failed mode=\(mode.rawValue, privacy: .public) radiusKm=\(radiusKilometers, privacy: .public) error=\(description, privacy: .public)"
+            )
+        }
     }
 }
 
@@ -265,6 +503,35 @@ private final class AppleMapsEmergencyCareSearchClient: EmergencyCareSearchPerfo
             DispatchQueue.main.async {
                 let request = MKLocalPointsOfInterestRequest(center: coordinate, radius: radiusMeters)
                 request.pointOfInterestFilter = MKPointOfInterestFilter(including: [.hospital])
+
+                let search = MKLocalSearch(request: request)
+                search.start { response, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                        return
+                    }
+
+                    let results = response?.mapItems.compactMap(Self.searchResult(from:)) ?? []
+                    continuation.resume(returning: results)
+                }
+            }
+        }
+    }
+
+    func broaderHospitalResults(
+        near coordinate: CLLocationCoordinate2D,
+        radiusMeters: CLLocationDistance,
+        query: String
+    ) async throws -> [EmergencyCareSearchResult] {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.main.async {
+                let request = MKLocalSearch.Request()
+                request.naturalLanguageQuery = query
+                request.region = MKCoordinateRegion(
+                    center: coordinate,
+                    latitudinalMeters: radiusMeters * 2,
+                    longitudinalMeters: radiusMeters * 2
+                )
 
                 let search = MKLocalSearch(request: request)
                 search.start { response, error in
