@@ -11,6 +11,7 @@ xcuserdata/
 build/
 dist/
 artifacts/
+output/screenshots/
 *.dmg
 *.xcarchive
 Config/Signing.env
