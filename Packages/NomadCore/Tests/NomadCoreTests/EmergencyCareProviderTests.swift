@@ -386,7 +386,7 @@ struct EmergencyCareProviderTests {
                 .init(radiusKilometers: 25, query: "hospital"): [
                     EmergencyCareSearchResult(
                         name: "Hospital Quironsalud Torrevieja",
-                        address: "Partida de La Loma",
+                        address: nil,
                         locality: "Torrevieja",
                         latitude: 37.9820,
                         longitude: -0.6750,
@@ -423,6 +423,122 @@ struct EmergencyCareProviderTests {
         #expect(snapshot.hospitals.count == 3)
         #expect(Set(snapshot.hospitals.map(\.id)).count == 3)
         #expect(snapshot.searchRadiusKilometers == 25)
+        #expect(snapshot.hospitals.contains(where: { $0.name == "Hospital Quironsalud Torrevieja" && $0.address == "Partida de La Loma" }))
+    }
+
+    @Test
+    func providerRejectsVeterinaryBroaderSearchResults() async throws {
+        let searcher = HybridEmergencyCareSearcher(
+            pointOfInterestResultsByRadiusKilometers: [
+                25: [
+                    EmergencyCareSearchResult(
+                        name: "Hospital Quironsalud Torrevieja",
+                        address: "Partida de La Loma",
+                        locality: "Torrevieja",
+                        latitude: 37.9820,
+                        longitude: -0.6750,
+                        ownershipHint: nil
+                    )
+                ]
+            ],
+            broaderTextResults: [
+                .init(radiusKilometers: 25, query: "hospital"): [
+                    EmergencyCareSearchResult(
+                        name: "Hospital Veterinario de Torrevieja",
+                        address: "Calle Guridi 8",
+                        locality: "Torrevieja",
+                        latitude: 37.9950,
+                        longitude: -0.6880,
+                        ownershipHint: nil
+                    ),
+                    EmergencyCareSearchResult(
+                        name: "Hospital Vega Baja",
+                        address: "Calle de Orihuela",
+                        locality: "Orihuela",
+                        latitude: 38.0150,
+                        longitude: -0.7350,
+                        ownershipHint: nil
+                    ),
+                    EmergencyCareSearchResult(
+                        name: "Urgencias Torrevieja",
+                        address: "Avenida del Mar",
+                        locality: "Torrevieja",
+                        latitude: 37.9830,
+                        longitude: -0.6810,
+                        ownershipHint: nil
+                    )
+                ]
+            ]
+        )
+        let provider = LiveEmergencyCareProvider(searcher: searcher, ttl: 900, cacheDistanceMeters: 500)
+
+        let snapshot = try await provider.nearbyHospitals(
+            for: EmergencyCareSearchRequest(
+                coordinate: CLLocationCoordinate2D(latitude: 37.9780, longitude: -0.6820)
+            ),
+            forceRefresh: false
+        )
+
+        #expect(snapshot.hospitals.count == 3)
+        #expect(snapshot.hospitals.contains(where: { $0.name.contains("Veterinario") }) == false)
+    }
+
+    @Test
+    func providerPrefersMoreSpecificAliasWhenNearbyResultsDescribeSameHospital() async throws {
+        let searcher = HybridEmergencyCareSearcher(
+            pointOfInterestResultsByRadiusKilometers: [
+                25: [
+                    EmergencyCareSearchResult(
+                        name: "Hospital Quirón",
+                        address: nil,
+                        locality: "Torrevieja",
+                        latitude: 37.9820,
+                        longitude: -0.6750,
+                        ownershipHint: nil
+                    )
+                ]
+            ],
+            broaderTextResults: [
+                .init(radiusKilometers: 25, query: "hospital"): [
+                    EmergencyCareSearchResult(
+                        name: "Hospital Quirónsalud Torrevieja",
+                        address: "Partida de La Loma",
+                        locality: "Torrevieja",
+                        latitude: 37.9823,
+                        longitude: -0.6752,
+                        ownershipHint: nil
+                    ),
+                    EmergencyCareSearchResult(
+                        name: "Hospital Vega Baja",
+                        address: "Calle de Orihuela",
+                        locality: "Orihuela",
+                        latitude: 38.0150,
+                        longitude: -0.7350,
+                        ownershipHint: nil
+                    ),
+                    EmergencyCareSearchResult(
+                        name: "Urgencias Torrevieja",
+                        address: "Avenida del Mar",
+                        locality: "Torrevieja",
+                        latitude: 37.9830,
+                        longitude: -0.6810,
+                        ownershipHint: nil
+                    )
+                ]
+            ]
+        )
+        let provider = LiveEmergencyCareProvider(searcher: searcher, ttl: 900, cacheDistanceMeters: 500)
+
+        let snapshot = try await provider.nearbyHospitals(
+            for: EmergencyCareSearchRequest(
+                coordinate: CLLocationCoordinate2D(latitude: 37.9780, longitude: -0.6820)
+            ),
+            forceRefresh: false
+        )
+
+        #expect(snapshot.hospitals.count == 3)
+        #expect(snapshot.hospitals.contains(where: { $0.name == "Hospital Quirón" }) == false)
+        #expect(snapshot.hospitals.contains(where: { $0.name == "Hospital Quirónsalud Torrevieja" && $0.address == "Partida de La Loma" }))
     }
 
     @Test
