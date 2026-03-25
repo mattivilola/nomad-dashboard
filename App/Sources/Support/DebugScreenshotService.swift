@@ -38,6 +38,7 @@ final class DebugScreenshotService {
             let screenshotURL = try DebugScreenshotArtifacts.screenshotFileURL(
                 windowTitle: windowLabel(for: window),
                 bundleURL: bundleURLProvider(),
+                repositorySearchHint: URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true),
                 date: now(),
                 fileManager: fileManager
             )
