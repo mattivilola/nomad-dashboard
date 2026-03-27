@@ -29,6 +29,34 @@ struct DebugScreenshotArtifactsTests {
     }
 
     @Test
+    func screenshotsDirectoryUsesRepositorySearchHintWhenBundleLivesOutsideRepository() throws {
+        let fileManager = FileManager.default
+        let repositoryURL = try makeRepository(fileManager: fileManager)
+        defer { try? fileManager.removeItem(at: repositoryURL) }
+
+        let derivedDataRootURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let derivedDataURL = derivedDataRootURL
+            .appendingPathComponent("Build", isDirectory: true)
+            .appendingPathComponent("Products", isDirectory: true)
+            .appendingPathComponent("Debug", isDirectory: true)
+            .appendingPathComponent("Nomad Dashboard Dev.app", isDirectory: true)
+        try fileManager.createDirectory(at: derivedDataURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: derivedDataRootURL) }
+
+        let screenshotsURL = try DebugScreenshotArtifacts.screenshotsDirectory(
+            bundleURL: derivedDataURL,
+            repositorySearchHint: repositoryURL.appendingPathComponent("App", isDirectory: true),
+            fileManager: fileManager
+        )
+        let expectedURL = repositoryURL
+            .appendingPathComponent("output", isDirectory: true)
+            .appendingPathComponent("screenshots", isDirectory: true)
+
+        #expect(screenshotsURL.standardizedFileURL == expectedURL.standardizedFileURL)
+    }
+
+    @Test
     func screenshotFileURLCreatesDirectoryAndSanitizesWindowTitle() throws {
         let fileManager = FileManager.default
         let repositoryURL = try makeRepository(fileManager: fileManager)

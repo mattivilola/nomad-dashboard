@@ -7,9 +7,14 @@ public enum DebugScreenshotArtifacts {
 
     public static func screenshotsDirectory(
         bundleURL: URL = Bundle.main.bundleURL,
+        repositorySearchHint: URL? = nil,
         fileManager: FileManager = .default
     ) throws -> URL {
-        let repositoryRoot = try repositoryRoot(from: bundleURL, fileManager: fileManager)
+        let repositoryRoot = try repositoryRoot(
+            from: bundleURL,
+            repositorySearchHint: repositorySearchHint,
+            fileManager: fileManager
+        )
         let screenshotsURL = repositoryRoot
             .appendingPathComponent("output", isDirectory: true)
             .appendingPathComponent("screenshots", isDirectory: true)
@@ -20,11 +25,16 @@ public enum DebugScreenshotArtifacts {
     public static func screenshotFileURL(
         windowTitle: String,
         bundleURL: URL = Bundle.main.bundleURL,
+        repositorySearchHint: URL? = nil,
         date: Date = Date(),
         timeZone: TimeZone = .current,
         fileManager: FileManager = .default
     ) throws -> URL {
-        let screenshotsURL = try screenshotsDirectory(bundleURL: bundleURL, fileManager: fileManager)
+        let screenshotsURL = try screenshotsDirectory(
+            bundleURL: bundleURL,
+            repositorySearchHint: repositorySearchHint,
+            fileManager: fileManager
+        )
         let baseFilename = "\(timestampString(from: date, timeZone: timeZone))-\(sanitizedWindowSlug(from: windowTitle)).png"
         var candidateURL = screenshotsURL.appendingPathComponent(baseFilename, isDirectory: false)
 
@@ -43,8 +53,41 @@ public enum DebugScreenshotArtifacts {
         return candidateURL
     }
 
-    private static func repositoryRoot(from bundleURL: URL, fileManager: FileManager) throws -> URL {
-        var currentURL = bundleURL.hasDirectoryPath ? bundleURL : bundleURL.deletingLastPathComponent()
+    private static func repositoryRoot(
+        from bundleURL: URL,
+        repositorySearchHint: URL?,
+        fileManager: FileManager
+    ) throws -> URL {
+        for searchStartURL in repositorySearchStartURLs(bundleURL: bundleURL, repositorySearchHint: repositorySearchHint) {
+            if let repositoryRoot = repositoryRoot(startingAt: searchStartURL, fileManager: fileManager) {
+                return repositoryRoot
+            }
+        }
+
+        throw ResolutionError.repositoryRootNotFound(bundleURL: bundleURL)
+    }
+
+    private static func repositorySearchStartURLs(bundleURL: URL, repositorySearchHint: URL?) -> [URL] {
+        var searchStartURLs: [URL] = []
+        var seenPaths: Set<String> = []
+
+        for url in [repositorySearchHint, bundleURL] {
+            guard let url else {
+                continue
+            }
+
+            let normalizedURL = (url.hasDirectoryPath ? url : url.deletingLastPathComponent()).standardizedFileURL
+            guard seenPaths.insert(normalizedURL.path).inserted else {
+                continue
+            }
+            searchStartURLs.append(normalizedURL)
+        }
+
+        return searchStartURLs
+    }
+
+    private static func repositoryRoot(startingAt startURL: URL, fileManager: FileManager) -> URL? {
+        var currentURL = startURL
 
         while true {
             if isRepositoryRoot(currentURL, fileManager: fileManager) {
@@ -53,7 +96,7 @@ public enum DebugScreenshotArtifacts {
 
             let parentURL = currentURL.deletingLastPathComponent()
             guard parentURL.path != currentURL.path else {
-                throw ResolutionError.repositoryRootNotFound(bundleURL: bundleURL)
+                return nil
             }
 
             currentURL = parentURL

@@ -8,6 +8,8 @@ network quality, public connectivity, power draw, travel context, and weather.
 Maintainer: Matti Vilola  
 Contributed by ILO APPLICATIONS SL ([iloapps.dev](https://iloapps.dev))
 
+Website: [nomaddashboard.com](https://nomaddashboard.com)
+
 ## Vision
 
 Nomad Dashboard should feel like a compact travel instrument panel rather than a
@@ -135,6 +137,7 @@ and is loaded by both Debug and Release builds.
 
 ## Open Source Collaboration
 
+- Website: [nomaddashboard.com](https://nomaddashboard.com)
 - License: Apache-2.0
 - Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Agent instructions: [AGENTS.md](AGENTS.md)
