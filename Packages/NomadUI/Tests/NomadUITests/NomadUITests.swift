@@ -157,6 +157,108 @@ struct NomadUITests {
     }
 
     @Test
+    func alertsSummaryTilePresentationShowsTemperatureAndClearState() {
+        let presentation = SummaryTilePresentation(
+            weather: makeWeatherSnapshot(),
+            alertsPresentation: TravelAlertsCardPresentation(
+                preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: true, securityEnabled: true),
+                snapshot: makeTravelAlertsSnapshot(
+                    states: [
+                        makeState(kind: .advisory, status: .ready, severity: .clear, summary: "No elevated advisories."),
+                        makeState(kind: .weather, status: .ready, severity: .clear, summary: "No active weather alerts."),
+                        makeState(kind: .security, status: .ready, severity: .clear, summary: "No recent security bulletins.")
+                    ]
+                )
+            )
+        )
+
+        #expect(presentation.title == "Alerts")
+        #expect(presentation.label == "Clear")
+        #expect(presentation.detail == "18 C · No current alerts")
+        #expect(presentation.tone == .ready)
+    }
+
+    @Test
+    func alertsSummaryTilePresentationUsesHighestSeverityAlertSummary() {
+        let presentation = SummaryTilePresentation(
+            weather: makeWeatherSnapshot(),
+            alertsPresentation: TravelAlertsCardPresentation(
+                preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: true, securityEnabled: true),
+                snapshot: makeTravelAlertsSnapshot(
+                    states: [
+                        makeState(kind: .advisory, status: .ready, severity: .caution, summary: "France remains at a higher caution level nearby."),
+                        makeState(kind: .weather, status: .ready, severity: .warning, summary: "Flood warning in effect."),
+                        makeState(kind: .security, status: .stale, severity: .info, summary: "One recent security bulletin was published nearby.")
+                    ]
+                )
+            )
+        )
+
+        #expect(presentation.label == "Warning")
+        #expect(presentation.detail == "18 C · Flood warning in effect.")
+        #expect(presentation.tone == .attention)
+    }
+
+    @Test
+    func alertsSummaryTilePresentationShowsDisabledState() {
+        let presentation = SummaryTilePresentation(
+            weather: makeWeatherSnapshot(),
+            alertsPresentation: TravelAlertsCardPresentation(
+                preferences: TravelAlertPreferences(advisoryEnabled: false, weatherEnabled: false, securityEnabled: false),
+                snapshot: nil
+            )
+        )
+
+        #expect(presentation.label == "Off")
+        #expect(presentation.detail == "18 C · Alerts off")
+        #expect(presentation.tone == .neutral)
+    }
+
+    @Test
+    func networkSummaryTilePresentationIncludesLatencyAndJitter() {
+        let presentation = SummaryTilePresentation(
+            title: "Network",
+            network: NetworkSectionSnapshot(
+                throughput: NetworkThroughputSample(
+                    downloadBytesPerSecond: 8_000_000,
+                    uploadBytesPerSecond: 2_000_000,
+                    activeInterface: "en0",
+                    collectedAt: .now
+                ),
+                connectivity: ConnectivitySnapshot(pathAvailable: true, internetState: .online, lastCheckedAt: .now),
+                latency: LatencySample(host: "1.1.1.1", milliseconds: 28, jitterMilliseconds: 48, collectedAt: .now),
+                downloadHistory: [],
+                uploadHistory: [],
+                latencyHistory: []
+            ),
+            health: SectionHealth(label: "Attention", level: .attention, reason: "Jitter 48 ms", symbolName: "waveform.path.ecg")
+        )
+
+        #expect(presentation.detail == "Latency 28 ms · Jitter 48 ms")
+        #expect(presentation.tone == .attention)
+    }
+
+    @Test
+    func powerSummaryTilePresentationPrefixesBatteryPercentage() {
+        let presentation = SummaryTilePresentation(
+            title: "Power",
+            power: PowerSectionSnapshot(
+                snapshot: makePowerSnapshot(
+                    state: .charged,
+                    timeRemainingMinutes: nil,
+                    timeToFullChargeMinutes: nil
+                ),
+                chargeHistory: [],
+                dischargeHistory: []
+            ),
+            health: SectionHealth(label: "Ready", level: .ready, reason: "Connected to power", symbolName: "powerplug.fill")
+        )
+
+        #expect(presentation.detail == "72% · Connected to power")
+        #expect(presentation.tone == .ready)
+    }
+
+    @Test
     func travelAlertsPresentationShowsAllClearState() {
         let presentation = TravelAlertsCardPresentation(
             preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: true, securityEnabled: true),

@@ -235,9 +235,9 @@ public struct DashboardPanelView: View {
 
     private var summaryStrip: some View {
         HStack(spacing: 10) {
-            SummaryTile(title: "Overall", health: snapshot.healthSummary.overall)
-            SummaryTile(title: "Network", health: snapshot.healthSummary.network)
-            SummaryTile(title: "Power", health: snapshot.healthSummary.power)
+            SummaryTile(presentation: alertsSummaryTilePresentation)
+            SummaryTile(presentation: networkSummaryTilePresentation)
+            SummaryTile(presentation: powerSummaryTilePresentation)
         }
     }
 
@@ -1131,6 +1131,18 @@ public struct DashboardPanelView: View {
         )
     }
 
+    private var alertsSummaryTilePresentation: SummaryTilePresentation {
+        SummaryTilePresentation(weather: snapshot.weather, alertsPresentation: travelAlertsPresentation)
+    }
+
+    private var networkSummaryTilePresentation: SummaryTilePresentation {
+        SummaryTilePresentation(title: "Network", network: snapshot.network, health: snapshot.healthSummary.network)
+    }
+
+    private var powerSummaryTilePresentation: SummaryTilePresentation {
+        SummaryTilePresentation(title: "Power", power: snapshot.power, health: snapshot.healthSummary.power)
+    }
+
     private func badge(for health: SectionHealth) -> PillBadge {
         PillBadge(title: health.label, symbolName: health.symbolName, tint: health.level.tint)
     }
@@ -1735,22 +1747,169 @@ private struct HeaderActionIcon: View {
     }
 }
 
-private struct SummaryTile: View {
+enum SummaryTileTone: Equatable {
+    case ready
+    case caution
+    case attention
+    case neutral
+    case secondary
+    case critical
+
+    init(level: HealthLevel) {
+        switch level {
+        case .ready:
+            self = .ready
+        case .caution:
+            self = .caution
+        case .attention:
+            self = .attention
+        case .unavailable:
+            self = .neutral
+        }
+    }
+
+    init(severity: TravelAlertSeverity) {
+        switch severity {
+        case .clear:
+            self = .ready
+        case .info:
+            self = .neutral
+        case .caution:
+            self = .caution
+        case .warning:
+            self = .attention
+        case .critical:
+            self = .critical
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .ready:
+            NomadTheme.teal
+        case .caution:
+            NomadTheme.sand
+        case .attention:
+            NomadTheme.coral
+        case .neutral:
+            NomadTheme.primaryText
+        case .secondary:
+            NomadTheme.secondaryText
+        case .critical:
+            .red
+        }
+    }
+}
+
+struct SummaryTilePresentation: Equatable {
     let title: String
-    let health: SectionHealth
+    let label: String
+    let symbolName: String
+    let detail: String
+    let tone: SummaryTileTone
+
+    init(title: String, health: SectionHealth, detail: String? = nil) {
+        self.title = title
+        label = health.label
+        symbolName = health.symbolName
+        self.detail = detail ?? health.reason
+        tone = SummaryTileTone(level: health.level)
+    }
+
+    init(title: String, network: NetworkSectionSnapshot, health: SectionHealth) {
+        let detail: String
+        if let latency = network.latency {
+            let latencyText = "Latency \(NomadFormatters.latency(latency.milliseconds))"
+            if let jitter = latency.jitterMilliseconds {
+                detail = "\(latencyText) · Jitter \(NomadFormatters.latency(jitter))"
+            } else {
+                detail = latencyText
+            }
+        } else {
+            detail = health.reason
+        }
+
+        self.init(title: title, health: health, detail: detail)
+    }
+
+    init(title: String, power: PowerSectionSnapshot, health: SectionHealth) {
+        let detail: String
+        if let chargePercent = power.snapshot?.chargePercent {
+            detail = "\(NomadFormatters.percentage(chargePercent * 100)) · \(health.reason)"
+        } else {
+            detail = health.reason
+        }
+
+        self.init(title: title, health: health, detail: detail)
+    }
+
+    init(weather: WeatherSnapshot?, alertsPresentation: TravelAlertsCardPresentation) {
+        title = "Alerts"
+
+        let temperature = weather?.currentTemperatureCelsius.map(NomadFormatters.celsius) ?? "Weather estimating"
+        let highestPriorityRow = alertsPresentation.rows.sorted(by: Self.summaryRowPriority).first
+
+        switch alertsPresentation.badge {
+        case .off:
+            label = "Off"
+            symbolName = "bell.slash.fill"
+            detail = "\(temperature) · Alerts off"
+            tone = .neutral
+        case .checking:
+            label = "Checking"
+            symbolName = "clock.fill"
+            detail = "\(temperature) · Checking alerts…"
+            tone = .secondary
+        case .limited:
+            label = "Limited"
+            symbolName = "exclamationmark.triangle.fill"
+            detail = "\(temperature) · Some alert sources unavailable"
+            tone = .caution
+        case .stale:
+            label = "Stale"
+            symbolName = "clock.arrow.circlepath"
+            detail = "\(temperature) · \(highestPriorityRow?.summary ?? "Last known alert status unavailable.")"
+            tone = .neutral
+        case let .severity(severity):
+            label = severity.badgeTitle
+            symbolName = severity.symbolName
+            tone = SummaryTileTone(severity: severity)
+            if severity == .clear {
+                detail = "\(temperature) · No current alerts"
+            } else {
+                detail = "\(temperature) · \(highestPriorityRow?.summary ?? "Alerts active")"
+            }
+        }
+    }
+
+    private static func summaryRowPriority(lhs: TravelAlertRowModel, rhs: TravelAlertRowModel) -> Bool {
+        if lhs.status != rhs.status {
+            return lhs.status == .ready
+        }
+
+        if lhs.severity != rhs.severity {
+            return lhs.severity > rhs.severity
+        }
+
+        return lhs.id.rawValue < rhs.id.rawValue
+    }
+}
+
+private struct SummaryTile: View {
+    let presentation: SummaryTilePresentation
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased())
+            Text(presentation.title.uppercased())
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(NomadTheme.tertiaryText)
 
-            Label(health.label, systemImage: health.symbolName)
+            Label(presentation.label, systemImage: presentation.symbolName)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(health.level.tint)
+                .foregroundStyle(presentation.tone.tint)
                 .lineLimit(1)
 
-            Text(health.reason)
+            Text(presentation.detail)
                 .font(.caption)
                 .foregroundStyle(NomadTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1758,11 +1917,11 @@ private struct SummaryTile: View {
         .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(NomadTheme.tileBackground)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(health.level.tint.opacity(0.18), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(NomadTheme.tileBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(presentation.tone.tint.opacity(0.18), lineWidth: 1)
                 )
         )
     }
