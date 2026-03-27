@@ -20,6 +20,13 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.4.1] - 2026-03-27
+
+### Changed
+
+- Add repository search hint for debug screenshot artifacts
+- Extract summary tile presentation logic into dedicated model
+
 ## [0.4.0] - 2026-03-24
 
 ### Changed
