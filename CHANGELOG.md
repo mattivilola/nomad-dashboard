@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.5.0] - 2026-03-30
+
+### Changed
+
+- Add country-day history tracking and visualization.
+
 ## [0.4.1] - 2026-03-27
 
 ### Changed
