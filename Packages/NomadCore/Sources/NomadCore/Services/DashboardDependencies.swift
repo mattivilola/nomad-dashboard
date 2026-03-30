@@ -19,6 +19,7 @@ public struct DashboardDependencies: Sendable {
     public let travelWeatherAlertsProvider: any TravelWeatherAlertsProvider
     public let regionalSecurityProvider: any RegionalSecurityProvider
     public let visitedPlacesStore: any VisitedPlacesStore
+    public let visitedCountryDaysStore: any VisitedCountryDaysStore
     public let historyStore: any MetricHistoryStore
     public let updateCoordinator: any UpdateCoordinator
 
@@ -41,6 +42,7 @@ public struct DashboardDependencies: Sendable {
         travelWeatherAlertsProvider: any TravelWeatherAlertsProvider,
         regionalSecurityProvider: any RegionalSecurityProvider,
         visitedPlacesStore: any VisitedPlacesStore,
+        visitedCountryDaysStore: any VisitedCountryDaysStore,
         historyStore: any MetricHistoryStore,
         updateCoordinator: any UpdateCoordinator
     ) {
@@ -62,6 +64,7 @@ public struct DashboardDependencies: Sendable {
         self.travelWeatherAlertsProvider = travelWeatherAlertsProvider
         self.regionalSecurityProvider = regionalSecurityProvider
         self.visitedPlacesStore = visitedPlacesStore
+        self.visitedCountryDaysStore = visitedCountryDaysStore
         self.historyStore = historyStore
         self.updateCoordinator = updateCoordinator
     }
@@ -97,6 +100,9 @@ public struct DashboardDependencies: Sendable {
             regionalSecurityProvider: ReliefWebSecurityProvider(appName: reliefWebAppName),
             visitedPlacesStore: FileVisitedPlacesStore(
                 fileURL: applicationSupportDirectory.appendingPathComponent("visited-places.json")
+            ),
+            visitedCountryDaysStore: FileVisitedCountryDaysStore(
+                fileURL: applicationSupportDirectory.appendingPathComponent("visited-country-days.json")
             ),
             historyStore: FileMetricHistoryStore(
                 fileURL: applicationSupportDirectory.appendingPathComponent("metric-history.json"),

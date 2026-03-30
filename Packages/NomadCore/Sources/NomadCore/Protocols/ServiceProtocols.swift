@@ -92,6 +92,12 @@ public protocol VisitedPlacesStore: Sendable {
     func reset() async throws
 }
 
+public protocol VisitedCountryDaysStore: Sendable {
+    func loadAll() async throws -> [VisitedCountryDay]
+    func record(_ input: VisitedCountryDayInput) async throws
+    func reset() async throws
+}
+
 public protocol MetricHistoryStore: Sendable {
     func loadAll() async throws -> [MetricSeriesKind: [MetricPoint]]
     func append(_ point: MetricPoint, to series: MetricSeriesKind) async throws
