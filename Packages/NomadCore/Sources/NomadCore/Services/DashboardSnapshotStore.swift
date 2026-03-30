@@ -16,6 +16,7 @@ public final class DashboardSnapshotStore: ObservableObject {
 
     @Published public private(set) var snapshot: DashboardSnapshot
     @Published public private(set) var visitedPlaces: [VisitedPlace] = []
+    @Published public private(set) var visitedCountryDays: [VisitedCountryDay] = []
     @Published public private(set) var refreshActivity: DashboardRefreshActivity = .idle
 
     public let settingsStore: AppSettingsStore
@@ -100,6 +101,14 @@ public final class DashboardSnapshotStore: ObservableObject {
         visitedPlaces.visitedPlaceSummary
     }
 
+    public var visitedCountryDayYears: [Int] {
+        visitedCountryDays.availableYears
+    }
+
+    public func visitedCountryDaySummary(for year: Int) -> VisitedCountryDayYearSummary? {
+        visitedCountryDays.yearSummary(for: year)
+    }
+
     public func clearVisitedPlaces() {
         Task { [weak self] in
             guard let self else {
@@ -107,7 +116,9 @@ public final class DashboardSnapshotStore: ObservableObject {
             }
 
             try? await dependencies.visitedPlacesStore.reset()
+            try? await dependencies.visitedCountryDaysStore.reset()
             await loadVisitedPlaces()
+            await loadVisitedCountryDays()
         }
     }
 
@@ -208,7 +219,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         var fuelDiagnosticsSnapshot = snapshot.fuelDiagnostics
         var emergencyCareSnapshot = snapshot.emergencyCare
         var marineSnapshot = surfSpotConfiguration.isValid ? snapshot.marine : nil
-        var didUpdateVisitedPlaces = false
+        var didUpdateVisitedHistory = false
 
         if includeSlowMetrics {
             latencySample = await dependencies.latencyProbe.currentSample()
@@ -290,10 +301,10 @@ public final class DashboardSnapshotStore: ObservableObject {
 
             if settings.visitedPlacesEnabled {
                 if let locationSnapshot {
-                    didUpdateVisitedPlaces = await recordVisitedPlace(from: locationSnapshot, visitedAt: now) || didUpdateVisitedPlaces
+                    didUpdateVisitedHistory = await recordVisitedPlace(from: locationSnapshot, visitedAt: now) || didUpdateVisitedHistory
                 }
 
-                didUpdateVisitedPlaces = await recordPendingDeviceLocation(visitedAt: now) || didUpdateVisitedPlaces
+                didUpdateVisitedHistory = await recordPendingDeviceLocation(visitedAt: now) || didUpdateVisitedHistory
             } else {
                 pendingVisitedDeviceLocation = nil
             }
@@ -314,8 +325,9 @@ public final class DashboardSnapshotStore: ObservableObject {
             lastSlowRefresh = now
         }
 
-        if didUpdateVisitedPlaces {
+        if didUpdateVisitedHistory {
             await loadVisitedPlaces()
+            await loadVisitedCountryDays()
         }
 
         let history = await (try? dependencies.historyStore.loadAll()) ?? [:]
@@ -404,6 +416,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         try? await dependencies.historyStore.setRetentionHours(appliedSettings.historyRetentionHours)
         await dependencies.updateCoordinator.setAutomaticChecksEnabled(appliedSettings.automaticUpdateChecksEnabled)
         await loadVisitedPlaces()
+        await loadVisitedCountryDays()
     }
 
     private func applySettingsChange(from previousSettings: AppSettings, to newSettings: AppSettings) async {
@@ -749,12 +762,16 @@ public final class DashboardSnapshotStore: ObservableObject {
         visitedPlaces = await (try? dependencies.visitedPlacesStore.loadAll()) ?? []
     }
 
+    private func loadVisitedCountryDays() async {
+        visitedCountryDays = await (try? dependencies.visitedCountryDaysStore.loadAll()) ?? []
+    }
+
     private func recordVisitedPlace(from snapshot: IPLocationSnapshot, visitedAt: Date) async -> Bool {
         guard let country = normalizedValue(snapshot.country) else {
             return false
         }
 
-        let input = VisitedPlaceInput(
+        let placeInput = VisitedPlaceInput(
             city: normalizedValue(snapshot.city),
             region: normalizedValue(snapshot.region),
             country: country,
@@ -764,13 +781,15 @@ public final class DashboardSnapshotStore: ObservableObject {
             source: .publicIPGeolocation,
             visitedAt: visitedAt
         )
+        let dayInput = VisitedCountryDayInput(
+            day: VisitedCountryDayStamp(date: visitedAt, calendar: .autoupdatingCurrent),
+            country: country,
+            countryCode: normalizedValue(snapshot.countryCode)?.uppercased(),
+            source: .publicIPGeolocation,
+            observedAt: visitedAt
+        )
 
-        do {
-            try await dependencies.visitedPlacesStore.record(input)
-            return true
-        } catch {
-            return false
-        }
+        return await recordVisitedHistory(placeInput: placeInput, dayInput: dayInput)
     }
 
     private func recordPendingDeviceLocation(visitedAt: Date) async -> Bool {
@@ -786,7 +805,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                 return false
             }
 
-            let input = VisitedPlaceInput(
+            let placeInput = VisitedPlaceInput(
                 city: normalizedValue(details.city),
                 region: normalizedValue(details.region),
                 country: country,
@@ -796,11 +815,36 @@ public final class DashboardSnapshotStore: ObservableObject {
                 source: .deviceLocation,
                 visitedAt: visitedAt
             )
-            try await dependencies.visitedPlacesStore.record(input)
-            return true
+            let dayInput = VisitedCountryDayInput(
+                day: VisitedCountryDayStamp(date: visitedAt, calendar: .autoupdatingCurrent),
+                country: country,
+                countryCode: normalizedValue(details.countryCode)?.uppercased(),
+                source: .deviceLocation,
+                observedAt: visitedAt
+            )
+            return await recordVisitedHistory(placeInput: placeInput, dayInput: dayInput)
         } catch {
             return false
         }
+    }
+
+    private func recordVisitedHistory(
+        placeInput: VisitedPlaceInput,
+        dayInput: VisitedCountryDayInput
+    ) async -> Bool {
+        var didRecord = false
+
+        do {
+            try await dependencies.visitedPlacesStore.record(placeInput)
+            didRecord = true
+        } catch {}
+
+        do {
+            try await dependencies.visitedCountryDaysStore.record(dayInput)
+            didRecord = true
+        } catch {}
+
+        return didRecord
     }
 
     private func appendHistory(from throughputSample: NetworkThroughputSample) async {

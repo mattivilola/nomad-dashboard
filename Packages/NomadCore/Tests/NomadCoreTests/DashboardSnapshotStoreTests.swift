@@ -316,6 +316,11 @@ struct DashboardSnapshotStoreTests {
         #expect(Set(store.visitedPlaces.first?.sources ?? []) == Set([.publicIPGeolocation, .deviceLocation]))
         #expect(store.visitedPlaceSummary.citiesVisited == 1)
         #expect(store.visitedPlaceSummary.countriesVisited == 1)
+        #expect(store.visitedCountryDays.count == 1)
+        #expect(store.visitedCountryDays.first?.countryCode == "FI")
+        #expect(store.visitedCountryDays.first?.source == .deviceLocation)
+        #expect(store.visitedCountryDayYears.count == 1)
+        #expect(store.visitedCountryDaySummary(for: store.visitedCountryDayYears[0])?.totalTrackedDays == 1)
     }
 
     @Test
@@ -333,6 +338,55 @@ struct DashboardSnapshotStoreTests {
         #expect(store.visitedPlaces.isEmpty)
         #expect(store.visitedPlaceSummary.citiesVisited == 0)
         #expect(store.visitedPlaceSummary.countriesVisited == 0)
+        #expect(store.visitedCountryDays.isEmpty)
+        #expect(store.visitedCountryDayYears.isEmpty)
+    }
+
+    @Test
+    func clearVisitedPlacesResetsCountryDayDiary() async throws {
+        let settingsStore = try AppSettingsStore(defaults: isolatedDefaults())
+        settingsStore.settings.publicIPGeolocationEnabled = true
+        settingsStore.settings.visitedPlacesEnabled = true
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: makeDependencies())
+        store.setCurrentLocation(CLLocation(latitude: 60.1699, longitude: 24.9384))
+
+        await store.refresh(manual: true)
+        #expect(store.visitedPlaces.isEmpty == false)
+        #expect(store.visitedCountryDays.isEmpty == false)
+
+        store.clearVisitedPlaces()
+
+        try await waitUntil {
+            store.visitedPlaces.isEmpty && store.visitedCountryDays.isEmpty
+        }
+        #expect(store.visitedCountryDayYears.isEmpty)
+    }
+
+    @Test
+    func loadsVisitedCountryDayYearsAndSummary() async throws {
+        let settingsStore = try AppSettingsStore(defaults: isolatedDefaults())
+        let visitedCountryDaysStore = InMemoryVisitedCountryDaysStore(values: [
+            .init(day: .init(year: 2025, month: 12, day: 30), country: "Spain", countryCode: "ES", source: .publicIPGeolocation, isInferred: false),
+            .init(day: .init(year: 2026, month: 1, day: 1), country: "Finland", countryCode: "FI", source: .deviceLocation, isInferred: false),
+            .init(day: .init(year: 2026, month: 1, day: 2), country: "Finland", countryCode: "FI", source: .deviceLocation, isInferred: true),
+            .init(day: .init(year: 2026, month: 1, day: 3), country: "Sweden", countryCode: "SE", source: .deviceLocation, isInferred: false)
+        ])
+
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(visitedCountryDaysStore: visitedCountryDaysStore)
+        )
+
+        try await waitUntil {
+            store.visitedCountryDays.count == 4
+        }
+
+        #expect(store.visitedCountryDayYears == [2026, 2025])
+        let summary = store.visitedCountryDaySummary(for: 2026)
+        #expect(summary?.totalTrackedDays == 3)
+        #expect(summary?.items.map(\.countryCode) == ["FI", "SE"])
+        #expect(summary?.items.map(\.dayCount) == [2, 1])
     }
 
     @Test
@@ -1125,6 +1179,7 @@ private func makeDependencies(
     travelWeatherAlertsProvider: any TravelWeatherAlertsProvider = FixedTravelWeatherAlertsProvider(),
     regionalSecurityProvider: any RegionalSecurityProvider = FixedRegionalSecurityProvider(),
     visitedPlacesStore: any VisitedPlacesStore = InMemoryVisitedPlacesStore(),
+    visitedCountryDaysStore: any VisitedCountryDaysStore = InMemoryVisitedCountryDaysStore(),
     historyStore: any MetricHistoryStore = InMemoryHistoryStore(),
     updateCoordinator: any UpdateCoordinator = NoopUpdateCoordinator()
 ) -> DashboardDependencies {
@@ -1147,6 +1202,7 @@ private func makeDependencies(
         travelWeatherAlertsProvider: travelWeatherAlertsProvider,
         regionalSecurityProvider: regionalSecurityProvider,
         visitedPlacesStore: visitedPlacesStore,
+        visitedCountryDaysStore: visitedCountryDaysStore,
         historyStore: historyStore,
         updateCoordinator: updateCoordinator
     )
@@ -1247,6 +1303,117 @@ private actor InMemoryVisitedPlacesStore: VisitedPlacesStore {
     private func uniquedSources(_ values: [VisitedPlaceSource]) -> [VisitedPlaceSource] {
         var seen = Set<VisitedPlaceSource>()
         return values.filter { seen.insert($0).inserted }
+    }
+}
+
+private actor InMemoryVisitedCountryDaysStore: VisitedCountryDaysStore {
+    private var values: [VisitedCountryDay]
+
+    init(values: [VisitedCountryDay] = []) {
+        self.values = values.sorted { $0.day < $1.day }
+    }
+
+    func loadAll() async throws -> [VisitedCountryDay] {
+        values.sorted { $0.day < $1.day }
+    }
+
+    func record(_ input: VisitedCountryDayInput) async throws {
+        guard let entry = VisitedCountryDay.from(input) else {
+            return
+        }
+
+        if let existingIndex = values.firstIndex(where: { $0.day == entry.day }) {
+            let existing = values[existingIndex]
+            if existing.isInferred || (existing.source == .publicIPGeolocation && entry.source == .deviceLocation) {
+                values[existingIndex] = entry
+                values.sort { $0.day < $1.day }
+            }
+            return
+        }
+
+        values.append(entry)
+        values.sort { $0.day < $1.day }
+
+        guard let currentIndex = values.firstIndex(where: { $0.day == entry.day }), currentIndex > 0 else {
+            return
+        }
+
+        let previous = values[currentIndex - 1]
+        let gapDays = gapDays(from: previous.day, to: entry.day)
+        guard gapDays > 0 else {
+            return
+        }
+
+        let usesSameCountry = previous.countryCode == entry.countryCode
+            || (
+                previous.countryCode == nil
+                    && entry.countryCode == nil
+                    && previous.country.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                        == entry.country.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            )
+        let previousCountryCount = usesSameCountry ? gapDays : (gapDays + 1) / 2
+
+        let inferredEntries = (1...gapDays).compactMap { offset -> VisitedCountryDay? in
+            guard let day = offsetDay(previous.day, by: offset) else {
+                return nil
+            }
+
+            let template = offset <= previousCountryCount ? previous : entry
+            return VisitedCountryDay(
+                day: day,
+                country: template.country,
+                countryCode: template.countryCode,
+                source: template.source,
+                isInferred: true
+            )
+        }
+
+        values.insert(contentsOf: inferredEntries, at: currentIndex)
+        values.sort { $0.day < $1.day }
+    }
+
+    func reset() async throws {
+        values = []
+    }
+
+    private func gapDays(from start: VisitedCountryDayStamp, to end: VisitedCountryDayStamp) -> Int {
+        dayDistance(from: start, to: end) - 1
+    }
+
+    private func dayDistance(from start: VisitedCountryDayStamp, to end: VisitedCountryDayStamp) -> Int {
+        guard let startDate = date(for: start), let endDate = date(for: end) else {
+            return 0
+        }
+
+        return Self.calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 0
+    }
+
+    private func offsetDay(_ day: VisitedCountryDayStamp, by value: Int) -> VisitedCountryDayStamp? {
+        guard
+            let date = date(for: day),
+            let offsetDate = Self.calendar.date(byAdding: .day, value: value, to: date)
+        else {
+            return nil
+        }
+
+        return VisitedCountryDayStamp(date: offsetDate, calendar: Self.calendar)
+    }
+
+    private func date(for day: VisitedCountryDayStamp) -> Date? {
+        Self.calendar.date(from: DateComponents(
+            calendar: Self.calendar,
+            timeZone: Self.calendar.timeZone,
+            year: day.year,
+            month: day.month,
+            day: day.day,
+            hour: 12
+        ))
+    }
+
+    private static var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return calendar
     }
 }
 
