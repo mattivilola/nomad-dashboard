@@ -17,6 +17,10 @@ Nomad Dashboard.
 - Keep `App/` thin and focused on lifecycle, windows, and system glue.
 - Prefer non-destructive changes and document any release-flow changes in
   `docs/release.md`.
+- When a user-facing feature, privacy behavior, or product capability changes,
+  update the relevant docs in the same task. Always review
+  `docs/marketing/features.md`, `docs/marketing/marketing.md`, and
+  `docs/privacy.md`, and update whichever of them are affected.
 
 ## Validation
 

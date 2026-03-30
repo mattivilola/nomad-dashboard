@@ -3,6 +3,9 @@
 - Weather uses device location when permission is granted.
 - External IP lookups use FreeIPAPI.
 - External IP location display is enabled by default for new installs and can be disabled in Settings.
+- Visited places and country-day travel history are stored locally on the Mac and can be cleared by the user.
+- Country-day history may estimate missing days between two known countries using surrounding captures.
+- Country-day year and month summaries can be copied to the clipboard as plain text when the user chooses to export them.
 - Travel advisory uses Smartraveller and is enabled by default.
 - Weather alerts use WeatherKit and stay off until you enable them.
 - Regional security uses ReliefWeb and stays off until you enable it.

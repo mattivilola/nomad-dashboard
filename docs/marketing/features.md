@@ -240,6 +240,8 @@ Users can monitor one chosen surf location directly from the dashboard without m
 - Can save visited places locally on the Mac
 - Tracks visited cities and countries when enough context is available
 - Includes a visited map window for viewing travel history
+- Builds a country-by-day local diary with yearly and monthly breakdowns
+- Can export the selected year summary, including monthly totals, as plain text via the clipboard
 
 ### Who it helps
 
@@ -248,17 +250,19 @@ Users can monitor one chosen surf location directly from the dashboard without m
 
 ### Practical benefit
 
-Users can build a simple local travel history over time and revisit where they have been.
+Users can build a simple local travel history over time, revisit where they have been, and understand how time was split across countries by year and month.
 
 ### Dependencies or setup
 
 - feature can be turned on or off in Settings
 - visited place detection can use device location and/or public IP geolocation depending on available context
+- yearly and monthly country-day summaries depend on saved local travel history accumulating over time
 
 ### Limitations
 
 - data stays local to the Mac unless the user moves it themselves
 - this is not a multi-device synced travel journal
+- country-day gaps are estimated from the surrounding known countries when the app has missing days between captures
 
 ## Settings, Layout Customization, Updates, And Launch At Login
 

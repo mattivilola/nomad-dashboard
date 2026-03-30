@@ -85,7 +85,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Reviewing current weather and upcoming forecast before moving between locations
 - Surfacing optional travel alerts and regional context while on the move
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
-- Tracking visited places locally on the Mac
+- Tracking visited places locally on the Mac, with country-day summaries by year and month
 - Keeping all of the above in a compact menu bar workflow instead of a full-size monitoring dashboard
 
 ## Benefit Statements
