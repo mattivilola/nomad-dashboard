@@ -129,6 +129,8 @@ public struct DashboardPanelView: View {
 
     public var body: some View {
         GeometryReader { viewport in
+            let contentWidth = max(viewport.size.width - 36, 0)
+
             ZStack {
                 NomadTheme.background.ignoresSafeArea()
 
@@ -139,6 +141,7 @@ public struct DashboardPanelView: View {
                         orderedCardSections(viewportHeight: viewport.size.height)
                         footer
                     }
+                    .frame(width: contentWidth, alignment: .topLeading)
                     .padding(18)
                 }
                 .coordinateSpace(name: DashboardScrollCoordinateSpace.name)
@@ -1299,6 +1302,7 @@ public struct DashboardPanelView: View {
             timeTrackingHeaderVariant(configurations, index: 0)
             timeTrackingHeaderVariant(configurations, index: 1)
             timeTrackingHeaderVariant(configurations, index: 2)
+            timeTrackingHeaderVariant(configurations, index: 3)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
@@ -1543,7 +1547,7 @@ public struct DashboardPanelView: View {
                 .foregroundStyle(isEnabled ? NomadTheme.primaryText : NomadTheme.secondaryText)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .frame(maxWidth: maximumWidth)
+                .frame(maxWidth: maximumWidth, alignment: .center)
                 .background(
                     Capsule(style: .continuous)
                         .fill(NomadTheme.inlineButtonBackground.opacity(isEnabled ? 1 : 0.72))
@@ -1610,7 +1614,6 @@ public struct DashboardPanelView: View {
                     .foregroundStyle(NomadTheme.primaryText)
                     .lineLimit(1)
             }
-            .fixedSize(horizontal: true, vertical: false)
             .layoutPriority(1)
 
             ForEach(timeTrackingQuickActionsPresentation.visibleHeaderControls, id: \.title) { control in
@@ -1647,7 +1650,7 @@ public struct DashboardPanelView: View {
                 action: openTimeTrackingAction
             )
         }
-        .fixedSize(horizontal: true, vertical: false)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

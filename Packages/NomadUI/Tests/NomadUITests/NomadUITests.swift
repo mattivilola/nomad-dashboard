@@ -251,7 +251,8 @@ struct NomadUITests {
         #expect(configurations.map { $0.chips.map(\.title) } == [
             ["Alpha", "Bravo", "Other"],
             ["Alpha", "Other"],
-            ["Other"]
+            ["Other"],
+            []
         ])
     }
 

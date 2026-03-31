@@ -150,27 +150,25 @@ public struct TimeTrackingQuickActionsPresentation: Equatable {
         let resolvedProjectCount = max(0, min(maxProjectCount, recentProjects.count))
         var configurations: [TimeTrackingHeaderCompactConfiguration] = []
 
-        func appendConfiguration(projectCount: Int) {
+        func appendConfiguration(projectCount: Int, includesOtherChip: Bool) {
             let projectChips = recommendedProjects(maxCount: projectCount).map {
                 TimeTrackingQuickBucketChip(bucket: .project($0.id), title: $0.trimmedName)
             }
-            let configuration = TimeTrackingHeaderCompactConfiguration(
-                chips: projectChips + [TimeTrackingQuickBucketChip(bucket: .other, title: otherChipTitle)]
-            )
+            let otherChip = includesOtherChip ? [TimeTrackingQuickBucketChip(bucket: .other, title: otherChipTitle)] : []
+            let configuration = TimeTrackingHeaderCompactConfiguration(chips: projectChips + otherChip)
 
             if configurations.contains(configuration) == false {
                 configurations.append(configuration)
             }
         }
 
-        appendConfiguration(projectCount: resolvedProjectCount)
-        if resolvedProjectCount == 0 {
-            return configurations
+        appendConfiguration(projectCount: resolvedProjectCount, includesOtherChip: true)
+        if resolvedProjectCount > 0 {
+            for projectCount in stride(from: resolvedProjectCount - 1, through: 0, by: -1) {
+                appendConfiguration(projectCount: projectCount, includesOtherChip: true)
+            }
         }
-
-        for projectCount in stride(from: resolvedProjectCount - 1, through: 0, by: -1) {
-            appendConfiguration(projectCount: projectCount)
-        }
+        appendConfiguration(projectCount: 0, includesOtherChip: false)
 
         return configurations
     }
