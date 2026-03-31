@@ -560,6 +560,15 @@ private struct TimeTrackingEntryEditorRow: View {
         projects.filter(\.isActive).map { .project($0.id) } + [.other, .unallocated]
     }
 
+    private var quickActionsPresentation: TimeTrackingQuickActionsPresentation {
+        TimeTrackingQuickActionsPresentation(
+            activeProjects: projects,
+            pendingDurationText: "",
+            activityTitle: "",
+            primaryControlTitle: ""
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -590,6 +599,17 @@ private struct TimeTrackingEntryEditorRow: View {
                     }
                 }
                 .buttonStyle(.bordered)
+            }
+
+            ViewThatFits(in: .horizontal) {
+                quickBucketChipRow(maxProjectCount: 4, selectionID: selectedBucketID) { chip in
+                    selectedBucketID = chip.bucket.stableID
+                    await onReassign(chip.bucket)
+                }
+                quickBucketChipRow(maxProjectCount: 3, selectionID: selectedBucketID) { chip in
+                    selectedBucketID = chip.bucket.stableID
+                    await onReassign(chip.bucket)
+                }
             }
 
             HStack(spacing: 10) {
@@ -623,6 +643,17 @@ private struct TimeTrackingEntryEditorRow: View {
                     }
                 }
                 .buttonStyle(.bordered)
+            }
+
+            ViewThatFits(in: .horizontal) {
+                quickBucketChipRow(maxProjectCount: 4, selectionID: splitBucketID) { chip in
+                    splitBucketID = chip.bucket.stableID
+                    await onSplit(splitAt, chip.bucket)
+                }
+                quickBucketChipRow(maxProjectCount: 3, selectionID: splitBucketID) { chip in
+                    splitBucketID = chip.bucket.stableID
+                    await onSplit(splitAt, chip.bucket)
+                }
             }
         }
         .padding(14)
@@ -670,6 +701,25 @@ private struct TimeTrackingEntryEditorRow: View {
         splitAt = entry.startAt.addingTimeInterval(max(resolvedEnd.timeIntervalSince(entry.startAt), 60) / 2)
     }
 
+    private func quickBucketChipRow(
+        maxProjectCount: Int,
+        selectionID: String,
+        action: @escaping @Sendable (TimeTrackingQuickBucketChip) async -> Void
+    ) -> some View {
+        HStack(spacing: 8) {
+            ForEach(quickActionsPresentation.quickBucketChips(maxProjectCount: maxProjectCount, includeUnallocated: true)) { chip in
+                quickBucketChip(
+                    title: chip.title,
+                    isSelected: selectionID == chip.bucket.stableID
+                ) {
+                    Task {
+                        await action(chip)
+                    }
+                }
+            }
+        }
+    }
+
     private func bucket(for stableID: String) -> TimeTrackingBucket {
         if stableID == TimeTrackingBucket.other.stableID {
             return .other
@@ -687,5 +737,31 @@ private struct TimeTrackingEntryEditorRow: View {
         }
 
         return .unallocated
+    }
+
+    private func quickBucketChip(
+        title: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .foregroundStyle(isSelected ? NomadTheme.teal : NomadTheme.primaryText)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .frame(maxWidth: 110)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(isSelected ? NomadTheme.teal.opacity(0.14) : NomadTheme.inlineButtonBackground.opacity(0.95))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(isSelected ? NomadTheme.teal.opacity(0.7) : NomadTheme.cardBorder.opacity(0.92), lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
     }
 }

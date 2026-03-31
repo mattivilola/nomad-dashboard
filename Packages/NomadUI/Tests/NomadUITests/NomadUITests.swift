@@ -193,6 +193,30 @@ struct NomadUITests {
     }
 
     @Test
+    func timeTrackingQuickActionsPresentationBuildsDialogBucketChips() {
+        let projectA = TimeTrackingProject(name: "Alpha")
+        let projectB = TimeTrackingProject(name: "Bravo")
+        let projectC = TimeTrackingProject(name: "Charlie")
+        let projectD = TimeTrackingProject(name: "Delta")
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [projectA, projectB, projectC, projectD],
+            pendingDurationText: "2m",
+            activityTitle: "Running",
+            primaryControlTitle: "Pause"
+        )
+
+        let chips = presentation.quickBucketChips(maxProjectCount: 3, includeUnallocated: true)
+        #expect(chips.map(\.title) == ["Delta", "Charlie", "Bravo", "Other", "Unallocated"])
+        #expect(chips.map(\.bucket.stableID) == [
+            TimeTrackingBucket.project(projectD.id).stableID,
+            TimeTrackingBucket.project(projectC.id).stableID,
+            TimeTrackingBucket.project(projectB.id).stableID,
+            TimeTrackingBucket.other.stableID,
+            TimeTrackingBucket.unallocated.stableID
+        ])
+    }
+
+    @Test
     func timeTrackingQuickActionsPresentationKeepsHeaderControlsAvailable() {
         let presentation = TimeTrackingQuickActionsPresentation(
             activeProjects: [TimeTrackingProject(name: "Long Client Project Name That Should Truncate In UI")],
