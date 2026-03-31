@@ -10,6 +10,8 @@ struct TimeTrackingWindowView: View {
     @State private var selectedPeriod: TimeTrackingPeriod = .day
     @State private var anchorDate = Date()
     @State private var selectedDay: Date?
+    @State private var expandedEntryIDs = Set<UUID>()
+    @State private var entryAttentionStateByID: [UUID: Bool] = [:]
     @State private var exportStatusMessage: String?
 
     private var calendar: Calendar {
@@ -40,6 +42,7 @@ struct TimeTrackingWindowView: View {
         .frame(minWidth: 960, minHeight: 760)
         .onAppear {
             syncSelectedDay()
+            reconcileEntryExpansionState()
         }
         .onChange(of: selectedPeriod) { _, _ in
             syncSelectedDay()
@@ -51,6 +54,9 @@ struct TimeTrackingWindowView: View {
         }
         .onChange(of: displayedDays) { _, _ in
             syncSelectedDay()
+        }
+        .onChange(of: dayEntries) { _, _ in
+            reconcileEntryExpansionState()
         }
     }
 
@@ -244,7 +250,11 @@ struct TimeTrackingWindowView: View {
                                 entry: entry,
                                 selectedDay: resolvedSelectedDay,
                                 projects: settingsStore.settings.timeTrackingProjects,
+                                isExpanded: expandedEntryIDs.contains(entry.id),
                                 bucketTitle: { controller.title(for: $0) },
+                                onToggleExpanded: { isExpanded in
+                                    setEntryExpanded(entry.id, isExpanded: isExpanded)
+                                },
                                 onReassign: { bucket in
                                     await controller.reassignEntry(id: entry.id, to: bucket)
                                 },
@@ -385,6 +395,49 @@ struct TimeTrackingWindowView: View {
         controller.entries(forDay: resolvedSelectedDay)
     }
 
+    private func entryNeedsAction(_ entry: TimeTrackingEntry) -> Bool {
+        entry.isOpen || entry.bucket == .unallocated
+    }
+
+    private func setEntryExpanded(_ entryID: UUID, isExpanded: Bool) {
+        if isExpanded {
+            expandedEntryIDs.insert(entryID)
+        } else {
+            expandedEntryIDs.remove(entryID)
+        }
+    }
+
+    private func reconcileEntryExpansionState() {
+        let currentEntries = dayEntries
+        let currentIDs = Set(currentEntries.map(\.id))
+        var nextExpandedIDs = expandedEntryIDs.intersection(currentIDs)
+        var nextAttentionStateByID: [UUID: Bool] = [:]
+
+        for entry in currentEntries {
+            let needsAction = entryNeedsAction(entry)
+            let previousNeedsAction = entryAttentionStateByID[entry.id]
+            let wasExpanded = expandedEntryIDs.contains(entry.id)
+
+            switch (previousNeedsAction, needsAction) {
+            case (.none, true):
+                nextExpandedIDs.insert(entry.id)
+            case (.some(false), true):
+                nextExpandedIDs.insert(entry.id)
+            case (.some(true), false):
+                nextExpandedIDs.remove(entry.id)
+            default:
+                if wasExpanded {
+                    nextExpandedIDs.insert(entry.id)
+                }
+            }
+
+            nextAttentionStateByID[entry.id] = needsAction
+        }
+
+        expandedEntryIDs = nextExpandedIDs
+        entryAttentionStateByID = nextAttentionStateByID
+    }
+
     private var statusBadge: some View {
         Text(primaryStatusLabel)
             .font(.caption.weight(.semibold))
@@ -516,7 +569,9 @@ private struct TimeTrackingEntryEditorRow: View {
     let entry: TimeTrackingEntry
     let selectedDay: Date
     let projects: [TimeTrackingProject]
+    let isExpanded: Bool
     let bucketTitle: (TimeTrackingBucket) -> String
+    let onToggleExpanded: (Bool) -> Void
     let onReassign: @Sendable (TimeTrackingBucket) async -> Void
     let onResize: @Sendable (Date, Date) async -> Void
     let onSplit: @Sendable (Date, TimeTrackingBucket) async -> Void
@@ -526,12 +581,15 @@ private struct TimeTrackingEntryEditorRow: View {
     @State private var endAt: Date
     @State private var splitAt: Date
     @State private var splitBucketID: String
+    @State private var isSplitExpanded = false
 
     init(
         entry: TimeTrackingEntry,
         selectedDay: Date,
         projects: [TimeTrackingProject],
+        isExpanded: Bool,
         bucketTitle: @escaping (TimeTrackingBucket) -> String,
+        onToggleExpanded: @escaping (Bool) -> Void,
         onReassign: @escaping @Sendable (TimeTrackingBucket) async -> Void,
         onResize: @escaping @Sendable (Date, Date) async -> Void,
         onSplit: @escaping @Sendable (Date, TimeTrackingBucket) async -> Void
@@ -539,7 +597,9 @@ private struct TimeTrackingEntryEditorRow: View {
         self.entry = entry
         self.selectedDay = selectedDay
         self.projects = projects
+        self.isExpanded = isExpanded
         self.bucketTitle = bucketTitle
+        self.onToggleExpanded = onToggleExpanded
         self.onReassign = onReassign
         self.onResize = onResize
         self.onSplit = onSplit
@@ -570,98 +630,169 @@ private struct TimeTrackingEntryEditorRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(bucketTitle(bucket(for: selectedBucketID)))
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(NomadTheme.primaryText)
+        VStack(alignment: .leading, spacing: isExpanded ? 10 : 0) {
+            Button {
+                onToggleExpanded(isExpanded == false)
+            } label: {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(displayBucketTitle)
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(NomadTheme.primaryText)
 
-                Spacer()
-
-                Text(durationLabel)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(NomadTheme.secondaryText)
-            }
-
-            HStack(spacing: 10) {
-                Picker("Bucket", selection: $selectedBucketID) {
-                    ForEach(bucketOptions, id: \.stableID) { bucket in
-                        Text(bucketTitle(bucket))
-                            .tag(bucket.stableID)
+                        Text(summaryLabel)
+                            .font(.caption)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                            .lineLimit(1)
                     }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 220)
 
-                Button("Apply Bucket") {
-                    Task {
-                        await onReassign(bucket(for: selectedBucketID))
+                    Spacer(minLength: 12)
+
+                    if needsAction {
+                        Text(entryStatusLabel)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(needsActionTint)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(needsActionTint.opacity(0.12))
+                            )
                     }
+
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(NomadTheme.tertiaryText)
                 }
-                .buttonStyle(.bordered)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
-            ViewThatFits(in: .horizontal) {
-                quickBucketChipRow(maxProjectCount: 4, selectionID: selectedBucketID) { chip in
-                    selectedBucketID = chip.bucket.stableID
-                    await onReassign(chip.bucket)
-                }
-                quickBucketChipRow(maxProjectCount: 3, selectionID: selectedBucketID) { chip in
-                    selectedBucketID = chip.bucket.stableID
-                    await onReassign(chip.bucket)
-                }
-            }
+            if isExpanded {
+                Divider()
+                    .overlay(NomadTheme.cardBorder.opacity(0.7))
 
-            HStack(spacing: 10) {
-                DatePicker("Start", selection: $startAt, in: dayInterval.start...dayInterval.end, displayedComponents: .hourAndMinute)
-                DatePicker("End", selection: $endAt, in: dayInterval.start...dayInterval.end, displayedComponents: .hourAndMinute)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .bottom, spacing: 8) {
+                        compactField("Bucket") {
+                            Picker("Bucket", selection: $selectedBucketID) {
+                                ForEach(bucketOptions, id: \.stableID) { bucket in
+                                    Text(bucketTitle(bucket))
+                                        .tag(bucket.stableID)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .frame(width: 220)
+                        }
 
-                Button("Save Time") {
-                    Task {
-                        await onResize(startAt, endAt)
+                        Button("Apply Bucket") {
+                            Task {
+                                await onReassign(bucket(for: selectedBucketID))
+                            }
+                        }
+                        .buttonStyle(.bordered)
                     }
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(NomadTheme.teal)
-            }
 
-            HStack(spacing: 10) {
-                DatePicker("Split At", selection: $splitAt, in: startAt...endAt, displayedComponents: .hourAndMinute)
-
-                Picker("Second Segment", selection: $splitBucketID) {
-                    ForEach(bucketOptions, id: \.stableID) { bucket in
-                        Text(bucketTitle(bucket))
-                            .tag(bucket.stableID)
+                    ViewThatFits(in: .horizontal) {
+                        quickBucketChipRow(maxProjectCount: 4, selectionID: selectedBucketID) { chip in
+                            selectedBucketID = chip.bucket.stableID
+                            await onReassign(chip.bucket)
+                        }
+                        quickBucketChipRow(maxProjectCount: 3, selectionID: selectedBucketID) { chip in
+                            selectedBucketID = chip.bucket.stableID
+                            await onReassign(chip.bucket)
+                        }
                     }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 220)
 
-                Button("Split Entry") {
-                    Task {
-                        await onSplit(splitAt, bucket(for: splitBucketID))
+                    HStack(alignment: .bottom, spacing: 8) {
+                        compactField("Start") {
+                            DatePicker(
+                                "Start",
+                                selection: $startAt,
+                                in: dayInterval.start...dayInterval.end,
+                                displayedComponents: .hourAndMinute
+                            )
+                            .labelsHidden()
+                        }
+
+                        compactField("End") {
+                            DatePicker(
+                                "End",
+                                selection: $endAt,
+                                in: dayInterval.start...dayInterval.end,
+                                displayedComponents: .hourAndMinute
+                            )
+                            .labelsHidden()
+                        }
+
+                        Button("Save Time") {
+                            Task {
+                                await onResize(startAt, endAt)
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(NomadTheme.teal)
                     }
-                }
-                .buttonStyle(.bordered)
-            }
 
-            ViewThatFits(in: .horizontal) {
-                quickBucketChipRow(maxProjectCount: 4, selectionID: splitBucketID) { chip in
-                    splitBucketID = chip.bucket.stableID
-                    await onSplit(splitAt, chip.bucket)
-                }
-                quickBucketChipRow(maxProjectCount: 3, selectionID: splitBucketID) { chip in
-                    splitBucketID = chip.bucket.stableID
-                    await onSplit(splitAt, chip.bucket)
+                    splitDisclosureButton
+
+                    if isSplitExpanded {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(alignment: .bottom, spacing: 8) {
+                                compactField("Split At") {
+                                    DatePicker(
+                                        "Split At",
+                                        selection: $splitAt,
+                                        in: splitRange,
+                                        displayedComponents: .hourAndMinute
+                                    )
+                                    .labelsHidden()
+                                }
+
+                                compactField("Second Segment") {
+                                    Picker("Second Segment", selection: $splitBucketID) {
+                                        ForEach(bucketOptions, id: \.stableID) { bucket in
+                                            Text(bucketTitle(bucket))
+                                                .tag(bucket.stableID)
+                                            }
+                                    }
+                                    .pickerStyle(.menu)
+                                    .labelsHidden()
+                                    .frame(width: 220)
+                                }
+
+                                Button("Split Entry") {
+                                    Task {
+                                        await onSplit(splitAt, bucket(for: splitBucketID))
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(canSplit == false)
+                            }
+
+                            ViewThatFits(in: .horizontal) {
+                                quickBucketChipRow(maxProjectCount: 4, selectionID: splitBucketID) { chip in
+                                    splitBucketID = chip.bucket.stableID
+                                    await onSplit(splitAt, chip.bucket)
+                                }
+                                quickBucketChipRow(maxProjectCount: 3, selectionID: splitBucketID) { chip in
+                                    splitBucketID = chip.bucket.stableID
+                                    await onSplit(splitAt, chip.bucket)
+                                }
+                            }
+                            .disabled(canSplit == false)
+                        }
+                    }
                 }
             }
         }
-        .padding(14)
+        .padding(isExpanded ? 12 : 11)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: isExpanded ? 16 : 14, style: .continuous)
                 .fill(NomadTheme.chartBackground.opacity(0.95))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: isExpanded ? 16 : 14, style: .continuous)
                         .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
                 )
         )
@@ -673,6 +804,12 @@ private struct TimeTrackingEntryEditorRow: View {
         }
         .onChange(of: entry.bucket.stableID) { _, _ in
             syncFromEntry()
+        }
+        .onChange(of: startAt) { _, _ in
+            syncSplitAtWithinEditableRange()
+        }
+        .onChange(of: endAt) { _, _ in
+            syncSplitAtWithinEditableRange()
         }
     }
 
@@ -693,6 +830,86 @@ private struct TimeTrackingEntryEditorRow: View {
         return "\(hours)h \(minutes)m"
     }
 
+    private var displayBucketTitle: String {
+        bucketTitle(bucket(for: selectedBucketID))
+    }
+
+    private var summaryLabel: String {
+        "\(timeRangeLabel) • \(durationLabel)"
+    }
+
+    private var timeRangeLabel: String {
+        "\(formattedTime(startAt)) - \(formattedTime(endAt))"
+    }
+
+    private var needsAction: Bool {
+        entry.isOpen || entry.bucket == .unallocated
+    }
+
+    private var entryStatusLabel: String {
+        if entry.isOpen {
+            return "Open"
+        }
+
+        if entry.bucket == .unallocated {
+            return "Pending"
+        }
+
+        return "Ready"
+    }
+
+    private var needsActionTint: Color {
+        if entry.isOpen {
+            return NomadTheme.teal
+        }
+
+        return NomadTheme.coral
+    }
+
+    private var canSplit: Bool {
+        endAt > startAt
+    }
+
+    private var splitRange: ClosedRange<Date> {
+        let upperBound = max(startAt, endAt)
+        return startAt...upperBound
+    }
+
+    private var splitDisclosureButton: some View {
+        Button {
+            isSplitExpanded.toggle()
+        } label: {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Split Time Frame")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NomadTheme.primaryText)
+
+                    Text(isSplitExpanded ? "Adjust the second segment and split point." : "Show split controls only when needed.")
+                        .font(.caption2)
+                        .foregroundStyle(NomadTheme.secondaryText)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: isSplitExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(NomadTheme.tertiaryText)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(NomadTheme.inlineButtonBackground.opacity(0.9))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(NomadTheme.cardBorder.opacity(0.85), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     private func syncFromEntry() {
         let resolvedEnd = entry.endAt ?? entry.startAt
         selectedBucketID = entry.bucket.stableID
@@ -701,10 +918,25 @@ private struct TimeTrackingEntryEditorRow: View {
         splitAt = entry.startAt.addingTimeInterval(max(resolvedEnd.timeIntervalSince(entry.startAt), 60) / 2)
     }
 
+    private func syncSplitAtWithinEditableRange() {
+        guard endAt > startAt else {
+            splitAt = startAt
+            return
+        }
+
+        if splitAt <= startAt || splitAt >= endAt {
+            splitAt = startAt.addingTimeInterval(endAt.timeIntervalSince(startAt) / 2)
+        }
+    }
+
+    private func formattedTime(_ date: Date) -> String {
+        date.formatted(date: .omitted, time: .shortened)
+    }
+
     private func quickBucketChipRow(
         maxProjectCount: Int,
         selectionID: String,
-        action: @escaping @Sendable (TimeTrackingQuickBucketChip) async -> Void
+        action: @escaping (TimeTrackingQuickBucketChip) async -> Void
     ) -> some View {
         HStack(spacing: 8) {
             ForEach(quickActionsPresentation.quickBucketChips(maxProjectCount: maxProjectCount, includeUnallocated: true)) { chip in
@@ -750,9 +982,9 @@ private struct TimeTrackingEntryEditorRow: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .foregroundStyle(isSelected ? NomadTheme.teal : NomadTheme.primaryText)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .frame(maxWidth: 110)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .frame(maxWidth: 102)
                 .background(
                     Capsule(style: .continuous)
                         .fill(isSelected ? NomadTheme.teal.opacity(0.14) : NomadTheme.inlineButtonBackground.opacity(0.95))
@@ -763,5 +995,18 @@ private struct TimeTrackingEntryEditorRow: View {
                 )
         }
         .buttonStyle(.plain)
+    }
+
+    private func compactField<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(NomadTheme.secondaryText)
+
+            content()
+        }
     }
 }
