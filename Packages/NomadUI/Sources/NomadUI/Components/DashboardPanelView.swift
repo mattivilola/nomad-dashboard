@@ -1293,43 +1293,17 @@ public struct DashboardPanelView: View {
     }
 
     private var timeTrackingHeaderPill: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: "clock.badge.checkmark")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(NomadTheme.teal)
+        let configurations = timeTrackingQuickActionsPresentation.headerCompactConfigurations(maxProjectCount: 4)
 
-                Text("Pending \(timeTrackingQuickActionsPresentation.pendingDurationText)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(NomadTheme.primaryText)
-                    .lineLimit(1)
-
-                Text(timeTrackingQuickActionsPresentation.activityTitle)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(NomadTheme.secondaryText)
-                    .lineLimit(1)
-            }
-            .layoutPriority(1)
-
-            headerTextActionButton(
-                title: timeTrackingQuickActionsPresentation.primaryControlTitle,
-                action: timeTrackingPrimaryControlAction
-            )
-
-            headerTextActionButton(
-                title: timeTrackingQuickActionsPresentation.stopControlTitle,
-                action: stopTimeTrackingAction
-            )
-
-            ViewThatFits(in: .horizontal) {
-                timeTrackingQuickActionChips(maxProjectCount: 4)
-                timeTrackingQuickActionChips(maxProjectCount: 3)
-                timeTrackingQuickActionChips(maxProjectCount: 2)
-                timeTrackingQuickActionChips(maxProjectCount: 1)
-            }
-
-            headerIconChipButton(systemImage: timeTrackingQuickActionsPresentation.openSystemImage, action: openTimeTrackingAction)
+        return ViewThatFits(in: .horizontal) {
+            timeTrackingHeaderVariant(configurations, index: 0)
+            timeTrackingHeaderVariant(configurations, index: 1)
+            timeTrackingHeaderVariant(configurations, index: 2)
+            timeTrackingHeaderVariant(configurations, index: 3)
+            timeTrackingHeaderVariant(configurations, index: 4)
+            timeTrackingHeaderVariant(configurations, index: 5)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .background(
@@ -1444,8 +1418,7 @@ public struct DashboardPanelView: View {
         TimeTrackingQuickActionsPresentation(
             activeProjects: timeTrackingDashboardState.activeProjects,
             pendingDurationText: formattedTrackingDuration(timeTrackingDashboardState.todaySummary.unallocatedDuration),
-            activityTitle: timeTrackingActivityTitle,
-            primaryControlTitle: timeTrackingPrimaryControlTitle
+            activityState: timeTrackingDashboardState.activityState
         )
     }
 
@@ -1554,6 +1527,7 @@ public struct DashboardPanelView: View {
             ForEach(timeTrackingQuickActionsPresentation.latestProjects(maxCount: maxProjectCount)) { project in
                 headerChipButton(
                     title: timeTrackingHeaderChipTitle(project.trimmedName),
+                    accessibilityTitle: project.trimmedName,
                     systemImage: nil,
                     isEnabled: timeTrackingDashboardState.todaySummary.unallocatedDuration > 0
                 ) {
@@ -1563,6 +1537,7 @@ public struct DashboardPanelView: View {
 
             headerChipButton(
                 title: timeTrackingQuickActionsPresentation.otherChipTitle,
+                accessibilityTitle: nil,
                 systemImage: nil,
                 isEnabled: timeTrackingDashboardState.todaySummary.unallocatedDuration > 0
             ) {
@@ -1571,16 +1546,9 @@ public struct DashboardPanelView: View {
         }
     }
 
-    private func headerTextActionButton(title: String, action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
-            .buttonStyle(.borderless)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(NomadTheme.primaryText)
-            .lineLimit(1)
-    }
-
     private func headerChipButton(
         title: String,
+        accessibilityTitle: String?,
         systemImage: String?,
         isEnabled: Bool,
         action: @escaping () -> Void
@@ -1612,15 +1580,16 @@ public struct DashboardPanelView: View {
         }
         .buttonStyle(.plain)
         .disabled(isEnabled == false)
+        .help(accessibilityTitle ?? title)
+        .accessibilityLabel(accessibilityTitle ?? title)
     }
 
-    private func headerIconChipButton(systemImage: String, action: @escaping () -> Void) -> some View {
+    private func headerIconChipButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(NomadTheme.primaryText)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .frame(width: 28, height: 28)
                 .background(
                     Capsule(style: .continuous)
                         .fill(NomadTheme.inlineButtonBackground.opacity(0.95))
@@ -1631,15 +1600,84 @@ public struct DashboardPanelView: View {
                 )
         }
         .buttonStyle(.plain)
+        .help(title)
+        .accessibilityLabel(title)
     }
 
     private func timeTrackingHeaderChipTitle(_ title: String) -> String {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedTitle.count > 10 else {
+        guard trimmedTitle.count > 9 else {
             return trimmedTitle
         }
 
-        return String(trimmedTitle.prefix(9)) + "…"
+        return String(trimmedTitle.prefix(8)) + "…"
+    }
+
+    @ViewBuilder
+    private func timeTrackingHeaderVariant(
+        _ configurations: [TimeTrackingHeaderCompactConfiguration],
+        index: Int
+    ) -> some View {
+        if configurations.indices.contains(index) {
+            timeTrackingHeaderToolbar(configurations[index])
+        }
+    }
+
+    private func timeTrackingHeaderToolbar(_ configuration: TimeTrackingHeaderCompactConfiguration) -> some View {
+        HStack(spacing: 6) {
+            HStack(spacing: 7) {
+                Image(systemName: "clock.badge.checkmark")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NomadTheme.teal)
+
+                Text("Pending \(timeTrackingQuickActionsPresentation.pendingDurationText)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NomadTheme.primaryText)
+                    .lineLimit(1)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(1)
+
+            if configuration.showsActivityTitle {
+                Text(timeTrackingQuickActionsPresentation.activityTitle)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(NomadTheme.secondaryText)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+
+            headerIconChipButton(
+                title: timeTrackingQuickActionsPresentation.primaryControlIcon.title,
+                systemImage: timeTrackingQuickActionsPresentation.primaryControlIcon.systemImage,
+                action: timeTrackingPrimaryControlAction
+            )
+
+            headerIconChipButton(
+                title: timeTrackingQuickActionsPresentation.stopControlIcon.title,
+                systemImage: timeTrackingQuickActionsPresentation.stopControlIcon.systemImage,
+                action: stopTimeTrackingAction
+            )
+
+            HStack(spacing: 6) {
+                ForEach(configuration.chips) { chip in
+                    headerChipButton(
+                        title: timeTrackingHeaderChipTitle(chip.title),
+                        accessibilityTitle: chip.title,
+                        systemImage: nil,
+                        isEnabled: timeTrackingDashboardState.todaySummary.unallocatedDuration > 0
+                    ) {
+                        allocateTimeTrackingAction(chip.bucket)
+                    }
+                }
+            }
+
+            headerIconChipButton(
+                title: timeTrackingQuickActionsPresentation.openControlIcon.title,
+                systemImage: timeTrackingQuickActionsPresentation.openControlIcon.systemImage,
+                action: openTimeTrackingAction
+            )
+        }
+        .fixedSize(horizontal: true, vertical: false)
     }
 }
 

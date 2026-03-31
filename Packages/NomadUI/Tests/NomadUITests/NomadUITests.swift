@@ -167,8 +167,7 @@ struct NomadUITests {
                 TimeTrackingProject(name: "Five")
             ],
             pendingDurationText: "2m",
-            activityTitle: "Running",
-            primaryControlTitle: "Pause"
+            activityState: .running
         )
 
         #expect(presentation.latestProjects(maxCount: 4).map(\.trimmedName) == ["Five", "Four", "Three", "Two"])
@@ -185,8 +184,7 @@ struct NomadUITests {
                 TimeTrackingProject(name: "Bravo")
             ],
             pendingDurationText: "2m",
-            activityTitle: "Running",
-            primaryControlTitle: "Pause"
+            activityState: .running
         )
 
         #expect(presentation.latestProjects(maxCount: 4).map(\.trimmedName) == ["Bravo", "Alpha"])
@@ -201,8 +199,7 @@ struct NomadUITests {
         let presentation = TimeTrackingQuickActionsPresentation(
             activeProjects: [projectA, projectB, projectC, projectD],
             pendingDurationText: "2m",
-            activityTitle: "Running",
-            primaryControlTitle: "Pause"
+            activityState: .running
         )
 
         let chips = presentation.quickBucketChips(maxProjectCount: 3, includeUnallocated: true)
@@ -221,18 +218,72 @@ struct NomadUITests {
         let presentation = TimeTrackingQuickActionsPresentation(
             activeProjects: [TimeTrackingProject(name: "Long Client Project Name That Should Truncate In UI")],
             pendingDurationText: "2m",
-            activityTitle: "Running",
-            primaryControlTitle: "Pause"
+            activityState: .running
         )
 
         #expect(presentation.pendingDurationText == "2m")
         #expect(presentation.activityTitle == "Running")
         #expect(presentation.primaryControlTitle == "Pause")
+        #expect(presentation.primaryControlSystemImage == "pause.fill")
         #expect(presentation.stopControlTitle == "Stop")
+        #expect(presentation.stopControlSystemImage == "stop.fill")
         #expect(presentation.otherChipTitle == "Other")
         #expect(presentation.openTitle == "Open")
         #expect(presentation.openSystemImage == "clock.badge.checkmark")
         #expect(presentation.latestProjects(maxCount: 3).first?.trimmedName == "Long Client Project Name That Should Truncate In UI")
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationBuildsHeaderCompactConfigurations() {
+        let projects = [
+            TimeTrackingProject(name: "One"),
+            TimeTrackingProject(name: "Two"),
+            TimeTrackingProject(name: "Three"),
+            TimeTrackingProject(name: "Four"),
+            TimeTrackingProject(name: "Five")
+        ]
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: projects,
+            pendingDurationText: "14m",
+            activityState: .running
+        )
+
+        let configurations = presentation.headerCompactConfigurations(maxProjectCount: 4)
+        #expect(configurations.map(\.showsActivityTitle) == [true, false, false, false, false, false])
+        #expect(configurations.map { $0.chips.map(\.title) } == [
+            ["Five", "Four", "Three", "Two", "Other"],
+            ["Five", "Four", "Three", "Two", "Other"],
+            ["Five", "Four", "Three", "Other"],
+            ["Five", "Four", "Other"],
+            ["Five", "Other"],
+            ["Other"]
+        ])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationMapsPrimaryControlIconsByState() {
+        let running = TimeTrackingQuickActionsPresentation(
+            activeProjects: [],
+            pendingDurationText: "2m",
+            activityState: .running
+        )
+        let paused = TimeTrackingQuickActionsPresentation(
+            activeProjects: [],
+            pendingDurationText: "2m",
+            activityState: .paused
+        )
+        let stopped = TimeTrackingQuickActionsPresentation(
+            activeProjects: [],
+            pendingDurationText: "2m",
+            activityState: .stopped
+        )
+
+        #expect(running.primaryControlIcon.title == "Pause")
+        #expect(running.primaryControlIcon.systemImage == "pause.fill")
+        #expect(paused.primaryControlIcon.title == "Resume")
+        #expect(paused.primaryControlIcon.systemImage == "play.fill")
+        #expect(stopped.primaryControlIcon.title == "Play")
+        #expect(stopped.primaryControlIcon.systemImage == "play.fill")
     }
 
     @Test
