@@ -657,8 +657,8 @@ public struct DashboardPanelView: View {
 
     private func timeTrackingSection(widthMode: DashboardCardWidthMode) -> some View {
         let isCompact = widthMode == .narrow
-        let activeProjects = timeTrackingDashboardState.activeProjects
         let unallocatedDuration = timeTrackingDashboardState.todaySummary.unallocatedDuration
+        let quickProjects = timeTrackingQuickActionsPresentation.latestProjects(maxCount: isCompact ? 3 : 4)
 
         return DashboardCard(
             title: "Time Tracking",
@@ -706,7 +706,7 @@ public struct DashboardPanelView: View {
                         }
                     }
 
-                    if activeProjects.isEmpty == false {
+                    if timeTrackingDashboardState.activeProjects.isEmpty == false {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Quick Allocate")
                                 .font(.caption.weight(.semibold))
@@ -714,15 +714,15 @@ public struct DashboardPanelView: View {
 
                             if isCompact {
                                 VStack(alignment: .leading, spacing: 6) {
-                                    quickAllocateButton(title: "Other", bucket: .other, isCompact: true, isEnabled: unallocatedDuration > 0)
-                                    ForEach(activeProjects.prefix(3)) { project in
+                                    quickAllocateButton(title: timeTrackingQuickActionsPresentation.otherChipTitle, bucket: .other, isCompact: true, isEnabled: unallocatedDuration > 0)
+                                    ForEach(quickProjects) { project in
                                         quickAllocateButton(title: project.trimmedName, bucket: .project(project.id), isCompact: true, isEnabled: unallocatedDuration > 0)
                                     }
                                 }
                             } else {
                                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                                    quickAllocateButton(title: "Other", bucket: .other, isCompact: false, isEnabled: unallocatedDuration > 0)
-                                    ForEach(activeProjects) { project in
+                                    quickAllocateButton(title: timeTrackingQuickActionsPresentation.otherChipTitle, bucket: .other, isCompact: false, isEnabled: unallocatedDuration > 0)
+                                    ForEach(quickProjects) { project in
                                         quickAllocateButton(title: project.trimmedName, bucket: .project(project.id), isCompact: false, isEnabled: unallocatedDuration > 0)
                                     }
                                 }
@@ -1293,32 +1293,38 @@ public struct DashboardPanelView: View {
     }
 
     private var timeTrackingHeaderPill: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "clock.badge.checkmark")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(NomadTheme.teal)
+        HStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "clock.badge.checkmark")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NomadTheme.teal)
 
-            Text("Pending \(formattedTrackingDuration(timeTrackingDashboardState.todaySummary.unallocatedDuration))")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(NomadTheme.primaryText)
+                Text("Pending \(timeTrackingQuickActionsPresentation.pendingDurationText)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NomadTheme.primaryText)
+                    .lineLimit(1)
 
-            Text(timeTrackingActivityTitle)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(NomadTheme.secondaryText)
-
-            Spacer(minLength: 0)
-
-            Button(timeTrackingPrimaryControlTitle) {
-                timeTrackingPrimaryControlAction()
+                Text(timeTrackingQuickActionsPresentation.activityTitle)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(NomadTheme.secondaryText)
+                    .lineLimit(1)
             }
-            .buttonStyle(.borderless)
-            .font(.caption.weight(.semibold))
+            .layoutPriority(1)
 
-            Button("Stop") {
-                stopTimeTrackingAction()
+            headerTextActionButton(
+                title: timeTrackingQuickActionsPresentation.primaryControlTitle,
+                action: timeTrackingPrimaryControlAction
+            )
+
+            headerTextActionButton(
+                title: timeTrackingQuickActionsPresentation.stopControlTitle,
+                action: stopTimeTrackingAction
+            )
+
+            ViewThatFits(in: .horizontal) {
+                timeTrackingQuickActionChips(maxProjectCount: 4)
+                timeTrackingQuickActionChips(maxProjectCount: 3)
             }
-            .buttonStyle(.borderless)
-            .font(.caption.weight(.semibold))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
@@ -1430,6 +1436,15 @@ public struct DashboardPanelView: View {
         return description.isEmpty ? "Connected" : description
     }
 
+    private var timeTrackingQuickActionsPresentation: TimeTrackingQuickActionsPresentation {
+        TimeTrackingQuickActionsPresentation(
+            activeProjects: timeTrackingDashboardState.activeProjects,
+            pendingDurationText: formattedTrackingDuration(timeTrackingDashboardState.todaySummary.unallocatedDuration),
+            activityTitle: timeTrackingActivityTitle,
+            primaryControlTitle: timeTrackingPrimaryControlTitle
+        )
+    }
+
     private var timeTrackingPrimaryControlTitle: String {
         switch timeTrackingDashboardState.activityState {
         case .running:
@@ -1494,6 +1509,8 @@ public struct DashboardPanelView: View {
         .controlSize(isCompact ? .small : .regular)
         .tint(NomadTheme.teal)
         .disabled(isEnabled == false)
+        .lineLimit(1)
+        .truncationMode(.tail)
     }
 
     private func timeTrackingControlButton(title: String, action: @escaping () -> Void) -> some View {
@@ -1526,6 +1543,78 @@ public struct DashboardPanelView: View {
         case .unallocated:
             return "Unallocated"
         }
+    }
+
+    private func timeTrackingQuickActionChips(maxProjectCount: Int) -> some View {
+        HStack(spacing: 6) {
+            ForEach(timeTrackingQuickActionsPresentation.latestProjects(maxCount: maxProjectCount)) { project in
+                headerChipButton(
+                    title: project.trimmedName,
+                    systemImage: nil,
+                    isEnabled: timeTrackingDashboardState.todaySummary.unallocatedDuration > 0
+                ) {
+                    allocateTimeTrackingAction(.project(project.id))
+                }
+            }
+
+            headerChipButton(
+                title: timeTrackingQuickActionsPresentation.otherChipTitle,
+                systemImage: nil,
+                isEnabled: timeTrackingDashboardState.todaySummary.unallocatedDuration > 0
+            ) {
+                allocateTimeTrackingAction(.other)
+            }
+
+            headerChipButton(
+                title: timeTrackingQuickActionsPresentation.openTitle,
+                systemImage: timeTrackingQuickActionsPresentation.openSystemImage,
+                isEnabled: true,
+                action: openTimeTrackingAction
+            )
+        }
+    }
+
+    private func headerTextActionButton(title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.borderless)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(NomadTheme.primaryText)
+            .lineLimit(1)
+    }
+
+    private func headerChipButton(
+        title: String,
+        systemImage: String?,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: systemImage == nil ? 0 : 5) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 10, weight: .semibold))
+                }
+
+                Text(title)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(isEnabled ? NomadTheme.primaryText : NomadTheme.secondaryText)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(maxWidth: 110)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(NomadTheme.inlineButtonBackground.opacity(isEnabled ? 1 : 0.72))
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(NomadTheme.cardBorder.opacity(isEnabled ? 1 : 0.72), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isEnabled == false)
     }
 }
 

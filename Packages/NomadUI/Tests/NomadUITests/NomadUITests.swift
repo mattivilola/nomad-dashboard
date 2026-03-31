@@ -157,6 +157,61 @@ struct NomadUITests {
     }
 
     @Test
+    func timeTrackingQuickActionsPresentationUsesLatestProjectsInReverseRecencyOrder() {
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [
+                TimeTrackingProject(name: "One"),
+                TimeTrackingProject(name: "Two"),
+                TimeTrackingProject(name: "Three"),
+                TimeTrackingProject(name: "Four"),
+                TimeTrackingProject(name: "Five")
+            ],
+            pendingDurationText: "2m",
+            activityTitle: "Running",
+            primaryControlTitle: "Pause"
+        )
+
+        #expect(presentation.latestProjects(maxCount: 4).map(\.trimmedName) == ["Five", "Four", "Three", "Two"])
+        #expect(presentation.latestProjects(maxCount: 3).map(\.trimmedName) == ["Five", "Four", "Three"])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationExcludesArchivedAndBlankProjects() {
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [
+                TimeTrackingProject(name: "Alpha"),
+                TimeTrackingProject(name: "   "),
+                TimeTrackingProject(name: "Archived", isArchived: true),
+                TimeTrackingProject(name: "Bravo")
+            ],
+            pendingDurationText: "2m",
+            activityTitle: "Running",
+            primaryControlTitle: "Pause"
+        )
+
+        #expect(presentation.latestProjects(maxCount: 4).map(\.trimmedName) == ["Bravo", "Alpha"])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationKeepsHeaderControlsAvailable() {
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [TimeTrackingProject(name: "Long Client Project Name That Should Truncate In UI")],
+            pendingDurationText: "2m",
+            activityTitle: "Running",
+            primaryControlTitle: "Pause"
+        )
+
+        #expect(presentation.pendingDurationText == "2m")
+        #expect(presentation.activityTitle == "Running")
+        #expect(presentation.primaryControlTitle == "Pause")
+        #expect(presentation.stopControlTitle == "Stop")
+        #expect(presentation.otherChipTitle == "Other")
+        #expect(presentation.openTitle == "Open")
+        #expect(presentation.openSystemImage == "clock.badge.checkmark")
+        #expect(presentation.latestProjects(maxCount: 3).first?.trimmedName == "Long Client Project Name That Should Truncate In UI")
+    }
+
+    @Test
     func alertsSummaryTilePresentationShowsTemperatureAndClearState() {
         let presentation = SummaryTilePresentation(
             weather: makeWeatherSnapshot(),

@@ -72,6 +72,67 @@ struct ProjectTimeTrackingControllerTests {
     }
 
     @Test
+    func runningAllocationStartsFreshPendingIntervalImmediately() async throws {
+        let project = TimeTrackingProject(id: UUID(), name: "Client A")
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
+            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+        )
+        await harness.controller.waitUntilLoaded()
+
+        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30)
+        await harness.controller.synchronize()
+        await harness.controller.allocateCurrentDayPending(to: .project(project.id))
+
+        #expect(harness.controller.runtimeState.activityState == .running)
+        #expect(harness.controller.entries.count == 2)
+        #expect(harness.controller.entries[0].bucket == .project(project.id))
+        #expect(harness.controller.entries[0].endAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30))
+        #expect(harness.controller.entries[1].bucket == .unallocated)
+        #expect(harness.controller.entries[1].startAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30))
+        #expect(harness.controller.entries[1].isOpen == true)
+        #expect(harness.controller.dashboardState.todaySummary.unallocatedDuration == 0)
+    }
+
+    @Test
+    func pausedAllocationClearsPendingWithoutRestartingTimer() async throws {
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true),
+            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+        )
+        await harness.controller.waitUntilLoaded()
+
+        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 20)
+        await harness.controller.synchronize()
+        await harness.controller.pause()
+        await harness.controller.allocateCurrentDayPending(to: .other)
+
+        #expect(harness.controller.runtimeState.activityState == .paused)
+        #expect(harness.controller.entries.allSatisfy { $0.isOpen == false })
+        #expect(harness.controller.entries.last?.bucket == .other)
+        #expect(harness.controller.dashboardState.todaySummary.unallocatedDuration == 0)
+    }
+
+    @Test
+    func stoppedAllocationClearsPendingWithoutRestartingTimer() async throws {
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true),
+            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+        )
+        await harness.controller.waitUntilLoaded()
+        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 25)
+        await harness.controller.synchronize()
+        await harness.controller.stop()
+        await harness.controller.allocateCurrentDayPending(to: .other)
+
+        #expect(harness.controller.runtimeState.activityState == .stopped)
+        #expect(harness.controller.entries.count == 1)
+        #expect(harness.controller.entries[0].bucket == .other)
+        #expect(harness.controller.entries[0].isOpen == false)
+        #expect(harness.controller.dashboardState.todaySummary.unallocatedDuration == 0)
+    }
+
+    @Test
     func sleepAndWakeExcludeSleepGapFromTrackedTime() async throws {
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true),
