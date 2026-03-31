@@ -1299,9 +1299,6 @@ public struct DashboardPanelView: View {
             timeTrackingHeaderVariant(configurations, index: 0)
             timeTrackingHeaderVariant(configurations, index: 1)
             timeTrackingHeaderVariant(configurations, index: 2)
-            timeTrackingHeaderVariant(configurations, index: 3)
-            timeTrackingHeaderVariant(configurations, index: 4)
-            timeTrackingHeaderVariant(configurations, index: 5)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
@@ -1417,6 +1414,7 @@ public struct DashboardPanelView: View {
     private var timeTrackingQuickActionsPresentation: TimeTrackingQuickActionsPresentation {
         TimeTrackingQuickActionsPresentation(
             activeProjects: timeTrackingDashboardState.activeProjects,
+            recentProjects: timeTrackingDashboardState.recentProjects,
             pendingDurationText: formattedTrackingDuration(timeTrackingDashboardState.todaySummary.unallocatedDuration),
             activityState: timeTrackingDashboardState.activityState
         )
@@ -1522,34 +1520,11 @@ public struct DashboardPanelView: View {
         }
     }
 
-    private func timeTrackingQuickActionChips(maxProjectCount: Int) -> some View {
-        HStack(spacing: 6) {
-            ForEach(timeTrackingQuickActionsPresentation.latestProjects(maxCount: maxProjectCount)) { project in
-                headerChipButton(
-                    title: timeTrackingHeaderChipTitle(project.trimmedName),
-                    accessibilityTitle: project.trimmedName,
-                    systemImage: nil,
-                    isEnabled: timeTrackingDashboardState.todaySummary.unallocatedDuration > 0
-                ) {
-                    allocateTimeTrackingAction(.project(project.id))
-                }
-            }
-
-            headerChipButton(
-                title: timeTrackingQuickActionsPresentation.otherChipTitle,
-                accessibilityTitle: nil,
-                systemImage: nil,
-                isEnabled: timeTrackingDashboardState.todaySummary.unallocatedDuration > 0
-            ) {
-                allocateTimeTrackingAction(.other)
-            }
-        }
-    }
-
     private func headerChipButton(
         title: String,
         accessibilityTitle: String?,
         systemImage: String?,
+        maximumWidth: CGFloat? = nil,
         isEnabled: Bool,
         action: @escaping () -> Void
     ) -> some View {
@@ -1568,7 +1543,7 @@ public struct DashboardPanelView: View {
                 .foregroundStyle(isEnabled ? NomadTheme.primaryText : NomadTheme.secondaryText)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: maximumWidth)
                 .background(
                     Capsule(style: .continuous)
                         .fill(NomadTheme.inlineButtonBackground.opacity(isEnabled ? 1 : 0.72))
@@ -1606,11 +1581,11 @@ public struct DashboardPanelView: View {
 
     private func timeTrackingHeaderChipTitle(_ title: String) -> String {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedTitle.count > 9 else {
+        guard trimmedTitle.count > 6 else {
             return trimmedTitle
         }
 
-        return String(trimmedTitle.prefix(8)) + "…"
+        return String(trimmedTitle.prefix(5)) + "…"
     }
 
     @ViewBuilder
@@ -1638,25 +1613,19 @@ public struct DashboardPanelView: View {
             .fixedSize(horizontal: true, vertical: false)
             .layoutPriority(1)
 
-            if configuration.showsActivityTitle {
-                Text(timeTrackingQuickActionsPresentation.activityTitle)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(NomadTheme.secondaryText)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+            ForEach(timeTrackingQuickActionsPresentation.visibleHeaderControls, id: \.title) { control in
+                headerIconChipButton(
+                    title: control.title,
+                    systemImage: control.systemImage
+                ) {
+                    switch control.kind {
+                    case .primary:
+                        timeTrackingPrimaryControlAction()
+                    case .stop:
+                        stopTimeTrackingAction()
+                    }
+                }
             }
-
-            headerIconChipButton(
-                title: timeTrackingQuickActionsPresentation.primaryControlIcon.title,
-                systemImage: timeTrackingQuickActionsPresentation.primaryControlIcon.systemImage,
-                action: timeTrackingPrimaryControlAction
-            )
-
-            headerIconChipButton(
-                title: timeTrackingQuickActionsPresentation.stopControlIcon.title,
-                systemImage: timeTrackingQuickActionsPresentation.stopControlIcon.systemImage,
-                action: stopTimeTrackingAction
-            )
 
             HStack(spacing: 6) {
                 ForEach(configuration.chips) { chip in
@@ -1664,6 +1633,7 @@ public struct DashboardPanelView: View {
                         title: timeTrackingHeaderChipTitle(chip.title),
                         accessibilityTitle: chip.title,
                         systemImage: nil,
+                        maximumWidth: chip.bucket == .other ? 58 : 64,
                         isEnabled: timeTrackingDashboardState.todaySummary.unallocatedDuration > 0
                     ) {
                         allocateTimeTrackingAction(chip.bucket)

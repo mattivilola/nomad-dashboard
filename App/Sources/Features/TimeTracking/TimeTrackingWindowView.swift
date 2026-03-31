@@ -435,6 +435,7 @@ struct TimeTrackingWindowView: View {
         let quickActionsPresentation = TimeTrackingQuickActionsPresentation(
             activeProjects: activeProjects,
             pendingDurationText: "",
+            activityState: .stopped,
             activityTitle: "",
             primaryControlTitle: ""
         )

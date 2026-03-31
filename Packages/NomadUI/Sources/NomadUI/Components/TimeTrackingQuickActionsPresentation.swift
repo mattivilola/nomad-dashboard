@@ -1,5 +1,10 @@
 import NomadCore
 
+public enum TimeTrackingQuickControlKind: Equatable, Sendable {
+    case primary
+    case stop
+}
+
 public struct TimeTrackingQuickBucketChip: Equatable, Identifiable, Sendable {
     public let bucket: TimeTrackingBucket
     public let title: String
@@ -15,21 +20,21 @@ public struct TimeTrackingQuickBucketChip: Equatable, Identifiable, Sendable {
 }
 
 public struct TimeTrackingQuickControlIcon: Equatable, Sendable {
+    public let kind: TimeTrackingQuickControlKind
     public let title: String
     public let systemImage: String
 
-    public init(title: String, systemImage: String) {
+    public init(kind: TimeTrackingQuickControlKind, title: String, systemImage: String) {
+        self.kind = kind
         self.title = title
         self.systemImage = systemImage
     }
 }
 
 public struct TimeTrackingHeaderCompactConfiguration: Equatable, Sendable {
-    public let showsActivityTitle: Bool
     public let chips: [TimeTrackingQuickBucketChip]
 
-    public init(showsActivityTitle: Bool, chips: [TimeTrackingQuickBucketChip]) {
-        self.showsActivityTitle = showsActivityTitle
+    public init(chips: [TimeTrackingQuickBucketChip]) {
         self.chips = chips
     }
 }
@@ -37,6 +42,7 @@ public struct TimeTrackingHeaderCompactConfiguration: Equatable, Sendable {
 public struct TimeTrackingQuickActionsPresentation: Equatable {
     public let pendingDurationText: String
     public let activityTitle: String
+    public let activityState: TimeTrackingActivityState
     public let primaryControlTitle: String
     public let primaryControlSystemImage: String
     public let stopControlTitle: String
@@ -45,9 +51,11 @@ public struct TimeTrackingQuickActionsPresentation: Equatable {
     public let openTitle: String
     public let openSystemImage: String
     private let activeProjects: [TimeTrackingProject]
+    private let recentProjects: [TimeTrackingProject]
 
     public init(
         activeProjects: [TimeTrackingProject],
+        recentProjects: [TimeTrackingProject] = [],
         pendingDurationText: String,
         activityState: TimeTrackingActivityState,
         otherChipTitle: String = "Other",
@@ -56,7 +64,9 @@ public struct TimeTrackingQuickActionsPresentation: Equatable {
     ) {
         self.init(
             activeProjects: activeProjects,
+            recentProjects: recentProjects,
             pendingDurationText: pendingDurationText,
+            activityState: activityState,
             activityTitle: Self.activityTitle(for: activityState),
             primaryControlTitle: Self.primaryControlTitle(for: activityState),
             primaryControlSystemImage: Self.primaryControlSystemImage(for: activityState),
@@ -70,7 +80,9 @@ public struct TimeTrackingQuickActionsPresentation: Equatable {
 
     public init(
         activeProjects: [TimeTrackingProject],
+        recentProjects: [TimeTrackingProject] = [],
         pendingDurationText: String,
+        activityState: TimeTrackingActivityState,
         activityTitle: String,
         primaryControlTitle: String,
         primaryControlSystemImage: String = "pause.fill",
@@ -81,7 +93,10 @@ public struct TimeTrackingQuickActionsPresentation: Equatable {
         openSystemImage: String = "clock.badge.checkmark"
     ) {
         self.activeProjects = activeProjects.filter(\.isActive)
+        let activeProjectsByID = Dictionary(uniqueKeysWithValues: self.activeProjects.map { ($0.id, $0) })
+        self.recentProjects = recentProjects.compactMap { activeProjectsByID[$0.id] }
         self.pendingDurationText = pendingDurationText
+        self.activityState = activityState
         self.activityTitle = activityTitle
         self.primaryControlTitle = primaryControlTitle
         self.primaryControlSystemImage = primaryControlSystemImage
@@ -93,15 +108,26 @@ public struct TimeTrackingQuickActionsPresentation: Equatable {
     }
 
     public var primaryControlIcon: TimeTrackingQuickControlIcon {
-        TimeTrackingQuickControlIcon(title: primaryControlTitle, systemImage: primaryControlSystemImage)
+        TimeTrackingQuickControlIcon(kind: .primary, title: primaryControlTitle, systemImage: primaryControlSystemImage)
     }
 
     public var stopControlIcon: TimeTrackingQuickControlIcon {
-        TimeTrackingQuickControlIcon(title: stopControlTitle, systemImage: stopControlSystemImage)
+        TimeTrackingQuickControlIcon(kind: .stop, title: stopControlTitle, systemImage: stopControlSystemImage)
     }
 
     public var openControlIcon: TimeTrackingQuickControlIcon {
-        TimeTrackingQuickControlIcon(title: openTitle, systemImage: openSystemImage)
+        TimeTrackingQuickControlIcon(kind: .primary, title: openTitle, systemImage: openSystemImage)
+    }
+
+    public var visibleHeaderControls: [TimeTrackingQuickControlIcon] {
+        switch activityState {
+        case .running:
+            [primaryControlIcon]
+        case .paused:
+            [primaryControlIcon, stopControlIcon]
+        case .stopped:
+            [primaryControlIcon]
+        }
     }
 
     public func latestProjects(maxCount: Int) -> [TimeTrackingProject] {
@@ -112,28 +138,38 @@ public struct TimeTrackingQuickActionsPresentation: Equatable {
         return Array(activeProjects.suffix(maxCount).reversed())
     }
 
+    public func recommendedProjects(maxCount: Int) -> [TimeTrackingProject] {
+        guard maxCount > 0 else {
+            return []
+        }
+
+        return Array(recentProjects.prefix(maxCount))
+    }
+
     public func headerCompactConfigurations(maxProjectCount: Int) -> [TimeTrackingHeaderCompactConfiguration] {
-        let resolvedProjectCount = max(0, min(maxProjectCount, activeProjects.count))
+        let resolvedProjectCount = max(0, min(maxProjectCount, recentProjects.count))
         var configurations: [TimeTrackingHeaderCompactConfiguration] = []
 
-        func appendConfiguration(showsActivityTitle: Bool, projectCount: Int) {
+        func appendConfiguration(projectCount: Int) {
+            let projectChips = recommendedProjects(maxCount: projectCount).map {
+                TimeTrackingQuickBucketChip(bucket: .project($0.id), title: $0.trimmedName)
+            }
             let configuration = TimeTrackingHeaderCompactConfiguration(
-                showsActivityTitle: showsActivityTitle,
-                chips: quickBucketChips(maxProjectCount: projectCount, includeUnallocated: false)
+                chips: projectChips + [TimeTrackingQuickBucketChip(bucket: .other, title: otherChipTitle)]
             )
 
-            if configurations.last != configuration {
+            if configurations.contains(configuration) == false {
                 configurations.append(configuration)
             }
         }
 
-        appendConfiguration(showsActivityTitle: true, projectCount: resolvedProjectCount)
-        appendConfiguration(showsActivityTitle: false, projectCount: resolvedProjectCount)
+        appendConfiguration(projectCount: resolvedProjectCount)
+        if resolvedProjectCount == 0 {
+            return configurations
+        }
 
-        if resolvedProjectCount > 0 {
-            for projectCount in stride(from: resolvedProjectCount - 1, through: 0, by: -1) {
-                appendConfiguration(showsActivityTitle: false, projectCount: projectCount)
-            }
+        for projectCount in stride(from: resolvedProjectCount - 1, through: 0, by: -1) {
+            appendConfiguration(projectCount: projectCount)
         }
 
         return configurations

@@ -688,12 +688,35 @@ public final class ProjectTimeTrackingController: ObservableObject {
             isEnabled: true,
             activityState: nextRuntimeState.activityState,
             activeProjects: activeProjects,
+            recentProjects: recentDashboardProjects(),
             todaySummary: makeDaySummary(for: currentNow, now: currentNow),
             openUnallocatedEntryStartAt: openEntry()?.bucket == .unallocated ? openEntry()?.startAt : nil
         )
         if dashboardState != nextDashboardState {
             dashboardState = nextDashboardState
         }
+    }
+
+    private func recentDashboardProjects() -> [TimeTrackingProject] {
+        let projectsByID = Dictionary(uniqueKeysWithValues: activeProjects.map { ($0.id, $0) })
+        var orderedProjects: [TimeTrackingProject] = []
+        var seenProjectIDs = Set<UUID>()
+
+        for entry in ledger.entries.reversed() {
+            guard case let .project(projectID) = entry.bucket else {
+                continue
+            }
+
+            guard seenProjectIDs.insert(projectID).inserted,
+                  let project = projectsByID[projectID]
+            else {
+                continue
+            }
+
+            orderedProjects.append(project)
+        }
+
+        return orderedProjects
     }
 
     private func persistLedger() async throws {

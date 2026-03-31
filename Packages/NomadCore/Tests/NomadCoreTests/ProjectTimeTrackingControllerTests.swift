@@ -133,6 +133,90 @@ struct ProjectTimeTrackingControllerTests {
     }
 
     @Test
+    func dashboardRecentProjectsUseNewestDistinctProjectAllocations() async throws {
+        let projectA = TimeTrackingProject(id: UUID(), name: "Alpha")
+        let projectB = TimeTrackingProject(id: UUID(), name: "Bravo")
+        let projectC = TimeTrackingProject(id: UUID(), name: "Charlie")
+        let ledger = TimeTrackingLedger(entries: [
+            TimeTrackingEntry(
+                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
+                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30),
+                bucket: .project(projectA.id)
+            ),
+            TimeTrackingEntry(
+                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30),
+                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
+                bucket: .other
+            ),
+            TimeTrackingEntry(
+                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
+                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 30),
+                bucket: .project(projectB.id)
+            ),
+            TimeTrackingEntry(
+                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 30),
+                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 0),
+                bucket: .project(projectA.id)
+            ),
+            TimeTrackingEntry(
+                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 0),
+                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 30),
+                bucket: .project(projectC.id)
+            )
+        ])
+        let harness = try makeHarness(
+            settings: AppSettings(
+                projectTimeTrackingEnabled: true,
+                timeTrackingProjects: [projectA, projectB, projectC]
+            ),
+            now: makeDate(year: 2026, month: 3, day: 31, hour: 12, minute: 0),
+            initialLedger: ledger
+        )
+        await harness.controller.waitUntilLoaded()
+
+        #expect(harness.controller.dashboardState.recentProjects.map(\.trimmedName) == ["Charlie", "Alpha", "Bravo"])
+    }
+
+    @Test
+    func dashboardRecentProjectsExcludeArchivedAndNonProjectBuckets() async throws {
+        let activeProject = TimeTrackingProject(id: UUID(), name: "Active")
+        let archivedProject = TimeTrackingProject(id: UUID(), name: "Archived", isArchived: true)
+        let ledger = TimeTrackingLedger(entries: [
+            TimeTrackingEntry(
+                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
+                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30),
+                bucket: .project(activeProject.id)
+            ),
+            TimeTrackingEntry(
+                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30),
+                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
+                bucket: .unallocated
+            ),
+            TimeTrackingEntry(
+                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
+                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 30),
+                bucket: .project(archivedProject.id)
+            ),
+            TimeTrackingEntry(
+                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 30),
+                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 0),
+                bucket: .other
+            )
+        ])
+        let harness = try makeHarness(
+            settings: AppSettings(
+                projectTimeTrackingEnabled: true,
+                timeTrackingProjects: [activeProject, archivedProject]
+            ),
+            now: makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 0),
+            initialLedger: ledger
+        )
+        await harness.controller.waitUntilLoaded()
+
+        #expect(harness.controller.dashboardState.recentProjects.map(\.trimmedName) == ["Active"])
+    }
+
+    @Test
     func sleepAndWakeExcludeSleepGapFromTrackedTime() async throws {
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true),

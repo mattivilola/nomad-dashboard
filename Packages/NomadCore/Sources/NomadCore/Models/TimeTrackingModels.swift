@@ -221,6 +221,7 @@ public struct TimeTrackingDashboardState: Equatable, Sendable {
     public let isEnabled: Bool
     public let activityState: TimeTrackingActivityState
     public let activeProjects: [TimeTrackingProject]
+    public let recentProjects: [TimeTrackingProject]
     public let todaySummary: TimeTrackingDaySummary
     public let openUnallocatedEntryStartAt: Date?
 
@@ -228,12 +229,14 @@ public struct TimeTrackingDashboardState: Equatable, Sendable {
         isEnabled: Bool,
         activityState: TimeTrackingActivityState,
         activeProjects: [TimeTrackingProject],
+        recentProjects: [TimeTrackingProject],
         todaySummary: TimeTrackingDaySummary,
         openUnallocatedEntryStartAt: Date?
     ) {
         self.isEnabled = isEnabled
         self.activityState = activityState
         self.activeProjects = activeProjects
+        self.recentProjects = recentProjects
         self.todaySummary = todaySummary
         self.openUnallocatedEntryStartAt = openUnallocatedEntryStartAt
     }
@@ -242,6 +245,7 @@ public struct TimeTrackingDashboardState: Equatable, Sendable {
         isEnabled: false,
         activityState: .stopped,
         activeProjects: [],
+        recentProjects: [],
         todaySummary: TimeTrackingDaySummary(
             dayStart: Calendar.autoupdatingCurrent.startOfDay(for: .now),
             bucketDurations: [],
