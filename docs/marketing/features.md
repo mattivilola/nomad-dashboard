@@ -273,6 +273,7 @@ Users can build a simple local travel history over time, revisit where they have
 - Shows live pending unallocated time in the dashboard
 - Supports quick one-click allocation of today’s pending time into a project or `Other`
 - Includes a dedicated time-tracking window with day, week, and month views
+- Highlights the busiest days in week and month views and flags days that still have unallocated time for review
 - Supports exact-entry editing for reassignment, resizing, and splitting
 - Can export the selected month summary with weekly and daily breakdowns as plain text via the clipboard
 

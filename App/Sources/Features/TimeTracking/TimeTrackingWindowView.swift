@@ -204,33 +204,32 @@ struct TimeTrackingWindowView: View {
     private var dayListCard: some View {
         card {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Days In View")
-                    .font(.headline)
-                    .foregroundStyle(NomadTheme.primaryText)
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Days In View")
+                            .font(.headline)
+                            .foregroundStyle(NomadTheme.primaryText)
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
+                        Text("Scan busiest days and jump straight into anything that still needs allocation.")
+                            .font(.subheadline)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                    }
+
+                    Spacer(minLength: 12)
+
+                    dayListLegend
+                }
+
+                LazyVGrid(columns: dayListColumns, spacing: 10) {
                     ForEach(renderState.displayedDaySummaries) { daySummary in
                         Button {
                             selectedDay = daySummary.day
                         } label: {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(daySummary.day.formatted(date: .abbreviated, time: .omitted))
-                                    .font(.callout.weight(.semibold))
-                                    .foregroundStyle(NomadTheme.primaryText)
-
-                                Text(formattedDuration(daySummary.totalTrackedDuration))
-                                    .font(.caption)
-                                    .foregroundStyle(NomadTheme.secondaryText)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(resolvedSelectedDay == daySummary.day ? NomadTheme.inlineButtonBackground : NomadTheme.chartBackground.opacity(0.95))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
-                                    )
+                            TimeTrackingDaySummaryCard(
+                                summary: daySummary,
+                                isSelected: resolvedSelectedDay == daySummary.day,
+                                usesWeekdayHeader: selectedPeriod == .week,
+                                formattedDuration: formattedDuration
                             )
                         }
                         .buttonStyle(.plain)
@@ -378,6 +377,28 @@ struct TimeTrackingWindowView: View {
         renderState.summaryAllocatedDuration
     }
 
+    private var dayListColumns: [GridItem] {
+        if selectedPeriod == .week {
+            return Array(repeating: GridItem(.flexible(minimum: 0), spacing: 10, alignment: .top), count: 7)
+        }
+
+        return [GridItem(.adaptive(minimum: 150), spacing: 10, alignment: .top)]
+    }
+
+    private var dayListLegend: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 14) {
+                TimeTrackingLegendItem(kind: .tracked)
+                TimeTrackingLegendItem(kind: .review)
+            }
+
+            VStack(alignment: .trailing, spacing: 6) {
+                TimeTrackingLegendItem(kind: .tracked)
+                TimeTrackingLegendItem(kind: .review)
+            }
+        }
+    }
+
     private var displayedDays: [Date] {
         controller.days(for: selectedPeriod, containing: anchorDate)
     }
@@ -443,6 +464,7 @@ struct TimeTrackingWindowView: View {
         let summaryBucketDurations: [TimeTrackingBucketDuration]
         let summaryTotalDuration: TimeInterval
         let summaryUnallocatedDuration: TimeInterval
+        let periodDaySummaries: [TimeTrackingDaySummary]
 
         switch selectedPeriod {
         case .day:
@@ -450,24 +472,43 @@ struct TimeTrackingWindowView: View {
             summaryBucketDurations = summary.bucketDurations
             summaryTotalDuration = summary.totalTrackedDuration
             summaryUnallocatedDuration = summary.unallocatedDuration
+            periodDaySummaries = [summary]
         case .week:
             let summary = controller.weekSummary(containing: anchorDate)
             summaryBucketDurations = summary.bucketDurations
             summaryTotalDuration = summary.totalTrackedDuration
             summaryUnallocatedDuration = summary.daySummaries.reduce(0) { $0 + $1.unallocatedDuration }
+            periodDaySummaries = summary.daySummaries
         case .month:
             let summary = controller.monthSummary(containing: anchorDate)
             summaryBucketDurations = summary.bucketDurations
             summaryTotalDuration = summary.totalTrackedDuration
-            summaryUnallocatedDuration = summary.weekSummaries.reduce(0) { partial, week in
-                partial + week.daySummaries.reduce(0) { $0 + $1.unallocatedDuration }
-            }
+            periodDaySummaries = summary.weekSummaries.flatMap(\.daySummaries)
+            summaryUnallocatedDuration = periodDaySummaries.reduce(0) { $0 + $1.unallocatedDuration }
         }
 
+        let summariesByDay = Dictionary(uniqueKeysWithValues: periodDaySummaries.map { (calendar.startOfDay(for: $0.dayStart), $0) })
+        let maxTrackedDuration = periodDaySummaries.map(\.totalTrackedDuration).max() ?? 0
+        let peakDays: Set<Date> = Set(
+            periodDaySummaries.compactMap { summary in
+                guard maxTrackedDuration > 0, summary.totalTrackedDuration == maxTrackedDuration else {
+                    return nil
+                }
+
+                return calendar.startOfDay(for: summary.dayStart)
+            }
+        )
         let displayedDaySummaries = displayedDays.map { day in
-            TimeTrackingDisplayedDaySummary(
-                day: day,
-                totalTrackedDuration: controller.daySummary(for: day).totalTrackedDuration
+            let resolvedDay = calendar.startOfDay(for: day)
+            let summary = summariesByDay[resolvedDay] ?? controller.daySummary(for: resolvedDay)
+            return TimeTrackingDisplayedDaySummary(
+                day: resolvedDay,
+                totalTrackedDuration: summary.totalTrackedDuration,
+                totalAllocatedDuration: summary.totalAllocatedDuration,
+                unallocatedDuration: summary.unallocatedDuration,
+                needsReview: summary.unallocatedDuration > 0,
+                isPeakDay: peakDays.contains(resolvedDay),
+                trackedIntensity: maxTrackedDuration > 0 ? min(max(summary.totalTrackedDuration / maxTrackedDuration, 0), 1) : 0
             )
         }
 
@@ -1119,6 +1160,183 @@ private struct TimeTrackingEntryHeaderContent: View {
     }
 }
 
+private struct TimeTrackingDaySummaryCard: View {
+    let summary: TimeTrackingDisplayedDaySummary
+    let isSelected: Bool
+    let usesWeekdayHeader: Bool
+    let formattedDuration: (TimeInterval) -> String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: usesWeekdayHeader ? 2 : 4) {
+                    if usesWeekdayHeader {
+                        Text(summary.weekdayLabel)
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(NomadTheme.secondaryText)
+                            .textCase(.uppercase)
+                    }
+
+                    Text(usesWeekdayHeader ? summary.compactDateLabel : summary.fullDateLabel)
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(summary.titleColor)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                if summary.isPeakDay {
+                    TimeTrackingDayStatusBadge(
+                        title: "Top",
+                        tint: NomadTheme.teal,
+                        fillOpacity: 0.14,
+                        strokeOpacity: 0.24
+                    )
+                }
+            }
+
+            Text(summary.primaryDurationLabel(formattedDuration: formattedDuration))
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(summary.valueColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            if summary.needsReview {
+                TimeTrackingDayStatusBadge(
+                    title: "Review \(formattedDuration(summary.unallocatedDuration))",
+                    tint: NomadTheme.coral,
+                    fillOpacity: 0.12,
+                    strokeOpacity: 0.18
+                )
+            }
+
+            Spacer(minLength: 0)
+
+            if summary.hasTrackedTime {
+                TimeTrackingDayMeter(
+                    allocatedRatio: summary.allocatedRatio,
+                    unallocatedRatio: summary.unallocatedRatio
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: usesWeekdayHeader ? 124 : 118, alignment: .topLeading)
+        .padding(12)
+        .background(backgroundShape)
+        .overlay(borderShape)
+        .shadow(color: isSelected ? NomadTheme.teal.opacity(0.10) : .clear, radius: 10, y: 3)
+    }
+
+    private var backgroundShape: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(summary.backgroundColor)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(NomadTheme.coral.opacity(summary.needsReview ? 0.04 : 0))
+            )
+    }
+
+    private var borderShape: some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .stroke(isSelected ? NomadTheme.teal.opacity(0.68) : summary.borderColor, lineWidth: isSelected ? 1.5 : 1)
+    }
+}
+
+private struct TimeTrackingDayMeter: View {
+    let allocatedRatio: Double
+    let unallocatedRatio: Double
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = max(geometry.size.width, 0)
+            let allocatedWidth = width * allocatedRatio
+            let unallocatedWidth = width * unallocatedRatio
+
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(NomadTheme.cardBorder.opacity(0.32))
+
+                HStack(spacing: 0) {
+                    Rectangle()
+                        .fill(NomadTheme.sand.opacity(0.9))
+                        .frame(width: allocatedWidth)
+
+                    Rectangle()
+                        .fill(NomadTheme.coral.opacity(0.88))
+                        .frame(width: unallocatedWidth)
+                }
+            }
+        }
+        .frame(height: 7)
+        .clipShape(Capsule(style: .continuous))
+        .accessibilityHidden(true)
+    }
+}
+
+private struct TimeTrackingDayStatusBadge: View {
+    let title: String
+    let tint: Color
+    let fillOpacity: Double
+    let strokeOpacity: Double
+
+    var body: some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(tint.opacity(fillOpacity))
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(tint.opacity(strokeOpacity), lineWidth: 1)
+                    )
+            )
+    }
+}
+
+private struct TimeTrackingLegendItem: View {
+    enum Kind: Equatable {
+        case tracked
+        case review
+    }
+
+    let kind: Kind
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if kind == .tracked {
+                HStack(spacing: 3) {
+                    Capsule(style: .continuous)
+                        .fill(NomadTheme.teal.opacity(0.16))
+                        .frame(width: 10, height: 6)
+
+                    Capsule(style: .continuous)
+                        .fill(NomadTheme.teal.opacity(0.26))
+                        .frame(width: 10, height: 6)
+
+                    Capsule(style: .continuous)
+                        .fill(NomadTheme.teal.opacity(0.38))
+                        .frame(width: 10, height: 6)
+                }
+
+                Text("More tracked")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(NomadTheme.secondaryText)
+            } else {
+                Capsule(style: .continuous)
+                    .fill(NomadTheme.coral.opacity(0.82))
+                    .frame(width: 18, height: 6)
+
+                Text("Needs review")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(NomadTheme.secondaryText)
+            }
+        }
+    }
+}
+
 private struct TimeTrackingWindowRenderState: Equatable {
     var activityState: TimeTrackingActivityState
     var activeProjectCount: Int
@@ -1154,9 +1372,76 @@ private struct TimeTrackingWindowRenderState: Equatable {
 private struct TimeTrackingDisplayedDaySummary: Identifiable, Equatable {
     let day: Date
     let totalTrackedDuration: TimeInterval
+    let totalAllocatedDuration: TimeInterval
+    let unallocatedDuration: TimeInterval
+    let needsReview: Bool
+    let isPeakDay: Bool
+    let trackedIntensity: Double
 
     var id: Date {
         day
+    }
+
+    var hasTrackedTime: Bool {
+        totalTrackedDuration > 0
+    }
+
+    var allocatedRatio: Double {
+        guard totalTrackedDuration > 0 else {
+            return 0
+        }
+
+        return min(max(totalAllocatedDuration / totalTrackedDuration, 0), 1)
+    }
+
+    var unallocatedRatio: Double {
+        guard totalTrackedDuration > 0 else {
+            return 0
+        }
+
+        return min(max(unallocatedDuration / totalTrackedDuration, 0), 1)
+    }
+
+    var weekdayLabel: String {
+        day.formatted(.dateTime.weekday(.abbreviated))
+    }
+
+    var compactDateLabel: String {
+        day.formatted(.dateTime.day().month(.abbreviated))
+    }
+
+    var fullDateLabel: String {
+        day.formatted(date: .abbreviated, time: .omitted)
+    }
+
+    var titleColor: Color {
+        hasTrackedTime ? NomadTheme.primaryText : NomadTheme.secondaryText
+    }
+
+    var valueColor: Color {
+        hasTrackedTime ? NomadTheme.primaryText : NomadTheme.tertiaryText
+    }
+
+    var backgroundColor: Color {
+        if hasTrackedTime == false {
+            return NomadTheme.tileBackground.opacity(0.72)
+        }
+
+        let baseOpacity = 0.10 + (trackedIntensity * 0.22)
+        let peakBoost = isPeakDay ? 0.06 : 0
+        return NomadTheme.teal.opacity(min(baseOpacity + peakBoost, 0.38))
+    }
+
+    var borderColor: Color {
+        if needsReview {
+            return NomadTheme.coral.opacity(0.26)
+        }
+
+        return NomadTheme.cardBorder.opacity(hasTrackedTime ? 0.95 : 0.82)
+    }
+
+    func primaryDurationLabel(formattedDuration: (TimeInterval) -> String) -> String {
+        hasTrackedTime ? formattedDuration(totalTrackedDuration) : "No tracked time"
     }
 }
 
