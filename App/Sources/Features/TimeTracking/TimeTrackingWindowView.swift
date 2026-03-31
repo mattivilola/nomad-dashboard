@@ -1,18 +1,23 @@
 import AppKit
+import Combine
 import NomadCore
 import NomadUI
 import SwiftUI
 
 struct TimeTrackingWindowView: View {
-    @ObservedObject var settingsStore: AppSettingsStore
-    @ObservedObject var controller: ProjectTimeTrackingController
+    let settingsStore: AppSettingsStore
+    let controller: ProjectTimeTrackingController
 
     @State private var selectedPeriod: TimeTrackingPeriod = .day
     @State private var anchorDate = Date()
     @State private var selectedDay: Date?
     @State private var expandedEntryIDs = Set<UUID>()
     @State private var entryAttentionStateByID: [UUID: Bool] = [:]
+    @State private var renderState = TimeTrackingWindowRenderState.empty
+    @State private var lastRenderedMinute = Date.distantPast
     @State private var exportStatusMessage: String?
+
+    private let minuteTicker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var calendar: Calendar {
         var calendar = Calendar.autoupdatingCurrent
@@ -42,21 +47,40 @@ struct TimeTrackingWindowView: View {
         .frame(minWidth: 960, minHeight: 760)
         .onAppear {
             syncSelectedDay()
-            reconcileEntryExpansionState()
+            lastRenderedMinute = roundedDownToMinute(Date())
+            refreshRenderState(force: true)
         }
         .onChange(of: selectedPeriod) { _, _ in
             syncSelectedDay()
             exportStatusMessage = nil
+            refreshRenderState(force: true)
         }
         .onChange(of: anchorDate) { _, _ in
             syncSelectedDay()
             exportStatusMessage = nil
+            refreshRenderState(force: true)
         }
-        .onChange(of: displayedDays) { _, _ in
-            syncSelectedDay()
+        .onChange(of: selectedDay) { _, _ in
+            refreshRenderState(force: true)
         }
-        .onChange(of: dayEntries) { _, _ in
-            reconcileEntryExpansionState()
+        .onReceive(controller.$entries.dropFirst()) { _ in
+            refreshRenderState(force: true)
+        }
+        .onReceive(controller.$lastErrorMessage.dropFirst()) { _ in
+            refreshRenderState(force: true)
+        }
+        .onReceive(controller.$runtimeState.dropFirst()) { runtimeState in
+            guard renderState.activityState != runtimeState.activityState else {
+                return
+            }
+
+            refreshRenderState(force: true)
+        }
+        .onReceive(settingsStore.$settings.dropFirst()) { _ in
+            refreshRenderState(force: true)
+        }
+        .onReceive(minuteTicker) { currentDate in
+            handleMinuteTick(currentDate)
         }
     }
 
@@ -162,13 +186,13 @@ struct TimeTrackingWindowView: View {
                     }
                 }
 
-                if let exportStatusMessage {
-                    Text(exportStatusMessage)
-                        .font(.caption)
-                        .foregroundStyle(NomadTheme.secondaryText)
-                }
+                    if let exportStatusMessage {
+                        Text(exportStatusMessage)
+                            .font(.caption)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                    }
 
-                if let lastErrorMessage = controller.lastErrorMessage {
+                if let lastErrorMessage = renderState.lastErrorMessage {
                     Text(lastErrorMessage)
                         .font(.caption)
                         .foregroundStyle(.orange)
@@ -185,14 +209,12 @@ struct TimeTrackingWindowView: View {
                     .foregroundStyle(NomadTheme.primaryText)
 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
-                    ForEach(displayedDays, id: \.self) { day in
-                        let daySummary = controller.daySummary(for: day)
-
+                    ForEach(renderState.displayedDaySummaries) { daySummary in
                         Button {
-                            selectedDay = day
+                            selectedDay = daySummary.day
                         } label: {
                             VStack(alignment: .leading, spacing: 6) {
-                                Text(day.formatted(date: .abbreviated, time: .omitted))
+                                Text(daySummary.day.formatted(date: .abbreviated, time: .omitted))
                                     .font(.callout.weight(.semibold))
                                     .foregroundStyle(NomadTheme.primaryText)
 
@@ -204,7 +226,7 @@ struct TimeTrackingWindowView: View {
                             .padding(12)
                             .background(
                                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(resolvedSelectedDay == day ? NomadTheme.inlineButtonBackground : NomadTheme.chartBackground.opacity(0.95))
+                                    .fill(resolvedSelectedDay == daySummary.day ? NomadTheme.inlineButtonBackground : NomadTheme.chartBackground.opacity(0.95))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                                             .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
@@ -239,19 +261,20 @@ struct TimeTrackingWindowView: View {
                         .foregroundStyle(NomadTheme.secondaryText)
                 }
 
-                if dayEntries.isEmpty {
+                if renderState.dayEntries.isEmpty {
                     Text("No tracked entries for this day yet.")
                         .font(.subheadline)
                         .foregroundStyle(NomadTheme.secondaryText)
                 } else {
-                    VStack(spacing: 12) {
-                        ForEach(dayEntries) { entry in
+                    LazyVStack(spacing: 12) {
+                        ForEach(renderState.dayEntries) { entry in
                             TimeTrackingEntryEditorRow(
-                                entry: entry,
+                                model: entry,
                                 selectedDay: resolvedSelectedDay,
-                                projects: settingsStore.settings.timeTrackingProjects,
+                                bucketOptions: renderState.bucketOptions,
+                                quickBucketChipsWide: renderState.quickBucketChipsWide,
+                                quickBucketChipsCompact: renderState.quickBucketChipsCompact,
                                 isExpanded: expandedEntryIDs.contains(entry.id),
-                                bucketTitle: { controller.title(for: $0) },
                                 onToggleExpanded: { isExpanded in
                                     setEntryExpanded(entry.id, isExpanded: isExpanded)
                                 },
@@ -277,11 +300,11 @@ struct TimeTrackingWindowView: View {
             return "Project time tracking is currently disabled in Settings."
         }
 
-        return "\(primaryStatusLabel) with \(settingsStore.settings.activeTimeTrackingProjects.count) active project\(settingsStore.settings.activeTimeTrackingProjects.count == 1 ? "" : "s")."
+        return "\(primaryStatusLabel) with \(renderState.activeProjectCount) active project\(renderState.activeProjectCount == 1 ? "" : "s")."
     }
 
     private var primaryControlTitle: String {
-        switch controller.runtimeState.activityState {
+        switch renderState.activityState {
         case .running:
             "Pause"
         case .paused:
@@ -292,7 +315,7 @@ struct TimeTrackingWindowView: View {
     }
 
     private var primaryControlSymbol: String {
-        switch controller.runtimeState.activityState {
+        switch renderState.activityState {
         case .running:
             "pause.fill"
         case .paused:
@@ -303,7 +326,7 @@ struct TimeTrackingWindowView: View {
     }
 
     private var primaryStatusLabel: String {
-        switch controller.runtimeState.activityState {
+        switch renderState.activityState {
         case .running:
             "Running"
         case .paused:
@@ -318,8 +341,11 @@ struct TimeTrackingWindowView: View {
         case .day:
             return resolvedSelectedDay.formatted(.dateTime.year().month(.wide).day())
         case .week:
-            let summary = controller.weekSummary(containing: anchorDate)
-            return "\(summary.weekStart.formatted(date: .abbreviated, time: .omitted)) to \(summary.weekEnd.addingTimeInterval(-1).formatted(date: .abbreviated, time: .omitted))"
+            guard let interval = weekInterval(containing: anchorDate) else {
+                return anchorDate.formatted(.dateTime.year().month(.wide).day())
+            }
+
+            return "\(interval.start.formatted(date: .abbreviated, time: .omitted)) to \(interval.end.addingTimeInterval(-1).formatted(date: .abbreviated, time: .omitted))"
         case .month:
             return anchorDate.formatted(.dateTime.year().month(.wide))
         }
@@ -337,42 +363,19 @@ struct TimeTrackingWindowView: View {
     }
 
     private var summaryBucketDurations: [TimeTrackingBucketDuration] {
-        switch selectedPeriod {
-        case .day:
-            controller.daySummary(for: resolvedSelectedDay).bucketDurations
-        case .week:
-            controller.weekSummary(containing: anchorDate).bucketDurations
-        case .month:
-            controller.monthSummary(containing: anchorDate).bucketDurations
-        }
+        renderState.summaryBucketDurations
     }
 
     private var summaryTotalDuration: TimeInterval {
-        switch selectedPeriod {
-        case .day:
-            controller.daySummary(for: resolvedSelectedDay).totalTrackedDuration
-        case .week:
-            controller.weekSummary(containing: anchorDate).totalTrackedDuration
-        case .month:
-            controller.monthSummary(containing: anchorDate).totalTrackedDuration
-        }
+        renderState.summaryTotalDuration
     }
 
     private var summaryUnallocatedDuration: TimeInterval {
-        switch selectedPeriod {
-        case .day:
-            controller.daySummary(for: resolvedSelectedDay).unallocatedDuration
-        case .week:
-            controller.weekSummary(containing: anchorDate).daySummaries.reduce(0) { $0 + $1.unallocatedDuration }
-        case .month:
-            controller.monthSummary(containing: anchorDate).weekSummaries.reduce(0) { partial, week in
-                partial + week.daySummaries.reduce(0) { $0 + $1.unallocatedDuration }
-            }
-        }
+        renderState.summaryUnallocatedDuration
     }
 
     private var summaryAllocatedDuration: TimeInterval {
-        max(summaryTotalDuration - summaryUnallocatedDuration, 0)
+        renderState.summaryAllocatedDuration
     }
 
     private var displayedDays: [Date] {
@@ -391,34 +394,138 @@ struct TimeTrackingWindowView: View {
         return displayedDays.first ?? calendar.startOfDay(for: anchorDate)
     }
 
-    private var dayEntries: [TimeTrackingEntry] {
-        controller.entries(forDay: resolvedSelectedDay)
+    private var dayEntries: [TimeTrackingEntryRowModel] {
+        renderState.dayEntries
     }
 
-    private func entryNeedsAction(_ entry: TimeTrackingEntry) -> Bool {
-        entry.isOpen || entry.bucket == .unallocated
-    }
-
-    private func setEntryExpanded(_ entryID: UUID, isExpanded: Bool) {
-        if isExpanded {
-            expandedEntryIDs.insert(entryID)
-        } else {
-            expandedEntryIDs.remove(entryID)
+    private func refreshRenderState(force: Bool) {
+        let newState = makeRenderState(referenceDate: Date())
+        guard force || newState != renderState else {
+            return
         }
+
+        renderState = newState
+        reconcileEntryExpansionState(using: newState.dayEntries)
     }
 
-    private func reconcileEntryExpansionState() {
-        let currentEntries = dayEntries
-        let currentIDs = Set(currentEntries.map(\.id))
+    private func handleMinuteTick(_ currentDate: Date) {
+        let currentMinute = roundedDownToMinute(currentDate)
+        guard currentMinute != lastRenderedMinute else {
+            return
+        }
+
+        lastRenderedMinute = currentMinute
+
+        let today = calendar.startOfDay(for: currentDate)
+        guard displayedDays.contains(today), renderState.activityState == .running else {
+            return
+        }
+
+        refreshRenderState(force: true)
+    }
+
+    private func makeRenderState(referenceDate: Date) -> TimeTrackingWindowRenderState {
+        let activeProjects = settingsStore.settings.activeTimeTrackingProjects
+        let bucketOptions = activeProjects.map {
+            TimeTrackingBucketOption(bucket: .project($0.id), title: $0.trimmedName)
+        } + [
+            TimeTrackingBucketOption(bucket: .other, title: "Other"),
+            TimeTrackingBucketOption(bucket: .unallocated, title: "Unallocated")
+        ]
+        let quickActionsPresentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: activeProjects,
+            pendingDurationText: "",
+            activityTitle: "",
+            primaryControlTitle: ""
+        )
+
+        let summaryBucketDurations: [TimeTrackingBucketDuration]
+        let summaryTotalDuration: TimeInterval
+        let summaryUnallocatedDuration: TimeInterval
+
+        switch selectedPeriod {
+        case .day:
+            let summary = controller.daySummary(for: resolvedSelectedDay)
+            summaryBucketDurations = summary.bucketDurations
+            summaryTotalDuration = summary.totalTrackedDuration
+            summaryUnallocatedDuration = summary.unallocatedDuration
+        case .week:
+            let summary = controller.weekSummary(containing: anchorDate)
+            summaryBucketDurations = summary.bucketDurations
+            summaryTotalDuration = summary.totalTrackedDuration
+            summaryUnallocatedDuration = summary.daySummaries.reduce(0) { $0 + $1.unallocatedDuration }
+        case .month:
+            let summary = controller.monthSummary(containing: anchorDate)
+            summaryBucketDurations = summary.bucketDurations
+            summaryTotalDuration = summary.totalTrackedDuration
+            summaryUnallocatedDuration = summary.weekSummaries.reduce(0) { partial, week in
+                partial + week.daySummaries.reduce(0) { $0 + $1.unallocatedDuration }
+            }
+        }
+
+        let displayedDaySummaries = displayedDays.map { day in
+            TimeTrackingDisplayedDaySummary(
+                day: day,
+                totalTrackedDuration: controller.daySummary(for: day).totalTrackedDuration
+            )
+        }
+
+        let dayEntries = controller.entries(forDay: resolvedSelectedDay).map { entry in
+            let resolvedEnd = entry.resolvedEnd(at: referenceDate)
+            let duration = max(resolvedEnd.timeIntervalSince(entry.startAt), 0)
+            let durationLabel = formattedDuration(duration)
+            let bucketTitle = controller.title(for: entry.bucket)
+            let needsAction = entry.isOpen || entry.bucket == .unallocated
+
+            return TimeTrackingEntryRowModel(
+                entry: entry,
+                resolvedEndAt: resolvedEnd,
+                currentBucketTitle: bucketTitle,
+                summaryLabel: "\(formattedTime(entry.startAt)) - \(formattedTime(resolvedEnd)) • \(durationLabel)",
+                durationLabel: durationLabel,
+                needsAction: needsAction,
+                statusLabel: needsAction ? (entry.isOpen ? "Open" : "Pending") : nil
+            )
+        }
+
+        return TimeTrackingWindowRenderState(
+            activityState: controller.runtimeState.activityState,
+            activeProjectCount: activeProjects.count,
+            summaryBucketDurations: summaryBucketDurations,
+            summaryTotalDuration: summaryTotalDuration,
+            summaryUnallocatedDuration: summaryUnallocatedDuration,
+            displayedDaySummaries: displayedDaySummaries,
+            dayEntries: dayEntries,
+            bucketOptions: bucketOptions,
+            quickBucketChipsWide: quickActionsPresentation.quickBucketChips(maxProjectCount: 4, includeUnallocated: true),
+            quickBucketChipsCompact: quickActionsPresentation.quickBucketChips(maxProjectCount: 3, includeUnallocated: true),
+            lastErrorMessage: controller.lastErrorMessage
+        )
+    }
+
+    private func weekInterval(containing date: Date) -> DateInterval? {
+        guard let isoWeek = calendar.dateInterval(of: .weekOfYear, for: date) else {
+            return nil
+        }
+
+        return isoWeek
+    }
+
+    private func roundedDownToMinute(_ date: Date) -> Date {
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        return calendar.date(from: components) ?? date
+    }
+
+    private func reconcileEntryExpansionState(using entries: [TimeTrackingEntryRowModel]) {
+        let currentIDs = Set(entries.map(\.id))
         var nextExpandedIDs = expandedEntryIDs.intersection(currentIDs)
         var nextAttentionStateByID: [UUID: Bool] = [:]
 
-        for entry in currentEntries {
-            let needsAction = entryNeedsAction(entry)
+        for entry in entries {
             let previousNeedsAction = entryAttentionStateByID[entry.id]
             let wasExpanded = expandedEntryIDs.contains(entry.id)
 
-            switch (previousNeedsAction, needsAction) {
+            switch (previousNeedsAction, entry.needsAction) {
             case (.none, true):
                 nextExpandedIDs.insert(entry.id)
             case (.some(false), true):
@@ -431,11 +538,23 @@ struct TimeTrackingWindowView: View {
                 }
             }
 
-            nextAttentionStateByID[entry.id] = needsAction
+            nextAttentionStateByID[entry.id] = entry.needsAction
         }
 
         expandedEntryIDs = nextExpandedIDs
         entryAttentionStateByID = nextAttentionStateByID
+    }
+
+    private func setEntryExpanded(_ entryID: UUID, isExpanded: Bool) {
+        if isExpanded {
+            expandedEntryIDs.insert(entryID)
+        } else {
+            expandedEntryIDs.remove(entryID)
+        }
+    }
+
+    private func formattedTime(_ date: Date) -> String {
+        date.formatted(date: .omitted, time: .shortened)
     }
 
     private var statusBadge: some View {
@@ -451,7 +570,7 @@ struct TimeTrackingWindowView: View {
     }
 
     private var statusTint: Color {
-        switch controller.runtimeState.activityState {
+        switch renderState.activityState {
         case .running:
             NomadTheme.teal
         case .paused:
@@ -477,7 +596,7 @@ struct TimeTrackingWindowView: View {
     }
 
     private func performPrimaryControl() async {
-        switch controller.runtimeState.activityState {
+        switch renderState.activityState {
         case .running:
             await controller.pause()
         case .paused:
@@ -485,6 +604,8 @@ struct TimeTrackingWindowView: View {
         case .stopped:
             await controller.play()
         }
+
+        refreshRenderState(force: true)
     }
 
     private func copyMonthExport() {
@@ -566,11 +687,12 @@ struct TimeTrackingWindowView: View {
 }
 
 private struct TimeTrackingEntryEditorRow: View {
-    let entry: TimeTrackingEntry
+    let model: TimeTrackingEntryRowModel
     let selectedDay: Date
-    let projects: [TimeTrackingProject]
+    let bucketOptions: [TimeTrackingBucketOption]
+    let quickBucketChipsWide: [TimeTrackingQuickBucketChip]
+    let quickBucketChipsCompact: [TimeTrackingQuickBucketChip]
     let isExpanded: Bool
-    let bucketTitle: (TimeTrackingBucket) -> String
     let onToggleExpanded: (Bool) -> Void
     let onReassign: @Sendable (TimeTrackingBucket) async -> Void
     let onResize: @Sendable (Date, Date) async -> Void
@@ -584,31 +706,33 @@ private struct TimeTrackingEntryEditorRow: View {
     @State private var isSplitExpanded = false
 
     init(
-        entry: TimeTrackingEntry,
+        model: TimeTrackingEntryRowModel,
         selectedDay: Date,
-        projects: [TimeTrackingProject],
+        bucketOptions: [TimeTrackingBucketOption],
+        quickBucketChipsWide: [TimeTrackingQuickBucketChip],
+        quickBucketChipsCompact: [TimeTrackingQuickBucketChip],
         isExpanded: Bool,
-        bucketTitle: @escaping (TimeTrackingBucket) -> String,
         onToggleExpanded: @escaping (Bool) -> Void,
         onReassign: @escaping @Sendable (TimeTrackingBucket) async -> Void,
         onResize: @escaping @Sendable (Date, Date) async -> Void,
         onSplit: @escaping @Sendable (Date, TimeTrackingBucket) async -> Void
     ) {
-        self.entry = entry
+        self.model = model
         self.selectedDay = selectedDay
-        self.projects = projects
+        self.bucketOptions = bucketOptions
+        self.quickBucketChipsWide = quickBucketChipsWide
+        self.quickBucketChipsCompact = quickBucketChipsCompact
         self.isExpanded = isExpanded
-        self.bucketTitle = bucketTitle
         self.onToggleExpanded = onToggleExpanded
         self.onReassign = onReassign
         self.onResize = onResize
         self.onSplit = onSplit
 
-        let resolvedEnd = entry.endAt ?? entry.startAt
-        _selectedBucketID = State(initialValue: entry.bucket.stableID)
-        _startAt = State(initialValue: entry.startAt)
+        let resolvedEnd = model.resolvedEndAt
+        _selectedBucketID = State(initialValue: model.entry.bucket.stableID)
+        _startAt = State(initialValue: model.entry.startAt)
         _endAt = State(initialValue: resolvedEnd)
-        _splitAt = State(initialValue: entry.startAt.addingTimeInterval(max(resolvedEnd.timeIntervalSince(entry.startAt), 60) / 2))
+        _splitAt = State(initialValue: model.entry.startAt.addingTimeInterval(max(resolvedEnd.timeIntervalSince(model.entry.startAt), 60) / 2))
         _splitBucketID = State(initialValue: TimeTrackingBucket.unallocated.stableID)
     }
 
@@ -616,17 +740,8 @@ private struct TimeTrackingEntryEditorRow: View {
         Calendar.autoupdatingCurrent.dateInterval(of: .day, for: selectedDay) ?? DateInterval(start: selectedDay, duration: 86_400)
     }
 
-    private var bucketOptions: [TimeTrackingBucket] {
-        projects.filter(\.isActive).map { .project($0.id) } + [.other, .unallocated]
-    }
-
-    private var quickActionsPresentation: TimeTrackingQuickActionsPresentation {
-        TimeTrackingQuickActionsPresentation(
-            activeProjects: projects,
-            pendingDurationText: "",
-            activityTitle: "",
-            primaryControlTitle: ""
-        )
+    private var bucketOptionTitlesByID: [String: String] {
+        Dictionary(uniqueKeysWithValues: bucketOptions.map { ($0.id, $0.title) })
     }
 
     var body: some View {
@@ -634,36 +749,13 @@ private struct TimeTrackingEntryEditorRow: View {
             Button {
                 onToggleExpanded(isExpanded == false)
             } label: {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(displayBucketTitle)
-                            .font(.callout.weight(.semibold))
-                            .foregroundStyle(NomadTheme.primaryText)
-
-                        Text(summaryLabel)
-                            .font(.caption)
-                            .foregroundStyle(NomadTheme.secondaryText)
-                            .lineLimit(1)
-                    }
-
-                    Spacer(minLength: 12)
-
-                    if needsAction {
-                        Text(entryStatusLabel)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(needsActionTint)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(needsActionTint.opacity(0.12))
-                            )
-                    }
-
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(NomadTheme.tertiaryText)
-                }
+                TimeTrackingEntryHeaderContent(
+                    title: displayBucketTitle,
+                    summaryLabel: model.summaryLabel,
+                    statusLabel: model.statusLabel,
+                    isExpanded: isExpanded,
+                    needsActionTint: needsActionTint
+                )
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -676,9 +768,9 @@ private struct TimeTrackingEntryEditorRow: View {
                     HStack(alignment: .bottom, spacing: 8) {
                         compactField("Bucket") {
                             Picker("Bucket", selection: $selectedBucketID) {
-                                ForEach(bucketOptions, id: \.stableID) { bucket in
-                                    Text(bucketTitle(bucket))
-                                        .tag(bucket.stableID)
+                                ForEach(bucketOptions) { option in
+                                    Text(option.title)
+                                        .tag(option.id)
                                 }
                             }
                             .pickerStyle(.menu)
@@ -695,11 +787,11 @@ private struct TimeTrackingEntryEditorRow: View {
                     }
 
                     ViewThatFits(in: .horizontal) {
-                        quickBucketChipRow(maxProjectCount: 4, selectionID: selectedBucketID) { chip in
+                        quickBucketChipRow(chips: quickBucketChipsWide, selectionID: selectedBucketID) { chip in
                             selectedBucketID = chip.bucket.stableID
                             await onReassign(chip.bucket)
                         }
-                        quickBucketChipRow(maxProjectCount: 3, selectionID: selectedBucketID) { chip in
+                        quickBucketChipRow(chips: quickBucketChipsCompact, selectionID: selectedBucketID) { chip in
                             selectedBucketID = chip.bucket.stableID
                             await onReassign(chip.bucket)
                         }
@@ -752,10 +844,10 @@ private struct TimeTrackingEntryEditorRow: View {
 
                                 compactField("Second Segment") {
                                     Picker("Second Segment", selection: $splitBucketID) {
-                                        ForEach(bucketOptions, id: \.stableID) { bucket in
-                                            Text(bucketTitle(bucket))
-                                                .tag(bucket.stableID)
-                                            }
+                                        ForEach(bucketOptions) { option in
+                                            Text(option.title)
+                                                .tag(option.id)
+                                        }
                                     }
                                     .pickerStyle(.menu)
                                     .labelsHidden()
@@ -772,11 +864,11 @@ private struct TimeTrackingEntryEditorRow: View {
                             }
 
                             ViewThatFits(in: .horizontal) {
-                                quickBucketChipRow(maxProjectCount: 4, selectionID: splitBucketID) { chip in
+                                quickBucketChipRow(chips: quickBucketChipsWide, selectionID: splitBucketID) { chip in
                                     splitBucketID = chip.bucket.stableID
                                     await onSplit(splitAt, chip.bucket)
                                 }
-                                quickBucketChipRow(maxProjectCount: 3, selectionID: splitBucketID) { chip in
+                                quickBucketChipRow(chips: quickBucketChipsCompact, selectionID: splitBucketID) { chip in
                                     splitBucketID = chip.bucket.stableID
                                     await onSplit(splitAt, chip.bucket)
                                 }
@@ -796,14 +888,8 @@ private struct TimeTrackingEntryEditorRow: View {
                         .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
                 )
         )
-        .onChange(of: entry.startAt) { _, _ in
-            syncFromEntry()
-        }
-        .onChange(of: entry.endAt) { _, _ in
-            syncFromEntry()
-        }
-        .onChange(of: entry.bucket.stableID) { _, _ in
-            syncFromEntry()
+        .onChange(of: model) { _, newModel in
+            syncFromModel(newModel)
         }
         .onChange(of: startAt) { _, _ in
             syncSplitAtWithinEditableRange()
@@ -831,35 +917,15 @@ private struct TimeTrackingEntryEditorRow: View {
     }
 
     private var displayBucketTitle: String {
-        bucketTitle(bucket(for: selectedBucketID))
-    }
-
-    private var summaryLabel: String {
-        "\(timeRangeLabel) • \(durationLabel)"
-    }
-
-    private var timeRangeLabel: String {
-        "\(formattedTime(startAt)) - \(formattedTime(endAt))"
+        bucketOptionTitlesByID[selectedBucketID] ?? model.currentBucketTitle
     }
 
     private var needsAction: Bool {
-        entry.isOpen || entry.bucket == .unallocated
-    }
-
-    private var entryStatusLabel: String {
-        if entry.isOpen {
-            return "Open"
-        }
-
-        if entry.bucket == .unallocated {
-            return "Pending"
-        }
-
-        return "Ready"
+        model.needsAction
     }
 
     private var needsActionTint: Color {
-        if entry.isOpen {
+        if model.entry.isOpen {
             return NomadTheme.teal
         }
 
@@ -910,12 +976,12 @@ private struct TimeTrackingEntryEditorRow: View {
         .buttonStyle(.plain)
     }
 
-    private func syncFromEntry() {
-        let resolvedEnd = entry.endAt ?? entry.startAt
-        selectedBucketID = entry.bucket.stableID
-        startAt = entry.startAt
+    private func syncFromModel(_ model: TimeTrackingEntryRowModel) {
+        let resolvedEnd = model.resolvedEndAt
+        selectedBucketID = model.entry.bucket.stableID
+        startAt = model.entry.startAt
         endAt = resolvedEnd
-        splitAt = entry.startAt.addingTimeInterval(max(resolvedEnd.timeIntervalSince(entry.startAt), 60) / 2)
+        splitAt = model.entry.startAt.addingTimeInterval(max(resolvedEnd.timeIntervalSince(model.entry.startAt), 60) / 2)
     }
 
     private func syncSplitAtWithinEditableRange() {
@@ -934,12 +1000,12 @@ private struct TimeTrackingEntryEditorRow: View {
     }
 
     private func quickBucketChipRow(
-        maxProjectCount: Int,
+        chips: [TimeTrackingQuickBucketChip],
         selectionID: String,
         action: @escaping (TimeTrackingQuickBucketChip) async -> Void
     ) -> some View {
         HStack(spacing: 8) {
-            ForEach(quickActionsPresentation.quickBucketChips(maxProjectCount: maxProjectCount, includeUnallocated: true)) { chip in
+            ForEach(chips) { chip in
                 quickBucketChip(
                     title: chip.title,
                     isSelected: selectionID == chip.bucket.stableID
@@ -1008,5 +1074,110 @@ private struct TimeTrackingEntryEditorRow: View {
 
             content()
         }
+    }
+}
+
+private struct TimeTrackingEntryHeaderContent: View {
+    let title: String
+    let summaryLabel: String
+    let statusLabel: String?
+    let isExpanded: Bool
+    let needsActionTint: Color
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(NomadTheme.primaryText)
+
+                Text(summaryLabel)
+                    .font(.caption)
+                    .foregroundStyle(NomadTheme.secondaryText)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 12)
+
+            if let statusLabel {
+                Text(statusLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(needsActionTint)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(needsActionTint.opacity(0.12))
+                    )
+            }
+
+            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(NomadTheme.tertiaryText)
+        }
+    }
+}
+
+private struct TimeTrackingWindowRenderState: Equatable {
+    var activityState: TimeTrackingActivityState
+    var activeProjectCount: Int
+    var summaryBucketDurations: [TimeTrackingBucketDuration]
+    var summaryTotalDuration: TimeInterval
+    var summaryUnallocatedDuration: TimeInterval
+    var displayedDaySummaries: [TimeTrackingDisplayedDaySummary]
+    var dayEntries: [TimeTrackingEntryRowModel]
+    var bucketOptions: [TimeTrackingBucketOption]
+    var quickBucketChipsWide: [TimeTrackingQuickBucketChip]
+    var quickBucketChipsCompact: [TimeTrackingQuickBucketChip]
+    var lastErrorMessage: String?
+
+    static let empty = TimeTrackingWindowRenderState(
+        activityState: .stopped,
+        activeProjectCount: 0,
+        summaryBucketDurations: [],
+        summaryTotalDuration: 0,
+        summaryUnallocatedDuration: 0,
+        displayedDaySummaries: [],
+        dayEntries: [],
+        bucketOptions: [],
+        quickBucketChipsWide: [],
+        quickBucketChipsCompact: [],
+        lastErrorMessage: nil
+    )
+
+    var summaryAllocatedDuration: TimeInterval {
+        max(summaryTotalDuration - summaryUnallocatedDuration, 0)
+    }
+}
+
+private struct TimeTrackingDisplayedDaySummary: Identifiable, Equatable {
+    let day: Date
+    let totalTrackedDuration: TimeInterval
+
+    var id: Date {
+        day
+    }
+}
+
+private struct TimeTrackingEntryRowModel: Identifiable, Equatable {
+    let entry: TimeTrackingEntry
+    let resolvedEndAt: Date
+    let currentBucketTitle: String
+    let summaryLabel: String
+    let durationLabel: String
+    let needsAction: Bool
+    let statusLabel: String?
+
+    var id: UUID {
+        entry.id
+    }
+}
+
+private struct TimeTrackingBucketOption: Identifiable, Equatable {
+    let bucket: TimeTrackingBucket
+    let title: String
+
+    var id: String {
+        bucket.stableID
     }
 }

@@ -667,21 +667,33 @@ public final class ProjectTimeTrackingController: ObservableObject {
     }
 
     private func refreshPublishedState(now currentNow: Date) {
-        entries = TimeTrackingLedger.normalizedEntries(ledger.entries)
-        runtimeState = ledger.runtimeState
+        let nextEntries = TimeTrackingLedger.normalizedEntries(ledger.entries)
+        if entries != nextEntries {
+            entries = nextEntries
+        }
+
+        let nextRuntimeState = ledger.runtimeState
+        if runtimeState != nextRuntimeState {
+            runtimeState = nextRuntimeState
+        }
 
         if settingsStore.settings.projectTimeTrackingEnabled == false {
-            dashboardState = .disabled
+            if dashboardState != .disabled {
+                dashboardState = .disabled
+            }
             return
         }
 
-        dashboardState = TimeTrackingDashboardState(
+        let nextDashboardState = TimeTrackingDashboardState(
             isEnabled: true,
-            activityState: runtimeState.activityState,
+            activityState: nextRuntimeState.activityState,
             activeProjects: activeProjects,
             todaySummary: makeDaySummary(for: currentNow, now: currentNow),
             openUnallocatedEntryStartAt: openEntry()?.bucket == .unallocated ? openEntry()?.startAt : nil
         )
+        if dashboardState != nextDashboardState {
+            dashboardState = nextDashboardState
+        }
     }
 
     private func persistLedger() async throws {
