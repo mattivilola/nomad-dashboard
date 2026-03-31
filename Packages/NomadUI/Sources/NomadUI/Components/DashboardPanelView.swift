@@ -1324,7 +1324,11 @@ public struct DashboardPanelView: View {
             ViewThatFits(in: .horizontal) {
                 timeTrackingQuickActionChips(maxProjectCount: 4)
                 timeTrackingQuickActionChips(maxProjectCount: 3)
+                timeTrackingQuickActionChips(maxProjectCount: 2)
+                timeTrackingQuickActionChips(maxProjectCount: 1)
             }
+
+            headerIconChipButton(systemImage: timeTrackingQuickActionsPresentation.openSystemImage, action: openTimeTrackingAction)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
@@ -1549,7 +1553,7 @@ public struct DashboardPanelView: View {
         HStack(spacing: 6) {
             ForEach(timeTrackingQuickActionsPresentation.latestProjects(maxCount: maxProjectCount)) { project in
                 headerChipButton(
-                    title: project.trimmedName,
+                    title: timeTrackingHeaderChipTitle(project.trimmedName),
                     systemImage: nil,
                     isEnabled: timeTrackingDashboardState.todaySummary.unallocatedDuration > 0
                 ) {
@@ -1564,13 +1568,6 @@ public struct DashboardPanelView: View {
             ) {
                 allocateTimeTrackingAction(.other)
             }
-
-            headerChipButton(
-                title: timeTrackingQuickActionsPresentation.openTitle,
-                systemImage: timeTrackingQuickActionsPresentation.openSystemImage,
-                isEnabled: true,
-                action: openTimeTrackingAction
-            )
         }
     }
 
@@ -1599,14 +1596,14 @@ public struct DashboardPanelView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(isEnabled ? NomadTheme.primaryText : NomadTheme.secondaryText)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .frame(maxWidth: 110)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(NomadTheme.inlineButtonBackground.opacity(isEnabled ? 1 : 0.72))
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(isEnabled ? NomadTheme.primaryText : NomadTheme.secondaryText)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .fixedSize(horizontal: true, vertical: false)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(NomadTheme.inlineButtonBackground.opacity(isEnabled ? 1 : 0.72))
                     .overlay(
                         Capsule(style: .continuous)
                             .stroke(NomadTheme.cardBorder.opacity(isEnabled ? 1 : 0.72), lineWidth: 1)
@@ -1615,6 +1612,34 @@ public struct DashboardPanelView: View {
         }
         .buttonStyle(.plain)
         .disabled(isEnabled == false)
+    }
+
+    private func headerIconChipButton(systemImage: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(NomadTheme.primaryText)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(NomadTheme.inlineButtonBackground.opacity(0.95))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(NomadTheme.cardBorder.opacity(0.92), lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func timeTrackingHeaderChipTitle(_ title: String) -> String {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedTitle.count > 10 else {
+            return trimmedTitle
+        }
+
+        return String(trimmedTitle.prefix(9)) + "…"
     }
 }
 
