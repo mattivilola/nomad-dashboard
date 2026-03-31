@@ -3,7 +3,8 @@
 Nomad Dashboard is a native macOS menu bar companion for travelling developers
 and remote workers. It lives in the top bar, stays out of the Dock, and opens a
 compact dashboard for the signals that matter when your MacBook is your office:
-network quality, public connectivity, power draw, travel context, and weather.
+network quality, public connectivity, power draw, travel context, weather, and
+local project time tracking.
 
 Maintainer: Matti Vilola  
 Contributed by ILO APPLICATIONS SL ([iloapps.dev](https://iloapps.dev))
@@ -21,6 +22,7 @@ questions quickly:
 - Where does the network think I am?
 - Am I on Wi-Fi, VPN, battery, and in the expected time zone?
 - What does the local weather look like today and tomorrow?
+- How much awake work time has gone into each project today, this week, or this month?
 
 ## Planned v1 Capabilities
 
@@ -30,6 +32,7 @@ questions quickly:
 - Battery percentage, charging state, discharge rate, and adapter context
 - Wi-Fi signal context, VPN detection, and current time zone
 - Current weather plus tomorrow's forecast summary
+- Local project time tracking with exact day, week, and month breakdowns
 - Menu bar quick actions for refresh, settings, about, and updates
 - Sparkle-based self-update plumbing for direct distribution
 
@@ -128,6 +131,8 @@ and is loaded by both Debug and Release builds.
 - External IP lookups use FreeIPAPI. IP-based location display is enabled by
   default for new installs and can be turned off in Settings. Device location
   and weather access use explicit permission prompts.
+- Project time tracking is local-only, stores exact entries on the Mac, and
+  exports month summaries as clipboard text when the user chooses to copy them.
 - Release automation is local-first. Signing, notarization, DMG packaging, and
   Sparkle publishing are wired through scripts and documented in
   [docs/release.md](docs/release.md).

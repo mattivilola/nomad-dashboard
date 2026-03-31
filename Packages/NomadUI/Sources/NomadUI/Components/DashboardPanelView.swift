@@ -16,8 +16,15 @@ public struct DashboardPanelView: View {
     private let weatherAvailabilityExplanation: String?
     private let locationStatusDetail: String?
     private let appIcon: NSImage?
+    private let timeTrackingDashboardState: TimeTrackingDashboardState
     private let refreshAction: () -> Void
     private let toggleAppearanceAction: () -> Void
+    private let playTimeTrackingAction: () -> Void
+    private let pauseTimeTrackingAction: () -> Void
+    private let resumeTimeTrackingAction: () -> Void
+    private let stopTimeTrackingAction: () -> Void
+    private let allocateTimeTrackingAction: (TimeTrackingBucket) -> Void
+    private let openTimeTrackingAction: () -> Void
     private let copyIPAddressAction: () -> Void
     private let openVisitedMapAction: () -> Void
     private let openNetworkSettingsAction: () -> Void
@@ -53,8 +60,15 @@ public struct DashboardPanelView: View {
         weatherAvailabilityExplanation: String? = nil,
         locationStatusDetail: String? = nil,
         appIcon: NSImage? = nil,
+        timeTrackingDashboardState: TimeTrackingDashboardState = .disabled,
         refreshAction: @escaping () -> Void,
         toggleAppearanceAction: @escaping () -> Void,
+        playTimeTrackingAction: @escaping () -> Void = {},
+        pauseTimeTrackingAction: @escaping () -> Void = {},
+        resumeTimeTrackingAction: @escaping () -> Void = {},
+        stopTimeTrackingAction: @escaping () -> Void = {},
+        allocateTimeTrackingAction: @escaping (TimeTrackingBucket) -> Void = { _ in },
+        openTimeTrackingAction: @escaping () -> Void = {},
         copyIPAddressAction: @escaping () -> Void,
         openVisitedMapAction: @escaping () -> Void,
         openNetworkSettingsAction: @escaping () -> Void,
@@ -84,8 +98,15 @@ public struct DashboardPanelView: View {
         self.weatherAvailabilityExplanation = weatherAvailabilityExplanation
         self.locationStatusDetail = locationStatusDetail
         self.appIcon = appIcon
+        self.timeTrackingDashboardState = timeTrackingDashboardState
         self.refreshAction = refreshAction
         self.toggleAppearanceAction = toggleAppearanceAction
+        self.playTimeTrackingAction = playTimeTrackingAction
+        self.pauseTimeTrackingAction = pauseTimeTrackingAction
+        self.resumeTimeTrackingAction = resumeTimeTrackingAction
+        self.stopTimeTrackingAction = stopTimeTrackingAction
+        self.allocateTimeTrackingAction = allocateTimeTrackingAction
+        self.openTimeTrackingAction = openTimeTrackingAction
         self.copyIPAddressAction = copyIPAddressAction
         self.openVisitedMapAction = openVisitedMapAction
         self.openNetworkSettingsAction = openNetworkSettingsAction
@@ -181,6 +202,10 @@ public struct DashboardPanelView: View {
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                 }
+
+                if timeTrackingDashboardState.isEnabled {
+                    timeTrackingHeaderPill
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -197,6 +222,10 @@ public struct DashboardPanelView: View {
                 Menu {
                     Button("Open Visited Map", systemImage: "globe.europe.africa.fill") {
                         openVisitedMapAction()
+                    }
+
+                    Button("Open Time Tracking", systemImage: "clock.badge.checkmark") {
+                        openTimeTrackingAction()
                     }
 
                     Button("Open Network Settings", systemImage: "gearshape.2") {
@@ -329,6 +358,8 @@ public struct DashboardPanelView: View {
             connectivitySection(widthMode: widthMode)
         case .power:
             powerSection(widthMode: widthMode)
+        case .timeTracking:
+            timeTrackingSection(widthMode: widthMode)
         case .travelContext:
             travelSection(widthMode: widthMode)
         case .fuelPrices:
@@ -620,6 +651,102 @@ public struct DashboardPanelView: View {
                         action: openVisitedMapAction
                     )
                 )
+            }
+        }
+    }
+
+    private func timeTrackingSection(widthMode: DashboardCardWidthMode) -> some View {
+        let isCompact = widthMode == .narrow
+        let activeProjects = timeTrackingDashboardState.activeProjects
+        let unallocatedDuration = timeTrackingDashboardState.todaySummary.unallocatedDuration
+
+        return DashboardCard(
+            title: "Time Tracking",
+            subtitle: timeTrackingSubtitle,
+            badge: timeTrackingBadge,
+            accessory: cardControls(for: .timeTracking, title: "Time Tracking"),
+            isCompact: isCompact
+        ) {
+            if timeTrackingDashboardState.isEnabled == false {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Track awake working time locally, then allocate today’s pending time into projects or Other.")
+                        .font(.caption)
+                        .foregroundStyle(NomadTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Button("Open Settings") {
+                        openSettingsAction()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(NomadTheme.teal)
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    if isCompact {
+                        HStack(spacing: 12) {
+                            MetricBlock(title: "Today", value: formattedTrackingDuration(timeTrackingDashboardState.todaySummary.totalTrackedDuration), typography: .compact)
+                            MetricBlock(title: "Pending", value: formattedTrackingDuration(unallocatedDuration), typography: .compact)
+                        }
+                    } else {
+                        HStack(spacing: 12) {
+                            MetricBlock(title: "Today", value: formattedTrackingDuration(timeTrackingDashboardState.todaySummary.totalTrackedDuration), typography: .compact)
+                            MetricBlock(title: "Allocated", value: formattedTrackingDuration(timeTrackingDashboardState.todaySummary.totalAllocatedDuration), typography: .compact)
+                            MetricBlock(title: "Pending", value: formattedTrackingDuration(unallocatedDuration), typography: .compact)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(timeTrackingDashboardState.todaySummary.bucketDurations.prefix(isCompact ? 2 : 4)) { bucketDuration in
+                            DetailRow(
+                                label: timeTrackingBucketTitle(bucketDuration.bucket),
+                                value: formattedTrackingDuration(bucketDuration.duration),
+                                isCompact: isCompact,
+                                compactLineLimit: 1
+                            )
+                        }
+                    }
+
+                    if activeProjects.isEmpty == false {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Quick Allocate")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(NomadTheme.tertiaryText)
+
+                            if isCompact {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    quickAllocateButton(title: "Other", bucket: .other, isCompact: true, isEnabled: unallocatedDuration > 0)
+                                    ForEach(activeProjects.prefix(3)) { project in
+                                        quickAllocateButton(title: project.trimmedName, bucket: .project(project.id), isCompact: true, isEnabled: unallocatedDuration > 0)
+                                    }
+                                }
+                            } else {
+                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                    quickAllocateButton(title: "Other", bucket: .other, isCompact: false, isEnabled: unallocatedDuration > 0)
+                                    ForEach(activeProjects) { project in
+                                        quickAllocateButton(title: project.trimmedName, bucket: .project(project.id), isCompact: false, isEnabled: unallocatedDuration > 0)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        Text("Add at least one project in Settings to enable project allocations. Other is always available.")
+                            .font(.caption)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    HStack(spacing: 8) {
+                        timeTrackingControlButton(title: timeTrackingPrimaryControlTitle, action: timeTrackingPrimaryControlAction)
+                        timeTrackingControlButton(title: "Stop", action: stopTimeTrackingAction)
+
+                        Spacer(minLength: 0)
+
+                        Button("Open Time Tracking") {
+                            openTimeTrackingAction()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
             }
         }
     }
@@ -1165,6 +1292,46 @@ public struct DashboardPanelView: View {
         "Drain status: \(metrics.drainValue)"
     }
 
+    private var timeTrackingHeaderPill: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "clock.badge.checkmark")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(NomadTheme.teal)
+
+            Text("Pending \(formattedTrackingDuration(timeTrackingDashboardState.todaySummary.unallocatedDuration))")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(NomadTheme.primaryText)
+
+            Text(timeTrackingActivityTitle)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(NomadTheme.secondaryText)
+
+            Spacer(minLength: 0)
+
+            Button(timeTrackingPrimaryControlTitle) {
+                timeTrackingPrimaryControlAction()
+            }
+            .buttonStyle(.borderless)
+            .font(.caption.weight(.semibold))
+
+            Button("Stop") {
+                stopTimeTrackingAction()
+            }
+            .buttonStyle(.borderless)
+            .font(.caption.weight(.semibold))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            Capsule(style: .continuous)
+                .fill(NomadTheme.chartBackground.opacity(0.95))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(NomadTheme.cardBorder.opacity(0.92), lineWidth: 1)
+                )
+        )
+    }
+
     private func cardControls(for cardID: DashboardCardID, title: String) -> AnyView {
         AnyView(
             HStack(spacing: 6) {
@@ -1261,6 +1428,104 @@ public struct DashboardPanelView: View {
 
         let description = pieces.compactMap(\.self).joined(separator: " · ")
         return description.isEmpty ? "Connected" : description
+    }
+
+    private var timeTrackingPrimaryControlTitle: String {
+        switch timeTrackingDashboardState.activityState {
+        case .running:
+            "Pause"
+        case .paused:
+            "Resume"
+        case .stopped:
+            "Play"
+        }
+    }
+
+    private var timeTrackingPrimaryControlAction: () -> Void {
+        switch timeTrackingDashboardState.activityState {
+        case .running:
+            pauseTimeTrackingAction
+        case .paused:
+            resumeTimeTrackingAction
+        case .stopped:
+            playTimeTrackingAction
+        }
+    }
+
+    private var timeTrackingActivityTitle: String {
+        switch timeTrackingDashboardState.activityState {
+        case .running:
+            "Running"
+        case .paused:
+            "Paused"
+        case .stopped:
+            "Stopped"
+        }
+    }
+
+    private var timeTrackingSubtitle: String {
+        if timeTrackingDashboardState.isEnabled == false {
+            return "Off in Settings"
+        }
+
+        return "\(timeTrackingActivityTitle) · \(timeTrackingDashboardState.activeProjects.count) project\(timeTrackingDashboardState.activeProjects.count == 1 ? "" : "s")"
+    }
+
+    private var timeTrackingBadge: PillBadge {
+        if timeTrackingDashboardState.isEnabled == false {
+            return PillBadge(title: "Off", symbolName: "clock.badge.xmark", tint: NomadTheme.primaryText)
+        }
+
+        switch timeTrackingDashboardState.activityState {
+        case .running:
+            return PillBadge(title: "Live", symbolName: "play.fill", tint: NomadTheme.teal)
+        case .paused:
+            return PillBadge(title: "Paused", symbolName: "pause.fill", tint: NomadTheme.sand)
+        case .stopped:
+            return PillBadge(title: "Stopped", symbolName: "stop.fill", tint: NomadTheme.primaryText)
+        }
+    }
+
+    private func quickAllocateButton(title: String, bucket: TimeTrackingBucket, isCompact: Bool, isEnabled: Bool) -> some View {
+        Button(title) {
+            allocateTimeTrackingAction(bucket)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(isCompact ? .small : .regular)
+        .tint(NomadTheme.teal)
+        .disabled(isEnabled == false)
+    }
+
+    private func timeTrackingControlButton(title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
+            .buttonStyle(.bordered)
+    }
+
+    private func formattedTrackingDuration(_ duration: TimeInterval) -> String {
+        let totalMinutes = Int((duration / 60).rounded())
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+
+        if hours == 0 {
+            return "\(minutes)m"
+        }
+
+        if minutes == 0 {
+            return "\(hours)h"
+        }
+
+        return "\(hours)h \(minutes)m"
+    }
+
+    private func timeTrackingBucketTitle(_ bucket: TimeTrackingBucket) -> String {
+        switch bucket {
+        case let .project(id):
+            return timeTrackingDashboardState.activeProjects.first(where: { $0.id == id })?.trimmedName ?? "Archived Project"
+        case .other:
+            return "Other"
+        case .unallocated:
+            return "Unallocated"
+        }
     }
 }
 

@@ -6,7 +6,7 @@ Use it to describe what Nomad Dashboard currently does, who each capability help
 
 ## Product-Level Summary
 
-Nomad Dashboard is a native macOS menu bar app that aggregates travel-relevant and work-relevant signals into one compact dashboard. Its current shipped scope covers connectivity, power, travel context, weather, and several optional travel-aware modules.
+Nomad Dashboard is a native macOS menu bar app that aggregates travel-relevant and work-relevant signals into one compact dashboard. Its current shipped scope covers connectivity, power, travel context, weather, local project time tracking, and several optional travel-aware modules.
 
 ## Connectivity And Internet Readiness
 
@@ -264,6 +264,39 @@ Users can build a simple local travel history over time, revisit where they have
 - this is not a multi-device synced travel journal
 - country-day gaps are estimated from the surrounding known countries when the app has missing days between captures
 
+## Project Time Tracking
+
+### What it does
+
+- Can track awake working time locally while Nomad Dashboard is running
+- Lets the user define project buckets in Settings plus one built-in `Other` bucket
+- Shows live pending unallocated time in the dashboard
+- Supports quick one-click allocation of today’s pending time into a project or `Other`
+- Includes a dedicated time-tracking window with day, week, and month views
+- Supports exact-entry editing for reassignment, resizing, and splitting
+- Can export the selected month summary with weekly and daily breakdowns as plain text via the clipboard
+
+### Who it helps
+
+- freelancers, consultants, and agency operators who need a lightweight local work log
+- remote workers who want fast project allocation without adopting a heavier full invoicing or PM suite
+
+### Practical benefit
+
+Users can keep a simple local record of how awake work time was divided across projects, fix history later when needed, and export a clean monthly text summary quickly.
+
+### Dependencies or setup
+
+- feature must be enabled in Settings
+- project buckets are user-defined and stored locally on the Mac
+- tracking counts only while the Mac is awake and Nomad Dashboard is running
+
+### Limitations
+
+- data stays local to the Mac unless the user copies or moves it themselves
+- this is not a timesheet approval, invoicing, or multi-device sync system
+- exact time is stored; quarter-hour rounding is not applied in the current version
+
 ## Settings, Layout Customization, Updates, And Launch At Login
 
 ### What it does
@@ -300,6 +333,7 @@ Users can shape the dashboard around their needs instead of accepting a rigid on
 - Weather relies on WeatherKit and needs proper signed release capability to work in release-quality builds.
 - Nearby fuel prices are region-dependent, and Germany requires the user to provide a Tankerkonig API key.
 - Some travel alerts are optional and disabled by default.
+- Project time tracking is local-only and requires the user to enable it.
 - External IP geolocation is approximate.
 - Upstream data freshness and availability depend on external providers.
 - The app is free to download and use.
@@ -312,7 +346,7 @@ These are safe high-level claims for the landing page:
 - native macOS menu bar app
 - built for digital nomads, remote workers, and traveling developers
 - connection, power, weather, and travel context in one place
-- optional travel-aware tools such as alerts, nearby fuel, emergency hospitals, surf spot forecast, and visited places
+- optional travel-aware tools plus local project time tracking, surf spot forecast, and visited places
 - free and open source
 - direct download outside the Mac App Store
 - provided as-is

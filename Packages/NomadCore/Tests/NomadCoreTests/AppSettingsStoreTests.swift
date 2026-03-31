@@ -23,6 +23,8 @@ struct AppSettingsStoreTests {
         #expect(store.settings.travelAdvisoryEnabled == true)
         #expect(store.settings.travelWeatherAlertsEnabled == false)
         #expect(store.settings.regionalSecurityEnabled == false)
+        #expect(store.settings.projectTimeTrackingEnabled == false)
+        #expect(store.settings.timeTrackingProjects.isEmpty)
         #expect(store.settings.tankerkonigAPIKey.isEmpty)
         #expect(store.settings.surfSpotName.isEmpty)
         #expect(store.settings.surfSpotLatitude == nil)
@@ -60,6 +62,7 @@ struct AppSettingsStoreTests {
             .fuelPrices,
             .emergencyCare,
             .travelContext,
+            .timeTracking,
             .power,
             .connectivity
         ]
@@ -145,6 +148,23 @@ struct AppSettingsStoreTests {
     }
 
     @Test
+    func persistsTimeTrackingConfigurationToUserDefaults() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let store = AppSettingsStore(defaults: defaults)
+        let project = TimeTrackingProject(name: "Client A")
+        store.settings.projectTimeTrackingEnabled = true
+        store.settings.timeTrackingProjects = [project]
+
+        let reloaded = AppSettingsStore(defaults: defaults)
+        #expect(reloaded.settings.projectTimeTrackingEnabled == true)
+        #expect(reloaded.settings.timeTrackingProjects == [project])
+        #expect(reloaded.settings.activeTimeTrackingProjects == [project])
+    }
+
+    @Test
     func persistsSurfSpotToUserDefaults() throws {
         let suiteName = UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suiteName))
@@ -226,6 +246,8 @@ struct AppSettingsStoreTests {
         #expect(store.settings.travelAdvisoryEnabled == true)
         #expect(store.settings.travelWeatherAlertsEnabled == false)
         #expect(store.settings.regionalSecurityEnabled == false)
+        #expect(store.settings.projectTimeTrackingEnabled == false)
+        #expect(store.settings.timeTrackingProjects.isEmpty)
         #expect(store.settings.tankerkonigAPIKey.isEmpty)
         #expect(store.settings.surfSpotName.isEmpty)
         #expect(store.settings.surfSpotLatitude == nil)
@@ -266,11 +288,26 @@ struct AppSettingsStoreTests {
             .weather,
             .power,
             .connectivity,
+            .timeTracking,
             .travelContext,
             .fuelPrices,
             .emergencyCare,
             .travelAlerts
         ])
+    }
+
+    @Test
+    func activeTimeTrackingProjectsExcludeArchivedAndBlankNames() {
+        let settings = AppSettings(
+            projectTimeTrackingEnabled: true,
+            timeTrackingProjects: [
+                TimeTrackingProject(name: "Client A"),
+                TimeTrackingProject(name: "   "),
+                TimeTrackingProject(name: "Archived", isArchived: true)
+            ]
+        )
+
+        #expect(settings.activeTimeTrackingProjects.map(\.trimmedName) == ["Client A"])
     }
 
     @Test

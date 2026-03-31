@@ -8,6 +8,7 @@ struct SettingsView: View {
     @ObservedObject var snapshotStore: DashboardSnapshotStore
     @ObservedObject var locationStore: CurrentLocationStore
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
+    @ObservedObject var timeTrackingController: ProjectTimeTrackingController
     @ObservedObject var settingsNavigationController: SettingsNavigationController
     let updatesEnabled: Bool
     let analytics: AppAnalytics
@@ -32,6 +33,7 @@ struct SettingsView: View {
         snapshotStore: DashboardSnapshotStore,
         locationStore: CurrentLocationStore,
         launchAtLoginController: LaunchAtLoginController,
+        timeTrackingController: ProjectTimeTrackingController,
         settingsNavigationController: SettingsNavigationController,
         updatesEnabled: Bool,
         analytics: AppAnalytics
@@ -40,6 +42,7 @@ struct SettingsView: View {
         self.snapshotStore = snapshotStore
         self.locationStore = locationStore
         self.launchAtLoginController = launchAtLoginController
+        self.timeTrackingController = timeTrackingController
         self.settingsNavigationController = settingsNavigationController
         self.updatesEnabled = updatesEnabled
         self.analytics = analytics
@@ -215,6 +218,67 @@ struct SettingsView: View {
                         Text("Refresh & History")
                     } footer: {
                         Text("Fast refresh controls lightweight polling. Slow refresh covers heavier network, power, location, and weather lookups.")
+                    }
+
+                    Section {
+                        Toggle("Enable project time tracking", isOn: binding(\.projectTimeTrackingEnabled))
+
+                        if settingsStore.settings.projectTimeTrackingEnabled {
+                            LabeledContent("Status") {
+                                Text(timeTrackingStatusLabel)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        if activeTimeTrackingProjectIndices.isEmpty {
+                            Text("No active projects yet. Add projects here, then allocate today’s pending time from the dashboard.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(activeTimeTrackingProjectIndices, id: \.self) { index in
+                                HStack(spacing: 10) {
+                                    TextField("Project name", text: timeTrackingProjectNameBinding(for: index))
+                                        .textFieldStyle(.roundedBorder)
+
+                                    Button("Archive") {
+                                        settingsStore.settings.timeTrackingProjects[index].isArchived = true
+                                    }
+                                }
+                            }
+                        }
+
+                        Button("Add Project") {
+                            settingsStore.settings.timeTrackingProjects.append(
+                                TimeTrackingProject(name: nextProjectName)
+                            )
+                        }
+
+                        if archivedTimeTrackingProjectIndices.isEmpty == false {
+                            DisclosureGroup("Archived Projects") {
+                                ForEach(archivedTimeTrackingProjectIndices, id: \.self) { index in
+                                    HStack(spacing: 10) {
+                                        Text(settingsStore.settings.timeTrackingProjects[index].trimmedName.nilIfEmpty ?? "Untitled Project")
+                                            .foregroundStyle(.secondary)
+
+                                        Spacer()
+
+                                        Button("Restore") {
+                                            settingsStore.settings.timeTrackingProjects[index].isArchived = false
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if settingsStore.settings.projectTimeTrackingEnabled {
+                            Button("Open Time Tracking") {
+                                openAndActivateWindow(.timeTracking, with: openWindow)
+                            }
+                        }
+                    } header: {
+                        Text("Project Time Tracking")
+                    } footer: {
+                        Text("Project time tracking stays local to this Mac. The app tracks awake time only while Nomad Dashboard is running, keeps exact timings, and lets you assign today’s pending time into projects or Other from the dashboard.")
                     }
 
                     Section {
@@ -717,6 +781,36 @@ struct SettingsView: View {
         pasteboard.setString(
             diagnostics.reportText(fuelPrices: snapshotStore.snapshot.fuelPrices),
             forType: .string
+        )
+    }
+
+    private var activeTimeTrackingProjectIndices: [Int] {
+        settingsStore.settings.timeTrackingProjects.indices.filter { settingsStore.settings.timeTrackingProjects[$0].isArchived == false }
+    }
+
+    private var archivedTimeTrackingProjectIndices: [Int] {
+        settingsStore.settings.timeTrackingProjects.indices.filter { settingsStore.settings.timeTrackingProjects[$0].isArchived }
+    }
+
+    private var timeTrackingStatusLabel: String {
+        switch timeTrackingController.runtimeState.activityState {
+        case .running:
+            "Running"
+        case .paused:
+            "Paused"
+        case .stopped:
+            "Stopped"
+        }
+    }
+
+    private var nextProjectName: String {
+        "Project \(settingsStore.settings.timeTrackingProjects.count + 1)"
+    }
+
+    private func timeTrackingProjectNameBinding(for index: Int) -> Binding<String> {
+        Binding(
+            get: { settingsStore.settings.timeTrackingProjects[index].name },
+            set: { settingsStore.settings.timeTrackingProjects[index].name = $0 }
         )
     }
 }

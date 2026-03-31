@@ -6,7 +6,7 @@ Nomad Dashboard is a native macOS menu bar app for digital nomads, remote worker
 
 ## Positioning
 
-Nomad Dashboard turns a MacBook into a compact travel instrument panel. It keeps the signals that matter close at hand in the menu bar: connection quality, internet reachability, power state, travel context, weather, and optional travel-oriented tools such as alerts, nearby fuel prices, emergency hospitals, surf conditions, and visited places.
+Nomad Dashboard turns a MacBook into a compact travel instrument panel. It keeps the signals that matter close at hand in the menu bar: connection quality, internet reachability, power state, travel context, weather, local project time tracking, and optional travel-oriented tools such as alerts, nearby fuel prices, emergency hospitals, surf conditions, and visited places.
 
 The product should be positioned as:
 
@@ -86,11 +86,12 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Surfacing optional travel alerts and regional context while on the move
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
 - Tracking visited places locally on the Mac, with country-day summaries by year and month
+- Tracking awake work time locally on the Mac, then assigning it into projects with day, week, and month summaries
 - Keeping all of the above in a compact menu bar workflow instead of a full-size monitoring dashboard
 
 ## Benefit Statements
 
-- Spend less time checking separate tools for connectivity, weather, maps, and travel context.
+- Spend less time checking separate tools for connectivity, weather, maps, travel context, and lightweight project logging.
 - Notice weak or unstable working conditions earlier.
 - Keep a better sense of place while moving between networks and countries.
 - Stay lightweight: open the dashboard when needed, then get out of the way.
@@ -147,6 +148,7 @@ Marketing copy can safely say:
 - Some features use device location only when enabled
 - External IP location display can be turned off
 - Several travel modules are optional
+- Project time tracking stays local to the Mac and can be turned off entirely
 - Anonymous analytics are privacy-conscious and configurable in-app, with some install and reach estimation events always collected
 
 Avoid saying:
