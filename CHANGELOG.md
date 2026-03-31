@@ -20,6 +20,22 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.6.0] - 2026-03-31
+
+### Changed
+
+- Update marketing, privacy docs, and developer guidelines
+- Add project time tracking and dedicated window
+- Enhance time tracking quick allocation and pending intervals
+- Introduce quick bucket chips for time tracking entry assignments
+- Improve time tracking quick action chips for adaptive layout
+- Introduce expandable time tracking entries and auto-expand those requiring attention
+- Introduce adaptive configurations for time tracking header
+- Introduce render state for TimeTrackingWindowView
+- Introduce recent projects and improve time tracking quick actions
+- Enhance time tracking day list with rich summary cards and visual insights
+- Enhance time tracking quick action adaptivity and dashboard panel layout
+
 ## [0.5.0] - 2026-03-30
 
 ### Changed

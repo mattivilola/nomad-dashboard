@@ -18,6 +18,10 @@ project.
   target.
 - Keep release secrets out of the repository. Use environment variables and
   local config templates from `Config/`.
+- When changing user-facing features, privacy behavior, or product capabilities,
+  update the relevant docs in the same task. Always check
+  `docs/marketing/features.md`, `docs/marketing/marketing.md`, and
+  `docs/privacy.md`, and update whichever files are affected.
 
 ## Architecture Boundaries
 
@@ -33,4 +37,3 @@ project.
 - Generate with XcodeGen
 - Use Swift Package Manager for local modules and tests
 - Release through scripts in `scripts/`
-

@@ -5,6 +5,7 @@ enum AppWindowDestination: String {
     case settings
     case about
     case visitedMap = "visited-map"
+    case timeTracking = "time-tracking"
 
     var title: String {
         switch self {
@@ -14,6 +15,8 @@ enum AppWindowDestination: String {
             "About Nomad Dashboard"
         case .visitedMap:
             "Visited Map"
+        case .timeTracking:
+            "Time Tracking"
         }
     }
 }

@@ -89,6 +89,26 @@ struct FileVisitedCountryDaysStoreTests {
     }
 
     @Test
+    func replacingInferredDayRebuildsFollowingGap() async throws {
+        let store = makeStore()
+
+        try await store.record(input(day: .init(year: 2026, month: 1, day: 1), country: "Spain", countryCode: "ES", source: .deviceLocation))
+        try await store.record(input(day: .init(year: 2026, month: 1, day: 5), country: "France", countryCode: "FR", source: .deviceLocation))
+        try await store.record(input(day: .init(year: 2026, month: 1, day: 3), country: "Netherlands", countryCode: "NL", source: .deviceLocation))
+
+        let values = try await store.loadAll()
+        #expect(values.map(\.day) == [
+            .init(year: 2026, month: 1, day: 1),
+            .init(year: 2026, month: 1, day: 2),
+            .init(year: 2026, month: 1, day: 3),
+            .init(year: 2026, month: 1, day: 4),
+            .init(year: 2026, month: 1, day: 5)
+        ])
+        #expect(values.map(\.countryCode) == ["ES", "ES", "NL", "NL", "FR"])
+        #expect(values.map(\.isInferred) == [false, true, false, true, false])
+    }
+
+    @Test
     func doesNotBackfillBeforeFirstObservedDay() async throws {
         let store = makeStore()
 

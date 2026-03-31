@@ -1326,50 +1326,13 @@ private actor InMemoryVisitedCountryDaysStore: VisitedCountryDaysStore {
             let existing = values[existingIndex]
             if existing.isInferred || (existing.source == .publicIPGeolocation && entry.source == .deviceLocation) {
                 values[existingIndex] = entry
-                values.sort { $0.day < $1.day }
+                values = rebuiltEntries(from: values)
             }
             return
         }
 
         values.append(entry)
-        values.sort { $0.day < $1.day }
-
-        guard let currentIndex = values.firstIndex(where: { $0.day == entry.day }), currentIndex > 0 else {
-            return
-        }
-
-        let previous = values[currentIndex - 1]
-        let gapDays = gapDays(from: previous.day, to: entry.day)
-        guard gapDays > 0 else {
-            return
-        }
-
-        let usesSameCountry = previous.countryCode == entry.countryCode
-            || (
-                previous.countryCode == nil
-                    && entry.countryCode == nil
-                    && previous.country.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-                        == entry.country.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            )
-        let previousCountryCount = usesSameCountry ? gapDays : (gapDays + 1) / 2
-
-        let inferredEntries = (1...gapDays).compactMap { offset -> VisitedCountryDay? in
-            guard let day = offsetDay(previous.day, by: offset) else {
-                return nil
-            }
-
-            let template = offset <= previousCountryCount ? previous : entry
-            return VisitedCountryDay(
-                day: day,
-                country: template.country,
-                countryCode: template.countryCode,
-                source: template.source,
-                isInferred: true
-            )
-        }
-
-        values.insert(contentsOf: inferredEntries, at: currentIndex)
-        values.sort { $0.day < $1.day }
+        values = rebuiltEntries(from: values)
     }
 
     func reset() async throws {
@@ -1378,6 +1341,57 @@ private actor InMemoryVisitedCountryDaysStore: VisitedCountryDaysStore {
 
     private func gapDays(from start: VisitedCountryDayStamp, to end: VisitedCountryDayStamp) -> Int {
         dayDistance(from: start, to: end) - 1
+    }
+
+    private func rebuiltEntries(from entries: [VisitedCountryDay]) -> [VisitedCountryDay] {
+        let observedEntries = entries
+            .filter { $0.isInferred == false }
+            .sorted { $0.day < $1.day }
+
+        guard let firstEntry = observedEntries.first else {
+            return []
+        }
+
+        var rebuiltEntries = [firstEntry]
+
+        for index in observedEntries.indices.dropFirst() {
+            let previous = observedEntries[index - 1]
+            let current = observedEntries[index]
+            let gapDays = gapDays(from: previous.day, to: current.day)
+            guard gapDays > 0 else {
+                rebuiltEntries.append(current)
+                continue
+            }
+
+            let usesSameCountry = previous.countryCode == current.countryCode
+                || (
+                    previous.countryCode == nil
+                        && current.countryCode == nil
+                        && previous.country.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                            == current.country.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                )
+            let previousCountryCount = usesSameCountry ? gapDays : (gapDays + 1) / 2
+
+            let inferredEntries = (1...gapDays).compactMap { offset -> VisitedCountryDay? in
+                guard let day = offsetDay(previous.day, by: offset) else {
+                    return nil
+                }
+
+                let template = offset <= previousCountryCount ? previous : current
+                return VisitedCountryDay(
+                    day: day,
+                    country: template.country,
+                    countryCode: template.countryCode,
+                    source: template.source,
+                    isInferred: true
+                )
+            }
+
+            rebuiltEntries.append(contentsOf: inferredEntries)
+            rebuiltEntries.append(current)
+        }
+
+        return rebuiltEntries
     }
 
     private func dayDistance(from start: VisitedCountryDayStamp, to end: VisitedCountryDayStamp) -> Int {

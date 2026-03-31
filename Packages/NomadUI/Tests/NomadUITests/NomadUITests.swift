@@ -157,6 +157,164 @@ struct NomadUITests {
     }
 
     @Test
+    func timeTrackingQuickActionsPresentationUsesLatestProjectsInReverseRecencyOrder() {
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [
+                TimeTrackingProject(name: "One"),
+                TimeTrackingProject(name: "Two"),
+                TimeTrackingProject(name: "Three"),
+                TimeTrackingProject(name: "Four"),
+                TimeTrackingProject(name: "Five")
+            ],
+            pendingDurationText: "2m",
+            activityState: .running
+        )
+
+        #expect(presentation.latestProjects(maxCount: 4).map(\.trimmedName) == ["Five", "Four", "Three", "Two"])
+        #expect(presentation.latestProjects(maxCount: 3).map(\.trimmedName) == ["Five", "Four", "Three"])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationExcludesArchivedAndBlankProjects() {
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [
+                TimeTrackingProject(name: "Alpha"),
+                TimeTrackingProject(name: "   "),
+                TimeTrackingProject(name: "Archived", isArchived: true),
+                TimeTrackingProject(name: "Bravo")
+            ],
+            pendingDurationText: "2m",
+            activityState: .running
+        )
+
+        #expect(presentation.latestProjects(maxCount: 4).map(\.trimmedName) == ["Bravo", "Alpha"])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationBuildsDialogBucketChips() {
+        let projectA = TimeTrackingProject(name: "Alpha")
+        let projectB = TimeTrackingProject(name: "Bravo")
+        let projectC = TimeTrackingProject(name: "Charlie")
+        let projectD = TimeTrackingProject(name: "Delta")
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [projectA, projectB, projectC, projectD],
+            pendingDurationText: "2m",
+            activityState: .running
+        )
+
+        let chips = presentation.quickBucketChips(maxProjectCount: 3, includeUnallocated: true)
+        #expect(chips.map(\.title) == ["Delta", "Charlie", "Bravo", "Other", "Unallocated"])
+        #expect(chips.map(\.bucket.stableID) == [
+            TimeTrackingBucket.project(projectD.id).stableID,
+            TimeTrackingBucket.project(projectC.id).stableID,
+            TimeTrackingBucket.project(projectB.id).stableID,
+            TimeTrackingBucket.other.stableID,
+            TimeTrackingBucket.unallocated.stableID
+        ])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationKeepsHeaderControlsAvailable() {
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [TimeTrackingProject(name: "Long Client Project Name That Should Truncate In UI")],
+            pendingDurationText: "2m",
+            activityState: .running
+        )
+
+        #expect(presentation.pendingDurationText == "2m")
+        #expect(presentation.activityTitle == "Running")
+        #expect(presentation.primaryControlTitle == "Pause")
+        #expect(presentation.primaryControlSystemImage == "pause.fill")
+        #expect(presentation.stopControlTitle == "Stop")
+        #expect(presentation.stopControlSystemImage == "stop.fill")
+        #expect(presentation.otherChipTitle == "Other")
+        #expect(presentation.openTitle == "Open")
+        #expect(presentation.openSystemImage == "clock.badge.checkmark")
+        #expect(presentation.latestProjects(maxCount: 3).first?.trimmedName == "Long Client Project Name That Should Truncate In UI")
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationBuildsHeaderCompactConfigurations() {
+        let recentProjects = [
+            TimeTrackingProject(name: "Alpha"),
+            TimeTrackingProject(name: "Bravo"),
+            TimeTrackingProject(name: "Charlie")
+        ]
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: recentProjects,
+            recentProjects: recentProjects,
+            pendingDurationText: "14m",
+            activityState: .running
+        )
+
+        let configurations = presentation.headerCompactConfigurations(maxProjectCount: 2)
+        #expect(configurations.map { $0.chips.map(\.title) } == [
+            ["Alpha", "Bravo", "Other"],
+            ["Alpha", "Other"],
+            ["Other"],
+            []
+        ])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationMapsVisibleHeaderControlsByState() {
+        let running = TimeTrackingQuickActionsPresentation(
+            activeProjects: [],
+            pendingDurationText: "2m",
+            activityState: .running
+        )
+        let paused = TimeTrackingQuickActionsPresentation(
+            activeProjects: [],
+            pendingDurationText: "2m",
+            activityState: .paused
+        )
+        let stopped = TimeTrackingQuickActionsPresentation(
+            activeProjects: [],
+            pendingDurationText: "2m",
+            activityState: .stopped
+        )
+
+        #expect(running.primaryControlIcon.title == "Pause")
+        #expect(running.primaryControlIcon.systemImage == "pause.fill")
+        #expect(running.visibleHeaderControls.map(\.title) == ["Pause"])
+        #expect(paused.primaryControlIcon.title == "Resume")
+        #expect(paused.primaryControlIcon.systemImage == "play.fill")
+        #expect(paused.visibleHeaderControls.map(\.title) == ["Resume", "Stop"])
+        #expect(stopped.primaryControlIcon.title == "Play")
+        #expect(stopped.primaryControlIcon.systemImage == "play.fill")
+        #expect(stopped.visibleHeaderControls.map(\.title) == ["Play"])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationUsesRecentProjectRecommendations() {
+        let alpha = TimeTrackingProject(name: "Alpha")
+        let beta = TimeTrackingProject(name: "Beta")
+        let gamma = TimeTrackingProject(name: "Gamma")
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [alpha, beta, gamma],
+            recentProjects: [gamma, alpha],
+            pendingDurationText: "9m",
+            activityState: .paused
+        )
+
+        #expect(presentation.recommendedProjects(maxCount: 2).map(\.trimmedName) == ["Gamma", "Alpha"])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationDropsArchivedRecommendations() {
+        let active = TimeTrackingProject(name: "Active")
+        let archived = TimeTrackingProject(name: "Archived", isArchived: true)
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [active],
+            recentProjects: [archived, active],
+            pendingDurationText: "9m",
+            activityState: .running
+        )
+
+        #expect(presentation.recommendedProjects(maxCount: 2).map(\.trimmedName) == ["Active"])
+    }
+
+    @Test
     func alertsSummaryTilePresentationShowsTemperatureAndClearState() {
         let presentation = SummaryTilePresentation(
             weather: makeWeatherSnapshot(),

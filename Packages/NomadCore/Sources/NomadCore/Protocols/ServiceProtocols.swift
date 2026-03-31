@@ -105,6 +105,12 @@ public protocol MetricHistoryStore: Sendable {
     func setRetentionHours(_ retentionHours: Int) async throws
 }
 
+public protocol TimeTrackingLedgerStore: Sendable {
+    func load() async throws -> TimeTrackingLedger
+    func save(_ ledger: TimeTrackingLedger) async throws
+    func reset() async throws
+}
+
 public protocol UpdateCoordinator: Sendable {
     func currentState() async -> UpdateStateSnapshot
     func checkForUpdates() async

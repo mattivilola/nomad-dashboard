@@ -9,6 +9,7 @@ struct NomadDashboardApp: App {
     @StateObject private var snapshotStore: DashboardSnapshotStore
     @StateObject private var locationStore: CurrentLocationStore
     @StateObject private var launchAtLoginController: LaunchAtLoginController
+    @StateObject private var timeTrackingController: ProjectTimeTrackingController
     @StateObject private var settingsNavigationController: SettingsNavigationController
     private let analytics: AppAnalytics
 
@@ -34,6 +35,12 @@ struct NomadDashboardApp: App {
             updateCoordinator: updateCoordinator
         )
         let launchAtLoginController = LaunchAtLoginController(initialEnabled: persistedSettings.launchAtLoginEnabled)
+        let timeTrackingController = ProjectTimeTrackingController(
+            settingsStore: settingsStore,
+            ledgerStore: FileTimeTrackingLedgerStore(
+                fileURL: applicationSupportDirectory.appendingPathComponent("time-tracking-ledger.json")
+            )
+        )
         let analyticsContext = AnalyticsContext(
             appID: AppRuntimeInfo.telemetryDeckAppID,
             appName: AppRuntimeInfo.appName,
@@ -55,6 +62,7 @@ struct NomadDashboardApp: App {
         _snapshotStore = StateObject(wrappedValue: DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies, analytics: analytics))
         _locationStore = StateObject(wrappedValue: CurrentLocationStore())
         _launchAtLoginController = StateObject(wrappedValue: launchAtLoginController)
+        _timeTrackingController = StateObject(wrappedValue: timeTrackingController)
         _settingsNavigationController = StateObject(wrappedValue: SettingsNavigationController())
         self.analytics = analytics
         analytics.recordAppLaunch()
@@ -67,6 +75,7 @@ struct NomadDashboardApp: App {
                 settingsStore: settingsStore,
                 locationStore: locationStore,
                 launchAtLoginController: launchAtLoginController,
+                timeTrackingController: timeTrackingController,
                 settingsNavigationController: settingsNavigationController,
                 updatesEnabled: UpdateFeatureConfiguration.isEnabled,
                 analytics: analytics
@@ -93,6 +102,7 @@ struct NomadDashboardApp: App {
                 snapshotStore: snapshotStore,
                 locationStore: locationStore,
                 launchAtLoginController: launchAtLoginController,
+                timeTrackingController: timeTrackingController,
                 settingsNavigationController: settingsNavigationController,
                 updatesEnabled: UpdateFeatureConfiguration.isEnabled,
                 analytics: analytics
@@ -111,6 +121,14 @@ struct NomadDashboardApp: App {
             VisitedMapWindowView(
                 snapshotStore: snapshotStore,
                 settingsStore: settingsStore
+            )
+            .modifier(SceneAppearanceSync(settingsStore: settingsStore))
+        }
+
+        Window("Time Tracking", id: "time-tracking") {
+            TimeTrackingWindowView(
+                settingsStore: settingsStore,
+                controller: timeTrackingController
             )
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }

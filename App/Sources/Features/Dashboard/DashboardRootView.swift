@@ -10,6 +10,7 @@ struct DashboardRootView: View {
     @ObservedObject var settingsStore: AppSettingsStore
     @ObservedObject var locationStore: CurrentLocationStore
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
+    @ObservedObject var timeTrackingController: ProjectTimeTrackingController
     @ObservedObject var settingsNavigationController: SettingsNavigationController
     let updatesEnabled: Bool
     let analytics: AppAnalytics
@@ -36,8 +37,19 @@ struct DashboardRootView: View {
             weatherAvailabilityExplanation: AppRuntimeInfo.weatherAvailabilityExplanation,
             locationStatusDetail: locationStore.diagnostics.detailText,
             appIcon: AppRuntimeInfo.applicationIconImage,
+            timeTrackingDashboardState: timeTrackingController.dashboardState,
             refreshAction: refresh,
             toggleAppearanceAction: toggleAppearance,
+            playTimeTrackingAction: { Task { await timeTrackingController.play() } },
+            pauseTimeTrackingAction: { Task { await timeTrackingController.pause() } },
+            resumeTimeTrackingAction: { Task { await timeTrackingController.resume() } },
+            stopTimeTrackingAction: { Task { await timeTrackingController.stop() } },
+            allocateTimeTrackingAction: { bucket in
+                Task {
+                    await timeTrackingController.allocateCurrentDayPending(to: bucket)
+                }
+            },
+            openTimeTrackingAction: openTimeTracking,
             copyIPAddressAction: copyIPAddress,
             openVisitedMapAction: openVisitedMap,
             openNetworkSettingsAction: openNetworkSettings,
@@ -135,6 +147,10 @@ struct DashboardRootView: View {
 
     private func openVisitedMap() {
         openDashboardWindow(.visitedMap)
+    }
+
+    private func openTimeTracking() {
+        openDashboardWindow(.timeTracking)
     }
 
     private func openFuelStationMapPreview(_ station: FuelStationMapDestination) {

@@ -21,6 +21,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var travelAdvisoryEnabled: Bool
     public var travelWeatherAlertsEnabled: Bool
     public var regionalSecurityEnabled: Bool
+    public var projectTimeTrackingEnabled: Bool
+    public var timeTrackingProjects: [TimeTrackingProject]
     public var tankerkonigAPIKey: String
     public var surfSpotName: String
     public var surfSpotLatitude: Double?
@@ -47,6 +49,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         travelAdvisoryEnabled: Bool = true,
         travelWeatherAlertsEnabled: Bool = false,
         regionalSecurityEnabled: Bool = false,
+        projectTimeTrackingEnabled: Bool = false,
+        timeTrackingProjects: [TimeTrackingProject] = [],
         tankerkonigAPIKey: String = "",
         surfSpotName: String = "",
         surfSpotLatitude: Double? = nil,
@@ -72,6 +76,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.travelAdvisoryEnabled = travelAdvisoryEnabled
         self.travelWeatherAlertsEnabled = travelWeatherAlertsEnabled
         self.regionalSecurityEnabled = regionalSecurityEnabled
+        self.projectTimeTrackingEnabled = projectTimeTrackingEnabled
+        self.timeTrackingProjects = timeTrackingProjects
         self.tankerkonigAPIKey = tankerkonigAPIKey
         self.surfSpotName = surfSpotName
         self.surfSpotLatitude = surfSpotLatitude
@@ -99,6 +105,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case travelAdvisoryEnabled
         case travelWeatherAlertsEnabled
         case regionalSecurityEnabled
+        case projectTimeTrackingEnabled
+        case timeTrackingProjects
         case tankerkonigAPIKey
         case surfSpotName
         case surfSpotLatitude
@@ -142,6 +150,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         travelAdvisoryEnabled = try container.decodeIfPresent(Bool.self, forKey: .travelAdvisoryEnabled) ?? true
         travelWeatherAlertsEnabled = try container.decodeIfPresent(Bool.self, forKey: .travelWeatherAlertsEnabled) ?? false
         regionalSecurityEnabled = try container.decodeIfPresent(Bool.self, forKey: .regionalSecurityEnabled) ?? false
+        projectTimeTrackingEnabled = try container.decodeIfPresent(Bool.self, forKey: .projectTimeTrackingEnabled) ?? false
+        timeTrackingProjects = try container.decodeIfPresent([TimeTrackingProject].self, forKey: .timeTrackingProjects) ?? []
         tankerkonigAPIKey = try container.decodeIfPresent(String.self, forKey: .tankerkonigAPIKey) ?? ""
         surfSpotName = try container.decodeIfPresent(String.self, forKey: .surfSpotName) ?? ""
         surfSpotLatitude = try container.decodeIfPresent(Double.self, forKey: .surfSpotLatitude)
@@ -175,6 +185,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encode(travelAdvisoryEnabled, forKey: .travelAdvisoryEnabled)
         try container.encode(travelWeatherAlertsEnabled, forKey: .travelWeatherAlertsEnabled)
         try container.encode(regionalSecurityEnabled, forKey: .regionalSecurityEnabled)
+        try container.encode(projectTimeTrackingEnabled, forKey: .projectTimeTrackingEnabled)
+        try container.encode(timeTrackingProjects, forKey: .timeTrackingProjects)
         try container.encode(tankerkonigAPIKey, forKey: .tankerkonigAPIKey)
         try container.encode(surfSpotName, forKey: .surfSpotName)
         try container.encodeIfPresent(surfSpotLatitude, forKey: .surfSpotLatitude)

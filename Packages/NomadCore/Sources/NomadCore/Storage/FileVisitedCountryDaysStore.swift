@@ -38,33 +38,11 @@ public actor FileVisitedCountryDaysStore: VisitedCountryDaysStore {
             }
 
             entries[existingIndex] = entry
-            try persist(entries)
-            return
+        } else {
+            entries.append(entry)
         }
 
-        entries.append(entry)
-        entries.sort { $0.day < $1.day }
-
-        guard let currentIndex = entries.firstIndex(where: { $0.day == entry.day }) else {
-            try persist(entries)
-            return
-        }
-
-        if currentIndex > 0 {
-            let previousEntry = entries[currentIndex - 1]
-            let gapDays = dayDistance(from: previousEntry.day, to: entry.day) - 1
-
-            if gapDays > 0 {
-                let inferredEntries = inferredDays(
-                    between: previousEntry,
-                    and: entry,
-                    gapDays: gapDays
-                )
-                entries.insert(contentsOf: inferredEntries, at: currentIndex)
-            }
-        }
-
-        try persist(entries.sorted { $0.day < $1.day })
+        try persist(rebuiltEntries(from: entries))
     }
 
     public func reset() async throws {
@@ -119,6 +97,38 @@ public actor FileVisitedCountryDaysStore: VisitedCountryDaysStore {
                 isInferred: true
             )
         }
+    }
+
+    private func rebuiltEntries(from entries: [VisitedCountryDay]) -> [VisitedCountryDay] {
+        let observedEntries = entries
+            .filter { $0.isInferred == false }
+            .sorted { $0.day < $1.day }
+
+        guard let firstEntry = observedEntries.first else {
+            return []
+        }
+
+        var rebuiltEntries = [firstEntry]
+
+        for index in observedEntries.indices.dropFirst() {
+            let previousEntry = observedEntries[index - 1]
+            let currentEntry = observedEntries[index]
+            let gapDays = dayDistance(from: previousEntry.day, to: currentEntry.day) - 1
+
+            if gapDays > 0 {
+                rebuiltEntries.append(
+                    contentsOf: inferredDays(
+                        between: previousEntry,
+                        and: currentEntry,
+                        gapDays: gapDays
+                    )
+                )
+            }
+
+            rebuiltEntries.append(currentEntry)
+        }
+
+        return rebuiltEntries
     }
 
     private func dayDistance(from start: VisitedCountryDayStamp, to end: VisitedCountryDayStamp) -> Int {
