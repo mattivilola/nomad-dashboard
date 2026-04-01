@@ -140,6 +140,26 @@ run_missing_signing_config_test() {
   assert_contains "$output" "NOMAD_TEAM_ID is not set" "missing signing config should explain the first required variable"
 }
 
+run_signing_config_does_not_require_sparkle_cli_test() {
+  local repo_path="$TEST_ROOT/signing-config-without-sparkle-cli"
+  local output
+
+  bootstrap_repo "$repo_path"
+  touch "$repo_path/sparkle_private_key.pem"
+
+  output="$(
+    cd "$repo_path" &&
+      NOMAD_TEAM_ID="TEAM123456" \
+      NOMAD_SIGNING_IDENTITY="Developer ID Application: Example Corp (TEAM123456)" \
+      NOMAD_NOTARY_PROFILE="NomadDashboardNotary" \
+      NOMAD_SPARKLE_PRIVATE_KEY_PATH="$repo_path/sparkle_private_key.pem" \
+      NOMAD_SPARKLE_PUBLIC_ED_KEY="sparkle-public-key" \
+      zsh -c 'set -e; source ./scripts/release-common.sh; assert_release_signing_config; echo OK'
+  )"
+
+  assert_contains "$output" "OK" "release signing config should not require Sparkle CLI tools before publish"
+}
+
 run_publish_auth_failure_test() {
   local repo_path="$TEST_ROOT/publish-auth-failure"
   local fake_bin="$repo_path/fake-bin"
@@ -338,6 +358,7 @@ run_sign_dry_run_test
 run_publish_dry_run_test
 run_dirty_tree_rejection_test
 run_missing_signing_config_test
+run_signing_config_does_not_require_sparkle_cli_test
 run_publish_auth_failure_test
 run_release_preflight_missing_remote_tag_test
 run_publish_missing_remote_tag_test

@@ -30,7 +30,7 @@ private keys into tracked config or the shipped app bundle.
    - `NOMAD_GITHUB_REPOSITORY`
    - `NOMAD_SPARKLE_PRIVATE_KEY_PATH`
    - `NOMAD_SPARKLE_PUBLIC_ED_KEY`
-   - optional `NOMAD_SPARKLE_BIN_DIR` if Sparkle CLI tools are not auto-discovered
+   - optional `NOMAD_SPARKLE_BIN_DIR` if Sparkle CLI tools are not auto-discovered from repo-local `DerivedData` or Xcode's default DerivedData
 6. Create `Config/AppConfig.local.xcconfig` from `Config/AppConfig.local.example.xcconfig` and set the approved `RELIEFWEB_APPNAME` there on the release machine. Keep this file local and out of git.
 7. In the Apple Developer portal, open the App ID for `com.iloapps.NomadDashboard` and enable the WeatherKit capability before shipping a release build.
 8. Local Debug builds default to unsigned mode so `make build`, `make run`, and `make rerun` work without Apple provisioning setup. If you want local WeatherKit access in the separate debug app, create a second App ID for `com.iloapps.NomadDashboard.dev`, enable WeatherKit there too, and add local values plus `DEBUG_CODE_SIGN_ENTITLEMENTS = App/NomadDashboard.entitlements` in `Config/Signing.debug.local.xcconfig`.
@@ -80,6 +80,7 @@ private keys into tracked config or the shipped app bundle.
   Prints the exact version, tag, repository, feed URL, and artifact paths the release pipeline will use.
 - `make release`
   Verifies the pushed release tag first, then runs signing/notarization and publishes the versioned Sparkle zip, DMG, and `appcast.xml` to GitHub Releases.
+  If you recently cleaned `DerivedData`, run `make build` once before publishing so Sparkle's CLI tools are downloaded again, or point `NOMAD_SPARKLE_BIN_DIR` at the Sparkle `bin` directory directly.
 - `make release-patch`, `make release-minor`, `make release-major`
   Prepare the release locally, then push the current branch and the new tag to `origin`.
 
