@@ -14,10 +14,14 @@ struct NomadDashboardApp: App {
     private let analytics: AppAnalytics
 
     init() {
-        let settingsStore = AppSettingsStore()
+        let storageNamespace = AppRuntimeInfo.storageNamespace
+        let settingsStore = AppSettingsStore(key: storageNamespace.settingsKey)
         let persistedSettings = settingsStore.settings
-        let applicationSupportDirectory = (try? FileManager.default.nomadApplicationSupportDirectory())
-            ?? FileManager.default.temporaryDirectory.appendingPathComponent("Nomad Dashboard", isDirectory: true)
+        let applicationSupportDirectory = (try? FileManager.default.nomadApplicationSupportDirectory(namespace: storageNamespace))
+            ?? FileManager.default.temporaryDirectory.appendingPathComponent(
+                storageNamespace.applicationSupportFolderName,
+                isDirectory: true
+            )
         let updateCoordinator: any UpdateCoordinator = if UpdateFeatureConfiguration.isEnabled {
             SparkleUpdateCoordinator(automaticChecksEnabled: persistedSettings.automaticUpdateChecksEnabled)
         } else {

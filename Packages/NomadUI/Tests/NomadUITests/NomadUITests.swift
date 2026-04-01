@@ -250,7 +250,9 @@ struct NomadUITests {
         let configurations = presentation.headerCompactConfigurations(maxProjectCount: 2)
         #expect(configurations.map { $0.chips.map(\.title) } == [
             ["Alpha", "Bravo", "Other"],
+            ["Alpha", "Bravo"],
             ["Alpha", "Other"],
+            ["Alpha"],
             ["Other"],
             []
         ])
@@ -298,6 +300,59 @@ struct NomadUITests {
         )
 
         #expect(presentation.recommendedProjects(maxCount: 2).map(\.trimmedName) == ["Gamma", "Alpha"])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationFallsBackToLatestActiveProjectsWhenRecentsAreMissing() {
+        let alpha = TimeTrackingProject(name: "Alpha")
+        let bravo = TimeTrackingProject(name: "Bravo")
+        let charlie = TimeTrackingProject(name: "Charlie")
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [alpha, bravo, charlie],
+            recentProjects: [],
+            pendingDurationText: "9m",
+            activityState: .running
+        )
+
+        #expect(presentation.recommendedProjects(maxCount: 2).map(\.trimmedName) == ["Charlie", "Bravo"])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationDedupesRecentProjectsAgainstActiveFallback() {
+        let alpha = TimeTrackingProject(name: "Alpha")
+        let bravo = TimeTrackingProject(name: "Bravo")
+        let charlie = TimeTrackingProject(name: "Charlie")
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [alpha, bravo, charlie],
+            recentProjects: [bravo],
+            pendingDurationText: "9m",
+            activityState: .running
+        )
+
+        #expect(presentation.recommendedProjects(maxCount: 3).map(\.trimmedName) == ["Bravo", "Charlie", "Alpha"])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationBuildsTwoProjectHeaderVariantsWithoutRecents() {
+        let alpha = TimeTrackingProject(name: "Alpha")
+        let bravo = TimeTrackingProject(name: "Bravo")
+        let charlie = TimeTrackingProject(name: "Charlie")
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [alpha, bravo, charlie],
+            recentProjects: [],
+            pendingDurationText: "1h 10m",
+            activityState: .paused
+        )
+
+        let configurations = presentation.headerCompactConfigurations(maxProjectCount: 2)
+        #expect(configurations.first?.chips.map(\.title) == ["Charlie", "Bravo", "Other"])
+        #expect(configurations.dropFirst().first?.chips.map(\.title) == ["Charlie", "Bravo"])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationCompactsHeaderChipTitlesToFiveVisibleCharacters() {
+        #expect(TimeTrackingQuickActionsPresentation.headerCompactChipTitle("DesignOps") == "Desig…")
+        #expect(TimeTrackingQuickActionsPresentation.headerCompactChipTitle("Short") == "Short")
     }
 
     @Test

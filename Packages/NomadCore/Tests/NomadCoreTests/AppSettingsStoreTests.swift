@@ -50,6 +50,56 @@ struct AppSettingsStoreTests {
     }
 
     @Test
+    func storageNamespacesResolveExpectedLiveAndDevValues() {
+        #expect(NomadStorageNamespace.production.settingsKey == "NomadDashboard.AppSettings")
+        #expect(NomadStorageNamespace.production.applicationSupportFolderName == "Nomad Dashboard")
+        #expect(NomadStorageNamespace.development.settingsKey == "NomadDashboard.Dev.AppSettings")
+        #expect(NomadStorageNamespace.development.applicationSupportFolderName == "Nomad Dashboard Dev")
+    }
+
+    @Test
+    func appSettingsStoreCanPersistToCustomNamespaceKeyWithoutTouchingLegacyKey() throws {
+        let suiteName = UUID().uuidString
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let legacyStore = AppSettingsStore(defaults: defaults)
+        let devStore = AppSettingsStore(defaults: defaults, key: NomadStorageNamespace.development.settingsKey)
+
+        legacyStore.settings.projectTimeTrackingEnabled = true
+        legacyStore.settings.timeTrackingProjects = [TimeTrackingProject(name: "Live Project")]
+
+        devStore.settings.projectTimeTrackingEnabled = true
+        devStore.settings.timeTrackingProjects = [TimeTrackingProject(name: "Dev Project")]
+
+        let reloadedLegacyStore = AppSettingsStore(defaults: defaults)
+        let reloadedDevStore = AppSettingsStore(defaults: defaults, key: NomadStorageNamespace.development.settingsKey)
+
+        #expect(reloadedLegacyStore.settings.timeTrackingProjects.map(\.trimmedName) == ["Live Project"])
+        #expect(reloadedDevStore.settings.timeTrackingProjects.map(\.trimmedName) == ["Dev Project"])
+    }
+
+    @Test
+    func fileManagerResolvesSeparateApplicationSupportDirectoriesPerNamespace() throws {
+        let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+
+        let liveURL = try FileManager.default.nomadApplicationSupportDirectory(
+            namespace: .production,
+            baseURL: baseURL
+        )
+        let devURL = try FileManager.default.nomadApplicationSupportDirectory(
+            namespace: .development,
+            baseURL: baseURL
+        )
+
+        #expect(liveURL.lastPathComponent == "Nomad Dashboard")
+        #expect(devURL.lastPathComponent == "Nomad Dashboard Dev")
+        #expect(liveURL != devURL)
+        #expect(FileManager.default.fileExists(atPath: liveURL.path))
+        #expect(FileManager.default.fileExists(atPath: devURL.path))
+    }
+
+    @Test
     func persistsDashboardCardOrderChangesToUserDefaults() throws {
         let suiteName = UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suiteName))
