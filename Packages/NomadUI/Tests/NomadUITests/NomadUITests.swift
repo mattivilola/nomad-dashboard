@@ -350,9 +350,63 @@ struct NomadUITests {
     }
 
     @Test
-    func timeTrackingQuickActionsPresentationCompactsHeaderChipTitlesToFiveVisibleCharacters() {
-        #expect(TimeTrackingQuickActionsPresentation.headerCompactChipTitle("DesignOps") == "Desig…")
-        #expect(TimeTrackingQuickActionsPresentation.headerCompactChipTitle("Short") == "Short")
+    func timeTrackingQuickActionsPresentationCompactsHeaderChipTitlesToSevenVisibleCharacters() {
+        #expect(TimeTrackingQuickActionsPresentation.headerCompactChipTitle("DesignOps", visibleCharacterCount: 7) == "DesignO…")
+        #expect(TimeTrackingQuickActionsPresentation.headerCompactChipTitle("Short", visibleCharacterCount: 7) == "Short")
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationKeepsThreeProjectVariantsAheadOfTwoProjectFallbacks() {
+        let alpha = TimeTrackingProject(name: "Alpha")
+        let bravo = TimeTrackingProject(name: "Bravo")
+        let charlie = TimeTrackingProject(name: "Charlie")
+        let delta = TimeTrackingProject(name: "Delta")
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [alpha, bravo, charlie, delta],
+            recentProjects: [delta, charlie, bravo],
+            pendingDurationText: "1h 10m",
+            activityState: .running
+        )
+
+        let configurations = presentation.headerCompactConfigurations(maxProjectCount: 3)
+        #expect(configurations.map { $0.chips.map(\.title) } == [
+            ["Delta", "Charlie", "Bravo", "Other"],
+            ["Delta", "Charlie", "Bravo"],
+            ["Delta", "Charlie", "Other"],
+            ["Delta", "Charlie"],
+            ["Delta", "Other"],
+            ["Delta"],
+            ["Other"],
+            []
+        ])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationKeepsCompactThreeProjectVariantsAheadOfTwoProjectVariants() {
+        let alpha = TimeTrackingProject(name: "Alpha")
+        let bravo = TimeTrackingProject(name: "Bravo")
+        let charlie = TimeTrackingProject(name: "Charlie")
+        let delta = TimeTrackingProject(name: "Delta")
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [alpha, bravo, charlie, delta],
+            recentProjects: [delta, charlie, bravo],
+            pendingDurationText: "1h 10m",
+            activityState: .paused
+        )
+
+        let variants = presentation.headerLayoutVariants(maxProjectCount: 3)
+        let threeProjectCompactIndex = variants.firstIndex {
+            $0.configuration.chips.map(\.title) == ["Delta", "Charlie", "Bravo"] &&
+                $0.chromeDensity == .compact
+        }
+        let twoProjectFullIndex = variants.firstIndex {
+            $0.configuration.chips.map(\.title) == ["Delta", "Charlie", "Other"] &&
+                $0.pendingLabelStyle == .full
+        }
+
+        #expect(threeProjectCompactIndex != nil)
+        #expect(twoProjectFullIndex != nil)
+        #expect(threeProjectCompactIndex! < twoProjectFullIndex!)
     }
 
     @Test

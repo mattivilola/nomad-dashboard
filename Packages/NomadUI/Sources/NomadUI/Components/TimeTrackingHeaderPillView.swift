@@ -15,33 +15,12 @@ struct TimeTrackingHeaderPillView: View {
         let variants = presentation.headerLayoutVariants(maxProjectCount: Self.maxProjectCount)
 
         ViewThatFits(in: .horizontal) {
-            headerVariant(variants, index: 0)
-            headerVariant(variants, index: 1)
-            headerVariant(variants, index: 2)
-            headerVariant(variants, index: 3)
-            headerVariant(variants, index: 4)
-            headerVariant(variants, index: 5)
-            headerVariant(variants, index: 6)
-            headerVariant(variants, index: 7)
-            headerVariant(variants, index: 8)
-            headerVariant(variants, index: 9)
-            headerVariant(variants, index: 10)
-            headerVariant(variants, index: 11)
-            headerVariant(variants, index: 12)
-            headerVariant(variants, index: 13)
-            headerVariant(variants, index: 14)
-            headerVariant(variants, index: 15)
-            headerVariant(variants, index: 16)
-            headerVariant(variants, index: 17)
-            headerVariant(variants, index: 18)
-            headerVariant(variants, index: 19)
-            headerVariant(variants, index: 20)
-            headerVariant(variants, index: 21)
-            headerVariant(variants, index: 22)
-            headerVariant(variants, index: 23)
+            ForEach(variants) { variant in
+                headerToolbar(variant)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 8)
         .padding(.vertical, 7)
         .background(
             Capsule(style: .continuous)
@@ -53,22 +32,16 @@ struct TimeTrackingHeaderPillView: View {
         )
     }
 
-    @ViewBuilder
-    private func headerVariant(_ variants: [TimeTrackingHeaderLayoutVariant], index: Int) -> some View {
-        if variants.indices.contains(index) {
-            headerToolbar(variants[index])
-        }
-    }
-
     private func headerToolbar(_ variant: TimeTrackingHeaderLayoutVariant) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: variant.rowSpacing) {
             pendingDurationView(style: variant.pendingLabelStyle)
                 .layoutPriority(1)
 
             ForEach(presentation.visibleHeaderControls, id: \.title) { control in
                 headerIconChipButton(
                     title: control.title,
-                    systemImage: control.systemImage
+                    systemImage: control.systemImage,
+                    chromeDensity: variant.chromeDensity
                 ) {
                     switch control.kind {
                     case .primary:
@@ -79,11 +52,12 @@ struct TimeTrackingHeaderPillView: View {
                 }
             }
 
-            HStack(spacing: variant.chipDensity == .compact ? 4 : 6) {
+            HStack(spacing: variant.chipSpacing) {
                 ForEach(variant.configuration.chips) { chip in
                     headerChipButton(
                         chip: chip,
-                        density: variant.chipDensity
+                        density: variant.chipDensity,
+                        visibleCharacterCount: variant.visibleChipTitleCharacterCount
                     ) {
                         allocateAction(chip.bucket)
                     }
@@ -93,6 +67,7 @@ struct TimeTrackingHeaderPillView: View {
             headerIconChipButton(
                 title: presentation.openControlIcon.title,
                 systemImage: presentation.openControlIcon.systemImage,
+                chromeDensity: variant.chromeDensity,
                 action: openAction
             )
         }
@@ -100,7 +75,7 @@ struct TimeTrackingHeaderPillView: View {
     }
 
     private func pendingDurationView(style: TimeTrackingHeaderPendingLabelStyle) -> some View {
-        HStack(spacing: style == .full ? 7 : 5) {
+        HStack(spacing: style == .full ? 6 : 4) {
             Image(systemName: "clock.badge.checkmark")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(NomadTheme.teal)
@@ -125,12 +100,18 @@ struct TimeTrackingHeaderPillView: View {
     private func headerChipButton(
         chip: TimeTrackingQuickBucketChip,
         density: TimeTrackingHeaderChipDensity,
+        visibleCharacterCount: Int,
         action: @escaping () -> Void
     ) -> some View {
         let metrics = chipMetrics(for: chip, density: density)
 
         return Button(action: action) {
-            Text(TimeTrackingQuickActionsPresentation.headerCompactChipTitle(chip.title))
+            Text(
+                TimeTrackingQuickActionsPresentation.headerCompactChipTitle(
+                    chip.title,
+                    visibleCharacterCount: visibleCharacterCount
+                )
+            )
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(chipsEnabled ? NomadTheme.primaryText : NomadTheme.secondaryText)
                 .lineLimit(1)
@@ -158,12 +139,17 @@ struct TimeTrackingHeaderPillView: View {
         .accessibilityLabel(chip.title)
     }
 
-    private func headerIconChipButton(title: String, systemImage: String, action: @escaping () -> Void) -> some View {
+    private func headerIconChipButton(
+        title: String,
+        systemImage: String,
+        chromeDensity: TimeTrackingHeaderChromeDensity,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(NomadTheme.primaryText)
-                .frame(width: 28, height: 28)
+                .frame(width: chromeDensity.iconButtonSize, height: chromeDensity.iconButtonSize)
                 .background(
                     Capsule(style: .continuous)
                         .fill(NomadTheme.inlineButtonBackground.opacity(0.95))
@@ -189,33 +175,33 @@ struct TimeTrackingHeaderPillView: View {
             return TimeTrackingHeaderChipMetrics(
                 horizontalPadding: 8,
                 verticalPadding: 6,
-                minimumWidth: 40,
-                idealWidth: 50,
-                maximumWidth: 58
+                minimumWidth: 34,
+                idealWidth: 48,
+                maximumWidth: 56
             )
         case (.regular, true):
             return TimeTrackingHeaderChipMetrics(
-                horizontalPadding: 8,
+                horizontalPadding: 7,
                 verticalPadding: 6,
-                minimumWidth: 40,
-                idealWidth: 48,
-                maximumWidth: 54
+                minimumWidth: 32,
+                idealWidth: 44,
+                maximumWidth: 50
             )
         case (.compact, false):
             return TimeTrackingHeaderChipMetrics(
-                horizontalPadding: 6,
+                horizontalPadding: 5,
                 verticalPadding: 5,
-                minimumWidth: 36,
-                idealWidth: 46,
-                maximumWidth: 52
+                minimumWidth: 30,
+                idealWidth: 42,
+                maximumWidth: 50
             )
         case (.compact, true):
             return TimeTrackingHeaderChipMetrics(
-                horizontalPadding: 6,
+                horizontalPadding: 5,
                 verticalPadding: 5,
-                minimumWidth: 34,
-                idealWidth: 42,
-                maximumWidth: 48
+                minimumWidth: 28,
+                idealWidth: 38,
+                maximumWidth: 46
             )
         }
     }
@@ -227,4 +213,35 @@ private struct TimeTrackingHeaderChipMetrics {
     let minimumWidth: CGFloat
     let idealWidth: CGFloat
     let maximumWidth: CGFloat
+}
+
+private extension TimeTrackingHeaderLayoutVariant {
+    var rowSpacing: CGFloat {
+        switch chromeDensity {
+        case .regular:
+            6
+        case .compact:
+            4
+        }
+    }
+
+    var chipSpacing: CGFloat {
+        switch chromeDensity {
+        case .regular:
+            chipDensity == .compact ? 4 : 6
+        case .compact:
+            4
+        }
+    }
+}
+
+private extension TimeTrackingHeaderChromeDensity {
+    var iconButtonSize: CGFloat {
+        switch self {
+        case .regular:
+            28
+        case .compact:
+            26
+        }
+    }
 }
