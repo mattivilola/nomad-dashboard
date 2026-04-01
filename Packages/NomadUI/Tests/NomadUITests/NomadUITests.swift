@@ -350,9 +350,129 @@ struct NomadUITests {
     }
 
     @Test
-    func timeTrackingQuickActionsPresentationCompactsHeaderChipTitlesToFiveVisibleCharacters() {
-        #expect(TimeTrackingQuickActionsPresentation.headerCompactChipTitle("DesignOps") == "Desig…")
-        #expect(TimeTrackingQuickActionsPresentation.headerCompactChipTitle("Short") == "Short")
+    func timeTrackingQuickActionsPresentationCompactsHeaderChipTitlesToSevenVisibleCharacters() {
+        #expect(TimeTrackingQuickActionsPresentation.headerCompactChipTitle("DesignOps", visibleCharacterCount: 7) == "DesignO…")
+        #expect(TimeTrackingQuickActionsPresentation.headerCompactChipTitle("Short", visibleCharacterCount: 7) == "Short")
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationKeepsThreeProjectVariantsAheadOfTwoProjectFallbacks() {
+        let alpha = TimeTrackingProject(name: "Alpha")
+        let bravo = TimeTrackingProject(name: "Bravo")
+        let charlie = TimeTrackingProject(name: "Charlie")
+        let delta = TimeTrackingProject(name: "Delta")
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [alpha, bravo, charlie, delta],
+            recentProjects: [delta, charlie, bravo],
+            pendingDurationText: "1h 10m",
+            activityState: .running
+        )
+
+        let configurations = presentation.headerCompactConfigurations(maxProjectCount: 3)
+        #expect(configurations.map { $0.chips.map(\.title) } == [
+            ["Delta", "Charlie", "Bravo", "Other"],
+            ["Delta", "Charlie", "Bravo"],
+            ["Delta", "Charlie", "Other"],
+            ["Delta", "Charlie"],
+            ["Delta", "Other"],
+            ["Delta"],
+            ["Other"],
+            []
+        ])
+    }
+
+    @Test
+    func timeTrackingQuickActionsPresentationKeepsCompactThreeProjectVariantsAheadOfTwoProjectVariants() {
+        let alpha = TimeTrackingProject(name: "Alpha")
+        let bravo = TimeTrackingProject(name: "Bravo")
+        let charlie = TimeTrackingProject(name: "Charlie")
+        let delta = TimeTrackingProject(name: "Delta")
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [alpha, bravo, charlie, delta],
+            recentProjects: [delta, charlie, bravo],
+            pendingDurationText: "1h 10m",
+            activityState: .paused
+        )
+
+        let variants = presentation.headerLayoutVariants(maxProjectCount: 3)
+        let threeProjectCompactIndex = variants.firstIndex {
+            $0.configuration.chips.map(\.title) == ["Delta", "Charlie", "Bravo"] &&
+                $0.chromeDensity == .compact
+        }
+        let twoProjectFullIndex = variants.firstIndex {
+            $0.configuration.chips.map(\.title) == ["Delta", "Charlie", "Other"] &&
+                $0.pendingLabelStyle == .full
+        }
+
+        #expect(threeProjectCompactIndex != nil)
+        #expect(twoProjectFullIndex != nil)
+        #expect(threeProjectCompactIndex! < twoProjectFullIndex!)
+    }
+
+    @Test
+    func timeTrackingHeaderRowLayoutKeepsThreeProjectCompactVariantWhenItFitsAvailableWidth() throws {
+        let alpha = TimeTrackingProject(name: "Alpha")
+        let bravo = TimeTrackingProject(name: "Bravo")
+        let charlie = TimeTrackingProject(name: "Charlie")
+        let delta = TimeTrackingProject(name: "Delta")
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [alpha, bravo, charlie, delta],
+            recentProjects: [delta, charlie, bravo],
+            pendingDurationText: "1h 10m",
+            activityState: .paused
+        )
+        let variants = presentation.headerLayoutVariants(maxProjectCount: 3)
+        let rowLayout = TimeTrackingHeaderRowLayout(
+            pendingDurationText: presentation.pendingDurationText,
+            visibleControlsCount: presentation.visibleHeaderControls.count
+        )
+        let availableWidth = 330.0
+
+        let resolvedVariant = rowLayout.fittingVariant(for: availableWidth, variants: variants)
+        let resolvedProjectTitles = resolvedVariant?.configuration.chips.compactMap { chip -> String? in
+            if case .project = chip.bucket {
+                return chip.title
+            }
+
+            return nil
+        }
+
+        #expect(resolvedVariant?.chromeDensity == .compact)
+        #expect(resolvedProjectTitles == ["Delta", "Charlie", "Bravo"])
+    }
+
+    @Test
+    func timeTrackingHeaderRowLayoutDistributesChipWidthsAcrossAvailableLane() throws {
+        let alpha = TimeTrackingProject(name: "Alpha")
+        let bravo = TimeTrackingProject(name: "Bravo")
+        let charlie = TimeTrackingProject(name: "Charlie")
+        let delta = TimeTrackingProject(name: "Delta")
+        let presentation = TimeTrackingQuickActionsPresentation(
+            activeProjects: [alpha, bravo, charlie, delta],
+            recentProjects: [delta, charlie, bravo],
+            pendingDurationText: "1h 10m",
+            activityState: .running
+        )
+        let variant = try #require(
+            presentation.headerLayoutVariants(maxProjectCount: 3).first {
+                $0.configuration.chips.map(\.title) == ["Delta", "Charlie", "Bravo"] &&
+                    $0.pendingLabelStyle == .durationOnly &&
+                    $0.chromeDensity == .regular
+            }
+        )
+        let rowLayout = TimeTrackingHeaderRowLayout(
+            pendingDurationText: presentation.pendingDurationText,
+            visibleControlsCount: presentation.visibleHeaderControls.count
+        )
+        let availableWidth = 360.0
+
+        let chipLaneWidth = rowLayout.chipLaneWidth(for: variant, availableWidth: availableWidth)
+        let chipWidths = rowLayout.chipWidths(for: variant, availableWidth: availableWidth)
+        let occupiedChipLaneWidth = chipWidths.reduce(0, +) + variant.chipSpacing * CGFloat(max(chipWidths.count - 1, 0))
+
+        #expect(chipWidths.count == 3)
+        #expect(abs(occupiedChipLaneWidth - chipLaneWidth) < 0.5)
+        #expect(chipWidths.allSatisfy { $0 > 42 })
     }
 
     @Test

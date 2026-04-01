@@ -172,8 +172,8 @@ public struct DashboardPanelView: View {
             refreshActivity: refreshActivity
         )
 
-        return HStack(alignment: .top, spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 14) {
                 HStack(spacing: 8) {
                     Text("Nomad Dashboard")
                         .font(.system(size: 26, weight: .semibold, design: .rounded))
@@ -189,80 +189,83 @@ public struct DashboardPanelView: View {
                         )
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                HStack(alignment: .lastTextBaseline, spacing: 12) {
-                    Text(snapshot.travelContext.location.flatMap(formattedLocation) ?? "Travel-ready system telemetry")
-                        .font(.subheadline)
-                        .foregroundStyle(NomadTheme.secondaryText)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                HStack(spacing: 8) {
+                    HeaderIconButton(
+                        systemImage: "arrow.clockwise",
+                        title: refreshHeader.buttonTitle,
+                        isEnabled: refreshHeader.isButtonEnabled,
+                        activity: refreshActivity,
+                        action: refreshAction
+                    )
+                    HeaderIconButton(systemImage: appearanceToggleSystemImage, title: appearanceToggleTitle, action: toggleAppearanceAction)
 
-                    Spacer(minLength: 12)
+                    Menu {
+                        Button("Open Visited Map", systemImage: "globe.europe.africa.fill") {
+                            openVisitedMapAction()
+                        }
 
-                    Text(refreshHeader.statusText)
-                        .font(.caption)
-                        .foregroundStyle(refreshStatusTint)
-                        .lineLimit(1)
-                        .fixedSize(horizontal: true, vertical: false)
+                        Button("Open Time Tracking", systemImage: "clock.badge.checkmark") {
+                            openTimeTrackingAction()
+                        }
+
+                        Button("Open Network Settings", systemImage: "gearshape.2") {
+                            openNetworkSettingsAction()
+                        }
+
+                        Divider()
+
+                        Button("Settings", systemImage: "slider.horizontal.3") {
+                            openSettingsAction()
+                        }
+
+                        if let checkForUpdatesAction {
+                            Button("Check for Updates", systemImage: "sparkles") {
+                                checkForUpdatesAction()
+                            }
+                        }
+
+                        Button("About Nomad Dashboard", systemImage: "info.circle") {
+                            openAboutAction()
+                        }
+
+                        Divider()
+
+                        Button("Quit Nomad Dashboard", systemImage: "power") {
+                            quitAction()
+                        }
+                    } label: {
+                        HeaderActionIcon(systemImage: "ellipsis")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
                 }
+            }
 
-                if timeTrackingDashboardState.isEnabled {
-                    timeTrackingHeaderPill
-                }
+            HStack(alignment: .lastTextBaseline, spacing: 12) {
+                Text(snapshot.travelContext.location.flatMap(formattedLocation) ?? "Travel-ready system telemetry")
+                    .font(.subheadline)
+                    .foregroundStyle(NomadTheme.secondaryText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                Spacer(minLength: 12)
+
+                Text(refreshHeader.statusText)
+                    .font(.caption)
+                    .foregroundStyle(refreshStatusTint)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 8) {
-                HeaderIconButton(
-                    systemImage: "arrow.clockwise",
-                    title: refreshHeader.buttonTitle,
-                    isEnabled: refreshHeader.isButtonEnabled,
-                    activity: refreshActivity,
-                    action: refreshAction
-                )
-                HeaderIconButton(systemImage: appearanceToggleSystemImage, title: appearanceToggleTitle, action: toggleAppearanceAction)
-
-                Menu {
-                    Button("Open Visited Map", systemImage: "globe.europe.africa.fill") {
-                        openVisitedMapAction()
-                    }
-
-                    Button("Open Time Tracking", systemImage: "clock.badge.checkmark") {
-                        openTimeTrackingAction()
-                    }
-
-                    Button("Open Network Settings", systemImage: "gearshape.2") {
-                        openNetworkSettingsAction()
-                    }
-
-                    Divider()
-
-                    Button("Settings", systemImage: "slider.horizontal.3") {
-                        openSettingsAction()
-                    }
-
-                    if let checkForUpdatesAction {
-                        Button("Check for Updates", systemImage: "sparkles") {
-                            checkForUpdatesAction()
-                        }
-                    }
-
-                    Button("About Nomad Dashboard", systemImage: "info.circle") {
-                        openAboutAction()
-                    }
-
-                    Divider()
-
-                    Button("Quit Nomad Dashboard", systemImage: "power") {
-                        quitAction()
-                    }
-                } label: {
-                    HeaderActionIcon(systemImage: "ellipsis")
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
+            if timeTrackingDashboardState.isEnabled {
+                timeTrackingHeaderPill
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var summaryStrip: some View {

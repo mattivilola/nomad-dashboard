@@ -50,13 +50,20 @@ enum TimeTrackingHeaderChipDensity: Equatable, Sendable {
     case compact
 }
 
+enum TimeTrackingHeaderChromeDensity: Equatable, Sendable {
+    case regular
+    case compact
+}
+
 struct TimeTrackingHeaderLayoutVariant: Equatable, Identifiable, Sendable {
     let pendingLabelStyle: TimeTrackingHeaderPendingLabelStyle
     let chipDensity: TimeTrackingHeaderChipDensity
+    let chromeDensity: TimeTrackingHeaderChromeDensity
+    let visibleChipTitleCharacterCount: Int
     let configuration: TimeTrackingHeaderCompactConfiguration
 
     var id: String {
-        "\(pendingLabelStyle)-\(chipDensity)-\(configuration.chips.map(\.id).joined(separator: ","))"
+        "\(pendingLabelStyle)-\(chipDensity)-\(chromeDensity)-\(visibleChipTitleCharacterCount)-\(configuration.chips.map(\.id).joined(separator: ","))"
     }
 }
 
@@ -223,10 +230,21 @@ public struct TimeTrackingQuickActionsPresentation: Equatable {
         var variants: [TimeTrackingHeaderLayoutVariant] = []
 
         func appendVariants(for configuration: TimeTrackingHeaderCompactConfiguration) {
+            let projectChipCount = configuration.chips.filter {
+                if case .project = $0.bucket {
+                    return true
+                }
+
+                return false
+            }.count
+            let prefersMaximumProjects = projectChipCount == maxProjectCount
+
             variants.append(
                 TimeTrackingHeaderLayoutVariant(
                     pendingLabelStyle: .full,
                     chipDensity: .regular,
+                    chromeDensity: .regular,
+                    visibleChipTitleCharacterCount: 7,
                     configuration: configuration
                 )
             )
@@ -234,13 +252,17 @@ public struct TimeTrackingQuickActionsPresentation: Equatable {
                 TimeTrackingHeaderLayoutVariant(
                     pendingLabelStyle: .durationOnly,
                     chipDensity: .regular,
+                    chromeDensity: .regular,
+                    visibleChipTitleCharacterCount: 7,
                     configuration: configuration
                 )
             )
             variants.append(
                 TimeTrackingHeaderLayoutVariant(
                     pendingLabelStyle: .durationOnly,
-                    chipDensity: .compact,
+                    chipDensity: prefersMaximumProjects ? .compact : .regular,
+                    chromeDensity: .compact,
+                    visibleChipTitleCharacterCount: prefersMaximumProjects ? 6 : 7,
                     configuration: configuration
                 )
             )
@@ -253,7 +275,7 @@ public struct TimeTrackingQuickActionsPresentation: Equatable {
         return variants
     }
 
-    static func headerCompactChipTitle(_ title: String, visibleCharacterCount: Int = 5) -> String {
+    static func headerCompactChipTitle(_ title: String, visibleCharacterCount: Int) -> String {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedTitle.count > visibleCharacterCount else {
             return trimmedTitle
