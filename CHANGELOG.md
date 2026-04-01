@@ -20,6 +20,13 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.6.2] - 2026-04-01
+
+### Changed
+
+- Enhance time tracking header adaptivity with dynamic layout and chrome density
+- Enhance time tracking header with dynamic layout and panel adjustments
+
 ## [0.6.1] - 2026-04-01
 
 ### Changed
