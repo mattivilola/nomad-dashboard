@@ -91,6 +91,14 @@ enum AppRuntimeInfo {
         buildFlavorDescription
     }
 
+    static var storageNamespace: NomadStorageNamespace {
+        if isDebugBuild || isProductionIdentity == false {
+            return .development
+        }
+
+        return .production
+    }
+
     static var telemetryDeckAppID: String? {
         let value = Bundle.main.object(forInfoDictionaryKey: "TelemetryDeckAppID") as? String
         let trimmedValue = value?.trimmingCharacters(in: .whitespacesAndNewlines)

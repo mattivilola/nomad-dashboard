@@ -1,3 +1,4 @@
+import Foundation
 import NomadCore
 
 public enum TimeTrackingQuickControlKind: Equatable, Sendable {
@@ -36,6 +37,26 @@ public struct TimeTrackingHeaderCompactConfiguration: Equatable, Sendable {
 
     public init(chips: [TimeTrackingQuickBucketChip]) {
         self.chips = chips
+    }
+}
+
+enum TimeTrackingHeaderPendingLabelStyle: Equatable, Sendable {
+    case full
+    case durationOnly
+}
+
+enum TimeTrackingHeaderChipDensity: Equatable, Sendable {
+    case regular
+    case compact
+}
+
+struct TimeTrackingHeaderLayoutVariant: Equatable, Identifiable, Sendable {
+    let pendingLabelStyle: TimeTrackingHeaderPendingLabelStyle
+    let chipDensity: TimeTrackingHeaderChipDensity
+    let configuration: TimeTrackingHeaderCompactConfiguration
+
+    var id: String {
+        "\(pendingLabelStyle)-\(chipDensity)-\(configuration.chips.map(\.id).joined(separator: ","))"
     }
 }
 
@@ -143,11 +164,36 @@ public struct TimeTrackingQuickActionsPresentation: Equatable {
             return []
         }
 
-        return Array(recentProjects.prefix(maxCount))
+        var orderedProjects: [TimeTrackingProject] = []
+        var seenProjectIDs = Set<UUID>()
+
+        for project in recentProjects {
+            guard seenProjectIDs.insert(project.id).inserted else {
+                continue
+            }
+
+            orderedProjects.append(project)
+            if orderedProjects.count == maxCount {
+                return orderedProjects
+            }
+        }
+
+        for project in latestProjects(maxCount: activeProjects.count) {
+            guard seenProjectIDs.insert(project.id).inserted else {
+                continue
+            }
+
+            orderedProjects.append(project)
+            if orderedProjects.count == maxCount {
+                break
+            }
+        }
+
+        return orderedProjects
     }
 
     public func headerCompactConfigurations(maxProjectCount: Int) -> [TimeTrackingHeaderCompactConfiguration] {
-        let resolvedProjectCount = max(0, min(maxProjectCount, recentProjects.count))
+        let resolvedProjectCount = recommendedProjects(maxCount: maxProjectCount).count
         var configurations: [TimeTrackingHeaderCompactConfiguration] = []
 
         func appendConfiguration(projectCount: Int, includesOtherChip: Bool) {
@@ -162,15 +208,58 @@ public struct TimeTrackingQuickActionsPresentation: Equatable {
             }
         }
 
-        appendConfiguration(projectCount: resolvedProjectCount, includesOtherChip: true)
-        if resolvedProjectCount > 0 {
-            for projectCount in stride(from: resolvedProjectCount - 1, through: 0, by: -1) {
-                appendConfiguration(projectCount: projectCount, includesOtherChip: true)
-            }
+        for projectCount in stride(from: resolvedProjectCount, through: 1, by: -1) {
+            appendConfiguration(projectCount: projectCount, includesOtherChip: true)
+            appendConfiguration(projectCount: projectCount, includesOtherChip: false)
         }
+        appendConfiguration(projectCount: 0, includesOtherChip: true)
         appendConfiguration(projectCount: 0, includesOtherChip: false)
 
         return configurations
+    }
+
+    func headerLayoutVariants(maxProjectCount: Int) -> [TimeTrackingHeaderLayoutVariant] {
+        let configurations = headerCompactConfigurations(maxProjectCount: maxProjectCount)
+        var variants: [TimeTrackingHeaderLayoutVariant] = []
+
+        func appendVariants(for configuration: TimeTrackingHeaderCompactConfiguration) {
+            variants.append(
+                TimeTrackingHeaderLayoutVariant(
+                    pendingLabelStyle: .full,
+                    chipDensity: .regular,
+                    configuration: configuration
+                )
+            )
+            variants.append(
+                TimeTrackingHeaderLayoutVariant(
+                    pendingLabelStyle: .durationOnly,
+                    chipDensity: .regular,
+                    configuration: configuration
+                )
+            )
+            variants.append(
+                TimeTrackingHeaderLayoutVariant(
+                    pendingLabelStyle: .durationOnly,
+                    chipDensity: .compact,
+                    configuration: configuration
+                )
+            )
+        }
+
+        for configuration in configurations {
+            appendVariants(for: configuration)
+        }
+
+        return variants
+    }
+
+    static func headerCompactChipTitle(_ title: String, visibleCharacterCount: Int = 5) -> String {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedTitle.count > visibleCharacterCount else {
+            return trimmedTitle
+        }
+
+        return String(trimmedTitle.prefix(visibleCharacterCount)) + "…"
     }
 
     public func quickBucketChips(
