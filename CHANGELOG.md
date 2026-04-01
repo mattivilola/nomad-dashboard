@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.6.1] - 2026-04-01
+
+### Changed
+
+- Introduce storage namespaces and improve adaptive time tracking header UI
+
 ## [0.6.0] - 2026-03-31
 
 ### Changed
