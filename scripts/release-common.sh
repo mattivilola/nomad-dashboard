@@ -171,18 +171,29 @@ sparkle_bin_dir() {
     return
   fi
 
-  local found_dir
-  found_dir="$(
-    find "$HOME/Library/Developer/Xcode/DerivedData" \
-      -path '*/SourcePackages/artifacts/sparkle/Sparkle/bin' \
-      -type d \
-      -print 2>/dev/null |
-      head -n 1
-  )"
+  local search_root found_dir
 
-  [[ -n "$found_dir" ]] || fail "Could not find Sparkle CLI tools. Set NOMAD_SPARKLE_BIN_DIR or build the project once so Sparkle artifacts are downloaded."
+  for search_root in \
+    "$REPO_ROOT/DerivedData" \
+    "$HOME/Library/Developer/Xcode/DerivedData"
+  do
+    [[ -d "$search_root" ]] || continue
 
-  printf '%s\n' "$found_dir"
+    found_dir="$(
+      find "$search_root" \
+        -path '*/SourcePackages/artifacts/sparkle/Sparkle/bin' \
+        -type d \
+        -print 2>/dev/null |
+        head -n 1
+    )"
+
+    if [[ -n "$found_dir" ]]; then
+      printf '%s\n' "$found_dir"
+      return
+    fi
+  done
+
+  fail "Could not find Sparkle CLI tools. Set NOMAD_SPARKLE_BIN_DIR or run 'make build' once to repopulate DerivedData/SourcePackages/artifacts."
 }
 
 generate_appcast_bin() {
@@ -204,8 +215,6 @@ assert_release_signing_config() {
   [[ -n "${NOMAD_GITHUB_REPOSITORY:-}" ]] || fail "NOMAD_GITHUB_REPOSITORY is not set."
 
   assert_file_exists "$NOMAD_SPARKLE_PRIVATE_KEY_PATH"
-  assert_file_exists "$(generate_appcast_bin)"
-  assert_file_exists "$(sign_update_bin)"
 }
 
 assert_publish_config() {
