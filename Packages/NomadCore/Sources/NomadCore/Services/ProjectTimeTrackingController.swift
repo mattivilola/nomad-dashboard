@@ -84,6 +84,7 @@ public final class ProjectTimeTrackingController: ObservableObject {
         do {
             try normalizeLedgerForCurrentTime(currentNow)
             try await persistLedger()
+            clearLastErrorMessage()
             refreshPublishedState(now: currentNow)
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -185,6 +186,7 @@ public final class ProjectTimeTrackingController: ObservableObject {
                 ledger.entries = TimeTrackingLedger.normalizedEntries(ledger.entries)
                 openUnallocatedEntry(at: currentNow)
                 try await persistLedger()
+                clearLastErrorMessage()
                 refreshPublishedState(now: currentNow)
                 return
             }
@@ -193,6 +195,7 @@ public final class ProjectTimeTrackingController: ObservableObject {
             ledger.entries = mergeAdjacentEntries(ledger.entries)
             ledger.entries = TimeTrackingLedger.normalizedEntries(ledger.entries)
             try await persistLedger()
+            clearLastErrorMessage()
             refreshPublishedState(now: currentNow)
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -358,7 +361,9 @@ public final class ProjectTimeTrackingController: ObservableObject {
         do {
             try normalizeLedgerForCurrentTime(currentNow)
             closeOpenEntry(at: currentNow)
+            runtimeState.lastShutdownKind = .sleep
             try await persistLedger()
+            clearLastErrorMessage()
             refreshPublishedState(now: currentNow)
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -380,6 +385,7 @@ public final class ProjectTimeTrackingController: ObservableObject {
             }
 
             try await persistLedger()
+            clearLastErrorMessage()
             refreshPublishedState(now: currentNow)
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -396,7 +402,9 @@ public final class ProjectTimeTrackingController: ObservableObject {
         do {
             try normalizeLedgerForCurrentTime(currentNow)
             closeOpenEntry(at: currentNow)
+            runtimeState.lastShutdownKind = .terminated
             try await persistLedger()
+            clearLastErrorMessage()
             refreshPublishedState(now: currentNow)
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -452,25 +460,41 @@ public final class ProjectTimeTrackingController: ObservableObject {
 
     private func loadPersistedLedger() async {
         let currentNow = now()
+        var recoveryErrorMessage: String?
 
         do {
             ledger = try await ledgerStore.load()
+        } catch {
+            ledger = .empty
+            recoveryErrorMessage = error.localizedDescription
+            runtimeState = TimeTrackingRuntimeState(
+                activityState: settingsStore.settings.projectTimeTrackingEnabled ? .running : .stopped
+            )
+        }
+
+        appliedSettings = settingsStore.settings
+
+        do {
             runtimeState = ledger.runtimeState
-            appliedSettings = settingsStore.settings
+            if recoveryErrorMessage != nil {
+                runtimeState = TimeTrackingRuntimeState(
+                    activityState: settingsStore.settings.projectTimeTrackingEnabled ? .running : .stopped
+                )
+            }
+
             try reconcileLoadedLedger(at: currentNow)
             try await persistLedger()
-            refreshPublishedState(now: currentNow)
-            isLoaded = true
-
-            if startBackgroundTasks {
-                startTickerTask()
-                startHeartbeatTask()
-            }
+            lastErrorMessage = recoveryErrorMessage
         } catch {
-            lastErrorMessage = error.localizedDescription
-            ledger = .empty
-            refreshPublishedState(now: currentNow)
-            isLoaded = true
+            lastErrorMessage = combinedErrorMessage(primary: recoveryErrorMessage, secondary: error.localizedDescription)
+        }
+
+        refreshPublishedState(now: currentNow)
+        isLoaded = true
+
+        if startBackgroundTasks {
+            startTickerTask()
+            startHeartbeatTask()
         }
     }
 
@@ -496,10 +520,12 @@ public final class ProjectTimeTrackingController: ObservableObject {
                 } else {
                     closeOpenEntry(at: currentNow)
                     runtimeState.activityState = .stopped
+                    runtimeState.lastShutdownKind = .stopped
                 }
             }
 
             try await persistLedger()
+            clearLastErrorMessage()
             refreshPublishedState(now: currentNow)
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -520,7 +546,7 @@ public final class ProjectTimeTrackingController: ObservableObject {
         heartbeatTask?.cancel()
         heartbeatTask = Task { [weak self] in
             while Task.isCancelled == false {
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: .seconds(10))
                 await self?.handleHeartbeat()
             }
         }
@@ -536,6 +562,7 @@ public final class ProjectTimeTrackingController: ObservableObject {
             let didChange = try normalizeLedgerForCurrentTime(currentNow)
             if didChange {
                 try await persistLedger()
+                clearLastErrorMessage()
             }
             refreshPublishedState(now: currentNow)
         } catch {
@@ -553,10 +580,12 @@ public final class ProjectTimeTrackingController: ObservableObject {
             let didChange = try normalizeLedgerForCurrentTime(currentNow)
             if runtimeState.activityState == .running, openEntryIndex() != nil {
                 runtimeState.lastHeartbeatAt = currentNow
+                runtimeState.lastShutdownKind = .none
             }
 
             if didChange || runtimeState.activityState == .running {
                 try await persistLedger()
+                clearLastErrorMessage()
             }
             refreshPublishedState(now: currentNow)
         } catch {
@@ -583,16 +612,21 @@ public final class ProjectTimeTrackingController: ObservableObject {
                 runtimeState.activityState = .running
                 if isMachineAwake {
                     openUnallocatedEntry(at: currentNow)
+                } else {
+                    runtimeState.lastShutdownKind = .none
                 }
             case .paused:
                 closeOpenEntry(at: currentNow)
                 runtimeState.activityState = .paused
+                runtimeState.lastShutdownKind = .paused
             case .stopped:
                 closeOpenEntry(at: currentNow)
                 runtimeState.activityState = .stopped
+                runtimeState.lastShutdownKind = .stopped
             }
 
             try await persistLedger()
+            clearLastErrorMessage()
             refreshPublishedState(now: currentNow)
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -612,6 +646,7 @@ public final class ProjectTimeTrackingController: ObservableObject {
             ledger.entries = mergeAdjacentEntries(ledger.entries)
             ledger.entries = TimeTrackingLedger.normalizedEntries(ledger.entries)
             try await persistLedger()
+            clearLastErrorMessage()
             refreshPublishedState(now: currentNow)
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -624,19 +659,26 @@ public final class ProjectTimeTrackingController: ObservableObject {
     }
 
     private func reconcileLoadedLedger(at currentNow: Date) throws {
-        _ = reconcileStaleOpenEntry(at: currentNow)
-
         if settingsStore.settings.projectTimeTrackingEnabled == false {
             closeOpenEntry(at: currentNow)
             runtimeState.activityState = .stopped
+            runtimeState.lastShutdownKind = .stopped
             return
         }
 
-        runtimeState.activityState = .running
-
-        if isMachineAwake {
-            openUnallocatedEntry(at: currentNow)
+        if runtimeState.activityState != .paused {
+            runtimeState.activityState = .running
         }
+
+        if runtimeState.activityState == .running {
+            _ = reconcileStaleOpenEntry(at: currentNow)
+            if isMachineAwake {
+                openUnallocatedEntry(at: currentNow)
+            }
+            return
+        }
+
+        closeOpenEntry(at: currentNow)
     }
 
     @discardableResult
@@ -647,12 +689,18 @@ public final class ProjectTimeTrackingController: ObservableObject {
         }
 
         let openEntry = ledger.entries[index]
-        let heartbeat = runtimeState.lastHeartbeatAt ?? openEntry.startAt
-        let cappedEnd = max(openEntry.startAt, min(heartbeat, currentNow))
+        let recoveredEnd: Date
+        switch runtimeState.lastShutdownKind {
+        case .none:
+            recoveredEnd = max(openEntry.startAt, currentNow)
+        case .paused, .stopped, .sleep, .terminated:
+            let heartbeat = runtimeState.lastHeartbeatAt ?? runtimeState.lastPersistedAt ?? openEntry.startAt
+            recoveredEnd = max(openEntry.startAt, min(heartbeat, currentNow))
+        }
 
-        ledger.entries[index].endAt = cappedEnd
+        ledger.entries[index].endAt = recoveredEnd
         runtimeState.openEntryID = nil
-        runtimeState.lastHeartbeatAt = cappedEnd
+        runtimeState.lastHeartbeatAt = recoveredEnd
         ledger.entries = mergeAdjacentEntries(ledger.entries)
         return true
     }
@@ -688,6 +736,7 @@ public final class ProjectTimeTrackingController: ObservableObject {
     private func openUnallocatedEntry(at currentNow: Date) {
         guard openEntryIndex() == nil else {
             runtimeState.lastHeartbeatAt = currentNow
+            runtimeState.lastShutdownKind = .none
             return
         }
 
@@ -696,6 +745,7 @@ public final class ProjectTimeTrackingController: ObservableObject {
         ledger.entries = TimeTrackingLedger.normalizedEntries(ledger.entries)
         runtimeState.openEntryID = newEntry.id
         runtimeState.lastHeartbeatAt = currentNow
+        runtimeState.lastShutdownKind = .none
     }
 
     private func closeOpenEntry(at currentNow: Date) {
@@ -765,9 +815,24 @@ public final class ProjectTimeTrackingController: ObservableObject {
     }
 
     private func persistLedger() async throws {
+        runtimeState.lastPersistedAt = now()
         ledger.runtimeState = runtimeState
         ledger.entries = TimeTrackingLedger.normalizedEntries(ledger.entries)
         try await ledgerStore.save(ledger)
+    }
+
+    private func clearLastErrorMessage() {
+        if lastErrorMessage != nil {
+            lastErrorMessage = nil
+        }
+    }
+
+    private func combinedErrorMessage(primary: String?, secondary: String) -> String {
+        guard let primary, primary.isEmpty == false else {
+            return secondary
+        }
+
+        return "\(primary) \(secondary)"
     }
 
     private func openEntry() -> TimeTrackingEntry? {

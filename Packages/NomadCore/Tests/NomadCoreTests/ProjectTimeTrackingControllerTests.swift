@@ -290,7 +290,7 @@ struct ProjectTimeTrackingControllerTests {
         await harness.controller.waitUntilLoaded()
 
         #expect(harness.controller.entries.count == 2)
-        #expect(harness.controller.entries[0].endAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 20))
+        #expect(harness.controller.entries[0].endAt == makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 0))
         #expect(harness.controller.entries[1].startAt == makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 0))
         #expect(harness.controller.entries[1].isOpen == true)
 
@@ -298,6 +298,38 @@ struct ProjectTimeTrackingControllerTests {
         await harness.controller.synchronize()
 
         let summary = harness.controller.daySummary(for: harness.clock.current)
+        #expect(summary.totalTrackedDuration == TimeInterval(150 * 60))
+    }
+
+    @Test
+    func cleanTerminationRelaunchDoesNotBackfillOfflineGap() async throws {
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true),
+            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+        )
+        await harness.controller.waitUntilLoaded()
+
+        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 20)
+        await harness.controller.synchronize()
+        await harness.controller.handleApplicationWillTerminate()
+
+        let persistedLedger = await harness.store.currentLedger()
+        let relaunchedHarness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true),
+            now: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
+            initialLedger: persistedLedger
+        )
+        await relaunchedHarness.controller.waitUntilLoaded()
+
+        #expect(relaunchedHarness.controller.entries.count == 2)
+        #expect(relaunchedHarness.controller.entries[0].endAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 20))
+        #expect(relaunchedHarness.controller.entries[1].startAt == makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0))
+        #expect(relaunchedHarness.controller.entries[1].isOpen == true)
+
+        relaunchedHarness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 30)
+        await relaunchedHarness.controller.synchronize()
+
+        let summary = relaunchedHarness.controller.daySummary(for: relaunchedHarness.clock.current)
         #expect(summary.totalTrackedDuration == TimeInterval(50 * 60))
     }
 
@@ -374,6 +406,67 @@ struct ProjectTimeTrackingControllerTests {
         #expect(harness.controller.entries[1].startAt == openEntryStartBefore)
         #expect(harness.controller.runtimeState.activityState == .running)
         #expect(harness.controller.runtimeState.openEntryID == openEntryIDBefore)
+    }
+
+    @Test
+    func loadFailureFallsBackToFreshRunningSessionAndReportsRecovery() async throws {
+        let store = FailingLoadTimeTrackingLedgerStore()
+        let settingsStore = AppSettingsStore(defaults: try #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings = AppSettings(projectTimeTrackingEnabled: true)
+        let currentNow = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+        let controller = ProjectTimeTrackingController(
+            settingsStore: settingsStore,
+            ledgerStore: store,
+            calendar: mondayCalendar,
+            now: { currentNow },
+            systemNotificationCenter: NotificationCenter(),
+            workspaceNotificationCenter: NotificationCenter(),
+            enableSystemObservers: false,
+            startBackgroundTasks: false
+        )
+
+        await controller.waitUntilLoaded()
+
+        #expect(controller.runtimeState.activityState == .running)
+        #expect(controller.entries.count == 1)
+        #expect(controller.entries.first?.isOpen == true)
+        #expect(controller.entries.first?.startAt == currentNow)
+        #expect(controller.lastErrorMessage?.contains("Recovered unreadable time tracking data") == true)
+        #expect((await store.savedLedger())?.entries.count == 1)
+    }
+
+    @Test
+    func saveFailureRetainsRunningStateAndClearsErrorAfterRetry() async throws {
+        let store = FlakySaveTimeTrackingLedgerStore(failSaveCount: 1)
+        let settingsStore = AppSettingsStore(defaults: try #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings = AppSettings(projectTimeTrackingEnabled: true)
+        let clock = TestClock(current: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0))
+        let controller = ProjectTimeTrackingController(
+            settingsStore: settingsStore,
+            ledgerStore: store,
+            calendar: mondayCalendar,
+            now: { clock.current },
+            systemNotificationCenter: NotificationCenter(),
+            workspaceNotificationCenter: NotificationCenter(),
+            enableSystemObservers: false,
+            startBackgroundTasks: false
+        )
+
+        await controller.waitUntilLoaded()
+
+        #expect(controller.runtimeState.activityState == .running)
+        #expect(controller.entries.count == 1)
+        #expect(controller.entries.first?.isOpen == true)
+        #expect(controller.lastErrorMessage?.contains("Failed to save time tracking data") == true)
+
+        clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 10)
+        await controller.synchronize()
+
+        #expect(controller.runtimeState.activityState == .running)
+        #expect(controller.entries.count == 1)
+        #expect(controller.entries.first?.isOpen == true)
+        #expect(controller.lastErrorMessage == nil)
+        #expect((await store.savedLedger())?.runtimeState.lastPersistedAt == clock.current)
     }
 
     @Test
@@ -477,6 +570,82 @@ private actor InMemoryTimeTrackingLedgerStore: TimeTrackingLedgerStore {
 
     func reset() async throws {
         ledger = .empty
+    }
+
+    func currentLedger() -> TimeTrackingLedger {
+        ledger
+    }
+}
+
+private actor FailingLoadTimeTrackingLedgerStore: TimeTrackingLedgerStore {
+    private var latestSavedLedger: TimeTrackingLedger?
+
+    func load() async throws -> TimeTrackingLedger {
+        throw FileTimeTrackingLedgerStoreError.recoveredCorruptLedger(
+            sourceURL: URL(fileURLWithPath: "/tmp/time-tracking-ledger.json"),
+            backupURL: URL(fileURLWithPath: "/tmp/time-tracking-ledger.recovered-20260402T000000Z.json"),
+            underlyingError: TestStoreError.loadFailed
+        )
+    }
+
+    func save(_ ledger: TimeTrackingLedger) async throws {
+        latestSavedLedger = ledger
+    }
+
+    func reset() async throws {
+        latestSavedLedger = nil
+    }
+
+    func savedLedger() -> TimeTrackingLedger? {
+        latestSavedLedger
+    }
+}
+
+private actor FlakySaveTimeTrackingLedgerStore: TimeTrackingLedgerStore {
+    private var ledger: TimeTrackingLedger = .empty
+    private var remainingFailures: Int
+
+    init(failSaveCount: Int) {
+        remainingFailures = failSaveCount
+    }
+
+    func load() async throws -> TimeTrackingLedger {
+        ledger
+    }
+
+    func save(_ ledger: TimeTrackingLedger) async throws {
+        if remainingFailures > 0 {
+            remainingFailures -= 1
+            throw FileTimeTrackingLedgerStoreError.saveFailed(
+                fileURL: URL(fileURLWithPath: "/tmp/time-tracking-ledger.json"),
+                underlyingError: TestStoreError.saveFailed
+            )
+        }
+
+        self.ledger = ledger
+    }
+
+    func reset() async throws {
+        ledger = .empty
+        remainingFailures = 0
+    }
+
+    func savedLedger() -> TimeTrackingLedger? {
+        ledger
+    }
+}
+
+private enum TestStoreError: LocalizedError {
+    case loadFailed
+    case saveFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .loadFailed:
+            "Corrupt test ledger"
+        case .saveFailed:
+            "Save failed in test store"
+        }
     }
 }
 

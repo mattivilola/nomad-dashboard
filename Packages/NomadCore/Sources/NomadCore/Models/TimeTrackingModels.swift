@@ -43,6 +43,14 @@ public enum TimeTrackingActivityState: String, Codable, CaseIterable, Equatable,
     case stopped
 }
 
+public enum TimeTrackingShutdownKind: String, Codable, Equatable, Sendable {
+    case none
+    case paused
+    case stopped
+    case sleep
+    case terminated
+}
+
 public enum TimeTrackingPeriod: String, CaseIterable, Identifiable, Sendable {
     case day
     case week
@@ -88,15 +96,47 @@ public struct TimeTrackingRuntimeState: Codable, Equatable, Sendable {
     public var activityState: TimeTrackingActivityState
     public var openEntryID: UUID?
     public var lastHeartbeatAt: Date?
+    public var lastPersistedAt: Date?
+    public var lastShutdownKind: TimeTrackingShutdownKind
 
     public init(
         activityState: TimeTrackingActivityState = .stopped,
         openEntryID: UUID? = nil,
-        lastHeartbeatAt: Date? = nil
+        lastHeartbeatAt: Date? = nil,
+        lastPersistedAt: Date? = nil,
+        lastShutdownKind: TimeTrackingShutdownKind = .none
     ) {
         self.activityState = activityState
         self.openEntryID = openEntryID
         self.lastHeartbeatAt = lastHeartbeatAt
+        self.lastPersistedAt = lastPersistedAt
+        self.lastShutdownKind = lastShutdownKind
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case activityState
+        case openEntryID
+        case lastHeartbeatAt
+        case lastPersistedAt
+        case lastShutdownKind
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        activityState = try container.decodeIfPresent(TimeTrackingActivityState.self, forKey: .activityState) ?? .stopped
+        openEntryID = try container.decodeIfPresent(UUID.self, forKey: .openEntryID)
+        lastHeartbeatAt = try container.decodeIfPresent(Date.self, forKey: .lastHeartbeatAt)
+        lastPersistedAt = try container.decodeIfPresent(Date.self, forKey: .lastPersistedAt)
+        lastShutdownKind = try container.decodeIfPresent(TimeTrackingShutdownKind.self, forKey: .lastShutdownKind) ?? .none
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(activityState, forKey: .activityState)
+        try container.encodeIfPresent(openEntryID, forKey: .openEntryID)
+        try container.encodeIfPresent(lastHeartbeatAt, forKey: .lastHeartbeatAt)
+        try container.encodeIfPresent(lastPersistedAt, forKey: .lastPersistedAt)
+        try container.encode(lastShutdownKind, forKey: .lastShutdownKind)
     }
 }
 
