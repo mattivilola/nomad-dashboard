@@ -175,6 +175,7 @@ private func makeWeather(
         symbolName: symbolName,
         precipitationChance: nil,
         windSpeedKph: 8,
+        windDirectionDegrees: 180,
         tomorrow: nil,
         fetchedAt: .now
     )

@@ -64,8 +64,7 @@ struct DashboardRootView: View {
             quitAction: quitApplication,
             onCardOrderChange: persistDashboardCardOrder,
             onCardWidthModesChange: persistDashboardCardWidthModes,
-            onWeatherHourlyForecastExpandedChange: persistWeatherHourlyForecastExpanded,
-            onWeatherDailyForecastExpandedChange: persistWeatherDailyForecastExpanded
+            onWeatherForecastExpandedChange: persistWeatherForecastExpanded
         )
         .task {
             snapshotStore.setCurrentLocation(locationStore.currentLocation)
@@ -207,20 +206,12 @@ struct DashboardRootView: View {
         settingsStore.settings.dashboardCardWidthModes = sanitizedWidthModes
     }
 
-    private func persistWeatherHourlyForecastExpanded(_ isExpanded: Bool) {
-        guard settingsStore.settings.weatherHourlyForecastExpanded != isExpanded else {
+    private func persistWeatherForecastExpanded(_ isExpanded: Bool) {
+        guard settingsStore.settings.weatherForecastExpanded != isExpanded else {
             return
         }
 
-        settingsStore.settings.weatherHourlyForecastExpanded = isExpanded
-    }
-
-    private func persistWeatherDailyForecastExpanded(_ isExpanded: Bool) {
-        guard settingsStore.settings.weatherDailyForecastExpanded != isExpanded else {
-            return
-        }
-
-        settingsStore.settings.weatherDailyForecastExpanded = isExpanded
+        settingsStore.settings.weatherForecastExpanded = isExpanded
     }
 
     private func openDashboardWindow(_ destination: AppWindowDestination) {

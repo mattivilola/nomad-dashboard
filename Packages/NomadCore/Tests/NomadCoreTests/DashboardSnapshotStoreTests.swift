@@ -2082,6 +2082,7 @@ private struct FixedWeatherProvider: WeatherProvider {
             symbolName: "sun.max.fill",
             precipitationChance: 0.05,
             windSpeedKph: 12,
+            windDirectionDegrees: 315,
             tomorrow: WeatherDaySummary(
                 date: Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now,
                 symbolName: "cloud.sun.fill",

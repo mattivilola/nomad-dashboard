@@ -879,18 +879,15 @@ struct NomadUITests {
             widthMode: .wide
         )
 
-        #expect(presentation.showsHourlyDisclosure)
-        #expect(presentation.showsDailyDisclosure)
-        #expect(presentation.isHourlyExpanded == false)
-        #expect(presentation.isDailyExpanded == false)
+        #expect(presentation.showsForecastDisclosure)
+        #expect(presentation.isForecastExpanded == false)
         #expect(presentation.shouldShowTomorrowSummary)
     }
 
     @Test
     func weatherForecastPresentationReflectsPersistedExpandedState() {
         var settings = AppSettings()
-        settings.weatherHourlyForecastExpanded = true
-        settings.weatherDailyForecastExpanded = true
+        settings.weatherForecastExpanded = true
 
         let presentation = WeatherForecastPresentation(
             settings: settings,
@@ -898,16 +895,14 @@ struct NomadUITests {
             widthMode: .wide
         )
 
-        #expect(presentation.isHourlyExpanded)
-        #expect(presentation.isDailyExpanded)
+        #expect(presentation.isForecastExpanded)
         #expect(presentation.shouldShowTomorrowSummary == false)
     }
 
     @Test
     func weatherForecastPresentationKeepsNarrowCardsCompact() {
         var settings = AppSettings()
-        settings.weatherHourlyForecastExpanded = true
-        settings.weatherDailyForecastExpanded = true
+        settings.weatherForecastExpanded = true
 
         let presentation = WeatherForecastPresentation(
             settings: settings,
@@ -915,11 +910,28 @@ struct NomadUITests {
             widthMode: .narrow
         )
 
-        #expect(presentation.showsHourlyDisclosure == false)
-        #expect(presentation.showsDailyDisclosure == false)
-        #expect(presentation.isHourlyExpanded == false)
-        #expect(presentation.isDailyExpanded == false)
+        #expect(presentation.showsForecastDisclosure == false)
+        #expect(presentation.isForecastExpanded == false)
         #expect(presentation.shouldShowTomorrowSummary)
+    }
+
+    @Test
+    func weatherWindMetricPresentationUsesKilometersPerHourDirectionAndMetersPerSecond() {
+        let presentation = WeatherWindMetricPresentation(snapshot: makeWeatherSnapshot())
+
+        #expect(presentation.primaryValue == "14 km/h NW")
+        #expect(presentation.secondaryValue == "3.9 m/s")
+    }
+
+    @Test
+    func weatherHourlyForecastSlotPresentationCombinesRainAndWind() {
+        let slot = WeatherHourlyForecastSlotPresentation(
+            index: 0,
+            slot: makeWeatherSnapshot().hourlyForecastSlots[0],
+            referenceDate: makeWeatherSnapshot().fetchedAt
+        )
+
+        #expect(slot.detailValue == "Rain 10% · 12 km/h NW")
     }
 
     @Test
@@ -1373,6 +1385,7 @@ private func makeWeatherSnapshot() -> WeatherSnapshot {
         symbolName: "cloud.sun.fill",
         precipitationChance: 0.18,
         windSpeedKph: 14,
+        windDirectionDegrees: 315,
         hourlyForecastSlots: [
             WeatherHourlyForecastSlot(
                 date: Date().addingTimeInterval(3 * 3_600),
@@ -1380,7 +1393,8 @@ private func makeWeatherSnapshot() -> WeatherSnapshot {
                 conditionDescription: "Partly Cloudy",
                 temperatureCelsius: 19,
                 precipitationChance: 0.1,
-                windSpeedKph: 12
+                windSpeedKph: 12,
+                windDirectionDegrees: 315
             ),
             WeatherHourlyForecastSlot(
                 date: Date().addingTimeInterval(6 * 3_600),
@@ -1388,7 +1402,8 @@ private func makeWeatherSnapshot() -> WeatherSnapshot {
                 conditionDescription: "Clear",
                 temperatureCelsius: 20,
                 precipitationChance: 0.05,
-                windSpeedKph: 10
+                windSpeedKph: 10,
+                windDirectionDegrees: 270
             ),
             WeatherHourlyForecastSlot(
                 date: Date().addingTimeInterval(12 * 3_600),
@@ -1396,7 +1411,8 @@ private func makeWeatherSnapshot() -> WeatherSnapshot {
                 conditionDescription: "Cloudy",
                 temperatureCelsius: 16,
                 precipitationChance: 0.22,
-                windSpeedKph: 15
+                windSpeedKph: 15,
+                windDirectionDegrees: 225
             ),
             WeatherHourlyForecastSlot(
                 date: Date().addingTimeInterval(24 * 3_600),
@@ -1404,7 +1420,8 @@ private func makeWeatherSnapshot() -> WeatherSnapshot {
                 conditionDescription: "Rain",
                 temperatureCelsius: 15,
                 precipitationChance: 0.48,
-                windSpeedKph: 18
+                windSpeedKph: 18,
+                windDirectionDegrees: 180
             )
         ],
         dailyForecast: dailyForecast,

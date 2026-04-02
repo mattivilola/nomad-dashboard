@@ -39,8 +39,7 @@ public struct DashboardPanelView: View {
     private let quitAction: () -> Void
     private let onCardOrderChange: ([DashboardCardID]) -> Void
     private let onCardWidthModesChange: ([DashboardCardID: DashboardCardWidthMode]) -> Void
-    private let onWeatherHourlyForecastExpandedChange: (Bool) -> Void
-    private let onWeatherDailyForecastExpandedChange: (Bool) -> Void
+    private let onWeatherForecastExpandedChange: (Bool) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var resolvedCardOrder: [DashboardCardID]
@@ -83,8 +82,7 @@ public struct DashboardPanelView: View {
         quitAction: @escaping () -> Void,
         onCardOrderChange: @escaping ([DashboardCardID]) -> Void = { _ in },
         onCardWidthModesChange: @escaping ([DashboardCardID: DashboardCardWidthMode]) -> Void = { _ in },
-        onWeatherHourlyForecastExpandedChange: @escaping (Bool) -> Void = { _ in },
-        onWeatherDailyForecastExpandedChange: @escaping (Bool) -> Void = { _ in }
+        onWeatherForecastExpandedChange: @escaping (Bool) -> Void = { _ in }
     ) {
         self.snapshot = snapshot
         self.refreshActivity = refreshActivity
@@ -121,8 +119,7 @@ public struct DashboardPanelView: View {
         self.quitAction = quitAction
         self.onCardOrderChange = onCardOrderChange
         self.onCardWidthModesChange = onCardWidthModesChange
-        self.onWeatherHourlyForecastExpandedChange = onWeatherHourlyForecastExpandedChange
-        self.onWeatherDailyForecastExpandedChange = onWeatherDailyForecastExpandedChange
+        self.onWeatherForecastExpandedChange = onWeatherForecastExpandedChange
         _resolvedCardOrder = State(initialValue: DashboardCardID.sanitizedOrder(dashboardCardOrder))
         _resolvedCardWidthModes = State(initialValue: DashboardCardID.sanitizedWidthModes(dashboardCardWidthModes))
     }
@@ -771,6 +768,8 @@ public struct DashboardPanelView: View {
             VStack(alignment: .leading, spacing: 12) {
                 if let weather = snapshot.weather {
                     VStack(alignment: .leading, spacing: 10) {
+                        let windPresentation = WeatherWindMetricPresentation(snapshot: weather)
+
                         if widthMode == .narrow {
                             HStack(spacing: 12) {
                                 MetricBlock(
@@ -785,13 +784,20 @@ public struct DashboardPanelView: View {
                                 )
                             }
 
-                            MetricBlock(
-                                title: "Rain Chance",
-                                value: weather.precipitationChance.map { NomadFormatters.precipitation($0) } ?? "n/a",
-                                typography: .compact
-                            )
+                            HStack(alignment: .top, spacing: 12) {
+                                MetricBlock(
+                                    title: "Wind",
+                                    value: windPresentation.primaryValue,
+                                    typography: .compact
+                                )
+                                MetricBlock(
+                                    title: "Rain Chance",
+                                    value: weather.precipitationChance.map { NomadFormatters.precipitation($0) } ?? "n/a",
+                                    typography: .compact
+                                )
+                            }
                         } else {
-                            HStack(spacing: 12) {
+                            HStack(alignment: .top, spacing: 12) {
                                 MetricBlock(
                                     title: "Current",
                                     value: metricValue(weather.currentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating"),
@@ -800,6 +806,15 @@ public struct DashboardPanelView: View {
                                 MetricBlock(
                                     title: "Feels Like",
                                     value: metricValue(weather.apparentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating"),
+                                    typography: .compact
+                                )
+                            }
+
+                            HStack(alignment: .top, spacing: 12) {
+                                MetricBlock(
+                                    title: "Wind",
+                                    value: windPresentation.primaryValue,
+                                    secondaryValue: windPresentation.secondaryValue,
                                     typography: .compact
                                 )
                                 MetricBlock(
@@ -831,31 +846,35 @@ public struct DashboardPanelView: View {
                             }
                         }
 
-                        if forecastPresentation.showsHourlyDisclosure {
+                        if forecastPresentation.showsForecastDisclosure {
                             ForecastDisclosureSection(
-                                title: "Next 24h",
-                                summary: "4 checkpoints",
-                                isExpanded: forecastPresentation.isHourlyExpanded,
-                                action: toggleWeatherHourlyForecastExpanded
+                                title: "Forecast",
+                                summary: "Next 24h + 7 days",
+                                isExpanded: forecastPresentation.isForecastExpanded,
+                                action: toggleWeatherForecastExpanded
                             ) {
-                                HStack(spacing: 8) {
-                                    ForEach(forecastPresentation.hourlySlots) { slot in
-                                        WeatherHourlyForecastChip(model: slot)
+                                VStack(alignment: .leading, spacing: 10) {
+                                    if forecastPresentation.hourlySlots.isEmpty == false {
+                                        HStack(spacing: 8) {
+                                            ForEach(forecastPresentation.hourlySlots) { slot in
+                                                WeatherHourlyForecastChip(model: slot)
+                                            }
+                                        }
                                     }
-                                }
-                            }
-                        }
 
-                        if forecastPresentation.showsDailyDisclosure {
-                            ForecastDisclosureSection(
-                                title: "7-Day Forecast",
-                                summary: "Tomorrow + 6 days",
-                                isExpanded: forecastPresentation.isDailyExpanded,
-                                action: toggleWeatherDailyForecastExpanded
-                            ) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(Array(forecastPresentation.dailyRows.enumerated()), id: \.offset) { _, row in
-                                        WeatherDailyForecastRow(summary: row)
+                                    if forecastPresentation.hourlySlots.isEmpty == false,
+                                       forecastPresentation.dailyRows.isEmpty == false
+                                    {
+                                        Divider()
+                                            .overlay(NomadTheme.cardBorder.opacity(0.8))
+                                    }
+
+                                    if forecastPresentation.dailyRows.isEmpty == false {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            ForEach(Array(forecastPresentation.dailyRows.enumerated()), id: \.offset) { _, row in
+                                                WeatherDailyForecastRow(summary: row)
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1331,12 +1350,8 @@ public struct DashboardPanelView: View {
         onCardWidthModesChange(sanitizedWidthModes)
     }
 
-    private func toggleWeatherHourlyForecastExpanded() {
-        onWeatherHourlyForecastExpandedChange(settings.weatherHourlyForecastExpanded == false)
-    }
-
-    private func toggleWeatherDailyForecastExpanded() {
-        onWeatherDailyForecastExpandedChange(settings.weatherDailyForecastExpanded == false)
+    private func toggleWeatherForecastExpanded() {
+        onWeatherForecastExpandedChange(settings.weatherForecastExpanded == false)
     }
 
     private func metricValue(
@@ -2270,10 +2285,20 @@ private struct MetricBlock: View {
                 0.75
             }
         }
+
+        var secondaryFont: Font {
+            switch self {
+            case .standard:
+                .caption
+            case .compact:
+                .caption2
+            }
+        }
     }
 
     let title: String
     let value: String
+    var secondaryValue: String?
     var typography: Typography = .standard
 
     var body: some View {
@@ -2287,6 +2312,14 @@ private struct MetricBlock: View {
                 .foregroundStyle(metricTint)
                 .lineLimit(typography.lineLimit)
                 .minimumScaleFactor(typography.minimumScaleFactor)
+
+            if let secondaryValue {
+                Text(secondaryValue)
+                    .font(typography.secondaryFont)
+                    .foregroundStyle(NomadTheme.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -3882,20 +3915,16 @@ struct WeatherSectionPresentation {
 struct WeatherForecastPresentation {
     let hourlySlots: [WeatherHourlyForecastSlotPresentation]
     let dailyRows: [WeatherDaySummary]
-    let isHourlyExpanded: Bool
-    let isDailyExpanded: Bool
-    let showsHourlyDisclosure: Bool
-    let showsDailyDisclosure: Bool
+    let isForecastExpanded: Bool
+    let showsForecastDisclosure: Bool
     let shouldShowTomorrowSummary: Bool
 
     init(settings: AppSettings, weather: WeatherSnapshot?, widthMode: DashboardCardWidthMode) {
         guard let weather else {
             hourlySlots = []
             dailyRows = []
-            isHourlyExpanded = false
-            isDailyExpanded = false
-            showsHourlyDisclosure = false
-            showsDailyDisclosure = false
+            isForecastExpanded = false
+            showsForecastDisclosure = false
             shouldShowTomorrowSummary = false
             return
         }
@@ -3905,11 +3934,9 @@ struct WeatherForecastPresentation {
         }
         dailyRows = weather.dailyForecast
         let canShowExpandedForecast = widthMode != .narrow
-        isHourlyExpanded = canShowExpandedForecast && settings.weatherHourlyForecastExpanded
-        isDailyExpanded = canShowExpandedForecast && settings.weatherDailyForecastExpanded
-        showsHourlyDisclosure = canShowExpandedForecast && hourlySlots.isEmpty == false
-        showsDailyDisclosure = canShowExpandedForecast && dailyRows.isEmpty == false
-        shouldShowTomorrowSummary = weather.tomorrow != nil && (showsDailyDisclosure == false || isDailyExpanded == false)
+        isForecastExpanded = canShowExpandedForecast && settings.weatherForecastExpanded
+        showsForecastDisclosure = canShowExpandedForecast && (hourlySlots.isEmpty == false || dailyRows.isEmpty == false)
+        shouldShowTomorrowSummary = weather.tomorrow != nil && (showsForecastDisclosure == false || isForecastExpanded == false)
     }
 }
 
@@ -3926,14 +3953,55 @@ struct WeatherHourlyForecastSlotPresentation: Identifiable, Equatable {
         title = "+\(hourOffset)h"
         symbolName = slot.symbolName
         temperatureValue = NomadFormatters.celsius(slot.temperatureCelsius)
+        detailValue = Self.detailValue(for: slot)
+    }
 
-        if let precipitationChance = slot.precipitationChance {
-            detailValue = "Rain \(NomadFormatters.precipitation(precipitationChance))"
-        } else if let windSpeedKph = slot.windSpeedKph {
-            detailValue = NomadFormatters.kilometersPerHour(windSpeedKph)
-        } else {
-            detailValue = slot.conditionDescription
+    private static func detailValue(for slot: WeatherHourlyForecastSlot) -> String {
+        let rainValue = slot.precipitationChance.map { "Rain \(NomadFormatters.precipitation($0))" }
+        let windSummary = WeatherWindMetricPresentation.summary(
+            speedKph: slot.windSpeedKph,
+            directionDegrees: slot.windDirectionDegrees
+        )
+        let windValue = windSummary == "n/a" ? nil : windSummary
+        let parts = [rainValue, windValue].compactMap(\.self)
+
+        if parts.isEmpty == false {
+            return parts.joined(separator: " · ")
         }
+
+        return slot.conditionDescription
+    }
+}
+
+struct WeatherWindMetricPresentation: Equatable {
+    let primaryValue: String
+    let secondaryValue: String?
+
+    init(snapshot: WeatherSnapshot) {
+        primaryValue = Self.summary(
+            speedKph: snapshot.windSpeedKph,
+            directionDegrees: snapshot.windDirectionDegrees
+        )
+        secondaryValue = snapshot.windSpeedKph.map { NomadFormatters.metersPerSecond($0) }
+    }
+
+    static func summary(speedKph: Double?, directionDegrees: Double?) -> String {
+        let speed = speedKph.map { NomadFormatters.kilometersPerHour($0) } ?? "n/a"
+        let direction = NomadFormatters.compassDirection(directionDegrees)
+
+        if speed == "n/a", direction == "n/a" {
+            return "n/a"
+        }
+
+        if speed == "n/a" {
+            return direction
+        }
+
+        if direction == "n/a" {
+            return speed
+        }
+
+        return "\(speed) \(direction)"
     }
 }
 
