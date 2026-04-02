@@ -20,6 +20,13 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.7.0] - 2026-04-02
+
+### Changed
+
+- Implement standardized styling for time tracking dashboard buttons
+- Unify dashboard weather forecast and enhance wind data display
+
 ## [0.6.5] - 2026-04-02
 
 ### Changed
