@@ -83,6 +83,7 @@ private enum WeatherKitSnapshotProjector {
             symbolName: weather.currentWeather.symbolName,
             precipitationChance: precipitationChance,
             windSpeedKph: weather.currentWeather.wind.speed.converted(to: .kilometersPerHour).value,
+            windDirectionDegrees: weather.currentWeather.wind.direction.converted(to: .degrees).value,
             hourlyForecastSlots: hourlyForecast,
             dailyForecast: dailyForecast,
             fetchedAt: fetchedAt
@@ -106,7 +107,7 @@ private enum WeatherKitSnapshotProjector {
     ) -> [WeatherHourlyForecastSlot] {
         let forecastDates = forecast.map(\.date)
 
-        return LiveWeatherProvider.forecastTargetDates(from: referenceDate).compactMap { targetDate in
+        return LiveWeatherProvider.forecastTargetDates(from: referenceDate).compactMap { targetDate -> WeatherHourlyForecastSlot? in
             guard let index = LiveWeatherProvider.nearestIndex(in: forecastDates, to: targetDate) else {
                 return nil
             }
@@ -118,7 +119,8 @@ private enum WeatherKitSnapshotProjector {
                 conditionDescription: hour.condition.description,
                 temperatureCelsius: hour.temperature.converted(to: .celsius).value,
                 precipitationChance: hour.precipitationChance,
-                windSpeedKph: hour.wind.speed.converted(to: .kilometersPerHour).value
+                windSpeedKph: hour.wind.speed.converted(to: .kilometersPerHour).value,
+                windDirectionDegrees: hour.wind.direction.converted(to: .degrees).value
             )
         }
     }

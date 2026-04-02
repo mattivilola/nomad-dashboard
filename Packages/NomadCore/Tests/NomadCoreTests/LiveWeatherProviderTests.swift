@@ -94,6 +94,7 @@ struct LiveWeatherProviderTests {
             symbolName: "sun.max.fill",
             precipitationChance: 0.1,
             windSpeedKph: 9,
+            windDirectionDegrees: 45,
             dailyForecast: dailyForecast,
             fetchedAt: .now
         )

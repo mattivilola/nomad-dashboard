@@ -238,6 +238,7 @@ public struct WeatherHourlyForecastSlot: Equatable, Sendable, Identifiable {
     public let temperatureCelsius: Double?
     public let precipitationChance: Double?
     public let windSpeedKph: Double?
+    public let windDirectionDegrees: Double?
 
     public var id: Date {
         date
@@ -249,7 +250,8 @@ public struct WeatherHourlyForecastSlot: Equatable, Sendable, Identifiable {
         conditionDescription: String,
         temperatureCelsius: Double?,
         precipitationChance: Double?,
-        windSpeedKph: Double?
+        windSpeedKph: Double?,
+        windDirectionDegrees: Double?
     ) {
         self.date = date
         self.symbolName = symbolName
@@ -257,6 +259,7 @@ public struct WeatherHourlyForecastSlot: Equatable, Sendable, Identifiable {
         self.temperatureCelsius = temperatureCelsius
         self.precipitationChance = precipitationChance
         self.windSpeedKph = windSpeedKph
+        self.windDirectionDegrees = windDirectionDegrees
     }
 }
 
@@ -267,6 +270,7 @@ public struct WeatherSnapshot: Equatable, Sendable {
     public let symbolName: String
     public let precipitationChance: Double?
     public let windSpeedKph: Double?
+    public let windDirectionDegrees: Double?
     public let hourlyForecastSlots: [WeatherHourlyForecastSlot]
     public let dailyForecast: [WeatherDaySummary]
     public let tomorrow: WeatherDaySummary?
@@ -279,6 +283,7 @@ public struct WeatherSnapshot: Equatable, Sendable {
         symbolName: String,
         precipitationChance: Double?,
         windSpeedKph: Double?,
+        windDirectionDegrees: Double?,
         hourlyForecastSlots: [WeatherHourlyForecastSlot] = [],
         dailyForecast: [WeatherDaySummary] = [],
         tomorrow: WeatherDaySummary? = nil,
@@ -290,6 +295,7 @@ public struct WeatherSnapshot: Equatable, Sendable {
         self.symbolName = symbolName
         self.precipitationChance = precipitationChance
         self.windSpeedKph = windSpeedKph
+        self.windDirectionDegrees = windDirectionDegrees
         self.hourlyForecastSlots = hourlyForecastSlots
         self.dailyForecast = dailyForecast.isEmpty ? tomorrow.map { [$0] } ?? [] : dailyForecast
         self.tomorrow = self.dailyForecast.first ?? tomorrow
@@ -732,6 +738,7 @@ public extension DashboardSnapshot {
             symbolName: "cloud.sun.fill",
             precipitationChance: 0.18,
             windSpeedKph: 14,
+            windDirectionDegrees: 315,
             hourlyForecastSlots: [
                 WeatherHourlyForecastSlot(
                     date: Date().addingTimeInterval(3 * 3_600),
@@ -739,7 +746,8 @@ public extension DashboardSnapshot {
                     conditionDescription: "Partly Cloudy",
                     temperatureCelsius: 20,
                     precipitationChance: 0.10,
-                    windSpeedKph: 12
+                    windSpeedKph: 12,
+                    windDirectionDegrees: 300
                 ),
                 WeatherHourlyForecastSlot(
                     date: Date().addingTimeInterval(6 * 3_600),
@@ -747,7 +755,8 @@ public extension DashboardSnapshot {
                     conditionDescription: "Clear",
                     temperatureCelsius: 21,
                     precipitationChance: 0.02,
-                    windSpeedKph: 10
+                    windSpeedKph: 10,
+                    windDirectionDegrees: 290
                 ),
                 WeatherHourlyForecastSlot(
                     date: Date().addingTimeInterval(12 * 3_600),
@@ -755,7 +764,8 @@ public extension DashboardSnapshot {
                     conditionDescription: "Cloudy",
                     temperatureCelsius: 17,
                     precipitationChance: 0.22,
-                    windSpeedKph: 15
+                    windSpeedKph: 15,
+                    windDirectionDegrees: 270
                 ),
                 WeatherHourlyForecastSlot(
                     date: Date().addingTimeInterval(24 * 3_600),
@@ -763,7 +773,8 @@ public extension DashboardSnapshot {
                     conditionDescription: "Light Rain",
                     temperatureCelsius: 16,
                     precipitationChance: 0.45,
-                    windSpeedKph: 18
+                    windSpeedKph: 18,
+                    windDirectionDegrees: 255
                 )
             ],
             dailyForecast: [

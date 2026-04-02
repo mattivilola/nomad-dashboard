@@ -98,10 +98,10 @@ Users can understand how the outside network sees them and keep better awareness
 ### What it does
 
 - Shows current weather conditions
-- Shows current and apparent temperature
-- Shows wind and precipitation context
-- Shows hourly forecast slots
-- Shows multi-day forecast and tomorrow summary
+- Shows current, apparent, wind, and rain-chance key metrics
+- Shows wind speed with compass direction
+- Shows a unified forecast view with near-term checkpoints and a 7-day outlook
+- Shows tomorrow summary when the full forecast is collapsed
 
 ### Who it helps
 
@@ -111,7 +111,7 @@ Users can understand how the outside network sees them and keep better awareness
 
 ### Practical benefit
 
-Users can make quick practical decisions about the next few hours or next day without opening a separate weather app.
+Users can make quick practical decisions about wind, rain risk, the next few hours, and the next day without opening a separate weather app.
 
 ### Dependencies or setup
 

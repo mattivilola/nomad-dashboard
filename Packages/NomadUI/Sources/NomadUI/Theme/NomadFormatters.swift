@@ -27,6 +27,11 @@ public enum NomadFormatters {
         return String(format: "%.0f km/h", value)
     }
 
+    public static func metersPerSecond(_ value: Double?) -> String {
+        guard let value else { return "n/a" }
+        return String(format: "%.1f m/s", value / 3.6)
+    }
+
     public static func meters(_ value: Double?) -> String {
         guard let value else { return "n/a" }
         return String(format: "%.1f m", value)

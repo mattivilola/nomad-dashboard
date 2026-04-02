@@ -29,8 +29,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.surfSpotName.isEmpty)
         #expect(store.settings.surfSpotLatitude == nil)
         #expect(store.settings.surfSpotLongitude == nil)
-        #expect(store.settings.weatherHourlyForecastExpanded == false)
-        #expect(store.settings.weatherDailyForecastExpanded == false)
+        #expect(store.settings.weatherForecastExpanded == false)
     }
 
     @Test
@@ -146,12 +145,55 @@ struct AppSettingsStoreTests {
         defaults.removePersistentDomain(forName: suiteName)
 
         let store = AppSettingsStore(defaults: defaults)
-        store.settings.weatherHourlyForecastExpanded = true
-        store.settings.weatherDailyForecastExpanded = true
+        store.settings.weatherForecastExpanded = true
 
         let reloaded = AppSettingsStore(defaults: defaults)
-        #expect(reloaded.settings.weatherHourlyForecastExpanded == true)
-        #expect(reloaded.settings.weatherDailyForecastExpanded == true)
+        #expect(reloaded.settings.weatherForecastExpanded == true)
+    }
+
+    @Test
+    func appSettingsDecodingMigratesLegacyWeatherDisclosureFlags() throws {
+        let payload = """
+        {
+          "appearanceMode": "system",
+          "dashboardCardOrder": ["travelContext", "connectivity", "power", "weather", "travelAlerts", "fuelPrices", "emergencyCare", "timeTracking"],
+          "dashboardCardWidthModes": {
+            "travelContext": "wide",
+            "connectivity": "wide",
+            "power": "wide",
+            "weather": "wide",
+            "travelAlerts": "wide",
+            "fuelPrices": "wide",
+            "emergencyCare": "wide",
+            "timeTracking": "wide"
+          },
+          "refreshIntervalSeconds": 2,
+          "slowRefreshIntervalSeconds": 60,
+          "historyRetentionHours": 24,
+          "publicIPGeolocationEnabled": true,
+          "shareAnonymousAnalytics": true,
+          "automaticUpdateChecksEnabled": true,
+          "launchAtLoginEnabled": false,
+          "useCurrentLocationForWeather": true,
+          "weatherHourlyForecastExpanded": true,
+          "weatherDailyForecastExpanded": false,
+          "fuelPricesEnabled": false,
+          "emergencyCareEnabled": false,
+          "visitedPlacesEnabled": true,
+          "travelAdvisoryEnabled": true,
+          "travelWeatherAlertsEnabled": false,
+          "regionalSecurityEnabled": false,
+          "projectTimeTrackingEnabled": false,
+          "timeTrackingProjects": [],
+          "tankerkonigAPIKey": "",
+          "surfSpotName": "",
+          "latencyHosts": ["1.1.1.1:443", "8.8.8.8:443"]
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: payload)
+
+        #expect(decoded.weatherForecastExpanded == true)
     }
 
     @Test
@@ -302,8 +344,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.surfSpotName.isEmpty)
         #expect(store.settings.surfSpotLatitude == nil)
         #expect(store.settings.surfSpotLongitude == nil)
-        #expect(store.settings.weatherHourlyForecastExpanded == false)
-        #expect(store.settings.weatherDailyForecastExpanded == false)
+        #expect(store.settings.weatherForecastExpanded == false)
         #expect(store.settings.latencyHosts == ["example.com:443"])
     }
 
