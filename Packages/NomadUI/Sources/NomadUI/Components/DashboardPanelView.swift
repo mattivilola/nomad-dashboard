@@ -683,8 +683,7 @@ public struct DashboardPanelView: View {
                     Button("Open Settings") {
                         openSettingsAction()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(NomadTheme.teal)
+                    .modifier(timeTrackingActionButtonModifier(role: .highlighted, isEnabled: true))
                 }
             } else {
                 VStack(alignment: .leading, spacing: 12) {
@@ -747,10 +746,7 @@ public struct DashboardPanelView: View {
 
                         Spacer(minLength: 0)
 
-                        Button("Open Time Tracking") {
-                            openTimeTrackingAction()
-                        }
-                        .buttonStyle(.bordered)
+                        timeTrackingControlButton(title: "Open Time Tracking", action: openTimeTrackingAction)
                     }
                 }
             }
@@ -1476,17 +1472,24 @@ public struct DashboardPanelView: View {
         Button(title) {
             allocateTimeTrackingAction(bucket)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(isCompact ? .small : .regular)
-        .tint(NomadTheme.teal)
         .disabled(isEnabled == false)
-        .lineLimit(1)
-        .truncationMode(.tail)
+        .modifier(timeTrackingActionButtonModifier(role: .highlighted, isEnabled: isEnabled, isCompact: isCompact))
     }
 
     private func timeTrackingControlButton(title: String, action: @escaping () -> Void) -> some View {
         Button(title, action: action)
-            .buttonStyle(.bordered)
+            .modifier(timeTrackingActionButtonModifier(role: .neutral, isEnabled: true))
+    }
+
+    private func timeTrackingActionButtonModifier(
+        role: TimeTrackingDashboardActionRole,
+        isEnabled: Bool,
+        isCompact: Bool = false
+    ) -> some ViewModifier {
+        TimeTrackingDashboardActionButtonModifier(
+            style: TimeTrackingDashboardActionButtonStyle.make(role: role, isEnabled: isEnabled),
+            isCompact: isCompact
+        )
     }
 
     private func formattedTrackingDuration(_ duration: TimeInterval) -> String {
@@ -1516,6 +1519,61 @@ public struct DashboardPanelView: View {
         }
     }
 
+}
+
+enum TimeTrackingDashboardActionRole {
+    case highlighted
+    case neutral
+}
+
+struct TimeTrackingDashboardActionButtonStyle: Equatable {
+    let foreground: Color
+    let background: Color
+    let border: Color
+
+    static func make(
+        role: TimeTrackingDashboardActionRole,
+        isEnabled: Bool
+    ) -> TimeTrackingDashboardActionButtonStyle {
+        let foreground: Color
+        switch role {
+        case .highlighted:
+            foreground = NomadTheme.teal
+        case .neutral:
+            foreground = NomadTheme.primaryText
+        }
+
+        return TimeTrackingDashboardActionButtonStyle(
+            foreground: foreground.opacity(isEnabled ? 1 : 0.72),
+            background: NomadTheme.inlineButtonBackground.opacity(isEnabled ? 1 : 0.76),
+            border: NomadTheme.cardBorder.opacity(isEnabled ? 1 : 0.76)
+        )
+    }
+}
+
+private struct TimeTrackingDashboardActionButtonModifier: ViewModifier {
+    let style: TimeTrackingDashboardActionButtonStyle
+    let isCompact: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(style.foreground)
+            .padding(.horizontal, isCompact ? 10 : 12)
+            .padding(.vertical, isCompact ? 6 : 7)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(style.background)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(style.border, lineWidth: 1)
+                    )
+            )
+            .buttonStyle(.plain)
+            .lineLimit(1)
+            .truncationMode(.tail)
+    }
 }
 
 struct PowerMetricsPresentation {

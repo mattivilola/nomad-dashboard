@@ -120,6 +120,39 @@ struct NomadUITests {
     }
 
     @Test
+    func timeTrackingDashboardHighlightedActionUsesExplicitThemeColors() {
+        let style = TimeTrackingDashboardActionButtonStyle.make(role: .highlighted, isEnabled: true)
+
+        #expect(style == TimeTrackingDashboardActionButtonStyle(
+            foreground: NomadTheme.teal.opacity(1),
+            background: NomadTheme.inlineButtonBackground.opacity(1),
+            border: NomadTheme.cardBorder.opacity(1)
+        ))
+    }
+
+    @Test
+    func timeTrackingDashboardNeutralActionUsesExplicitThemeColors() {
+        let style = TimeTrackingDashboardActionButtonStyle.make(role: .neutral, isEnabled: true)
+
+        #expect(style == TimeTrackingDashboardActionButtonStyle(
+            foreground: NomadTheme.primaryText.opacity(1),
+            background: NomadTheme.inlineButtonBackground.opacity(1),
+            border: NomadTheme.cardBorder.opacity(1)
+        ))
+    }
+
+    @Test
+    func timeTrackingDashboardDisabledHighlightedActionKeepsVisibleReducedOpacity() {
+        let style = TimeTrackingDashboardActionButtonStyle.make(role: .highlighted, isEnabled: false)
+
+        #expect(style == TimeTrackingDashboardActionButtonStyle(
+            foreground: NomadTheme.teal.opacity(0.72),
+            background: NomadTheme.inlineButtonBackground.opacity(0.76),
+            border: NomadTheme.cardBorder.opacity(0.76)
+        ))
+    }
+
+    @Test
     func dashboardRefreshHeaderPresentationShowsManualRefreshStatus() {
         let presentation = DashboardRefreshHeaderPresentation(
             lastRefresh: .now.addingTimeInterval(-30),
