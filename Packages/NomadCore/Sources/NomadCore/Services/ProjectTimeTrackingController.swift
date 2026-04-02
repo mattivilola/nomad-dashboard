@@ -154,6 +154,51 @@ public final class ProjectTimeTrackingController: ObservableObject {
         }
     }
 
+    public func quickAllocateEntry(id: UUID, to bucket: TimeTrackingBucket) async {
+        guard isLoaded else {
+            return
+        }
+
+        let currentNow = now()
+
+        do {
+            try normalizeLedgerForCurrentTime(currentNow)
+
+            guard let index = ledger.entries.firstIndex(where: { $0.id == id }) else {
+                return
+            }
+
+            let entry = ledger.entries[index]
+            let shouldRestartPendingTimer = entry.isOpen &&
+                entry.bucket == .unallocated &&
+                bucket != .unallocated &&
+                runtimeState.activityState == .running &&
+                settingsStore.settings.projectTimeTrackingEnabled &&
+                openEntryIndex() == index
+
+            if shouldRestartPendingTimer {
+                ledger.entries[index].endAt = max(currentNow, entry.startAt)
+                ledger.entries[index].bucket = bucket
+                runtimeState.openEntryID = nil
+                runtimeState.lastHeartbeatAt = currentNow
+                ledger.entries = mergeAdjacentEntries(ledger.entries)
+                ledger.entries = TimeTrackingLedger.normalizedEntries(ledger.entries)
+                openUnallocatedEntry(at: currentNow)
+                try await persistLedger()
+                refreshPublishedState(now: currentNow)
+                return
+            }
+
+            ledger.entries[index].bucket = bucket
+            ledger.entries = mergeAdjacentEntries(ledger.entries)
+            ledger.entries = TimeTrackingLedger.normalizedEntries(ledger.entries)
+            try await persistLedger()
+            refreshPublishedState(now: currentNow)
+        } catch {
+            lastErrorMessage = error.localizedDescription
+        }
+    }
+
     public func reassignEntry(id: UUID, to bucket: TimeTrackingBucket) async {
         await mutateLedger {
             guard let index = ledger.entries.firstIndex(where: { $0.id == id }) else {

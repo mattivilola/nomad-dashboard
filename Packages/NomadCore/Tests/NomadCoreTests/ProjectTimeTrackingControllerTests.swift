@@ -95,6 +95,33 @@ struct ProjectTimeTrackingControllerTests {
     }
 
     @Test
+    func quickAllocatingOpenEntryRestartsPendingTimerImmediately() async throws {
+        let project = TimeTrackingProject(id: UUID(), name: "Client A")
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
+            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+        )
+        await harness.controller.waitUntilLoaded()
+
+        let openEntryID = try #require(harness.controller.entries.first?.id)
+        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30)
+        await harness.controller.synchronize()
+        await harness.controller.quickAllocateEntry(id: openEntryID, to: .project(project.id))
+
+        #expect(harness.controller.runtimeState.activityState == .running)
+        #expect(harness.controller.entries.count == 2)
+        #expect(harness.controller.entries[0].id == openEntryID)
+        #expect(harness.controller.entries[0].bucket == .project(project.id))
+        #expect(harness.controller.entries[0].startAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0))
+        #expect(harness.controller.entries[0].endAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30))
+        #expect(harness.controller.entries[1].bucket == .unallocated)
+        #expect(harness.controller.entries[1].startAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30))
+        #expect(harness.controller.entries[1].isOpen == true)
+        #expect(harness.controller.runtimeState.openEntryID == harness.controller.entries[1].id)
+        #expect(harness.controller.dashboardState.todaySummary.unallocatedDuration == 0)
+    }
+
+    @Test
     func pausedAllocationClearsPendingWithoutRestartingTimer() async throws {
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true),
@@ -311,6 +338,42 @@ struct ProjectTimeTrackingControllerTests {
         #expect(summary.bucketDurations.first(where: { $0.bucket == .other })?.duration == TimeInterval(15 * 60))
         #expect(summary.bucketDurations.first(where: { $0.bucket == .project(projectB.id) })?.duration == TimeInterval(15 * 60))
         #expect(summary.unallocatedDuration == TimeInterval(30 * 60))
+    }
+
+    @Test
+    func quickAllocatingClosedEntryFallsBackToPlainReassign() async throws {
+        let projectA = TimeTrackingProject(id: UUID(), name: "Client A")
+        let projectB = TimeTrackingProject(id: UUID(), name: "Client B")
+        let historicalEntry = TimeTrackingEntry(
+            id: UUID(),
+            startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
+            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30),
+            bucket: .project(projectA.id)
+        )
+        let harness = try makeHarness(
+            settings: AppSettings(
+                projectTimeTrackingEnabled: true,
+                timeTrackingProjects: [projectA, projectB]
+            ),
+            now: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
+            initialLedger: TimeTrackingLedger(entries: [historicalEntry])
+        )
+        await harness.controller.waitUntilLoaded()
+
+        let openEntryIDBefore = harness.controller.runtimeState.openEntryID
+        let openEntryStartBefore = harness.controller.entries.last?.startAt
+
+        await harness.controller.quickAllocateEntry(id: historicalEntry.id, to: .project(projectB.id))
+
+        #expect(harness.controller.entries.count == 2)
+        #expect(harness.controller.entries[0].id == historicalEntry.id)
+        #expect(harness.controller.entries[0].bucket == .project(projectB.id))
+        #expect(harness.controller.entries[0].endAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30))
+        #expect(harness.controller.entries[1].bucket == .unallocated)
+        #expect(harness.controller.entries[1].isOpen == true)
+        #expect(harness.controller.entries[1].startAt == openEntryStartBefore)
+        #expect(harness.controller.runtimeState.activityState == .running)
+        #expect(harness.controller.runtimeState.openEntryID == openEntryIDBefore)
     }
 
     @Test
