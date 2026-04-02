@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.6.5] - 2026-04-02
+
+### Changed
+
+- Enhance time tracking persistence and recovery with shutdown awareness
+
 ## [0.6.4] - 2026-04-02
 
 ### Changed
