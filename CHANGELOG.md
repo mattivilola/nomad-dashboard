@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.6.4] - 2026-04-02
+
+### Changed
+
+- Implement quick allocation for time tracking entries
+
 ## [0.6.3] - 2026-04-01
 
 ### Changed

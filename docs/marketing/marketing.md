@@ -86,7 +86,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Surfacing optional travel alerts and regional context while on the move
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
 - Tracking visited places locally on the Mac, with country-day summaries by year and month
-- Tracking awake work time locally on the Mac, then assigning it into projects with day, week, and month summaries
+- Tracking awake work time locally on the Mac, then assigning it from the dashboard with quick project chips before reviewing day, week, and month summaries
 - Keeping all of the above in a compact menu bar workflow instead of a full-size monitoring dashboard
 
 ## Benefit Statements
@@ -149,6 +149,7 @@ Marketing copy can safely say:
 - External IP location display can be turned off
 - Several travel modules are optional
 - Project time tracking stays local to the Mac and can be turned off entirely
+- Development builds keep separate local time-tracking storage from the live app
 - Anonymous analytics are privacy-conscious and configurable in-app, with some install and reach estimation events always collected
 
 Avoid saying:

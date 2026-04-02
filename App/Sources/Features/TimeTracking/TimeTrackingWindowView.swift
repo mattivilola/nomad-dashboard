@@ -280,6 +280,9 @@ struct TimeTrackingWindowView: View {
                                 onReassign: { bucket in
                                     await controller.reassignEntry(id: entry.id, to: bucket)
                                 },
+                                onQuickAllocate: { bucket in
+                                    await controller.quickAllocateEntry(id: entry.id, to: bucket)
+                                },
                                 onResize: { startAt, endAt in
                                     await controller.updateEntry(id: entry.id, startAt: startAt, endAt: endAt)
                                 },
@@ -737,6 +740,7 @@ private struct TimeTrackingEntryEditorRow: View {
     let isExpanded: Bool
     let onToggleExpanded: (Bool) -> Void
     let onReassign: @Sendable (TimeTrackingBucket) async -> Void
+    let onQuickAllocate: @Sendable (TimeTrackingBucket) async -> Void
     let onResize: @Sendable (Date, Date) async -> Void
     let onSplit: @Sendable (Date, TimeTrackingBucket) async -> Void
 
@@ -756,6 +760,7 @@ private struct TimeTrackingEntryEditorRow: View {
         isExpanded: Bool,
         onToggleExpanded: @escaping (Bool) -> Void,
         onReassign: @escaping @Sendable (TimeTrackingBucket) async -> Void,
+        onQuickAllocate: @escaping @Sendable (TimeTrackingBucket) async -> Void,
         onResize: @escaping @Sendable (Date, Date) async -> Void,
         onSplit: @escaping @Sendable (Date, TimeTrackingBucket) async -> Void
     ) {
@@ -767,6 +772,7 @@ private struct TimeTrackingEntryEditorRow: View {
         self.isExpanded = isExpanded
         self.onToggleExpanded = onToggleExpanded
         self.onReassign = onReassign
+        self.onQuickAllocate = onQuickAllocate
         self.onResize = onResize
         self.onSplit = onSplit
 
@@ -831,11 +837,11 @@ private struct TimeTrackingEntryEditorRow: View {
                     ViewThatFits(in: .horizontal) {
                         quickBucketChipRow(chips: quickBucketChipsWide, selectionID: selectedBucketID) { chip in
                             selectedBucketID = chip.bucket.stableID
-                            await onReassign(chip.bucket)
+                            await onQuickAllocate(chip.bucket)
                         }
                         quickBucketChipRow(chips: quickBucketChipsCompact, selectionID: selectedBucketID) { chip in
                             selectedBucketID = chip.bucket.stableID
-                            await onReassign(chip.bucket)
+                            await onQuickAllocate(chip.bucket)
                         }
                     }
 

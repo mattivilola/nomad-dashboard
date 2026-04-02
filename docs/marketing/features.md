@@ -270,8 +270,9 @@ Users can build a simple local travel history over time, revisit where they have
 
 - Can track awake working time locally while Nomad Dashboard is running
 - Lets the user define project buckets in Settings plus one built-in `Other` bucket
-- Shows live pending unallocated time in the dashboard
-- Supports quick one-click allocation of today’s pending time into a project or `Other`
+- Shows live pending unallocated time directly in the dashboard header
+- Surfaces compact quick-action chips for recent or active projects plus `Other`
+- Supports quick one-click allocation of today’s pending time into a project or `Other` without opening the full time-tracking view
 - Includes a dedicated time-tracking window with day, week, and month views
 - Highlights the busiest days in week and month views and flags days that still have unallocated time for review
 - Supports exact-entry editing for reassignment, resizing, and splitting
@@ -284,13 +285,14 @@ Users can build a simple local travel history over time, revisit where they have
 
 ### Practical benefit
 
-Users can keep a simple local record of how awake work time was divided across projects, fix history later when needed, and export a clean monthly text summary quickly.
+Users can capture and assign work time with less friction by using the dashboard’s quick chips for the common cases, then fix history later when needed and export a clean monthly text summary quickly.
 
 ### Dependencies or setup
 
 - feature must be enabled in Settings
 - project buckets are user-defined and stored locally on the Mac
 - tracking counts only while the Mac is awake and Nomad Dashboard is running
+- non-production builds keep their own local time-tracking storage instead of sharing the live app’s storage
 
 ### Limitations
 
