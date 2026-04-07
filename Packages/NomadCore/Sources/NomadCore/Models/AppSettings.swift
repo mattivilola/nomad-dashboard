@@ -143,7 +143,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         let legacyHourlyForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherHourlyForecastExpanded) ?? false
         let legacyDailyForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherDailyForecastExpanded) ?? false
         weatherForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherForecastExpanded)
-            ?? (legacyHourlyForecastExpanded || legacyDailyForecastExpanded)
+            ?? (legacyHourlyForecastExpanded && legacyDailyForecastExpanded)
         fuelPricesEnabled = try container.decodeIfPresent(Bool.self, forKey: .fuelPricesEnabled) ?? false
         emergencyCareEnabled = try container.decodeIfPresent(Bool.self, forKey: .emergencyCareEnabled) ?? false
         visitedPlacesEnabled = try container.decodeIfPresent(Bool.self, forKey: .visitedPlacesEnabled) ?? false

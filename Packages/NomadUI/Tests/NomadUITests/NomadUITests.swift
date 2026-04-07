@@ -153,6 +153,34 @@ struct NomadUITests {
     }
 
     @Test
+    func timeTrackingDashboardQuickAllocateButtonsFillAvailableWidth() {
+        let layout = TimeTrackingDashboardActionButtonLayout.make(
+            isCompact: true,
+            fillsAvailableWidth: true
+        )
+
+        #expect(layout == TimeTrackingDashboardActionButtonLayout(
+            horizontalPadding: 10,
+            verticalPadding: 6,
+            fillsAvailableWidth: true
+        ))
+    }
+
+    @Test
+    func timeTrackingDashboardControlButtonsKeepIntrinsicWidth() {
+        let layout = TimeTrackingDashboardActionButtonLayout.make(
+            isCompact: false,
+            fillsAvailableWidth: false
+        )
+
+        #expect(layout == TimeTrackingDashboardActionButtonLayout(
+            horizontalPadding: 12,
+            verticalPadding: 7,
+            fillsAvailableWidth: false
+        ))
+    }
+
+    @Test
     func dashboardRefreshHeaderPresentationShowsManualRefreshStatus() {
         let presentation = DashboardRefreshHeaderPresentation(
             lastRefresh: .now.addingTimeInterval(-30),

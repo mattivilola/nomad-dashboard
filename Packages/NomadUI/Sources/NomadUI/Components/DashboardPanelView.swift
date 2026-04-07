@@ -1488,7 +1488,12 @@ public struct DashboardPanelView: View {
             allocateTimeTrackingAction(bucket)
         }
         .disabled(isEnabled == false)
-        .modifier(timeTrackingActionButtonModifier(role: .highlighted, isEnabled: isEnabled, isCompact: isCompact))
+        .modifier(timeTrackingActionButtonModifier(
+            role: .highlighted,
+            isEnabled: isEnabled,
+            isCompact: isCompact,
+            fillsAvailableWidth: true
+        ))
     }
 
     private func timeTrackingControlButton(title: String, action: @escaping () -> Void) -> some View {
@@ -1499,11 +1504,15 @@ public struct DashboardPanelView: View {
     private func timeTrackingActionButtonModifier(
         role: TimeTrackingDashboardActionRole,
         isEnabled: Bool,
-        isCompact: Bool = false
+        isCompact: Bool = false,
+        fillsAvailableWidth: Bool = false
     ) -> some ViewModifier {
         TimeTrackingDashboardActionButtonModifier(
             style: TimeTrackingDashboardActionButtonStyle.make(role: role, isEnabled: isEnabled),
-            isCompact: isCompact
+            layout: TimeTrackingDashboardActionButtonLayout.make(
+                isCompact: isCompact,
+                fillsAvailableWidth: fillsAvailableWidth
+            )
         )
     }
 
@@ -1566,17 +1575,42 @@ struct TimeTrackingDashboardActionButtonStyle: Equatable {
     }
 }
 
+struct TimeTrackingDashboardActionButtonLayout: Equatable {
+    let horizontalPadding: CGFloat
+    let verticalPadding: CGFloat
+    let fillsAvailableWidth: Bool
+
+    static func make(
+        isCompact: Bool,
+        fillsAvailableWidth: Bool
+    ) -> TimeTrackingDashboardActionButtonLayout {
+        TimeTrackingDashboardActionButtonLayout(
+            horizontalPadding: isCompact ? 10 : 12,
+            verticalPadding: isCompact ? 6 : 7,
+            fillsAvailableWidth: fillsAvailableWidth
+        )
+    }
+}
+
 private struct TimeTrackingDashboardActionButtonModifier: ViewModifier {
     let style: TimeTrackingDashboardActionButtonStyle
-    let isCompact: Bool
+    let layout: TimeTrackingDashboardActionButtonLayout
 
     func body(content: Content) -> some View {
+        if layout.fillsAvailableWidth {
+            decorated(content)
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else {
+            decorated(content)
+        }
+    }
+
+    private func decorated(_ content: Content) -> some View {
         content
             .font(.caption.weight(.semibold))
             .foregroundStyle(style.foreground)
-            .padding(.horizontal, isCompact ? 10 : 12)
-            .padding(.vertical, isCompact ? 6 : 7)
-            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, layout.horizontalPadding)
+            .padding(.vertical, layout.verticalPadding)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(style.background)

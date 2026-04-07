@@ -193,6 +193,51 @@ struct AppSettingsStoreTests {
 
         let decoded = try JSONDecoder().decode(AppSettings.self, from: payload)
 
+        #expect(decoded.weatherForecastExpanded == false)
+    }
+
+    @Test
+    func appSettingsDecodingKeepsUnifiedForecastExpandedWhenBothLegacyDisclosuresWereOpen() throws {
+        let payload = """
+        {
+          "appearanceMode": "system",
+          "dashboardCardOrder": ["travelContext", "connectivity", "power", "weather", "travelAlerts", "fuelPrices", "emergencyCare", "timeTracking"],
+          "dashboardCardWidthModes": {
+            "travelContext": "wide",
+            "connectivity": "wide",
+            "power": "wide",
+            "weather": "wide",
+            "travelAlerts": "wide",
+            "fuelPrices": "wide",
+            "emergencyCare": "wide",
+            "timeTracking": "wide"
+          },
+          "refreshIntervalSeconds": 2,
+          "slowRefreshIntervalSeconds": 60,
+          "historyRetentionHours": 24,
+          "publicIPGeolocationEnabled": true,
+          "shareAnonymousAnalytics": true,
+          "automaticUpdateChecksEnabled": true,
+          "launchAtLoginEnabled": false,
+          "useCurrentLocationForWeather": true,
+          "weatherHourlyForecastExpanded": true,
+          "weatherDailyForecastExpanded": true,
+          "fuelPricesEnabled": false,
+          "emergencyCareEnabled": false,
+          "visitedPlacesEnabled": true,
+          "travelAdvisoryEnabled": true,
+          "travelWeatherAlertsEnabled": false,
+          "regionalSecurityEnabled": false,
+          "projectTimeTrackingEnabled": false,
+          "timeTrackingProjects": [],
+          "tankerkonigAPIKey": "",
+          "surfSpotName": "",
+          "latencyHosts": ["1.1.1.1:443", "8.8.8.8:443"]
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: payload)
+
         #expect(decoded.weatherForecastExpanded == true)
     }
 
