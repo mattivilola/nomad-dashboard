@@ -193,7 +193,7 @@ struct AppSettingsStoreTests {
 
         let decoded = try JSONDecoder().decode(AppSettings.self, from: payload)
 
-        #expect(decoded.weatherForecastExpanded == false)
+        #expect(decoded.weatherForecastExpanded == true)
     }
 
     @Test
