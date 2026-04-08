@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.9.0] - 2026-04-08
+
+### Changed
+
+- Introduce interruption reporting and focus metrics for time tracking
+
 ## [0.8.0] - 2026-04-08
 
 ### Changed
