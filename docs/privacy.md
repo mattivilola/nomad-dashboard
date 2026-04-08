@@ -3,6 +3,7 @@
 - Weather uses device location when permission is granted.
 - External IP lookups use FreeIPAPI.
 - External IP location display is enabled by default for new installs and can be disabled in Settings.
+- Local price level uses official public datasets. Europe price signals use Eurostat country-level price indices, and US 1-bedroom rent uses HUD USER plus the US Census Geocoder when the user adds a HUD token and current location is available.
 - Project time tracking stores projects, exact time entries, and runtime tracking state locally on the Mac.
 - Dashboard quick-allocation chips for project time tracking are populated from that same local project and tracking data.
 - Project time tracking exports go only to the system clipboard when the user explicitly chooses to copy a monthly report.
@@ -11,6 +12,7 @@
 - Country-day history may estimate missing days between two known countries using surrounding captures.
 - Country-day year and month summaries can be copied to the clipboard as plain text when the user chooses to export them.
 - Travel advisory uses Smartraveller and is enabled by default.
+- Smartraveller advisory fetches use direct HTTPS requests first and may retry through a hidden WebKit-backed page load when the direct transport path stalls.
 - Weather alerts use WeatherKit and stay off until you enable them.
 - Regional security uses ReliefWeb and stays off until you enable it.
 - Advisory and regional security scope use the current country plus bordering countries when country context is available.

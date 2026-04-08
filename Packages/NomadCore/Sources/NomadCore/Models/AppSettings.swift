@@ -14,6 +14,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var launchAtLoginEnabled: Bool
     public var useCurrentLocationForWeather: Bool
     public var weatherForecastExpanded: Bool
+    public var localPriceLevelEnabled: Bool
     public var fuelPricesEnabled: Bool
     public var emergencyCareEnabled: Bool
     public var visitedPlacesEnabled: Bool
@@ -22,6 +23,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var regionalSecurityEnabled: Bool
     public var projectTimeTrackingEnabled: Bool
     public var timeTrackingProjects: [TimeTrackingProject]
+    public var hudUserAPIToken: String
     public var tankerkonigAPIKey: String
     public var surfSpotName: String
     public var surfSpotLatitude: Double?
@@ -41,6 +43,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         launchAtLoginEnabled: Bool = false,
         useCurrentLocationForWeather: Bool = true,
         weatherForecastExpanded: Bool = false,
+        localPriceLevelEnabled: Bool = false,
         fuelPricesEnabled: Bool = false,
         emergencyCareEnabled: Bool = false,
         visitedPlacesEnabled: Bool = true,
@@ -49,6 +52,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         regionalSecurityEnabled: Bool = false,
         projectTimeTrackingEnabled: Bool = false,
         timeTrackingProjects: [TimeTrackingProject] = [],
+        hudUserAPIToken: String = "",
         tankerkonigAPIKey: String = "",
         surfSpotName: String = "",
         surfSpotLatitude: Double? = nil,
@@ -67,6 +71,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.launchAtLoginEnabled = launchAtLoginEnabled
         self.useCurrentLocationForWeather = useCurrentLocationForWeather
         self.weatherForecastExpanded = weatherForecastExpanded
+        self.localPriceLevelEnabled = localPriceLevelEnabled
         self.fuelPricesEnabled = fuelPricesEnabled
         self.emergencyCareEnabled = emergencyCareEnabled
         self.visitedPlacesEnabled = visitedPlacesEnabled
@@ -75,6 +80,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.regionalSecurityEnabled = regionalSecurityEnabled
         self.projectTimeTrackingEnabled = projectTimeTrackingEnabled
         self.timeTrackingProjects = timeTrackingProjects
+        self.hudUserAPIToken = hudUserAPIToken
         self.tankerkonigAPIKey = tankerkonigAPIKey
         self.surfSpotName = surfSpotName
         self.surfSpotLatitude = surfSpotLatitude
@@ -97,6 +103,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case weatherForecastExpanded
         case weatherHourlyForecastExpanded
         case weatherDailyForecastExpanded
+        case localPriceLevelEnabled
         case fuelPricesEnabled
         case emergencyCareEnabled
         case visitedPlacesEnabled
@@ -105,6 +112,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case regionalSecurityEnabled
         case projectTimeTrackingEnabled
         case timeTrackingProjects
+        case hudUserAPIToken
         case tankerkonigAPIKey
         case surfSpotName
         case surfSpotLatitude
@@ -144,6 +152,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         let legacyDailyForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherDailyForecastExpanded) ?? false
         weatherForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherForecastExpanded)
             ?? (legacyHourlyForecastExpanded || legacyDailyForecastExpanded)
+        localPriceLevelEnabled = try container.decodeIfPresent(Bool.self, forKey: .localPriceLevelEnabled) ?? false
         fuelPricesEnabled = try container.decodeIfPresent(Bool.self, forKey: .fuelPricesEnabled) ?? false
         emergencyCareEnabled = try container.decodeIfPresent(Bool.self, forKey: .emergencyCareEnabled) ?? false
         visitedPlacesEnabled = try container.decodeIfPresent(Bool.self, forKey: .visitedPlacesEnabled) ?? false
@@ -152,6 +161,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         regionalSecurityEnabled = try container.decodeIfPresent(Bool.self, forKey: .regionalSecurityEnabled) ?? false
         projectTimeTrackingEnabled = try container.decodeIfPresent(Bool.self, forKey: .projectTimeTrackingEnabled) ?? false
         timeTrackingProjects = try container.decodeIfPresent([TimeTrackingProject].self, forKey: .timeTrackingProjects) ?? []
+        hudUserAPIToken = try container.decodeIfPresent(String.self, forKey: .hudUserAPIToken) ?? ""
         tankerkonigAPIKey = try container.decodeIfPresent(String.self, forKey: .tankerkonigAPIKey) ?? ""
         surfSpotName = try container.decodeIfPresent(String.self, forKey: .surfSpotName) ?? ""
         surfSpotLatitude = try container.decodeIfPresent(Double.self, forKey: .surfSpotLatitude)
@@ -178,6 +188,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encode(launchAtLoginEnabled, forKey: .launchAtLoginEnabled)
         try container.encode(useCurrentLocationForWeather, forKey: .useCurrentLocationForWeather)
         try container.encode(weatherForecastExpanded, forKey: .weatherForecastExpanded)
+        try container.encode(localPriceLevelEnabled, forKey: .localPriceLevelEnabled)
         try container.encode(fuelPricesEnabled, forKey: .fuelPricesEnabled)
         try container.encode(emergencyCareEnabled, forKey: .emergencyCareEnabled)
         try container.encode(visitedPlacesEnabled, forKey: .visitedPlacesEnabled)
@@ -186,6 +197,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encode(regionalSecurityEnabled, forKey: .regionalSecurityEnabled)
         try container.encode(projectTimeTrackingEnabled, forKey: .projectTimeTrackingEnabled)
         try container.encode(timeTrackingProjects, forKey: .timeTrackingProjects)
+        try container.encode(hudUserAPIToken, forKey: .hudUserAPIToken)
         try container.encode(tankerkonigAPIKey, forKey: .tankerkonigAPIKey)
         try container.encode(surfSpotName, forKey: .surfSpotName)
         try container.encodeIfPresent(surfSpotLatitude, forKey: .surfSpotLatitude)

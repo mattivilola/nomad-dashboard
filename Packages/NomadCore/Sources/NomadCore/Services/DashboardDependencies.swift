@@ -11,6 +11,7 @@ public struct DashboardDependencies: Sendable {
     public let publicIPLocationProvider: any PublicIPLocationProvider
     public let reverseGeocodingProvider: any ReverseGeocodingProvider
     public let weatherProvider: any WeatherProvider
+    public let localPriceLevelProvider: any LocalPriceLevelProvider
     public let fuelPriceProvider: any FuelPriceProvider
     public let emergencyCareProvider: any EmergencyCareProvider
     public let marineProvider: any MarineProvider
@@ -34,6 +35,7 @@ public struct DashboardDependencies: Sendable {
         publicIPLocationProvider: any PublicIPLocationProvider,
         reverseGeocodingProvider: any ReverseGeocodingProvider,
         weatherProvider: any WeatherProvider,
+        localPriceLevelProvider: any LocalPriceLevelProvider,
         fuelPriceProvider: any FuelPriceProvider,
         emergencyCareProvider: any EmergencyCareProvider,
         marineProvider: any MarineProvider,
@@ -56,6 +58,7 @@ public struct DashboardDependencies: Sendable {
         self.publicIPLocationProvider = publicIPLocationProvider
         self.reverseGeocodingProvider = reverseGeocodingProvider
         self.weatherProvider = weatherProvider
+        self.localPriceLevelProvider = localPriceLevelProvider
         self.fuelPriceProvider = fuelPriceProvider
         self.emergencyCareProvider = emergencyCareProvider
         self.marineProvider = marineProvider
@@ -74,7 +77,9 @@ public struct DashboardDependencies: Sendable {
         latencyHosts: [String] = ["1.1.1.1:443", "8.8.8.8:443"],
         historyRetentionHours: Int = 24,
         reliefWebAppName: String? = nil,
+        hudUserAPIToken: String? = nil,
         tankerkonigAPIKey: String? = nil,
+        smartravellerBrowserFetcher: (any SmartravellerBrowserFetcher)? = nil,
         updateCoordinator: any UpdateCoordinator
     ) -> DashboardDependencies {
         let latencyEndpoints = latencyHosts.compactMap(LatencyEndpoint.from(hostString:))
@@ -91,11 +96,14 @@ public struct DashboardDependencies: Sendable {
             publicIPLocationProvider: CachedIPLocationProvider(client: publicIPClient),
             reverseGeocodingProvider: CachedReverseGeocodingProvider(),
             weatherProvider: LiveWeatherProvider(),
+            localPriceLevelProvider: LiveLocalPriceLevelProvider(hudUserAPIToken: hudUserAPIToken),
             fuelPriceProvider: LiveEuropeanFuelPriceProvider(tankerkonigAPIKey: tankerkonigAPIKey),
             emergencyCareProvider: LiveEmergencyCareProvider(),
             marineProvider: LiveOpenMeteoMarineProvider(),
             neighborCountryResolver: BundledNeighborCountryResolver(),
-            travelAdvisoryProvider: SmartravellerAdvisoryProvider(),
+            travelAdvisoryProvider: SmartravellerAdvisoryProvider(
+                browserFetcher: smartravellerBrowserFetcher
+            ),
             travelWeatherAlertsProvider: WeatherKitAlertProvider(),
             regionalSecurityProvider: ReliefWebSecurityProvider(appName: reliefWebAppName),
             visitedPlacesStore: FileVisitedPlacesStore(

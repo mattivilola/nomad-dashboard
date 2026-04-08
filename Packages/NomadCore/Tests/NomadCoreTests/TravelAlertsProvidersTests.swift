@@ -3,6 +3,7 @@ import Foundation
 import Testing
 import WeatherKit
 
+@Suite(.serialized)
 struct TravelAlertsProvidersTests {
     @Test
     func bundledNeighborCountryResolverReturnsBundledBorders() {
@@ -46,6 +47,153 @@ struct TravelAlertsProvidersTests {
         #expect(signal.summary == "France is at Level 2 nearby.")
         #expect(signal.sourceURL?.absoluteString == "https://example.com/france")
         #expect(signal.affectedCountryCodes == ["FR"])
+    }
+
+    @Test
+    func advisoryProviderParsesLiveDestinationsHTML() throws {
+        let destinations = try SmartravellerAdvisoryProvider.parseDestinations(
+            from: Data(
+                """
+                <table>
+                  <tr>
+                    <th>Destination</th>
+                    <th>Updates</th>
+                    <th>Advice level</th>
+                    <th>Last updated</th>
+                  </tr>
+                  <tr>
+                    <td><a href="/destinations/france">France</a></td>
+                    <td>Advisory</td>
+                    <td>Exercise a high degree of caution</td>
+                    <td>07 Apr 2026</td>
+                  </tr>
+                </table>
+                """.utf8
+            ),
+            stage: "live destinations",
+            baseURL: URL(string: "https://www.smartraveller.gov.au/destinations")!
+        )
+
+        #expect(destinations.count == 1)
+        #expect(destinations.first?.name == "France")
+        #expect(destinations.first?.level == 2)
+        #expect(destinations.first?.url?.absoluteString == "https://www.smartraveller.gov.au/destinations/france")
+    }
+
+    @Test
+    func advisoryProviderFallsBackFromLiveDestinationsToExport() async throws {
+        let session = makeMockSession()
+        let provider = SmartravellerAdvisoryProvider(
+            session: session,
+            ttl: 0,
+            liveDestinationsURL: URL(string: "https://example.com/destinations")!,
+            exportURL: URL(string: "https://example.com/destinations-export")!,
+            requestTimeout: 1
+        )
+
+        MockTravelAlertsURLProtocol.handler = { request in
+            guard let url = request.url else {
+                throw ProviderError.invalidResponse
+            }
+
+            switch url.path {
+            case "/destinations":
+                throw URLError(.timedOut)
+            case "/destinations-export":
+                let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                let body = Data("""
+                [{"title":"France","advice_level":2,"url":"https://example.com/france","updated_at":"2026-04-07T10:00:00Z"}]
+                """.utf8)
+                return (body, response)
+            default:
+                throw ProviderError.invalidResponse
+            }
+        }
+
+        let signal = try await provider.advisory(for: ["ES", "FR"], primaryCountryCode: "ES", forceRefresh: true)
+
+        #expect(signal.severity == .caution)
+        #expect(signal.summary == "France is at Level 2 nearby.")
+        #expect(signal.sourceURL?.absoluteString == "https://example.com/france")
+    }
+
+    @Test
+    func advisoryProviderFallsBackToBrowserHTMLAfterDirectFailures() async throws {
+        let session = makeMockSession()
+        let provider = SmartravellerAdvisoryProvider(
+            session: session,
+            ttl: 0,
+            liveDestinationsURL: URL(string: "https://example.com/destinations")!,
+            exportURL: URL(string: "https://example.com/destinations-export")!,
+            browserFetcher: StubBrowserFetcher(
+                result: .success(
+                    """
+                    <table>
+                      <tr>
+                        <td><a href="/destinations/france">France</a></td>
+                        <td>Advisory</td>
+                        <td>Exercise a high degree of caution</td>
+                        <td>07 Apr 2026</td>
+                      </tr>
+                    </table>
+                    """
+                )
+            ),
+            requestTimeout: 1
+        )
+
+        MockTravelAlertsURLProtocol.handler = { request in
+            guard let url = request.url else {
+                throw ProviderError.invalidResponse
+            }
+
+            let response = HTTPURLResponse(url: url, statusCode: 503, httpVersion: nil, headerFields: nil)!
+            return (Data("upstream unavailable".utf8), response)
+        }
+
+        let signal = try await provider.advisory(for: ["ES", "FR"], primaryCountryCode: "ES", forceRefresh: true)
+
+        #expect(signal.severity == .caution)
+        #expect(signal.summary == "France is at Level 2 nearby.")
+        #expect(signal.sourceURL?.absoluteString == "https://www.smartraveller.gov.au/destinations/france")
+    }
+
+    @Test
+    func advisoryProviderMergesStageFailuresWhenAllFallbacksFail() async throws {
+        let session = makeMockSession()
+        let provider = SmartravellerAdvisoryProvider(
+            session: session,
+            ttl: 0,
+            liveDestinationsURL: URL(string: "https://example.com/destinations")!,
+            exportURL: URL(string: "https://example.com/destinations-export")!,
+            browserFetcher: StubBrowserFetcher(result: .failure(StubBrowserFetcherError(message: "Navigation failed"))),
+            requestTimeout: 1
+        )
+
+        MockTravelAlertsURLProtocol.handler = { request in
+            throw URLError(.timedOut)
+        }
+
+        do {
+            _ = try await provider.advisory(for: ["ES", "FR"], primaryCountryCode: "ES", forceRefresh: true)
+            Issue.record("Expected Smartraveller provider to fail after all fallbacks.")
+        } catch let error as SmartravellerProviderError {
+            #expect(error.diagnosticSummary == "Smartraveller request timed out.")
+            #expect(error.description.contains("live destinations"))
+            #expect(error.description.contains("destinations-export"))
+            #expect(error.description.contains("browser fallback"))
+        }
+    }
+
+    @Test
+    func smartravellerTimedOutRequestUsesExplicitDiagnosticSummary() {
+        let error = SmartravellerProviderError.requestFailed(
+            stage: "live destinations",
+            message: "The request timed out.",
+            code: .timedOut
+        )
+
+        #expect(error.diagnosticSummary == "Smartraveller request timed out.")
     }
 
     @Test
@@ -163,6 +311,22 @@ private func makeMockSession() -> URLSession {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.protocolClasses = [MockTravelAlertsURLProtocol.self]
     return URLSession(configuration: configuration)
+}
+
+private struct StubBrowserFetcher: SmartravellerBrowserFetcher {
+    let result: Result<String, Error>
+
+    func destinationsHTML() async throws -> String {
+        try result.get()
+    }
+}
+
+private struct StubBrowserFetcherError: Error {
+    let message: String
+
+    var localizedDescription: String {
+        message
+    }
 }
 
 private final class MockTravelAlertsURLProtocol: URLProtocol, @unchecked Sendable {

@@ -671,30 +671,51 @@ struct NomadUITests {
 
     @Test
     func travelAlertsPresentationShowsWarningSeverityForReadySignal() {
+        let updatedAt = fixedTravelAlertDate(day: 7)
         let presentation = TravelAlertsCardPresentation(
             preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: true, securityEnabled: false),
             snapshot: makeTravelAlertsSnapshot(
                 enabledKinds: [.advisory, .weather],
                 states: [
                     makeState(kind: .advisory, status: .ready, severity: .clear, summary: "No elevated advisories."),
-                    makeState(kind: .weather, status: .ready, severity: .warning, summary: "Flood warning in effect.", count: 2)
+                    makeState(
+                        kind: .weather,
+                        status: .ready,
+                        severity: .warning,
+                        summary: "Flood warning in effect.",
+                        count: 2,
+                        updatedAt: updatedAt
+                    )
                 ]
             )
         )
 
+        let row = presentation.rows.first(where: { $0.id == TravelAlertKind.weather })
         #expect(presentation.badge == TravelAlertsBadgePresentation.severity(.warning))
-        #expect(presentation.rows.first(where: { $0.id == TravelAlertKind.weather })?.summary == "Flood warning in effect.")
-        #expect(presentation.rows.first(where: { $0.id == TravelAlertKind.weather })?.count == 2)
+        #expect(row?.summary == "Flood warning in effect.")
+        #expect(row?.count == 2)
+        #expect(row?.statusLabel == "Warning")
+        #expect(row?.impactText == "Review before travel")
+        #expect(row?.freshnessText == "Updated 7 Apr")
+        #expect(row?.metadataText == "WeatherKit · Updated 7 Apr")
     }
 
     @Test
     func travelAlertsPresentationKeepsStaleRowVisible() {
+        let lastSuccessAt = fixedTravelAlertDate(day: 7)
         let presentation = TravelAlertsCardPresentation(
             preferences: TravelAlertPreferences(advisoryEnabled: false, weatherEnabled: true, securityEnabled: false),
             snapshot: makeTravelAlertsSnapshot(
                 enabledKinds: [.weather],
                 states: [
-                    makeState(kind: .weather, status: .stale, severity: .warning, summary: "Flood warning in effect.", count: 2)
+                    makeState(
+                        kind: .weather,
+                        status: .stale,
+                        severity: .warning,
+                        summary: "Flood warning in effect.",
+                        count: 2,
+                        lastSuccessAt: lastSuccessAt
+                    )
                 ]
             )
         )
@@ -702,7 +723,10 @@ struct NomadUITests {
         let row = presentation.rows.first
         #expect(presentation.badge == TravelAlertsBadgePresentation.severity(.warning))
         #expect(row?.status == TravelAlertSignalStatus.stale)
+        #expect(row?.statusLabel == "Stale")
+        #expect(row?.impactText == "Last known signal")
         #expect(row?.summary == "Last known: Flood warning in effect.")
+        #expect(row?.freshnessText == "Last good refresh 7 Apr")
     }
 
     @Test
@@ -730,6 +754,8 @@ struct NomadUITests {
         #expect(presentation.badge == TravelAlertsBadgePresentation.limited)
         #expect(row?.status == TravelAlertSignalStatus.unavailable)
         #expect(row?.summary == "Source setup required")
+        #expect(row?.statusLabel == "Unavailable")
+        #expect(row?.impactText == "Source issue")
         #expect(row?.sourceName == "ReliefWeb")
     }
 
@@ -1498,7 +1524,10 @@ private func makeState(
     severity: TravelAlertSeverity,
     summary: String,
     sourceName: String? = nil,
-    count: Int? = nil
+    count: Int? = nil,
+    updatedAt: Date = .now,
+    lastAttemptedAt: Date = .now,
+    lastSuccessAt: Date = .now
 ) -> TravelAlertSignalState {
     let defaultSourceName = switch kind {
     case .advisory:
@@ -1519,14 +1548,24 @@ private func makeState(
             summary: summary,
             sourceName: sourceName ?? defaultSourceName,
             sourceURL: nil,
-            updatedAt: .now,
+            updatedAt: updatedAt,
             affectedCountryCodes: ["ES"],
             itemCount: count
         ),
         reason: nil,
         sourceName: sourceName ?? defaultSourceName,
         sourceURL: nil,
-        lastAttemptedAt: .now,
-        lastSuccessAt: .now
+        lastAttemptedAt: lastAttemptedAt,
+        lastSuccessAt: lastSuccessAt
     )
+}
+
+private func fixedTravelAlertDate(day: Int) -> Date {
+    var components = DateComponents()
+    components.calendar = Calendar(identifier: .gregorian)
+    components.timeZone = TimeZone(secondsFromGMT: 0)
+    components.year = 2026
+    components.month = 4
+    components.day = day
+    return components.date ?? .now
 }

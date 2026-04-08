@@ -65,6 +65,86 @@ enum ReliefWebProviderError: Error, Equatable, TravelAlertDiagnosticError, Custo
     }
 }
 
+enum SmartravellerProviderError: Error, Equatable, TravelAlertDiagnosticError, CustomStringConvertible {
+    case requestFailed(stage: String, message: String, code: URLError.Code?)
+    case unexpectedStatus(stage: String, statusCode: Int, bodySnippet: String?)
+    case invalidPayload(stage: String, message: String)
+    case allStagesFailed([SmartravellerStageFailure])
+
+    var diagnosticSummary: String {
+        switch self {
+        case let .requestFailed(_, _, code):
+            switch code {
+            case .notConnectedToInternet:
+                return "Smartraveller request failed: no internet connection."
+            case .timedOut:
+                return "Smartraveller request timed out."
+            case .cannotFindHost, .cannotConnectToHost, .networkConnectionLost, .dnsLookupFailed:
+                return "Smartraveller could not be reached."
+            default:
+                return "Smartraveller request failed before a response was received."
+            }
+        case let .unexpectedStatus(_, statusCode, _):
+            return "Smartraveller returned HTTP \(statusCode)."
+        case .invalidPayload:
+            return "Smartraveller response format changed."
+        case let .allStagesFailed(failures):
+            if let firstUnexpectedStatus = failures.first(where: { failure in
+                if case .unexpectedStatus = failure.kind {
+                    return true
+                }
+
+                return false
+            }),
+               case let .unexpectedStatus(statusCode) = firstUnexpectedStatus.kind
+            {
+                return "Smartraveller returned HTTP \(statusCode)."
+            }
+
+            if failures.isEmpty == false, failures.allSatisfy({ failure in
+                if case .invalidPayload = failure.kind {
+                    return true
+                }
+
+                return false
+            }) {
+                return "Smartraveller response format changed."
+            }
+
+            if failures.contains(where: { failure in
+                if case .requestFailed(.timedOut) = failure.kind {
+                    return true
+                }
+
+                return false
+            }) {
+                return "Smartraveller request timed out."
+            }
+
+            return "Smartraveller could not be reached."
+        }
+    }
+
+    var description: String {
+        switch self {
+        case let .requestFailed(stage, message, _):
+            "Smartraveller \(stage) request failed: \(message)"
+        case let .unexpectedStatus(stage, statusCode, bodySnippet):
+            if let bodySnippet, bodySnippet.isEmpty == false {
+                "Smartraveller \(stage) returned HTTP \(statusCode). Body snippet: \(bodySnippet)"
+            } else {
+                "Smartraveller \(stage) returned HTTP \(statusCode)."
+            }
+        case let .invalidPayload(stage, message):
+            "Smartraveller \(stage) response format changed: \(message)"
+        case let .allStagesFailed(failures):
+            failures
+                .map { "\($0.stage): \($0.description)" }
+                .joined(separator: " | ")
+        }
+    }
+}
+
 public struct BundledNeighborCountryResolver: NeighborCountryResolver {
     private let bordersByCountry: [String: [String]]
 
@@ -100,19 +180,28 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
 
     private let session: URLSession
     private let ttl: TimeInterval
-    private let endpoint: URL
+    private let liveDestinationsURL: URL
+    private let exportURL: URL
+    private let browserFetcher: (any SmartravellerBrowserFetcher)?
+    private let requestTimeout: TimeInterval
     private let countryNameResolver: CountryNameResolver
     private var cache: (fetchedAt: Date, destinations: [SmartravellerDestination])?
 
     public init(
         session: URLSession = .shared,
         ttl: TimeInterval = 43_200,
-        endpoint: URL = URL(string: "https://www.smartraveller.gov.au/destinations-export")!
+        liveDestinationsURL: URL = URL(string: "https://www.smartraveller.gov.au/destinations")!,
+        exportURL: URL = URL(string: "https://www.smartraveller.gov.au/destinations-export")!,
+        browserFetcher: (any SmartravellerBrowserFetcher)? = nil,
+        requestTimeout: TimeInterval = 12
     ) {
         self.init(
             session: session,
             ttl: ttl,
-            endpoint: endpoint,
+            liveDestinationsURL: liveDestinationsURL,
+            exportURL: exportURL,
+            browserFetcher: browserFetcher,
+            requestTimeout: requestTimeout,
             countryNameResolver: CountryNameResolver()
         )
     }
@@ -120,12 +209,18 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
     init(
         session: URLSession,
         ttl: TimeInterval,
-        endpoint: URL,
+        liveDestinationsURL: URL,
+        exportURL: URL,
+        browserFetcher: (any SmartravellerBrowserFetcher)?,
+        requestTimeout: TimeInterval,
         countryNameResolver: CountryNameResolver
     ) {
         self.session = session
         self.ttl = ttl
-        self.endpoint = endpoint
+        self.liveDestinationsURL = liveDestinationsURL
+        self.exportURL = exportURL
+        self.browserFetcher = browserFetcher
+        self.requestTimeout = requestTimeout
         self.countryNameResolver = countryNameResolver
     }
 
@@ -170,14 +265,46 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
             return cache.destinations
         }
 
-        let (data, response) = try await session.data(from: endpoint)
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw ProviderError.invalidResponse
+        var failures = [SmartravellerStageFailure]()
+
+        do {
+            let destinations = try await fetchDirectDestinations(
+                stage: "live destinations",
+                url: liveDestinationsURL
+            )
+            cache = (Date(), destinations)
+            return destinations
+        } catch let error as SmartravellerProviderError {
+            failures.append(error.stageFailure)
         }
 
-        let destinations = try Self.parseDestinations(from: data)
-        cache = (Date(), destinations)
-        return destinations
+        do {
+            let destinations = try await fetchDirectDestinations(
+                stage: "destinations-export",
+                url: exportURL
+            )
+            cache = (Date(), destinations)
+            return destinations
+        } catch let error as SmartravellerProviderError {
+            failures.append(error.stageFailure)
+        }
+
+        if let browserFetcher {
+            do {
+                let rawHTML = try await browserFetcher.destinationsHTML()
+                let destinations = try Self.parseDestinations(
+                    from: Data(rawHTML.utf8),
+                    stage: "browser fallback",
+                    baseURL: sourceDescriptor.url ?? liveDestinationsURL
+                )
+                cache = (Date(), destinations)
+                return destinations
+            } catch {
+                failures.append(Self.stageFailure(for: error, stage: "browser fallback"))
+            }
+        }
+
+        throw SmartravellerProviderError.allStagesFailed(failures)
     }
 
     static func signal(from matches: [AdvisoryMatch], primaryCountryCode: String, now: Date) throws -> TravelAlertSignalSnapshot {
@@ -216,7 +343,94 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
     }
 
     static func parseDestinations(from data: Data) throws -> [SmartravellerDestination] {
-        let rootObject = try JSONSerialization.jsonObject(with: data)
+        try parseDestinations(
+            from: data,
+            stage: "response",
+            baseURL: URL(string: "https://www.smartraveller.gov.au")!
+        )
+    }
+
+    static func parseDestinations(
+        from data: Data,
+        stage: String,
+        baseURL: URL
+    ) throws -> [SmartravellerDestination] {
+        guard let rawBody = String(data: data, encoding: .utf8) else {
+            throw SmartravellerProviderError.invalidPayload(
+                stage: stage,
+                message: "Response body was not valid UTF-8 text."
+            )
+        }
+
+        let trimmedBody = rawBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedBody.isEmpty == false else {
+            throw SmartravellerProviderError.invalidPayload(
+                stage: stage,
+                message: "Smartraveller returned an empty response body."
+            )
+        }
+
+        if trimmedBody.first == "{" || trimmedBody.first == "[" {
+            return try parseDestinationsJSON(from: data, stage: stage)
+        }
+
+        return try parseDestinationsHTML(from: trimmedBody, stage: stage, baseURL: baseURL)
+    }
+
+    private func fetchDirectDestinations(stage: String, url: URL) async throws -> [SmartravellerDestination] {
+        var request = URLRequest(
+            url: url,
+            cachePolicy: .reloadIgnoringLocalAndRemoteCacheData,
+            timeoutInterval: requestTimeout
+        )
+        request.setValue("NomadDashboard/1.0", forHTTPHeaderField: "User-Agent")
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as URLError {
+            throw SmartravellerProviderError.requestFailed(
+                stage: stage,
+                message: error.localizedDescription,
+                code: error.code
+            )
+        } catch {
+            throw SmartravellerProviderError.requestFailed(
+                stage: stage,
+                message: error.localizedDescription,
+                code: nil
+            )
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SmartravellerProviderError.invalidPayload(
+                stage: stage,
+                message: "Response was not an HTTP response."
+            )
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw SmartravellerProviderError.unexpectedStatus(
+                stage: stage,
+                statusCode: httpResponse.statusCode,
+                bodySnippet: Self.responseSnippet(from: data)
+            )
+        }
+
+        return try Self.parseDestinations(from: data, stage: stage, baseURL: url)
+    }
+
+    private static func parseDestinationsJSON(from data: Data, stage: String) throws -> [SmartravellerDestination] {
+        let rootObject: Any
+        do {
+            rootObject = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw SmartravellerProviderError.invalidPayload(
+                stage: stage,
+                message: "Response body was not valid JSON."
+            )
+        }
 
         let rawItems: [Any] = if let array = rootObject as? [Any] {
             array
@@ -246,7 +460,81 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
         }
 
         guard destinations.isEmpty == false else {
-            throw ProviderError.invalidResponse
+            throw SmartravellerProviderError.invalidPayload(
+                stage: stage,
+                message: "Smartraveller returned no parseable destinations."
+            )
+        }
+
+        return destinations
+    }
+
+    private static func parseDestinationsHTML(
+        from rawBody: String,
+        stage: String,
+        baseURL: URL
+    ) throws -> [SmartravellerDestination] {
+        let rowPattern = try NSRegularExpression(
+            pattern: #"<tr\b[^>]*>(.*?)</tr>"#,
+            options: [.caseInsensitive, .dotMatchesLineSeparators]
+        )
+        let cellPattern = try NSRegularExpression(
+            pattern: #"<t[hd]\b[^>]*>(.*?)</t[hd]>"#,
+            options: [.caseInsensitive, .dotMatchesLineSeparators]
+        )
+        let hrefPattern = try NSRegularExpression(
+            pattern: #"<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>"#,
+            options: [.caseInsensitive, .dotMatchesLineSeparators]
+        )
+
+        let destinations = rowPattern.matches(in: rawBody, range: NSRange(rawBody.startIndex..., in: rawBody)).compactMap { rowMatch -> SmartravellerDestination? in
+            guard let rowRange = Range(rowMatch.range(at: 1), in: rawBody) else {
+                return nil
+            }
+
+            let rowHTML = String(rawBody[rowRange])
+            let cells = cellPattern.matches(in: rowHTML, range: NSRange(rowHTML.startIndex..., in: rowHTML)).compactMap { cellMatch -> String? in
+                guard let cellRange = Range(cellMatch.range(at: 1), in: rowHTML) else {
+                    return nil
+                }
+
+                return String(rowHTML[cellRange])
+            }
+
+            guard cells.count >= 4 else {
+                return nil
+            }
+
+            let name = htmlTextContent(from: cells[0])
+            guard name.isEmpty == false, name.caseInsensitiveCompare("Destination") != .orderedSame else {
+                return nil
+            }
+
+            guard let level = levelFromAdviceText(htmlTextContent(from: cells[2])) else {
+                return nil
+            }
+
+            let updatedAt = parseSmartravellerDate(htmlTextContent(from: cells[3]))
+            let url = hrefPattern
+                .firstMatch(in: cells[0], range: NSRange(cells[0].startIndex..., in: cells[0]))
+                .flatMap { match in Range(match.range(at: 1), in: cells[0]) }
+                .map { String(cells[0][$0]) }
+                .flatMap { href -> URL? in
+                    guard href.isEmpty == false else {
+                        return nil
+                    }
+
+                    return URL(string: href, relativeTo: baseURL)?.absoluteURL
+                }
+
+            return SmartravellerDestination(name: name, level: level, url: url, updatedAt: updatedAt)
+        }
+
+        guard destinations.isEmpty == false else {
+            throw SmartravellerProviderError.invalidPayload(
+                stage: stage,
+                message: "Smartraveller destinations page contained no parseable advisory rows."
+            )
         }
 
         return destinations
@@ -286,6 +574,38 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
         }
 
         return parseISO8601Date(value)
+    }
+
+    private static func responseSnippet(from data: Data) -> String? {
+        guard
+            let text = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+            text.isEmpty == false
+        else {
+            return nil
+        }
+
+        return String(text.prefix(160))
+    }
+
+    private static func stageFailure(for error: Error, stage: String) -> SmartravellerStageFailure {
+        if let error = error as? SmartravellerProviderError {
+            return error.stageFailure
+        }
+
+        if let urlError = error as? URLError {
+            return SmartravellerStageFailure(
+                stage: stage,
+                kind: .requestFailed(urlError.code),
+                description: urlError.localizedDescription
+            )
+        }
+
+        return SmartravellerStageFailure(
+            stage: stage,
+            kind: .requestFailed(nil),
+            description: error.localizedDescription
+        )
     }
 
     private static func normalizedCountryCodes(_ countryCodes: [String]) -> [String] {
@@ -775,6 +1095,18 @@ struct SmartravellerDestination {
     }
 }
 
+struct SmartravellerStageFailure: Equatable {
+    let stage: String
+    let kind: SmartravellerStageFailureKind
+    let description: String
+}
+
+enum SmartravellerStageFailureKind: Equatable {
+    case requestFailed(URLError.Code?)
+    case unexpectedStatus(Int)
+    case invalidPayload
+}
+
 private struct CountryBorderRecord: Decodable {
     let cca2: String
     let borders: [String]
@@ -819,4 +1151,86 @@ private func parseISO8601Date(_ value: String) -> Date? {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime]
     return formatter.date(from: value)
+}
+
+private func parseSmartravellerDate(_ value: String) -> Date? {
+    if let date = parseISO8601Date(value) {
+        return date
+    }
+
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(secondsFromGMT: 0)
+    formatter.dateFormat = "dd MMM yyyy"
+    return formatter.date(from: value.trimmingCharacters(in: .whitespacesAndNewlines))
+}
+
+private func levelFromAdviceText(_ value: String) -> Int? {
+    let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    switch normalized {
+    case let text where text.contains("do not travel"):
+        return 4
+    case let text where text.contains("reconsider your need to travel"):
+        return 3
+    case let text where text.contains("exercise a high degree of caution"):
+        return 2
+    case let text where text.contains("exercise normal safety precautions"):
+        return 1
+    default:
+        return nil
+    }
+}
+
+private func htmlTextContent(from html: String) -> String {
+    let stripped = html.replacingOccurrences(
+        of: #"<[^>]+>"#,
+        with: " ",
+        options: .regularExpression
+    )
+
+    return decodeHTMLEntities(stripped)
+        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+private func decodeHTMLEntities(_ value: String) -> String {
+    value
+        .replacingOccurrences(of: "&nbsp;", with: " ")
+        .replacingOccurrences(of: "&amp;", with: "&")
+        .replacingOccurrences(of: "&quot;", with: "\"")
+        .replacingOccurrences(of: "&#39;", with: "'")
+        .replacingOccurrences(of: "&apos;", with: "'")
+        .replacingOccurrences(of: "&lt;", with: "<")
+        .replacingOccurrences(of: "&gt;", with: ">")
+}
+
+private extension SmartravellerProviderError {
+    var stageFailure: SmartravellerStageFailure {
+        switch self {
+        case let .requestFailed(stage, message, code):
+            SmartravellerStageFailure(
+                stage: stage,
+                kind: .requestFailed(code),
+                description: message
+            )
+        case let .unexpectedStatus(stage, statusCode, bodySnippet):
+            SmartravellerStageFailure(
+                stage: stage,
+                kind: .unexpectedStatus(statusCode),
+                description: bodySnippet.map { "HTTP \(statusCode). Body snippet: \($0)" } ?? "HTTP \(statusCode)."
+            )
+        case let .invalidPayload(stage, message):
+            SmartravellerStageFailure(
+                stage: stage,
+                kind: .invalidPayload,
+                description: message
+            )
+        case let .allStagesFailed(failures):
+            failures.last ?? SmartravellerStageFailure(
+                stage: "unknown",
+                kind: .requestFailed(nil),
+                description: "Unknown Smartraveller failure."
+            )
+        }
+    }
 }

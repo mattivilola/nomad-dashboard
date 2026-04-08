@@ -1,6 +1,17 @@
 import Foundation
 
 public enum AppRuntimeConfiguration {
+    public static func resolveHUDUserAPIToken(
+        userSetting: String,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> String? {
+        if let environmentValue = trimmed(environment["HUDUSER_API_TOKEN"]) {
+            return environmentValue
+        }
+
+        return trimmed(userSetting)
+    }
+
     public static func resolveTankerkonigAPIKey(
         userSetting: String,
         environment: [String: String] = ProcessInfo.processInfo.environment

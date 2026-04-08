@@ -6,7 +6,7 @@ Nomad Dashboard is a native macOS menu bar app for digital nomads, remote worker
 
 ## Positioning
 
-Nomad Dashboard turns a MacBook into a compact travel instrument panel. It keeps the signals that matter close at hand in the menu bar: connection quality, internet reachability, power state, travel context, weather, local project time tracking, and optional travel-oriented tools such as alerts, nearby fuel prices, emergency hospitals, surf conditions, and visited places.
+Nomad Dashboard turns a MacBook into a compact travel instrument panel. It keeps the signals that matter close at hand in the menu bar: connection quality, internet reachability, power state, travel context, weather, local project time tracking, and optional travel-oriented tools such as alerts, local price-level context, nearby fuel prices, emergency hospitals, surf conditions, and visited places.
 
 The product should be positioned as:
 
@@ -84,6 +84,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Confirming public IP, network-detected location, time zone, Wi-Fi context, and VPN state
 - Reviewing current weather, wind, and the upcoming unified forecast before moving between locations
 - Surfacing optional travel alerts and regional context while on the move
+- Checking whether local prices feel cheap, medium, or expensive before settling in
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
 - Tracking visited places locally on the Mac, with country-day summaries by year and month
 - Tracking awake work time locally on the Mac, then assigning it from the dashboard with quick project chips before reviewing day, week, and month summaries
@@ -148,6 +149,7 @@ Marketing copy can safely say:
 - Some features use device location only when enabled
 - External IP location display can be turned off
 - Several travel modules are optional
+- Local price level uses official public datasets and can stay limited to country fallback data where exact local sources are not available
 - Project time tracking stays local to the Mac and can be turned off entirely
 - Development builds keep separate local time-tracking storage from the live app
 - Anonymous analytics are privacy-conscious and configurable in-app, with some install and reach estimation events always collected
