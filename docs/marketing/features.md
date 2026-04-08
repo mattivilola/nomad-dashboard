@@ -6,7 +6,7 @@ Use it to describe what Nomad Dashboard currently does, who each capability help
 
 ## Product-Level Summary
 
-Nomad Dashboard is a native macOS menu bar app that aggregates travel-relevant and work-relevant signals into one compact dashboard. Its current shipped scope covers connectivity, power, travel context, weather, local project time tracking, and several optional travel-aware modules.
+Nomad Dashboard is a native macOS menu bar app that aggregates travel-relevant and work-relevant signals into one compact dashboard. Its current shipped scope covers connectivity, power, travel context, weather, local project time tracking, and several optional travel-aware modules including local price-level context.
 
 ## Connectivity And Internet Readiness
 
@@ -128,6 +128,7 @@ Users can make quick practical decisions about wind, rain risk, the next few hou
 
 - Aggregates optional travel-oriented alert signals into one condensed card
 - Supports travel advisory, weather alerts, and regional security context
+- Uses the live Smartraveller destinations page first, falls back to `destinations-export`, and can retry through a hidden WebKit fetch when direct transport stalls
 - Keeps the dashboard compact by summarizing status rather than becoming a full alert center
 
 ### Who it helps
@@ -150,6 +151,37 @@ Users can notice higher-level advisory or environmental signals without doing a 
 
 - this is a compact summary layer, not a full travel risk management product
 - source coverage and freshness depend on upstream providers
+
+## Local Price Level
+
+### What it does
+
+- Can show a compact local price-level card for travelers
+- Uses official country-level Eurostat price indices for European meal-out, groceries, and overall local cost context
+- Can show a US 1-bedroom rent benchmark from HUD USER when the user adds a HUD API token
+- Keeps source attribution visible and labels each signal as a country fallback, county benchmark, or metro benchmark
+
+### Who it helps
+
+- frequent travelers comparing day-to-day cost differences between countries
+- digital nomads deciding whether a stop feels cheap, medium, or expensive
+- longer-stay travelers who want a rough rent anchor without leaving the dashboard
+
+### Practical benefit
+
+Users can get a quick sense of local meal, grocery, and rent pressure without opening separate cost-of-living or housing tools.
+
+### Dependencies or setup
+
+- Europe price-level signals work from location context and official Eurostat data
+- US 1-bedroom rent requires a user-supplied HUD USER API token
+- US rent benchmarks use current location to resolve the county through the US Census Geocoder
+
+### Region Or Build Limitations
+
+- Europe currently uses country-level fallback data, not city-level venue prices
+- US v1 currently focuses on the HUD 1-bedroom rent benchmark rather than a full meal-and-groceries set
+- countries outside Europe and the United States are not supported in v1
 
 ## Nearby Fuel Prices
 

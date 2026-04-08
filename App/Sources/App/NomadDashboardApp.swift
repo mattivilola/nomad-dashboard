@@ -33,9 +33,13 @@ struct NomadDashboardApp: App {
             latencyHosts: persistedSettings.latencyHosts,
             historyRetentionHours: persistedSettings.historyRetentionHours,
             reliefWebAppName: reliefWebAppName(),
+            hudUserAPIToken: AppRuntimeConfiguration.resolveHUDUserAPIToken(
+                userSetting: persistedSettings.hudUserAPIToken
+            ),
             tankerkonigAPIKey: AppRuntimeConfiguration.resolveTankerkonigAPIKey(
                 userSetting: persistedSettings.tankerkonigAPIKey
             ),
+            smartravellerBrowserFetcher: WebKitSmartravellerBrowserFetcher(),
             updateCoordinator: updateCoordinator
         )
         let launchAtLoginController = LaunchAtLoginController(initialEnabled: persistedSettings.launchAtLoginEnabled)

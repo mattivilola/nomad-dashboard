@@ -59,8 +59,16 @@ public protocol EmergencyCareProvider: Sendable {
     func nearbyHospitals(for request: EmergencyCareSearchRequest, forceRefresh: Bool) async throws -> EmergencyCareSnapshot
 }
 
+public protocol LocalPriceLevelProvider: Sendable {
+    func prices(for request: LocalPriceSearchRequest, forceRefresh: Bool) async throws -> LocalPriceLevelSnapshot
+}
+
 public protocol FuelPriceProviderConfigurationUpdating: Sendable {
     func setTankerkonigAPIKey(_ apiKey: String?) async
+}
+
+public protocol LocalPriceLevelProviderConfigurationUpdating: Sendable {
+    func setHUDUserAPIToken(_ token: String?) async
 }
 
 public protocol MarineProvider: Sendable {
@@ -74,6 +82,10 @@ public protocol NeighborCountryResolver: Sendable {
 public protocol TravelAdvisoryProvider: Sendable {
     var sourceDescriptor: TravelAlertSourceDescriptor { get }
     func advisory(for countryCodes: [String], primaryCountryCode: String, forceRefresh: Bool) async throws -> TravelAlertSignalSnapshot
+}
+
+public protocol SmartravellerBrowserFetcher: Sendable {
+    func destinationsHTML() async throws -> String
 }
 
 public protocol TravelWeatherAlertsProvider: Sendable {

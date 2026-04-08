@@ -464,6 +464,48 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func refreshLoadsLocalPriceLevelFromProvider() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.localPriceLevelEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let dependencies = makeDependencies(historyStore: InMemoryHistoryStore())
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.localPriceLevel?.status == .ready)
+        #expect(store.snapshot.localPriceLevel?.summaryBand == .medium)
+        #expect(store.snapshot.localPriceLevel?.rows.map(\.kind) == [.mealOut, .groceries, .overall])
+    }
+
+    @Test
+    func refreshUpdatesLocalPriceProviderConfigurationWhenHUDTokenChanges() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.localPriceLevelEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let localPriceProvider = RecordingConfigurableLocalPriceLevelProvider()
+        let dependencies = makeDependencies(
+            localPriceLevelProvider: localPriceProvider,
+            historyStore: InMemoryHistoryStore()
+        )
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+
+        await store.refresh(manual: true)
+        #expect(store.snapshot.localPriceLevel?.status == .configurationRequired)
+
+        settingsStore.settings.hudUserAPIToken = "hud-token-123"
+
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(await localPriceProvider.latestConfiguredToken() == "hud-token-123")
+        #expect(store.snapshot.localPriceLevel?.status == .partial)
+        #expect(store.snapshot.localPriceLevel?.rows.first?.kind == .rentOneBedroom)
+    }
+
+    @Test
     func refreshLoadsFuelPricesForSupportedCurrentCountry() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.fuelPricesEnabled = true
@@ -1171,6 +1213,7 @@ private func makeDependencies(
     publicIPLocationProvider: any PublicIPLocationProvider = FixedLocationProvider(),
     reverseGeocodingProvider: any ReverseGeocodingProvider = FixedReverseGeocodingProvider(),
     weatherProvider: any WeatherProvider = FixedWeatherProvider(),
+    localPriceLevelProvider: any LocalPriceLevelProvider = FixedLocalPriceLevelProvider(),
     fuelPriceProvider: any FuelPriceProvider = FixedFuelPriceProvider(),
     emergencyCareProvider: any EmergencyCareProvider = FixedEmergencyCareProvider(),
     marineProvider: any MarineProvider = FixedMarineProvider(),
@@ -1194,6 +1237,7 @@ private func makeDependencies(
         publicIPLocationProvider: publicIPLocationProvider,
         reverseGeocodingProvider: reverseGeocodingProvider,
         weatherProvider: weatherProvider,
+        localPriceLevelProvider: localPriceLevelProvider,
         fuelPriceProvider: fuelPriceProvider,
         emergencyCareProvider: emergencyCareProvider,
         marineProvider: marineProvider,
@@ -1580,6 +1624,96 @@ private struct FixedNeighborCountryResolver: NeighborCountryResolver {
         default:
             []
         }
+    }
+}
+
+private struct FixedLocalPriceLevelProvider: LocalPriceLevelProvider {
+    func prices(for request: LocalPriceSearchRequest, forceRefresh: Bool) async throws -> LocalPriceLevelSnapshot {
+        LocalPriceLevelSnapshot(
+            status: .ready,
+            summaryBand: .medium,
+            countryCode: request.countryCode,
+            countryName: request.countryName,
+            rows: [
+                LocalPriceIndicatorRow(
+                    kind: .mealOut,
+                    value: "Moderate",
+                    detail: "4% below EU average · Country fallback · 2024",
+                    precision: .countryFallback,
+                    source: LocalPriceSourceAttribution(name: "Eurostat", url: URL(string: "https://ec.europa.eu"))
+                ),
+                LocalPriceIndicatorRow(
+                    kind: .groceries,
+                    value: "Moderate",
+                    detail: "4% below EU average · Country fallback · 2024",
+                    precision: .countryFallback,
+                    source: LocalPriceSourceAttribution(name: "Eurostat", url: URL(string: "https://ec.europa.eu"))
+                ),
+                LocalPriceIndicatorRow(
+                    kind: .overall,
+                    value: "Moderate",
+                    detail: "1% below EU average · Country fallback · 2024",
+                    precision: .countryFallback,
+                    source: LocalPriceSourceAttribution(name: "Eurostat", url: URL(string: "https://ec.europa.eu"))
+                )
+            ],
+            sources: [
+                LocalPriceSourceAttribution(name: "Eurostat", url: URL(string: "https://ec.europa.eu"))
+            ],
+            fetchedAt: Date(),
+            detail: "Country fallback snapshot.",
+            note: nil
+        )
+    }
+}
+
+private actor RecordingConfigurableLocalPriceLevelProvider: LocalPriceLevelProvider, LocalPriceLevelProviderConfigurationUpdating {
+    private var configuredToken: String?
+
+    func prices(for request: LocalPriceSearchRequest, forceRefresh: Bool) async throws -> LocalPriceLevelSnapshot {
+        if configuredToken == nil {
+            return LocalPriceLevelSnapshot(
+                status: .configurationRequired,
+                summaryBand: nil,
+                countryCode: "US",
+                countryName: "United States",
+                rows: [],
+                sources: [],
+                fetchedAt: nil,
+                detail: "Add a HUD token.",
+                note: nil
+            )
+        }
+
+        return LocalPriceLevelSnapshot(
+            status: .partial,
+            summaryBand: .limited,
+            countryCode: "US",
+            countryName: "United States",
+            rows: [
+                LocalPriceIndicatorRow(
+                    kind: .rentOneBedroom,
+                    value: "$1,900/mo",
+                    detail: "Metro benchmark · Seattle metro · 2024",
+                    precision: .metroBenchmark,
+                    source: LocalPriceSourceAttribution(name: "HUD USER", url: URL(string: "https://www.huduser.gov"))
+                )
+            ],
+            sources: [
+                LocalPriceSourceAttribution(name: "HUD USER", url: URL(string: "https://www.huduser.gov"))
+            ],
+            fetchedAt: Date(),
+            detail: "US rent-only snapshot.",
+            note: nil
+        )
+    }
+
+    func setHUDUserAPIToken(_ token: String?) async {
+        configuredToken = token
+    }
+
+    func latestConfiguredToken() async -> String? {
+        configuredToken
     }
 }
 

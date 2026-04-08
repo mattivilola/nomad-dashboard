@@ -20,6 +20,14 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.8.0] - 2026-04-08
+
+### Changed
+
+- Refine weather forecast expansion migration and expand quick allocate buttons
+- Correct weather forecast expansion migration logic
+- Introduce local price level and enhance travel advisory fetching
+
 ## [0.7.0] - 2026-04-02
 
 ### Changed

@@ -365,6 +365,8 @@ public struct DashboardPanelView: View {
             timeTrackingSection(widthMode: widthMode)
         case .travelContext:
             travelSection(widthMode: widthMode)
+        case .localPriceLevel:
+            localPriceLevelSection(widthMode: widthMode)
         case .fuelPrices:
             fuelPricesSection(widthMode: widthMode, viewportHeight: viewportHeight)
         case .emergencyCare:
@@ -914,6 +916,15 @@ public struct DashboardPanelView: View {
         )
     }
 
+    private func localPriceLevelSection(widthMode: DashboardCardWidthMode) -> some View {
+        LocalPriceLevelSectionView(
+            presentation: localPriceLevelSectionPresentation,
+            widthMode: widthMode,
+            accessory: cardControls(for: .localPriceLevel, title: "Local Price Level"),
+            openSettingsAction: openSettingsAction
+        )
+    }
+
     private func emergencyCareSection(widthMode: DashboardCardWidthMode) -> some View {
         EmergencyCareSectionView(
             presentation: emergencyCareSectionPresentation,
@@ -956,43 +967,11 @@ public struct DashboardPanelView: View {
                 )
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    if widthMode == .narrow {
-                        ForEach(compactTravelAlertRows) { row in
-                            switch row {
-                            case let .alert(alertRow):
-                                CompactAlertRow(
-                                    title: alertRow.title,
-                                    summary: alertRow.summary,
-                                    sourceName: alertRow.sourceName,
-                                    count: alertRow.count,
-                                    tint: alertRow.tint,
-                                    symbolName: alertRow.symbolName,
-                                    isCompact: true
-                                )
-                            case let .overflow(count):
-                                CompactAlertRow(
-                                    title: "More alerts",
-                                    summary: "+\(count) more active travel signals.",
-                                    sourceName: "Nomad",
-                                    count: nil,
-                                    tint: NomadTheme.secondaryText,
-                                    symbolName: "ellipsis.circle.fill",
-                                    isCompact: true
-                                )
-                            }
-                        }
-                    } else {
-                        ForEach(travelAlertRows) { row in
-                            CompactAlertRow(
-                                title: row.title,
-                                summary: row.summary,
-                                sourceName: row.sourceName,
-                                count: row.count,
-                                tint: row.tint,
-                                symbolName: row.symbolName,
-                                isCompact: false
-                            )
-                        }
+                    ForEach(travelAlertRows) { row in
+                        TravelAlertSignalRow(
+                            row: row,
+                            isCompact: widthMode == .narrow
+                        )
                     }
                 }
             }
@@ -1206,6 +1185,14 @@ public struct DashboardPanelView: View {
 
     private var fuelPricesSectionPresentation: FuelPricesSectionPresentation {
         FuelPricesSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: locationStatusDetail
+        )
+    }
+
+    private var localPriceLevelSectionPresentation: LocalPriceLevelSectionPresentation {
+        LocalPriceLevelSectionPresentation(
             settings: settings,
             snapshot: snapshot,
             locationStatusDetail: locationStatusDetail
@@ -1488,7 +1475,12 @@ public struct DashboardPanelView: View {
             allocateTimeTrackingAction(bucket)
         }
         .disabled(isEnabled == false)
-        .modifier(timeTrackingActionButtonModifier(role: .highlighted, isEnabled: isEnabled, isCompact: isCompact))
+        .modifier(timeTrackingActionButtonModifier(
+            role: .highlighted,
+            isEnabled: isEnabled,
+            isCompact: isCompact,
+            fillsAvailableWidth: true
+        ))
     }
 
     private func timeTrackingControlButton(title: String, action: @escaping () -> Void) -> some View {
@@ -1499,11 +1491,15 @@ public struct DashboardPanelView: View {
     private func timeTrackingActionButtonModifier(
         role: TimeTrackingDashboardActionRole,
         isEnabled: Bool,
-        isCompact: Bool = false
+        isCompact: Bool = false,
+        fillsAvailableWidth: Bool = false
     ) -> some ViewModifier {
         TimeTrackingDashboardActionButtonModifier(
             style: TimeTrackingDashboardActionButtonStyle.make(role: role, isEnabled: isEnabled),
-            isCompact: isCompact
+            layout: TimeTrackingDashboardActionButtonLayout.make(
+                isCompact: isCompact,
+                fillsAvailableWidth: fillsAvailableWidth
+            )
         )
     }
 
@@ -1566,17 +1562,42 @@ struct TimeTrackingDashboardActionButtonStyle: Equatable {
     }
 }
 
+struct TimeTrackingDashboardActionButtonLayout: Equatable {
+    let horizontalPadding: CGFloat
+    let verticalPadding: CGFloat
+    let fillsAvailableWidth: Bool
+
+    static func make(
+        isCompact: Bool,
+        fillsAvailableWidth: Bool
+    ) -> TimeTrackingDashboardActionButtonLayout {
+        TimeTrackingDashboardActionButtonLayout(
+            horizontalPadding: isCompact ? 10 : 12,
+            verticalPadding: isCompact ? 6 : 7,
+            fillsAvailableWidth: fillsAvailableWidth
+        )
+    }
+}
+
 private struct TimeTrackingDashboardActionButtonModifier: ViewModifier {
     let style: TimeTrackingDashboardActionButtonStyle
-    let isCompact: Bool
+    let layout: TimeTrackingDashboardActionButtonLayout
 
     func body(content: Content) -> some View {
+        if layout.fillsAvailableWidth {
+            decorated(content)
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else {
+            decorated(content)
+        }
+    }
+
+    private func decorated(_ content: Content) -> some View {
         content
             .font(.caption.weight(.semibold))
             .foregroundStyle(style.foreground)
-            .padding(.horizontal, isCompact ? 10 : 12)
-            .padding(.vertical, isCompact ? 6 : 7)
-            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, layout.horizontalPadding)
+            .padding(.vertical, layout.verticalPadding)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(style.background)
@@ -2954,6 +2975,79 @@ private struct EmergencyCareSectionView: View {
     }
 }
 
+private struct LocalPriceLevelSectionView: View {
+    let presentation: LocalPriceLevelSectionPresentation
+    let widthMode: DashboardCardWidthMode
+    let accessory: AnyView
+    let openSettingsAction: () -> Void
+
+    var body: some View {
+        DashboardCard(
+            title: "Local Price Level",
+            subtitle: presentation.subtitle,
+            badge: presentation.badge,
+            accessory: accessory,
+            isCompact: widthMode == .narrow
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                if presentation.rows.isEmpty {
+                    WeatherEmptyState(
+                        title: presentation.emptyTitle,
+                        systemImage: presentation.emptySystemImage,
+                        message: presentation.emptyMessage
+                    )
+
+                    if let emptyActionTitle = presentation.emptyActionTitle {
+                        Button(emptyActionTitle, action: openSettingsAction)
+                            .buttonStyle(.borderedProminent)
+                            .tint(Color(nsColor: .controlAccentColor))
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(presentation.rows) { row in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    Text(row.title)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(NomadTheme.secondaryText)
+
+                                    Spacer(minLength: 12)
+
+                                    Text(row.value)
+                                        .font(widthMode == .narrow ? .subheadline.weight(.semibold) : .headline)
+                                        .foregroundStyle(NomadTheme.primaryText)
+                                }
+
+                                Text(row.detail)
+                                    .font(.caption)
+                                    .foregroundStyle(NomadTheme.secondaryText)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+
+                if let note = presentation.note {
+                    Divider()
+                        .overlay(NomadTheme.cardBorder.opacity(0.9))
+
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(NomadTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let sourceLine = presentation.sourceLine {
+                    Text(sourceLine)
+                        .font(.caption2)
+                        .foregroundStyle(NomadTheme.tertiaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+}
+
 private struct FuelPricesSectionView: View {
     let presentation: FuelPricesSectionPresentation
     let widthMode: DashboardCardWidthMode
@@ -3448,7 +3542,11 @@ private struct FuelCamperStripe: Shape {
 struct TravelAlertRowModel: Identifiable, Equatable {
     let id: TravelAlertKind
     let title: String
+    let statusLabel: String
+    let impactText: String
     let summary: String
+    let freshnessText: String
+    let metadataText: String
     let sourceName: String
     let count: Int?
     let severity: TravelAlertSeverity
@@ -3459,7 +3557,11 @@ struct TravelAlertRowModel: Identifiable, Equatable {
     static func == (lhs: TravelAlertRowModel, rhs: TravelAlertRowModel) -> Bool {
         lhs.id == rhs.id
             && lhs.title == rhs.title
+            && lhs.statusLabel == rhs.statusLabel
+            && lhs.impactText == rhs.impactText
             && lhs.summary == rhs.summary
+            && lhs.freshnessText == rhs.freshnessText
+            && lhs.metadataText == rhs.metadataText
             && lhs.sourceName == rhs.sourceName
             && lhs.count == rhs.count
             && lhs.severity == rhs.severity
@@ -3564,13 +3666,20 @@ private extension TravelAlertRowModel {
     init(state: TravelAlertSignalState) {
         let title = state.kind.displayName
         let sourceName = state.signal?.sourceName ?? state.sourceName
+        let statusLabel = Self.statusLabel(for: state)
+        let impactText = Self.impactText(for: state)
+        let freshnessText = Self.freshnessText(for: state)
 
         switch state.status {
         case .checking:
             self.init(
                 id: state.kind,
                 title: title,
+                statusLabel: statusLabel,
+                impactText: impactText,
                 summary: "Checking alerts…",
+                freshnessText: freshnessText,
+                metadataText: [sourceName, freshnessText].filter { $0.isEmpty == false }.joined(separator: " · "),
                 sourceName: sourceName,
                 count: nil,
                 severity: .info,
@@ -3583,7 +3692,11 @@ private extension TravelAlertRowModel {
             self.init(
                 id: state.kind,
                 title: title,
+                statusLabel: statusLabel,
+                impactText: impactText,
                 summary: signal?.summary ?? "No current alerts.",
+                freshnessText: freshnessText,
+                metadataText: [sourceName, freshnessText].filter { $0.isEmpty == false }.joined(separator: " · "),
                 sourceName: sourceName,
                 count: signal?.itemCount,
                 severity: signal?.severity ?? .clear,
@@ -3598,7 +3711,11 @@ private extension TravelAlertRowModel {
             self.init(
                 id: state.kind,
                 title: title,
+                statusLabel: statusLabel,
+                impactText: impactText,
                 summary: summary,
+                freshnessText: freshnessText,
+                metadataText: [sourceName, freshnessText].filter { $0.isEmpty == false }.joined(separator: " · "),
                 sourceName: sourceName,
                 count: signal?.itemCount,
                 severity: severity,
@@ -3610,7 +3727,11 @@ private extension TravelAlertRowModel {
             self.init(
                 id: state.kind,
                 title: title,
+                statusLabel: statusLabel,
+                impactText: impactText,
                 summary: state.diagnosticSummary ?? state.reason?.summary ?? "Source unavailable",
+                freshnessText: freshnessText,
+                metadataText: [sourceName, freshnessText].filter { $0.isEmpty == false }.joined(separator: " · "),
                 sourceName: sourceName,
                 count: nil,
                 severity: .info,
@@ -3619,6 +3740,123 @@ private extension TravelAlertRowModel {
                 status: .unavailable
             )
         }
+    }
+
+    private static func statusLabel(for state: TravelAlertSignalState) -> String {
+        switch state.status {
+        case .checking:
+            "Checking"
+        case .ready:
+            state.signal?.severity.badgeTitle ?? "Ready"
+        case .stale:
+            "Stale"
+        case .unavailable:
+            "Unavailable"
+        }
+    }
+
+    private static func impactText(for state: TravelAlertSignalState) -> String {
+        switch state.status {
+        case .checking:
+            "Live check"
+        case .ready:
+            switch state.signal?.severity {
+            case .clear:
+                "No elevated signal"
+            case .info:
+                "Nearby watch"
+            case .caution:
+                "Exercise caution"
+            case .warning:
+                "Review before travel"
+            case .critical:
+                "Immediate attention"
+            case nil:
+                "Signal ready"
+            }
+        case .stale:
+            "Last known signal"
+        case .unavailable:
+            "Source issue"
+        }
+    }
+
+    private static func freshnessText(for state: TravelAlertSignalState) -> String {
+        switch state.status {
+        case .checking:
+            "Refreshing now"
+        case .ready:
+            (state.signal?.updatedAt).map { "Updated \(travelAlertDateText($0))" } ?? "Updated recently"
+        case .stale:
+            state.lastSuccessAt.map { "Last good refresh \(travelAlertDateText($0))" } ?? "Last good refresh unavailable"
+        case .unavailable:
+            state.lastAttemptedAt.map { "Checked \(travelAlertDateText($0))" } ?? "Check attempted"
+        }
+    }
+}
+
+private struct TravelAlertSignalRow: View {
+    let row: TravelAlertRowModel
+    var isCompact: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompact ? 8 : 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Text(row.title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NomadTheme.primaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                BadgeView(
+                    badge: PillBadge(
+                        title: row.statusLabel,
+                        symbolName: row.symbolName,
+                        tint: row.tint
+                    )
+                )
+            }
+
+            Text(row.impactText.uppercased())
+                .font(.caption.weight(.bold))
+                .foregroundStyle(row.tint.opacity(0.92))
+                .tracking(0.4)
+
+            Text(row.summary)
+                .font(isCompact ? .caption : .caption)
+                .foregroundStyle(NomadTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(alignment: .center, spacing: 8) {
+                Text(row.metadataText)
+                    .font(.caption2)
+                    .foregroundStyle(NomadTheme.tertiaryText)
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+
+                if let count = row.count, count > 1 {
+                    Text("\(count)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(row.tint)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(row.tint.opacity(0.12))
+                        )
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(isCompact ? 12 : 14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(row.tint.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(row.tint.opacity(0.14), lineWidth: 1)
+        )
     }
 }
 
@@ -4290,6 +4528,134 @@ struct FuelPricesSectionPresentation {
     }
 }
 
+struct LocalPriceLevelRowModel: Identifiable {
+    let id: LocalPriceIndicatorKind
+    let title: String
+    let value: String
+    let detail: String
+
+    init(row: LocalPriceIndicatorRow) {
+        id = row.kind
+        title = row.kind.displayName
+        value = row.value
+        detail = row.detail
+    }
+}
+
+struct LocalPriceLevelSectionPresentation {
+    let badge: PillBadge
+    let subtitle: String
+    let rows: [LocalPriceLevelRowModel]
+    let emptyTitle: String
+    let emptySystemImage: String
+    let emptyMessage: String
+    let emptyActionTitle: String?
+    let sourceLine: String?
+    let note: String?
+
+    init(
+        settings: AppSettings,
+        snapshot: DashboardSnapshot,
+        locationStatusDetail: String?
+    ) {
+        guard settings.localPriceLevelEnabled else {
+            badge = PillBadge(title: "Off", symbolName: "wallet.pass.fill", tint: NomadTheme.primaryText)
+            subtitle = "Traveller price levels are disabled"
+            rows = []
+            emptyTitle = "Local Price Level Off"
+            emptySystemImage = "wallet.pass.fill"
+            emptyMessage = "Enable local price level in Settings."
+            emptyActionTitle = "Open Settings"
+            sourceLine = nil
+            note = nil
+            return
+        }
+
+        guard let localPriceLevel = snapshot.localPriceLevel else {
+            badge = PillBadge(title: "Checking", symbolName: "creditcard.viewfinder", tint: NomadTheme.secondaryText)
+            subtitle = "Looking up price levels"
+            rows = []
+            emptyTitle = "Checking Local Price Level"
+            emptySystemImage = "creditcard.viewfinder"
+            emptyMessage = "Looking up meal, grocery, rent, and overall price signals."
+            emptyActionTitle = nil
+            sourceLine = nil
+            note = nil
+            return
+        }
+
+        rows = localPriceLevel.rows.map(LocalPriceLevelRowModel.init)
+        sourceLine = localPriceLevel.sources.isEmpty ? nil : "Sources: " + localPriceLevel.sources.map(\.name).joined(separator: " · ")
+        note = [localPriceLevel.detail, localPriceLevel.note]
+            .compactMap(\.self)
+            .filter { $0.isEmpty == false }
+            .joined(separator: " ")
+            .nilIfEmpty
+
+        let subtitleCountry = localPriceLevel.countryName ?? "Current country"
+        let precisionSummary = localPriceLevel.rows.map { $0.precision.displayName }
+            .reduce(into: [String]()) { result, value in
+                if result.contains(value) == false {
+                    result.append(value)
+                }
+            }
+            .joined(separator: " · ")
+
+        switch localPriceLevel.status {
+        case .ready, .partial:
+            badge = Self.badge(for: localPriceLevel)
+            subtitle = [subtitleCountry, precisionSummary.nilIfEmpty]
+                .compactMap(\.self)
+                .joined(separator: " · ")
+            emptyTitle = ""
+            emptySystemImage = "creditcard.viewfinder"
+            emptyMessage = ""
+            emptyActionTitle = nil
+        case .locationRequired:
+            badge = PillBadge(title: "Location Needed", symbolName: "location.slash.fill", tint: NomadTheme.sand)
+            subtitle = "Country context is required"
+            emptyTitle = "Location Needed"
+            emptySystemImage = "location.slash.fill"
+            emptyMessage = locationStatusDetail ?? localPriceLevel.detail ?? "Allow location access or enable external IP location."
+            emptyActionTitle = "Open Settings"
+        case .configurationRequired:
+            badge = PillBadge(title: "Setup", symbolName: "key.fill", tint: NomadTheme.sand)
+            subtitle = subtitleCountry
+            emptyTitle = "Source Setup Needed"
+            emptySystemImage = "key.fill"
+            emptyMessage = localPriceLevel.detail ?? "This source needs extra configuration."
+            emptyActionTitle = "Open Settings"
+        case .unsupported:
+            badge = PillBadge(title: "Unsupported", symbolName: "globe.badge.chevron.backward", tint: NomadTheme.primaryText)
+            subtitle = subtitleCountry
+            emptyTitle = "Region Unsupported"
+            emptySystemImage = "globe.badge.chevron.backward"
+            emptyMessage = localPriceLevel.detail ?? "Local price level is not supported here yet."
+            emptyActionTitle = nil
+        case .unavailable:
+            badge = PillBadge(title: "Unavailable", symbolName: "wifi.exclamationmark", tint: NomadTheme.primaryText)
+            subtitle = subtitleCountry
+            emptyTitle = "Local Price Level Unavailable"
+            emptySystemImage = "wifi.exclamationmark"
+            emptyMessage = localPriceLevel.detail ?? "Local price level is unavailable right now."
+            emptyActionTitle = nil
+        }
+    }
+
+    private static func badge(for snapshot: LocalPriceLevelSnapshot) -> PillBadge {
+        switch snapshot.summaryBand {
+        case .low:
+            PillBadge(title: "Low", symbolName: "arrow.down.circle.fill", tint: NomadTheme.teal)
+        case .high:
+            PillBadge(title: "High", symbolName: "arrow.up.circle.fill", tint: NomadTheme.coral)
+        case .limited:
+            PillBadge(title: "Limited", symbolName: "ellipsis.circle.fill", tint: NomadTheme.sand)
+        case .medium, .none:
+            PillBadge(title: "Medium", symbolName: "equal.circle.fill", tint: NomadTheme.sand)
+        }
+    }
+}
+
 struct EmergencyCareSectionPresentation {
     let badge: PillBadge
     let subtitle: String
@@ -4712,5 +5078,19 @@ private extension TravelAlertUnavailableReason {
         case .sourceConfigurationRequired:
             "Source setup required"
         }
+    }
+}
+
+private func travelAlertDateText(_ value: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(secondsFromGMT: 0)
+    formatter.dateFormat = "d MMM"
+    return formatter.string(from: value)
+}
+
+extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

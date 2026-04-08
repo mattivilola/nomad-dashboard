@@ -18,6 +18,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.publicIPGeolocationEnabled == true)
         #expect(store.settings.shareAnonymousAnalytics == true)
         #expect(store.settings.visitedPlacesEnabled == true)
+        #expect(store.settings.localPriceLevelEnabled == false)
         #expect(store.settings.fuelPricesEnabled == false)
         #expect(store.settings.emergencyCareEnabled == false)
         #expect(store.settings.travelAdvisoryEnabled == true)
@@ -25,6 +26,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.regionalSecurityEnabled == false)
         #expect(store.settings.projectTimeTrackingEnabled == false)
         #expect(store.settings.timeTrackingProjects.isEmpty)
+        #expect(store.settings.hudUserAPIToken.isEmpty)
         #expect(store.settings.tankerkonigAPIKey.isEmpty)
         #expect(store.settings.surfSpotName.isEmpty)
         #expect(store.settings.surfSpotLatitude == nil)
@@ -110,6 +112,7 @@ struct AppSettingsStoreTests {
             .travelAlerts,
             .fuelPrices,
             .emergencyCare,
+            .localPriceLevel,
             .travelContext,
             .timeTracking,
             .power,
@@ -177,6 +180,51 @@ struct AppSettingsStoreTests {
           "useCurrentLocationForWeather": true,
           "weatherHourlyForecastExpanded": true,
           "weatherDailyForecastExpanded": false,
+          "fuelPricesEnabled": false,
+          "emergencyCareEnabled": false,
+          "visitedPlacesEnabled": true,
+          "travelAdvisoryEnabled": true,
+          "travelWeatherAlertsEnabled": false,
+          "regionalSecurityEnabled": false,
+          "projectTimeTrackingEnabled": false,
+          "timeTrackingProjects": [],
+          "tankerkonigAPIKey": "",
+          "surfSpotName": "",
+          "latencyHosts": ["1.1.1.1:443", "8.8.8.8:443"]
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: payload)
+
+        #expect(decoded.weatherForecastExpanded == true)
+    }
+
+    @Test
+    func appSettingsDecodingKeepsUnifiedForecastExpandedWhenBothLegacyDisclosuresWereOpen() throws {
+        let payload = """
+        {
+          "appearanceMode": "system",
+          "dashboardCardOrder": ["travelContext", "connectivity", "power", "weather", "travelAlerts", "fuelPrices", "emergencyCare", "timeTracking"],
+          "dashboardCardWidthModes": {
+            "travelContext": "wide",
+            "connectivity": "wide",
+            "power": "wide",
+            "weather": "wide",
+            "travelAlerts": "wide",
+            "fuelPrices": "wide",
+            "emergencyCare": "wide",
+            "timeTracking": "wide"
+          },
+          "refreshIntervalSeconds": 2,
+          "slowRefreshIntervalSeconds": 60,
+          "historyRetentionHours": 24,
+          "publicIPGeolocationEnabled": true,
+          "shareAnonymousAnalytics": true,
+          "automaticUpdateChecksEnabled": true,
+          "launchAtLoginEnabled": false,
+          "useCurrentLocationForWeather": true,
+          "weatherHourlyForecastExpanded": true,
+          "weatherDailyForecastExpanded": true,
           "fuelPricesEnabled": false,
           "emergencyCareEnabled": false,
           "visitedPlacesEnabled": true,
@@ -332,6 +380,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.automaticUpdateChecksEnabled == false)
         #expect(store.settings.launchAtLoginEnabled == true)
         #expect(store.settings.useCurrentLocationForWeather == false)
+        #expect(store.settings.localPriceLevelEnabled == false)
         #expect(store.settings.fuelPricesEnabled == false)
         #expect(store.settings.emergencyCareEnabled == false)
         #expect(store.settings.visitedPlacesEnabled == false)
@@ -340,6 +389,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.regionalSecurityEnabled == false)
         #expect(store.settings.projectTimeTrackingEnabled == false)
         #expect(store.settings.timeTrackingProjects.isEmpty)
+        #expect(store.settings.hudUserAPIToken.isEmpty)
         #expect(store.settings.tankerkonigAPIKey.isEmpty)
         #expect(store.settings.surfSpotName.isEmpty)
         #expect(store.settings.surfSpotLatitude == nil)
@@ -381,6 +431,7 @@ struct AppSettingsStoreTests {
             .connectivity,
             .timeTracking,
             .travelContext,
+            .localPriceLevel,
             .fuelPrices,
             .emergencyCare,
             .travelAlerts
