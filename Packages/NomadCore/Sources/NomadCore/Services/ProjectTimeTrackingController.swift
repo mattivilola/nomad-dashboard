@@ -107,6 +107,25 @@ public final class ProjectTimeTrackingController: ObservableObject {
         await setActivityState(.stopped)
     }
 
+    public func reportInterruption() async {
+        guard isLoaded, settingsStore.settings.projectTimeTrackingEnabled else {
+            return
+        }
+
+        let currentNow = now()
+
+        do {
+            try normalizeLedgerForCurrentTime(currentNow)
+            ledger.interruptions.append(TimeTrackingInterruption(reportedAt: currentNow))
+            ledger.interruptions = TimeTrackingLedger.normalizedInterruptions(ledger.interruptions)
+            try await persistLedger()
+            clearLastErrorMessage()
+            refreshPublishedState(now: currentNow)
+        } catch {
+            lastErrorMessage = error.localizedDescription
+        }
+    }
+
     public func allocateCurrentDayPending(to bucket: TimeTrackingBucket) async {
         guard isLoaded else {
             return
@@ -311,14 +330,18 @@ public final class ProjectTimeTrackingController: ObservableObject {
         let summary = monthSummary(containing: date)
         var lines = [
             "Project Time Tracking \(monthTitle(for: summary.monthStart))",
-            "Total tracked: \(formattedDuration(summary.totalTrackedDuration))"
+            "Total tracked: \(formattedDuration(summary.totalTrackedDuration))",
+            focusExportSummaryLine(
+                trackedDuration: summary.totalTrackedDuration,
+                interruptionCount: summary.interruptionCount
+            )
         ]
 
         if summary.bucketDurations.isEmpty == false {
             lines.append("")
             lines.append("Month summary:")
             lines.append(contentsOf: summary.bucketDurations.map { bucketDuration in
-                "- \(title(for: bucketDuration.bucket)): \(formattedDuration(bucketDuration.duration))"
+                exportBucketLine(for: bucketDuration)
             })
         }
 
@@ -326,23 +349,35 @@ public final class ProjectTimeTrackingController: ObservableObject {
             lines.append("")
             lines.append("Week of \(week.weekStart.formatted(date: .abbreviated, time: .omitted))")
             lines.append("Total: \(formattedDuration(week.totalTrackedDuration))")
+            lines.append(
+                focusExportSummaryLine(
+                    trackedDuration: week.totalTrackedDuration,
+                    interruptionCount: week.interruptionCount
+                )
+            )
 
             if week.bucketDurations.isEmpty == false {
                 lines.append(contentsOf: week.bucketDurations.map { bucketDuration in
-                    "- \(title(for: bucketDuration.bucket)): \(formattedDuration(bucketDuration.duration))"
+                    exportBucketLine(for: bucketDuration)
                 })
             }
 
-            let trackedDays = week.daySummaries.filter { $0.totalTrackedDuration > 0 }
+            let trackedDays = week.daySummaries.filter { $0.totalTrackedDuration > 0 || $0.interruptionCount > 0 }
             for daySummary in trackedDays {
                 lines.append("")
                 lines.append("\(daySummary.dayStart.formatted(date: .abbreviated, time: .omitted))")
+                lines.append(
+                    focusExportSummaryLine(
+                        trackedDuration: daySummary.totalTrackedDuration,
+                        interruptionCount: daySummary.interruptionCount
+                    )
+                )
                 for bucketDuration in daySummary.bucketDurations where bucketDuration.duration > 0 {
                     if bucketDuration.bucket == .unallocated, daySummary.unallocatedDuration == 0 {
                         continue
                     }
 
-                    lines.append("- \(title(for: bucketDuration.bucket)): \(formattedDuration(bucketDuration.duration))")
+                    lines.append(exportBucketLine(for: bucketDuration))
                 }
             }
         }
@@ -818,6 +853,7 @@ public final class ProjectTimeTrackingController: ObservableObject {
         runtimeState.lastPersistedAt = now()
         ledger.runtimeState = runtimeState
         ledger.entries = TimeTrackingLedger.normalizedEntries(ledger.entries)
+        ledger.interruptions = TimeTrackingLedger.normalizedInterruptions(ledger.interruptions)
         try await ledgerStore.save(ledger)
     }
 
@@ -997,7 +1033,11 @@ public final class ProjectTimeTrackingController: ObservableObject {
                 bucketDurations: [],
                 totalTrackedDuration: 0,
                 totalAllocatedDuration: 0,
-                unallocatedDuration: 0
+                unallocatedDuration: 0,
+                interruptionCount: 0,
+                estimatedFocusLossDuration: 0,
+                focusAdjustedDuration: 0,
+                lastInterruptionAt: nil
             )
         }
 
@@ -1005,13 +1045,24 @@ public final class ProjectTimeTrackingController: ObservableObject {
         let totalTrackedDuration = totals.reduce(0) { $0 + $1.duration }
         let unallocatedDuration = totals.first(where: { $0.bucket == .unallocated })?.duration ?? 0
         let totalAllocatedDuration = totalTrackedDuration - unallocatedDuration
+        let interruptions = interruptions(in: interval)
+        let interruptionCount = interruptions.count
+        let estimatedFocusLossDuration = TimeTrackingFocusMetrics.estimatedFocusLoss(for: interruptionCount)
+        let focusAdjustedDuration = TimeTrackingFocusMetrics.focusAdjustedDuration(
+            trackedDuration: totalTrackedDuration,
+            interruptionCount: interruptionCount
+        )
 
         return TimeTrackingDaySummary(
             dayStart: interval.start,
             bucketDurations: totals,
             totalTrackedDuration: totalTrackedDuration,
             totalAllocatedDuration: totalAllocatedDuration,
-            unallocatedDuration: unallocatedDuration
+            unallocatedDuration: unallocatedDuration,
+            interruptionCount: interruptionCount,
+            estimatedFocusLossDuration: estimatedFocusLossDuration,
+            focusAdjustedDuration: focusAdjustedDuration,
+            lastInterruptionAt: interruptions.last?.reportedAt
         )
     }
 
@@ -1028,7 +1079,10 @@ public final class ProjectTimeTrackingController: ObservableObject {
             weekEnd: interval.end,
             daySummaries: daySummaries,
             bucketDurations: totals,
-            totalTrackedDuration: totals.reduce(0) { $0 + $1.duration }
+            totalTrackedDuration: totals.reduce(0) { $0 + $1.duration },
+            interruptionCount: daySummaries.reduce(0) { $0 + $1.interruptionCount },
+            estimatedFocusLossDuration: daySummaries.reduce(0) { $0 + $1.estimatedFocusLossDuration },
+            focusAdjustedDuration: daySummaries.reduce(0) { $0 + $1.focusAdjustedDuration }
         )
     }
 
@@ -1051,7 +1105,10 @@ public final class ProjectTimeTrackingController: ObservableObject {
                     weekEnd: clippedInterval.end,
                     daySummaries: daySummaries,
                     bucketDurations: weekTotals,
-                    totalTrackedDuration: weekTotals.reduce(0) { $0 + $1.duration }
+                    totalTrackedDuration: weekTotals.reduce(0) { $0 + $1.duration },
+                    interruptionCount: daySummaries.reduce(0) { $0 + $1.interruptionCount },
+                    estimatedFocusLossDuration: daySummaries.reduce(0) { $0 + $1.estimatedFocusLossDuration },
+                    focusAdjustedDuration: daySummaries.reduce(0) { $0 + $1.focusAdjustedDuration }
                 )
             )
             cursor = fullWeekInterval.end
@@ -1062,7 +1119,10 @@ public final class ProjectTimeTrackingController: ObservableObject {
             monthEnd: monthInterval.end,
             weekSummaries: weekSummaries,
             bucketDurations: totals,
-            totalTrackedDuration: totals.reduce(0) { $0 + $1.duration }
+            totalTrackedDuration: totals.reduce(0) { $0 + $1.duration },
+            interruptionCount: weekSummaries.reduce(0) { $0 + $1.interruptionCount },
+            estimatedFocusLossDuration: weekSummaries.reduce(0) { $0 + $1.estimatedFocusLossDuration },
+            focusAdjustedDuration: weekSummaries.reduce(0) { $0 + $1.focusAdjustedDuration }
         )
     }
 
@@ -1081,15 +1141,83 @@ public final class ProjectTimeTrackingController: ObservableObject {
             result[entry.bucket, default: 0] += overlap.duration
         }
 
-        return durationsByBucket
-            .map { TimeTrackingBucketDuration(bucket: $0.key, duration: $0.value) }
+        let interruptionCountsByBucket = interruptions(in: interval).reduce(into: [TimeTrackingBucket: Int]()) { result, interruption in
+            let bucket = bucketForInterruption(at: interruption.reportedAt, now: currentNow)
+            result[bucket, default: 0] += 1
+        }
+
+        let sortedBuckets = Set(durationsByBucket.keys).union(interruptionCountsByBucket.keys)
+
+        return sortedBuckets
+            .map { bucket in
+                TimeTrackingBucketDuration(
+                    bucket: bucket,
+                    duration: durationsByBucket[bucket, default: 0],
+                    interruptionCount: interruptionCountsByBucket[bucket, default: 0]
+                )
+            }
             .sorted { lhs, rhs in
                 if lhs.duration == rhs.duration {
-                    return title(for: lhs.bucket).localizedCaseInsensitiveCompare(title(for: rhs.bucket)) == .orderedAscending
+                    if lhs.interruptionCount == rhs.interruptionCount {
+                        return title(for: lhs.bucket).localizedCaseInsensitiveCompare(title(for: rhs.bucket)) == .orderedAscending
+                    }
+
+                    return lhs.interruptionCount > rhs.interruptionCount
                 }
 
                 return lhs.duration > rhs.duration
             }
+    }
+
+    private func interruptions(in interval: DateInterval) -> [TimeTrackingInterruption] {
+        ledger.interruptions.filter { interruption in
+            interruption.reportedAt >= interval.start && interruption.reportedAt < interval.end
+        }
+    }
+
+    private func bucketForInterruption(at date: Date, now currentNow: Date) -> TimeTrackingBucket {
+        let matchingEntry = ledger.entries
+            .filter { entry in
+                let resolvedEnd = entry.resolvedEnd(at: currentNow)
+                guard entry.startAt <= date else {
+                    return false
+                }
+
+                return resolvedEnd >= date
+            }
+            .max { lhs, rhs in
+                if lhs.startAt == rhs.startAt {
+                    return lhs.id.uuidString < rhs.id.uuidString
+                }
+
+                return lhs.startAt < rhs.startAt
+            }
+
+        return matchingEntry?.bucket ?? .unallocated
+    }
+
+    private func focusExportSummaryLine(
+        trackedDuration: TimeInterval,
+        interruptionCount: Int
+    ) -> String {
+        let estimatedLoss = TimeTrackingFocusMetrics.estimatedFocusLoss(for: interruptionCount)
+        let focusDuration = TimeTrackingFocusMetrics.focusAdjustedDuration(
+            trackedDuration: trackedDuration,
+            interruptionCount: interruptionCount
+        )
+
+        return "Interruptions: \(interruptionCount) · Estimated focus lost: \(formattedDuration(estimatedLoss)) · Focus time: \(formattedDuration(focusDuration))"
+    }
+
+    private func exportBucketLine(for bucketDuration: TimeTrackingBucketDuration) -> String {
+        var segments = ["- \(title(for: bucketDuration.bucket)): \(formattedDuration(bucketDuration.duration))"]
+
+        if bucketDuration.interruptionCount > 0 {
+            segments.append("\(bucketDuration.interruptionCount) interruption\(bucketDuration.interruptionCount == 1 ? "" : "s")")
+            segments.append("focus time \(formattedDuration(bucketDuration.focusAdjustedDuration))")
+        }
+
+        return segments.joined(separator: " · ")
     }
 
     private func weekInterval(containing date: Date) -> DateInterval? {

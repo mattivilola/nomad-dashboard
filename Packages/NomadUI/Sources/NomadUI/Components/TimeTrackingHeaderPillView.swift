@@ -12,6 +12,9 @@ struct TimeTrackingHeaderPillView: View {
     let chipsEnabled: Bool
     let primaryAction: () -> Void
     let stopAction: () -> Void
+    let interruptionCount: Int
+    let lastInterruptionAt: Date?
+    let interruptionAction: () -> Void
     let allocateAction: (TimeTrackingBucket) -> Void
     let openAction: () -> Void
 
@@ -21,7 +24,8 @@ struct TimeTrackingHeaderPillView: View {
         GeometryReader { geometry in
             let rowLayout = TimeTrackingHeaderRowLayout(
                 pendingDurationText: presentation.pendingDurationText,
-                visibleControlsCount: presentation.visibleHeaderControls.count
+                visibleControlsCount: presentation.visibleHeaderControls.count,
+                includesInterruptionButton: true
             )
             let variant = rowLayout.fittingVariant(
                 for: geometry.size.width,
@@ -79,6 +83,16 @@ struct TimeTrackingHeaderPillView: View {
                     }
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
+
+            TimeTrackingInterruptionButton(
+                title: "Report interruption",
+                count: interruptionCount,
+                lastReportedAt: lastInterruptionAt,
+                isEnabled: true,
+                style: .compact,
+                action: interruptionAction
+            )
             .fixedSize(horizontal: true, vertical: false)
 
             HStack(spacing: variant.chipSpacing) {
@@ -198,9 +212,21 @@ struct TimeTrackingHeaderChipMetrics {
 struct TimeTrackingHeaderRowLayout {
     private static let outerHorizontalPadding: CGFloat = 16
     private static let statusIconWidth: CGFloat = 12
+    private static let interruptionButtonWidth: CGFloat = 54
 
     let pendingDurationText: String
     let visibleControlsCount: Int
+    let includesInterruptionButton: Bool
+
+    init(
+        pendingDurationText: String,
+        visibleControlsCount: Int,
+        includesInterruptionButton: Bool = false
+    ) {
+        self.pendingDurationText = pendingDurationText
+        self.visibleControlsCount = visibleControlsCount
+        self.includesInterruptionButton = includesInterruptionButton
+    }
 
     func fittingVariant(
         for availableWidth: CGFloat,
@@ -218,8 +244,9 @@ struct TimeTrackingHeaderRowLayout {
         let contentWidth = max(availableWidth - Self.outerHorizontalPadding, 0)
         let fixedWidth = pendingWidth(for: variant)
             + controlClusterWidth(for: variant)
+            + (includesInterruptionButton ? Self.interruptionButtonWidth : 0)
             + variant.chromeDensity.iconButtonSize
-            + (variant.rowSpacing * 3)
+            + (variant.rowSpacing * (includesInterruptionButton ? 4 : 3))
         return max(contentWidth - fixedWidth, 0)
     }
 

@@ -5,6 +5,7 @@
 - External IP location display is enabled by default for new installs and can be disabled in Settings.
 - Local price level uses official public datasets. Europe price signals use Eurostat country-level price indices, and US 1-bedroom rent uses HUD USER plus the US Census Geocoder when the user adds a HUD token and current location is available.
 - Project time tracking stores projects, exact time entries, and runtime tracking state locally on the Mac.
+- Project time tracking interruption events are also stored locally on the Mac and are used only for local summaries, focus-loss estimates, and exports.
 - Dashboard quick-allocation chips for project time tracking are populated from that same local project and tracking data.
 - Project time tracking exports go only to the system clipboard when the user explicitly chooses to copy a monthly report.
 - Non-production and development builds use a separate local time-tracking storage namespace from the live app.

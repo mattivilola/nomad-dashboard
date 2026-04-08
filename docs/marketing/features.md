@@ -303,9 +303,12 @@ Users can build a simple local travel history over time, revisit where they have
 - Can track awake working time locally while Nomad Dashboard is running
 - Lets the user define project buckets in Settings plus one built-in `Other` bucket
 - Shows live pending unallocated time directly in the dashboard header
+- Lets the user report interruptions from the dashboard or the full time-tracking window with an interruption count that resets per day
 - Surfaces compact quick-action chips for recent or active projects plus `Other`
 - Supports quick one-click allocation of today’s pending time into a project or `Other` without opening the full time-tracking view
 - Includes a dedicated time-tracking window with day, week, and month views
+- Attributes interruption events to the project or bucket that covered that moment once the time is allocated
+- Estimates focus lost from interruptions at 23 minutes each and shows focus-adjusted time in summaries and exports
 - Highlights the busiest days in week and month views and flags days that still have unallocated time for review
 - Supports exact-entry editing for reassignment, resizing, and splitting
 - Can export the selected month summary with weekly and daily breakdowns as plain text via the clipboard

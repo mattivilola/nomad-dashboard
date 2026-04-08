@@ -22,6 +22,7 @@ public actor FileTimeTrackingLedgerStore: TimeTrackingLedgerStore {
             let ledger = try decoder.decode(TimeTrackingLedger.self, from: data)
             return TimeTrackingLedger(
                 entries: TimeTrackingLedger.normalizedEntries(ledger.entries),
+                interruptions: TimeTrackingLedger.normalizedInterruptions(ledger.interruptions),
                 runtimeState: ledger.runtimeState
             )
         } catch {
@@ -39,6 +40,7 @@ public actor FileTimeTrackingLedgerStore: TimeTrackingLedgerStore {
         try ensureDirectory()
         let normalizedLedger = TimeTrackingLedger(
             entries: TimeTrackingLedger.normalizedEntries(ledger.entries),
+            interruptions: TimeTrackingLedger.normalizedInterruptions(ledger.interruptions),
             runtimeState: ledger.runtimeState
         )
         do {

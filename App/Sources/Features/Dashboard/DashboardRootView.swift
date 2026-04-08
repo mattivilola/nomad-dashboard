@@ -44,6 +44,7 @@ struct DashboardRootView: View {
             pauseTimeTrackingAction: { Task { await timeTrackingController.pause() } },
             resumeTimeTrackingAction: { Task { await timeTrackingController.resume() } },
             stopTimeTrackingAction: { Task { await timeTrackingController.stop() } },
+            reportTimeTrackingInterruptionAction: { Task { await timeTrackingController.reportInterruption() } },
             allocateTimeTrackingAction: { bucket in
                 Task {
                     await timeTrackingController.allocateCurrentDayPending(to: bucket)
