@@ -23,6 +23,7 @@ public struct DashboardPanelView: View {
     private let pauseTimeTrackingAction: () -> Void
     private let resumeTimeTrackingAction: () -> Void
     private let stopTimeTrackingAction: () -> Void
+    private let reportTimeTrackingInterruptionAction: () -> Void
     private let allocateTimeTrackingAction: (TimeTrackingBucket) -> Void
     private let openTimeTrackingAction: () -> Void
     private let copyIPAddressAction: () -> Void
@@ -66,6 +67,7 @@ public struct DashboardPanelView: View {
         pauseTimeTrackingAction: @escaping () -> Void = {},
         resumeTimeTrackingAction: @escaping () -> Void = {},
         stopTimeTrackingAction: @escaping () -> Void = {},
+        reportTimeTrackingInterruptionAction: @escaping () -> Void = {},
         allocateTimeTrackingAction: @escaping (TimeTrackingBucket) -> Void = { _ in },
         openTimeTrackingAction: @escaping () -> Void = {},
         copyIPAddressAction: @escaping () -> Void,
@@ -103,6 +105,7 @@ public struct DashboardPanelView: View {
         self.pauseTimeTrackingAction = pauseTimeTrackingAction
         self.resumeTimeTrackingAction = resumeTimeTrackingAction
         self.stopTimeTrackingAction = stopTimeTrackingAction
+        self.reportTimeTrackingInterruptionAction = reportTimeTrackingInterruptionAction
         self.allocateTimeTrackingAction = allocateTimeTrackingAction
         self.openTimeTrackingAction = openTimeTrackingAction
         self.copyIPAddressAction = copyIPAddressAction
@@ -689,13 +692,42 @@ public struct DashboardPanelView: View {
                     if isCompact {
                         HStack(spacing: 12) {
                             MetricBlock(title: "Today", value: formattedTrackingDuration(timeTrackingDashboardState.todaySummary.totalTrackedDuration), typography: .compact)
-                            MetricBlock(title: "Pending", value: formattedTrackingDuration(unallocatedDuration), typography: .compact)
+                            MetricBlock(title: "Focus", value: formattedTrackingDuration(timeTrackingDashboardState.todaySummary.focusAdjustedDuration), typography: .compact)
                         }
                     } else {
                         HStack(spacing: 12) {
                             MetricBlock(title: "Today", value: formattedTrackingDuration(timeTrackingDashboardState.todaySummary.totalTrackedDuration), typography: .compact)
+                            MetricBlock(title: "Focus", value: formattedTrackingDuration(timeTrackingDashboardState.todaySummary.focusAdjustedDuration), typography: .compact)
                             MetricBlock(title: "Allocated", value: formattedTrackingDuration(timeTrackingDashboardState.todaySummary.totalAllocatedDuration), typography: .compact)
                             MetricBlock(title: "Pending", value: formattedTrackingDuration(unallocatedDuration), typography: .compact)
+                        }
+                    }
+
+                    HStack(spacing: 10) {
+                        TimeTrackingInterruptionButton(
+                            title: "Report interruption",
+                            count: timeTrackingDashboardState.todaySummary.interruptionCount,
+                            lastReportedAt: timeTrackingDashboardState.todaySummary.lastInterruptionAt,
+                            isEnabled: true,
+                            style: isCompact ? .standard : .prominent,
+                            action: reportTimeTrackingInterruptionAction
+                        )
+
+                        if isCompact == false {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Estimated focus lost")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(NomadTheme.secondaryText)
+
+                                Text(formattedTrackingDuration(timeTrackingDashboardState.todaySummary.estimatedFocusLossDuration))
+                                    .font(.callout.weight(.semibold))
+                                    .foregroundStyle(NomadTheme.primaryText)
+
+                                Text("\(timeTrackingDashboardState.todaySummary.interruptionCount) interruption\(timeTrackingDashboardState.todaySummary.interruptionCount == 1 ? "" : "s") today")
+                                    .font(.caption2)
+                                    .foregroundStyle(NomadTheme.tertiaryText)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
 
@@ -703,9 +735,9 @@ public struct DashboardPanelView: View {
                         ForEach(timeTrackingDashboardState.todaySummary.bucketDurations.prefix(isCompact ? 2 : 4)) { bucketDuration in
                             DetailRow(
                                 label: timeTrackingBucketTitle(bucketDuration.bucket),
-                                value: formattedTrackingDuration(bucketDuration.duration),
+                                value: timeTrackingBucketSummary(bucketDuration),
                                 isCompact: isCompact,
-                                compactLineLimit: 1
+                                compactLineLimit: 2
                             )
                         }
                     }
@@ -1306,6 +1338,9 @@ public struct DashboardPanelView: View {
             chipsEnabled: timeTrackingDashboardState.todaySummary.unallocatedDuration > 0,
             primaryAction: timeTrackingPrimaryControlAction,
             stopAction: stopTimeTrackingAction,
+            interruptionCount: timeTrackingDashboardState.todaySummary.interruptionCount,
+            lastInterruptionAt: timeTrackingDashboardState.todaySummary.lastInterruptionAt,
+            interruptionAction: reportTimeTrackingInterruptionAction,
             allocateAction: allocateTimeTrackingAction,
             openAction: openTimeTrackingAction
         )
@@ -1486,6 +1521,14 @@ public struct DashboardPanelView: View {
     private func timeTrackingControlButton(title: String, action: @escaping () -> Void) -> some View {
         Button(title, action: action)
             .modifier(timeTrackingActionButtonModifier(role: .neutral, isEnabled: true))
+    }
+
+    private func timeTrackingBucketSummary(_ bucketDuration: TimeTrackingBucketDuration) -> String {
+        if bucketDuration.interruptionCount == 0 {
+            return formattedTrackingDuration(bucketDuration.duration)
+        }
+
+        return "\(formattedTrackingDuration(bucketDuration.duration)) · \(bucketDuration.interruptionCount) int · focus \(formattedTrackingDuration(bucketDuration.focusAdjustedDuration))"
     }
 
     private func timeTrackingActionButtonModifier(

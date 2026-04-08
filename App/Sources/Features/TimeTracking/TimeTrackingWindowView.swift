@@ -76,6 +76,9 @@ struct TimeTrackingWindowView: View {
 
             refreshRenderState(force: true)
         }
+        .onReceive(controller.$dashboardState.dropFirst()) { _ in
+            refreshRenderState(force: true)
+        }
         .onReceive(settingsStore.$settings.dropFirst()) { _ in
             refreshRenderState(force: true)
         }
@@ -166,16 +169,56 @@ struct TimeTrackingWindowView: View {
 
                 HStack(spacing: 12) {
                     metricCard(title: "Tracked", value: formattedDuration(summaryTotalDuration), tint: NomadTheme.teal)
+                    metricCard(title: "Focus", value: formattedDuration(summaryFocusAdjustedDuration), tint: NomadTheme.sand)
                     metricCard(title: "Allocated", value: formattedDuration(summaryAllocatedDuration), tint: NomadTheme.sand)
                     metricCard(title: "Pending", value: formattedDuration(summaryUnallocatedDuration), tint: NomadTheme.coral)
+                    metricCard(title: "Interruptions", value: "\(summaryInterruptionCount)", tint: NomadTheme.coral)
+                }
+
+                HStack(spacing: 12) {
+                    TimeTrackingInterruptionButton(
+                        title: "Report interruption",
+                        count: renderState.todayInterruptionCount,
+                        lastReportedAt: renderState.todayLastInterruptionAt,
+                        isEnabled: settingsStore.settings.projectTimeTrackingEnabled,
+                        style: .prominent
+                    ) {
+                        Task {
+                            await controller.reportInterruption()
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Estimated focus lost")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(NomadTheme.secondaryText)
+
+                        Text(formattedDuration(summaryEstimatedFocusLossDuration))
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(NomadTheme.primaryText)
+
+                        Text(summaryInterruptionSubtitle)
+                            .font(.caption)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 VStack(spacing: 10) {
                     ForEach(summaryBucketDurations) { bucketDuration in
                         HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            Text(controller.title(for: bucketDuration.bucket))
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(NomadTheme.primaryText)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(controller.title(for: bucketDuration.bucket))
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(NomadTheme.primaryText)
+
+                                if bucketDuration.interruptionCount > 0 {
+                                    Text("\(bucketDuration.interruptionCount) interruption\(bucketDuration.interruptionCount == 1 ? "" : "s") · focus \(formattedDuration(bucketDuration.focusAdjustedDuration))")
+                                        .font(.caption)
+                                        .foregroundStyle(NomadTheme.secondaryText)
+                                }
+                            }
 
                             Spacer(minLength: 20)
 
@@ -376,8 +419,31 @@ struct TimeTrackingWindowView: View {
         renderState.summaryUnallocatedDuration
     }
 
+    private var summaryInterruptionCount: Int {
+        renderState.summaryInterruptionCount
+    }
+
+    private var summaryEstimatedFocusLossDuration: TimeInterval {
+        renderState.summaryEstimatedFocusLossDuration
+    }
+
+    private var summaryFocusAdjustedDuration: TimeInterval {
+        renderState.summaryFocusAdjustedDuration
+    }
+
     private var summaryAllocatedDuration: TimeInterval {
         renderState.summaryAllocatedDuration
+    }
+
+    private var summaryInterruptionSubtitle: String {
+        switch selectedPeriod {
+        case .day:
+            return "Today assumes up to 23 minutes of focus recovery per interruption."
+        case .week:
+            return "Week totals subtract 23 minutes per interruption to estimate focus time."
+        case .month:
+            return "Month totals subtract 23 minutes per interruption to estimate focus time."
+        }
     }
 
     private var dayListColumns: [GridItem] {
@@ -467,7 +533,11 @@ struct TimeTrackingWindowView: View {
         let summaryBucketDurations: [TimeTrackingBucketDuration]
         let summaryTotalDuration: TimeInterval
         let summaryUnallocatedDuration: TimeInterval
+        let summaryInterruptionCount: Int
+        let summaryEstimatedFocusLossDuration: TimeInterval
+        let summaryFocusAdjustedDuration: TimeInterval
         let periodDaySummaries: [TimeTrackingDaySummary]
+        let todaySummary = controller.dashboardState.todaySummary
 
         switch selectedPeriod {
         case .day:
@@ -475,12 +545,18 @@ struct TimeTrackingWindowView: View {
             summaryBucketDurations = summary.bucketDurations
             summaryTotalDuration = summary.totalTrackedDuration
             summaryUnallocatedDuration = summary.unallocatedDuration
+            summaryInterruptionCount = summary.interruptionCount
+            summaryEstimatedFocusLossDuration = summary.estimatedFocusLossDuration
+            summaryFocusAdjustedDuration = summary.focusAdjustedDuration
             periodDaySummaries = [summary]
         case .week:
             let summary = controller.weekSummary(containing: anchorDate)
             summaryBucketDurations = summary.bucketDurations
             summaryTotalDuration = summary.totalTrackedDuration
             summaryUnallocatedDuration = summary.daySummaries.reduce(0) { $0 + $1.unallocatedDuration }
+            summaryInterruptionCount = summary.interruptionCount
+            summaryEstimatedFocusLossDuration = summary.estimatedFocusLossDuration
+            summaryFocusAdjustedDuration = summary.focusAdjustedDuration
             periodDaySummaries = summary.daySummaries
         case .month:
             let summary = controller.monthSummary(containing: anchorDate)
@@ -488,6 +564,9 @@ struct TimeTrackingWindowView: View {
             summaryTotalDuration = summary.totalTrackedDuration
             periodDaySummaries = summary.weekSummaries.flatMap(\.daySummaries)
             summaryUnallocatedDuration = periodDaySummaries.reduce(0) { $0 + $1.unallocatedDuration }
+            summaryInterruptionCount = summary.interruptionCount
+            summaryEstimatedFocusLossDuration = summary.estimatedFocusLossDuration
+            summaryFocusAdjustedDuration = summary.focusAdjustedDuration
         }
 
         let summariesByDay = Dictionary(uniqueKeysWithValues: periodDaySummaries.map { (calendar.startOfDay(for: $0.dayStart), $0) })
@@ -509,6 +588,8 @@ struct TimeTrackingWindowView: View {
                 totalTrackedDuration: summary.totalTrackedDuration,
                 totalAllocatedDuration: summary.totalAllocatedDuration,
                 unallocatedDuration: summary.unallocatedDuration,
+                interruptionCount: summary.interruptionCount,
+                estimatedFocusLossDuration: summary.estimatedFocusLossDuration,
                 needsReview: summary.unallocatedDuration > 0,
                 isPeakDay: peakDays.contains(resolvedDay),
                 trackedIntensity: maxTrackedDuration > 0 ? min(max(summary.totalTrackedDuration / maxTrackedDuration, 0), 1) : 0
@@ -539,12 +620,17 @@ struct TimeTrackingWindowView: View {
             summaryBucketDurations: summaryBucketDurations,
             summaryTotalDuration: summaryTotalDuration,
             summaryUnallocatedDuration: summaryUnallocatedDuration,
+            summaryInterruptionCount: summaryInterruptionCount,
+            summaryEstimatedFocusLossDuration: summaryEstimatedFocusLossDuration,
+            summaryFocusAdjustedDuration: summaryFocusAdjustedDuration,
             displayedDaySummaries: displayedDaySummaries,
             dayEntries: dayEntries,
             bucketOptions: bucketOptions,
             quickBucketChipsWide: quickActionsPresentation.quickBucketChips(maxProjectCount: 4, includeUnallocated: true),
             quickBucketChipsCompact: quickActionsPresentation.quickBucketChips(maxProjectCount: 3, includeUnallocated: true),
-            lastErrorMessage: controller.lastErrorMessage
+            lastErrorMessage: controller.lastErrorMessage,
+            todayInterruptionCount: todaySummary.interruptionCount,
+            todayLastInterruptionAt: todaySummary.lastInterruptionAt
         )
     }
 
@@ -1216,6 +1302,15 @@ private struct TimeTrackingDaySummaryCard: View {
                 )
             }
 
+            if summary.interruptionCount > 0 {
+                TimeTrackingDayStatusBadge(
+                    title: "\(summary.interruptionCount) interruption\(summary.interruptionCount == 1 ? "" : "s")",
+                    tint: NomadTheme.coral,
+                    fillOpacity: 0.09,
+                    strokeOpacity: 0.16
+                )
+            }
+
             Spacer(minLength: 0)
 
             if summary.hasTrackedTime {
@@ -1349,12 +1444,17 @@ private struct TimeTrackingWindowRenderState: Equatable {
     var summaryBucketDurations: [TimeTrackingBucketDuration]
     var summaryTotalDuration: TimeInterval
     var summaryUnallocatedDuration: TimeInterval
+    var summaryInterruptionCount: Int
+    var summaryEstimatedFocusLossDuration: TimeInterval
+    var summaryFocusAdjustedDuration: TimeInterval
     var displayedDaySummaries: [TimeTrackingDisplayedDaySummary]
     var dayEntries: [TimeTrackingEntryRowModel]
     var bucketOptions: [TimeTrackingBucketOption]
     var quickBucketChipsWide: [TimeTrackingQuickBucketChip]
     var quickBucketChipsCompact: [TimeTrackingQuickBucketChip]
     var lastErrorMessage: String?
+    var todayInterruptionCount: Int
+    var todayLastInterruptionAt: Date?
 
     static let empty = TimeTrackingWindowRenderState(
         activityState: .stopped,
@@ -1362,12 +1462,17 @@ private struct TimeTrackingWindowRenderState: Equatable {
         summaryBucketDurations: [],
         summaryTotalDuration: 0,
         summaryUnallocatedDuration: 0,
+        summaryInterruptionCount: 0,
+        summaryEstimatedFocusLossDuration: 0,
+        summaryFocusAdjustedDuration: 0,
         displayedDaySummaries: [],
         dayEntries: [],
         bucketOptions: [],
         quickBucketChipsWide: [],
         quickBucketChipsCompact: [],
-        lastErrorMessage: nil
+        lastErrorMessage: nil,
+        todayInterruptionCount: 0,
+        todayLastInterruptionAt: nil
     )
 
     var summaryAllocatedDuration: TimeInterval {
@@ -1380,6 +1485,8 @@ private struct TimeTrackingDisplayedDaySummary: Identifiable, Equatable {
     let totalTrackedDuration: TimeInterval
     let totalAllocatedDuration: TimeInterval
     let unallocatedDuration: TimeInterval
+    let interruptionCount: Int
+    let estimatedFocusLossDuration: TimeInterval
     let needsReview: Bool
     let isPeakDay: Bool
     let trackedIntensity: Double

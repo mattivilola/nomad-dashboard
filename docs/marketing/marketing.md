@@ -87,7 +87,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Checking whether local prices feel cheap, medium, or expensive before settling in
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
 - Tracking visited places locally on the Mac, with country-day summaries by year and month
-- Tracking awake work time locally on the Mac, then assigning it from the dashboard with quick project chips before reviewing day, week, and month summaries
+- Tracking awake work time locally on the Mac, then assigning it from the dashboard with quick project chips, interruption counts, and focus-adjusted day, week, and month summaries
 - Keeping all of the above in a compact menu bar workflow instead of a full-size monitoring dashboard
 
 ## Benefit Statements
@@ -151,6 +151,7 @@ Marketing copy can safely say:
 - Several travel modules are optional
 - Local price level uses official public datasets and can stay limited to country fallback data where exact local sources are not available
 - Project time tracking stays local to the Mac and can be turned off entirely
+- Interruption tracking for project time tracking also stays local to the Mac and uses the same local ledger
 - Development builds keep separate local time-tracking storage from the live app
 - Anonymous analytics are privacy-conscious and configurable in-app, with some install and reach estimation events always collected
 

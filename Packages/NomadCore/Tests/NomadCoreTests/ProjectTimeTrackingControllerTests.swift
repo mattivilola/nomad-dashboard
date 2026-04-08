@@ -17,6 +17,9 @@ struct ProjectTimeTrackingControllerTests {
         )
         let ledger = TimeTrackingLedger(
             entries: [entry],
+            interruptions: [
+                TimeTrackingInterruption(reportedAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 15))
+            ],
             runtimeState: TimeTrackingRuntimeState(activityState: .paused, openEntryID: nil, lastHeartbeatAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0))
         )
 
@@ -119,6 +122,36 @@ struct ProjectTimeTrackingControllerTests {
         #expect(harness.controller.entries[1].isOpen == true)
         #expect(harness.controller.runtimeState.openEntryID == harness.controller.entries[1].id)
         #expect(harness.controller.dashboardState.todaySummary.unallocatedDuration == 0)
+    }
+
+    @Test
+    func interruptionsFollowLaterProjectAllocationAndProduceFocusMetrics() async throws {
+        let project = TimeTrackingProject(id: UUID(), name: "Client A")
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
+            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+        )
+        await harness.controller.waitUntilLoaded()
+
+        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 10)
+        await harness.controller.synchronize()
+        await harness.controller.reportInterruption()
+
+        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30)
+        await harness.controller.synchronize()
+        await harness.controller.allocateCurrentDayPending(to: .project(project.id))
+
+        let summary = harness.controller.daySummary(for: harness.clock.current)
+        let projectBucket = try #require(summary.bucketDurations.first(where: { $0.bucket == .project(project.id) }))
+
+        #expect(summary.interruptionCount == 1)
+        #expect(summary.estimatedFocusLossDuration == TimeTrackingFocusMetrics.interruptionRecoveryDuration)
+        #expect(summary.focusAdjustedDuration == TimeInterval(7 * 60))
+        #expect(projectBucket.duration == TimeInterval(30 * 60))
+        #expect(projectBucket.interruptionCount == 1)
+        #expect(projectBucket.focusAdjustedDuration == TimeInterval(7 * 60))
+        #expect(harness.controller.dashboardState.todaySummary.interruptionCount == 1)
+        #expect(harness.controller.dashboardState.todaySummary.lastInterruptionAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 10))
     }
 
     @Test
@@ -489,6 +522,9 @@ struct ProjectTimeTrackingControllerTests {
                         endAt: makeDate(year: 2026, month: 4, day: 5, hour: 15, minute: 0),
                         bucket: .other
                     )
+                ],
+                interruptions: [
+                    TimeTrackingInterruption(reportedAt: makeDate(year: 2026, month: 4, day: 1, hour: 9, minute: 30))
                 ]
             )
         )
@@ -503,6 +539,8 @@ struct ProjectTimeTrackingControllerTests {
         #expect(exportText.contains("Week of"))
         #expect(exportText.contains("Client A"))
         #expect(exportText.contains("Other"))
+        #expect(exportText.contains("Interruptions: 1"))
+        #expect(exportText.contains("Focus time"))
     }
 
     private func makeHarness(
