@@ -129,6 +129,7 @@ Users can make quick practical decisions about wind, rain risk, the next few hou
 - Aggregates optional travel-oriented alert signals into one condensed card
 - Supports travel advisory, weather alerts, and regional security context
 - Uses the live Smartraveller destinations page first, falls back to `destinations-export`, and can retry through a hidden WebKit fetch when direct transport stalls
+- Keeps Smartraveller severity sourced from the destination list, then optionally fetches the matched destination page for a short reason sentence and a `More details` link
 - Keeps the dashboard compact by summarizing status rather than becoming a full alert center
 
 ### Who it helps

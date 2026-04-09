@@ -701,6 +701,31 @@ struct NomadUITests {
     }
 
     @Test
+    func travelAlertsPresentationKeepsAdvisoryDetailSummarySeparateFromMainSummary() {
+        let presentation = TravelAlertsCardPresentation(
+            preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: false, securityEnabled: false),
+            snapshot: makeTravelAlertsSnapshot(
+                enabledKinds: [.advisory],
+                states: [
+                    makeState(
+                        kind: .advisory,
+                        status: .ready,
+                        severity: .caution,
+                        summary: "France nearby: exercise a high degree of caution.",
+                        detailSummary: "Exercise a high degree of caution in France due to the threat of terrorism.",
+                        sourceURL: URL(string: "https://example.com/france")
+                    )
+                ]
+            )
+        )
+
+        let row = presentation.rows.first
+        #expect(row?.summary == "France nearby: exercise a high degree of caution.")
+        #expect(row?.detailSummary == "Exercise a high degree of caution in France due to the threat of terrorism.")
+        #expect(row?.sourceURL?.absoluteString == "https://example.com/france")
+    }
+
+    @Test
     func travelAlertsPresentationKeepsStaleRowVisible() {
         let lastSuccessAt = fixedTravelAlertDate(day: 7)
         let presentation = TravelAlertsCardPresentation(
@@ -1523,7 +1548,9 @@ private func makeState(
     status: TravelAlertSignalStatus,
     severity: TravelAlertSeverity,
     summary: String,
+    detailSummary: String? = nil,
     sourceName: String? = nil,
+    sourceURL: URL? = nil,
     count: Int? = nil,
     updatedAt: Date = .now,
     lastAttemptedAt: Date = .now,
@@ -1546,15 +1573,16 @@ private func makeState(
             severity: severity,
             title: kind.rawValue,
             summary: summary,
+            detailSummary: detailSummary,
             sourceName: sourceName ?? defaultSourceName,
-            sourceURL: nil,
+            sourceURL: sourceURL,
             updatedAt: updatedAt,
             affectedCountryCodes: ["ES"],
             itemCount: count
         ),
         reason: nil,
         sourceName: sourceName ?? defaultSourceName,
-        sourceURL: nil,
+        sourceURL: sourceURL,
         lastAttemptedAt: lastAttemptedAt,
         lastSuccessAt: lastSuccessAt
     )

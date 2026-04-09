@@ -58,6 +58,7 @@ struct DashboardRootView: View {
             openFuelStationInGoogleMapsAction: openFuelStationInGoogleMaps,
             openEmergencyHospitalMapPreviewAction: openEmergencyHospitalMapPreview,
             openEmergencyHospitalInGoogleMapsAction: openEmergencyHospitalInGoogleMaps,
+            openTravelAlertSourceAction: openTravelAlertSource,
             checkForUpdatesAction: checkForUpdatesAction,
             openSettingsAction: openSettings,
             openSurfSpotSettingsAction: openSurfSpotSettings,
@@ -182,6 +183,10 @@ struct DashboardRootView: View {
             return
         }
 
+        NSWorkspace.shared.open(url)
+    }
+
+    private func openTravelAlertSource(_ url: URL) {
         NSWorkspace.shared.open(url)
     }
 

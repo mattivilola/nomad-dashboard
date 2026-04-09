@@ -44,9 +44,34 @@ struct TravelAlertsProvidersTests {
 
         #expect(signal.kind == .advisory)
         #expect(signal.severity == .caution)
-        #expect(signal.summary == "France is at Level 2 nearby.")
+        #expect(signal.summary == "France nearby: exercise a high degree of caution.")
         #expect(signal.sourceURL?.absoluteString == "https://example.com/france")
         #expect(signal.affectedCountryCodes == ["FR"])
+    }
+
+    @Test
+    func advisorySignalUsesParsedPrimaryCountryDetailAsMainSummary() throws {
+        let signal = try SmartravellerAdvisoryProvider.signal(
+            from: [
+                AdvisoryMatch(
+                    countryCode: "FR",
+                    countryName: "France",
+                    destination: SmartravellerDestination(
+                        name: "France",
+                        level: 2,
+                        url: URL(string: "https://example.com/france"),
+                        updatedAt: .now
+                    )
+                )
+            ],
+            primaryCountryCode: "FR",
+            detailSummary: "Exercise a high degree of caution in France due to the threat of terrorism.",
+            now: .now
+        )
+
+        #expect(signal.summary == "Exercise a high degree of caution in France due to the threat of terrorism.")
+        #expect(signal.detailSummary == "Exercise a high degree of caution in France due to the threat of terrorism.")
+        #expect(signal.sourceURL?.absoluteString == "https://example.com/france")
     }
 
     @Test
@@ -113,7 +138,7 @@ struct TravelAlertsProvidersTests {
         let signal = try await provider.advisory(for: ["ES", "FR"], primaryCountryCode: "ES", forceRefresh: true)
 
         #expect(signal.severity == .caution)
-        #expect(signal.summary == "France is at Level 2 nearby.")
+        #expect(signal.summary == "France nearby: exercise a high degree of caution.")
         #expect(signal.sourceURL?.absoluteString == "https://example.com/france")
     }
 
@@ -154,8 +179,106 @@ struct TravelAlertsProvidersTests {
         let signal = try await provider.advisory(for: ["ES", "FR"], primaryCountryCode: "ES", forceRefresh: true)
 
         #expect(signal.severity == .caution)
-        #expect(signal.summary == "France is at Level 2 nearby.")
+        #expect(signal.summary == "France nearby: exercise a high degree of caution.")
         #expect(signal.sourceURL?.absoluteString == "https://www.smartraveller.gov.au/destinations/france")
+    }
+
+    @Test
+    func advisoryProviderFetchesOptionalDestinationDetailWithoutAffectingSeveritySource() async throws {
+        let session = makeMockSession()
+        let provider = SmartravellerAdvisoryProvider(
+            session: session,
+            ttl: 0,
+            liveDestinationsURL: URL(string: "https://example.com/destinations")!,
+            exportURL: URL(string: "https://example.com/destinations-export")!,
+            requestTimeout: 1
+        )
+
+        MockTravelAlertsURLProtocol.handler = { request in
+            guard let url = request.url else {
+                throw ProviderError.invalidResponse
+            }
+
+            switch url.path {
+            case "/destinations":
+                let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                let body = Data("""
+                [{"title":"France","advice_level":2,"url":"https://example.com/destinations/europe/france","updated_at":"2026-04-07T10:00:00Z"}]
+                """.utf8)
+                return (body, response)
+            case "/destinations/europe/france":
+                let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                let body = Data("""
+                <html><body><p>Exercise a high degree of caution in France due to the threat of terrorism. Higher levels apply in some areas.</p></body></html>
+                """.utf8)
+                return (body, response)
+            default:
+                throw ProviderError.invalidResponse
+            }
+        }
+
+        let signal = try await provider.advisory(for: ["FR", "ES"], primaryCountryCode: "FR", forceRefresh: true)
+
+        #expect(signal.severity == .caution)
+        #expect(signal.summary == "Exercise a high degree of caution in France due to the threat of terrorism.")
+        #expect(signal.detailSummary == "Exercise a high degree of caution in France due to the threat of terrorism.")
+        #expect(signal.sourceURL?.absoluteString == "https://example.com/destinations/europe/france")
+    }
+
+    @Test
+    func advisoryProviderIgnoresDestinationDetailFetchFailure() async throws {
+        let session = makeMockSession()
+        let provider = SmartravellerAdvisoryProvider(
+            session: session,
+            ttl: 0,
+            liveDestinationsURL: URL(string: "https://example.com/destinations")!,
+            exportURL: URL(string: "https://example.com/destinations-export")!,
+            requestTimeout: 1
+        )
+
+        MockTravelAlertsURLProtocol.handler = { request in
+            guard let url = request.url else {
+                throw ProviderError.invalidResponse
+            }
+
+            switch url.path {
+            case "/destinations":
+                let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                let body = Data("""
+                [{"title":"France","advice_level":2,"url":"https://example.com/destinations/europe/france","updated_at":"2026-04-07T10:00:00Z"}]
+                """.utf8)
+                return (body, response)
+            case "/destinations/europe/france":
+                throw URLError(.timedOut)
+            default:
+                throw ProviderError.invalidResponse
+            }
+        }
+
+        let signal = try await provider.advisory(for: ["ES", "FR"], primaryCountryCode: "ES", forceRefresh: true)
+
+        #expect(signal.severity == .caution)
+        #expect(signal.summary == "France nearby: exercise a high degree of caution.")
+        #expect(signal.detailSummary == nil)
+        #expect(signal.sourceURL?.absoluteString == "https://example.com/destinations/europe/france")
+    }
+
+    @Test
+    func advisoryProviderParsesDestinationDetailSummarySentence() {
+        let summary = SmartravellerAdvisoryProvider.parseDestinationDetailSummary(
+            from: Data(
+                """
+                <html>
+                  <body>
+                    <p>Do not travel to parts of Exampleland.</p>
+                    <p>Exercise a high degree of caution in France due to the threat of terrorism. Monitor local media.</p>
+                  </body>
+                </html>
+                """.utf8
+            )
+        )
+
+        #expect(summary == "Do not travel to parts of Exampleland.")
     }
 
     @Test

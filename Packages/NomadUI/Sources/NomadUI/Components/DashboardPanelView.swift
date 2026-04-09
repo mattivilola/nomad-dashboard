@@ -33,6 +33,7 @@ public struct DashboardPanelView: View {
     private let openFuelStationInGoogleMapsAction: (FuelStationMapDestination) -> Void
     private let openEmergencyHospitalMapPreviewAction: (EmergencyHospitalMapDestination) -> Void
     private let openEmergencyHospitalInGoogleMapsAction: (EmergencyHospitalMapDestination) -> Void
+    private let openTravelAlertSourceAction: (URL) -> Void
     private let checkForUpdatesAction: (() -> Void)?
     private let openSettingsAction: () -> Void
     private let openSurfSpotSettingsAction: () -> Void
@@ -77,6 +78,7 @@ public struct DashboardPanelView: View {
         openFuelStationInGoogleMapsAction: @escaping (FuelStationMapDestination) -> Void = { _ in },
         openEmergencyHospitalMapPreviewAction: @escaping (EmergencyHospitalMapDestination) -> Void = { _ in },
         openEmergencyHospitalInGoogleMapsAction: @escaping (EmergencyHospitalMapDestination) -> Void = { _ in },
+        openTravelAlertSourceAction: @escaping (URL) -> Void = { _ in },
         checkForUpdatesAction: (() -> Void)? = nil,
         openSettingsAction: @escaping () -> Void,
         openSurfSpotSettingsAction: @escaping () -> Void,
@@ -115,6 +117,7 @@ public struct DashboardPanelView: View {
         self.openFuelStationInGoogleMapsAction = openFuelStationInGoogleMapsAction
         self.openEmergencyHospitalMapPreviewAction = openEmergencyHospitalMapPreviewAction
         self.openEmergencyHospitalInGoogleMapsAction = openEmergencyHospitalInGoogleMapsAction
+        self.openTravelAlertSourceAction = openTravelAlertSourceAction
         self.checkForUpdatesAction = checkForUpdatesAction
         self.openSettingsAction = openSettingsAction
         self.openSurfSpotSettingsAction = openSurfSpotSettingsAction
@@ -1002,7 +1005,8 @@ public struct DashboardPanelView: View {
                     ForEach(travelAlertRows) { row in
                         TravelAlertSignalRow(
                             row: row,
-                            isCompact: widthMode == .narrow
+                            isCompact: widthMode == .narrow,
+                            openSourceAction: openTravelAlertSourceAction
                         )
                     }
                 }
@@ -3588,9 +3592,11 @@ struct TravelAlertRowModel: Identifiable, Equatable {
     let statusLabel: String
     let impactText: String
     let summary: String
+    let detailSummary: String?
     let freshnessText: String
     let metadataText: String
     let sourceName: String
+    let sourceURL: URL?
     let count: Int?
     let severity: TravelAlertSeverity
     let tint: Color
@@ -3603,9 +3609,11 @@ struct TravelAlertRowModel: Identifiable, Equatable {
             && lhs.statusLabel == rhs.statusLabel
             && lhs.impactText == rhs.impactText
             && lhs.summary == rhs.summary
+            && lhs.detailSummary == rhs.detailSummary
             && lhs.freshnessText == rhs.freshnessText
             && lhs.metadataText == rhs.metadataText
             && lhs.sourceName == rhs.sourceName
+            && lhs.sourceURL == rhs.sourceURL
             && lhs.count == rhs.count
             && lhs.severity == rhs.severity
             && lhs.symbolName == rhs.symbolName
@@ -3721,9 +3729,11 @@ private extension TravelAlertRowModel {
                 statusLabel: statusLabel,
                 impactText: impactText,
                 summary: "Checking alerts…",
+                detailSummary: nil,
                 freshnessText: freshnessText,
                 metadataText: [sourceName, freshnessText].filter { $0.isEmpty == false }.joined(separator: " · "),
                 sourceName: sourceName,
+                sourceURL: nil,
                 count: nil,
                 severity: .info,
                 tint: NomadTheme.secondaryText,
@@ -3738,9 +3748,11 @@ private extension TravelAlertRowModel {
                 statusLabel: statusLabel,
                 impactText: impactText,
                 summary: signal?.summary ?? "No current alerts.",
+                detailSummary: signal?.detailSummary,
                 freshnessText: freshnessText,
                 metadataText: [sourceName, freshnessText].filter { $0.isEmpty == false }.joined(separator: " · "),
                 sourceName: sourceName,
+                sourceURL: signal?.sourceURL,
                 count: signal?.itemCount,
                 severity: signal?.severity ?? .clear,
                 tint: (signal?.severity ?? .clear).tint,
@@ -3757,9 +3769,11 @@ private extension TravelAlertRowModel {
                 statusLabel: statusLabel,
                 impactText: impactText,
                 summary: summary,
+                detailSummary: nil,
                 freshnessText: freshnessText,
                 metadataText: [sourceName, freshnessText].filter { $0.isEmpty == false }.joined(separator: " · "),
                 sourceName: sourceName,
+                sourceURL: signal?.sourceURL,
                 count: signal?.itemCount,
                 severity: severity,
                 tint: severity.tint,
@@ -3773,9 +3787,11 @@ private extension TravelAlertRowModel {
                 statusLabel: statusLabel,
                 impactText: impactText,
                 summary: state.diagnosticSummary ?? state.reason?.summary ?? "Source unavailable",
+                detailSummary: nil,
                 freshnessText: freshnessText,
                 metadataText: [sourceName, freshnessText].filter { $0.isEmpty == false }.joined(separator: " · "),
                 sourceName: sourceName,
+                sourceURL: nil,
                 count: nil,
                 severity: .info,
                 tint: NomadTheme.sand,
@@ -3841,6 +3857,7 @@ private extension TravelAlertRowModel {
 private struct TravelAlertSignalRow: View {
     let row: TravelAlertRowModel
     var isCompact: Bool = false
+    var openSourceAction: (URL) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: isCompact ? 8 : 10) {
@@ -3868,6 +3885,32 @@ private struct TravelAlertSignalRow: View {
                 .font(isCompact ? .caption : .caption)
                 .foregroundStyle(NomadTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if let detailSummary = detailSummaryText {
+                Text(detailSummary)
+                    .font(.caption)
+                    .foregroundStyle(NomadTheme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let sourceURL = advisorySourceURL {
+                Button("More details") {
+                    openSourceAction(sourceURL)
+                }
+                .buttonStyle(.plain)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(row.tint)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(row.tint.opacity(0.12))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(row.tint.opacity(0.18), lineWidth: 1)
+                )
+            }
 
             HStack(alignment: .center, spacing: 8) {
                 Text(row.metadataText)
@@ -3900,6 +3943,22 @@ private struct TravelAlertSignalRow: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(row.tint.opacity(0.14), lineWidth: 1)
         )
+    }
+
+    private var detailSummaryText: String? {
+        guard let detailSummary = row.detailSummary?.nilIfEmpty else {
+            return nil
+        }
+
+        return detailSummary == row.summary ? nil : detailSummary
+    }
+
+    private var advisorySourceURL: URL? {
+        guard row.id == .advisory else {
+            return nil
+        }
+
+        return row.sourceURL
     }
 }
 
