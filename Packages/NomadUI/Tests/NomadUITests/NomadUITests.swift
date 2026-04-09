@@ -1252,7 +1252,7 @@ struct NomadUITests {
         #expect(presentation.rows.map(\.title).prefix(3) == ["Location", "Public Holiday", "School Break"])
         #expect(presentation.rows.contains(where: { $0.title == "Meal Out" }))
         #expect(presentation.sourceLine?.contains("Nager.Date") == true)
-        #expect(presentation.rows.first(where: { $0.title == "School Break" })?.badge?.title == "Busy Period")
+        #expect(presentation.rows.first(where: { $0.title == "School Break" })?.badge == nil)
         #expect(presentation.rows.first(where: { $0.title == "Public Holiday" })?.badge == nil)
     }
 
