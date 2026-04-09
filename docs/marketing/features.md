@@ -129,6 +129,7 @@ Users can make quick practical decisions about wind, rain risk, the next few hou
 - Aggregates optional travel-oriented alert signals into one condensed card
 - Supports travel advisory, weather alerts, and regional security context
 - Uses the live Smartraveller destinations page first, falls back to `destinations-export`, and can retry through a hidden WebKit fetch when direct transport stalls
+- Keeps Smartraveller severity sourced from the destination list, then optionally fetches the matched destination page for a short reason sentence and a `More details` link
 - Keeps the dashboard compact by summarizing status rather than becoming a full alert center
 
 ### Who it helps
@@ -152,33 +153,40 @@ Users can notice higher-level advisory or environmental signals without doing a 
 - this is a compact summary layer, not a full travel risk management product
 - source coverage and freshness depend on upstream providers
 
-## Local Price Level
+## Local Info
 
 ### What it does
 
-- Can show a compact local price-level card for travelers
-- Uses official country-level Eurostat price indices for European meal-out, groceries, and overall local cost context
+- Can show a compact local info card for travelers
+- Shows current local city, region, country, and holiday context when location or external IP location is available
+- Shows next public holiday with free public data
+- Shows school holiday context only when a confident local or regional match is available
+- Reuses official country-level Eurostat price indices for European meal-out, groceries, and overall local cost context
 - Can show a US 1-bedroom rent benchmark from HUD USER when the user adds a HUD API token
-- Keeps source attribution visible and labels each signal as a country fallback, county benchmark, or metro benchmark
+- Keeps source attribution visible for holidays and price signals
 
 ### Who it helps
 
-- frequent travelers comparing day-to-day cost differences between countries
+- frequent travelers who want quick regional context without opening separate calendar or travel tools
 - digital nomads deciding whether a stop feels cheap, medium, or expensive
-- longer-stay travelers who want a rough rent anchor without leaving the dashboard
+- longer-stay travelers who want a rough rent anchor plus a quick holiday sanity check without leaving the dashboard
 
 ### Practical benefit
 
-Users can get a quick sense of local meal, grocery, and rent pressure without opening separate cost-of-living or housing tools.
+Users can get a quick sense of local holiday timing, place context, and price pressure without opening separate travel, calendar, cost-of-living, or housing tools.
 
 ### Dependencies or setup
 
+- public holiday context works from resolved country context
+- school holiday context depends on confident regional matching and upstream coverage
 - Europe price-level signals work from location context and official Eurostat data
 - US 1-bedroom rent requires a user-supplied HUD USER API token
 - US rent benchmarks use current location to resolve the county through the US Census Geocoder
 
 ### Region Or Build Limitations
 
+- school holiday coverage is best-effort and varies by country and subdivision support
+- public holiday freshness and regional precision depend on upstream providers
 - Europe currently uses country-level fallback data, not city-level venue prices
 - US v1 currently focuses on the HUD 1-bedroom rent benchmark rather than a full meal-and-groceries set
 - countries outside Europe and the United States are not supported in v1

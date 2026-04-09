@@ -239,7 +239,17 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
             )
         }
 
-        return try Self.signal(from: matches, primaryCountryCode: primaryCountryCode, now: Date())
+        let now = Date()
+        let selectedMatch = try Self.selectedMatch(from: matches, primaryCountryCode: primaryCountryCode)
+        let detailSummary = await fetchOptionalDestinationDetailSummary(for: selectedMatch.destination.url)
+
+        return try Self.signal(
+            from: matches,
+            selectedMatch: selectedMatch,
+            primaryCountryCode: primaryCountryCode,
+            detailSummary: detailSummary,
+            now: now
+        )
     }
 
     func bestDestinationMatch(for countryCode: String, in destinations: [SmartravellerDestination]) -> SmartravellerDestination? {
@@ -307,8 +317,8 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
         throw SmartravellerProviderError.allStagesFailed(failures)
     }
 
-    static func signal(from matches: [AdvisoryMatch], primaryCountryCode: String, now: Date) throws -> TravelAlertSignalSnapshot {
-        guard let worst = matches.max(by: { lhs, rhs in
+    static func selectedMatch(from matches: [AdvisoryMatch], primaryCountryCode: String) throws -> AdvisoryMatch {
+        guard let selected = matches.max(by: { lhs, rhs in
             if lhs.severity == rhs.severity {
                 return lhs.countryCode != primaryCountryCode && rhs.countryCode == primaryCountryCode
             }
@@ -318,23 +328,35 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
             throw ProviderError.invalidResponse
         }
 
-        let sourceURL = worst.destination.url
-        let summary = if worst.severity == .clear {
+        return selected
+    }
+
+    static func signal(
+        from matches: [AdvisoryMatch],
+        selectedMatch: AdvisoryMatch? = nil,
+        primaryCountryCode: String,
+        detailSummary: String? = nil,
+        now: Date
+    ) throws -> TravelAlertSignalSnapshot {
+        let selected = try selectedMatch ?? Self.selectedMatch(from: matches, primaryCountryCode: primaryCountryCode)
+        let sourceURL = selected.destination.url
+        let summary = if selected.countryCode == primaryCountryCode {
+            detailSummary ?? "\(selected.countryName): \(selected.destination.adviceText)."
+        } else if selected.severity == .clear {
             "No elevated travel advisories across your nearby countries."
-        } else if worst.countryCode == primaryCountryCode {
-            "\(worst.countryName) is at \(worst.destination.levelLabel)."
         } else {
-            "\(worst.countryName) is at \(worst.destination.levelLabel) nearby."
+            "\(selected.countryName) nearby: \(selected.destination.adviceText)."
         }
 
         return TravelAlertSignalSnapshot(
             kind: .advisory,
-            severity: worst.severity,
+            severity: selected.severity,
             title: "Travel advisory",
             summary: summary,
+            detailSummary: detailSummary,
             sourceName: "Smartraveller",
             sourceURL: sourceURL,
-            updatedAt: worst.destination.updatedAt ?? now,
+            updatedAt: selected.destination.updatedAt ?? now,
             affectedCountryCodes: matches
                 .filter { $0.severity > .clear }
                 .map(\.countryCode)
@@ -419,6 +441,33 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
         }
 
         return try Self.parseDestinations(from: data, stage: stage, baseURL: url)
+    }
+
+    private func fetchOptionalDestinationDetailSummary(for url: URL?) async -> String? {
+        guard let url else {
+            return nil
+        }
+
+        var request = URLRequest(
+            url: url,
+            cachePolicy: .reloadIgnoringLocalAndRemoteCacheData,
+            timeoutInterval: requestTimeout
+        )
+        request.setValue("NomadDashboard/1.0", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard
+                let httpResponse = response as? HTTPURLResponse,
+                (200...299).contains(httpResponse.statusCode)
+            else {
+                return nil
+            }
+
+            return Self.parseDestinationDetailSummary(from: data)
+        } catch {
+            return nil
+        }
     }
 
     private static func parseDestinationsJSON(from data: Data, stage: String) throws -> [SmartravellerDestination] {
@@ -538,6 +587,33 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
         }
 
         return destinations
+    }
+
+    static func parseDestinationDetailSummary(from data: Data) -> String? {
+        guard let rawBody = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        return parseDestinationDetailSummary(fromHTML: rawBody)
+    }
+
+    static func parseDestinationDetailSummary(fromHTML rawHTML: String) -> String? {
+        let text = htmlTextContent(from: rawHTML)
+        guard text.isEmpty == false else {
+            return nil
+        }
+
+        let pattern = #"(Exercise normal safety precautions|Exercise a high degree of caution|Reconsider your need to travel|Do not travel)[^.]*\."#
+        guard
+            let expression = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+            let match = expression.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+            let range = Range(match.range, in: text)
+        else {
+            return nil
+        }
+
+        let summary = text[range].trimmingCharacters(in: .whitespacesAndNewlines)
+        return summary.isEmpty ? nil : summary
     }
 
     private static func stringValue(in dictionary: [String: Any], keys: [String]) -> String? {
@@ -1092,6 +1168,21 @@ struct SmartravellerDestination {
 
     var levelLabel: String {
         "Level \(level)"
+    }
+
+    var adviceText: String {
+        switch level {
+        case 1:
+            "exercise normal safety precautions"
+        case 2:
+            "exercise a high degree of caution"
+        case 3:
+            "reconsider your need to travel"
+        case 4:
+            "do not travel"
+        default:
+            "review the travel advisory"
+        }
     }
 }
 

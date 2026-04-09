@@ -20,6 +20,15 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.10.0] - 2026-04-09
+
+### Changed
+
+- Introduce detailed travel advisory summaries and source links
+- Introduce Local Info feature
+- Display busy period badges for local public and school holidays.
+- Correct UI test for school break badge display
+
 ## [0.9.0] - 2026-04-08
 
 ### Changed

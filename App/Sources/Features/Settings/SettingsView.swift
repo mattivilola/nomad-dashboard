@@ -107,8 +107,8 @@ struct SettingsView: View {
 
                     Section {
                         Toggle("Use current location for weather", isOn: weatherLocationBinding)
-                        Toggle("Show local price level", isOn: localPriceLevelBinding)
-                        TextField("HUD USER API token (US 1BR rent)", text: binding(\.hudUserAPIToken))
+                        Toggle("Show local info", isOn: localInfoBinding)
+                        TextField("HUD USER API token (US rent in Local Info)", text: binding(\.hudUserAPIToken))
                             .textFieldStyle(.roundedBorder)
                             .focused($focusedField, equals: .hudUserAPIToken)
                         if let hudUserConfigurationMessage {
@@ -152,7 +152,7 @@ struct SettingsView: View {
                     } header: {
                         Text("Privacy & Location")
                     } footer: {
-                        Text("Weather, nearby fuel prices, nearby emergency hospitals, and local weather alerts use device location only when you opt in. Local price level uses official public datasets: Eurostat for country-level European price signals and, when configured, HUD USER plus the US Census Geocoder for the US 1-bedroom rent benchmark. Emergency care uses Apple Maps hospital points of interest and opens selected hospitals in maps. Fuel price support is country-dependent and currently best in Spain, France, Italy, and Germany. Germany requires your own Tankerkönig API key, while Spain, France, and Italy work without one. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs. Visited places and country-day history stay on this Mac until you clear them. Anonymous install, launch, and daily background activity counts are always sent so app reach can be estimated; turn analytics off here to stop UI-based daily activity and window-open events.")
+                        Text("Weather, nearby fuel prices, nearby emergency hospitals, and local weather alerts use device location only when you opt in. Local Info combines location context, public holiday data, best-effort school holiday data, and local price signals. Price signals use official public datasets: Eurostat for country-level European price context and, when configured, HUD USER plus the US Census Geocoder for the US 1-bedroom rent benchmark. Emergency care uses Apple Maps hospital points of interest and opens selected hospitals in maps. Fuel price support is country-dependent and currently best in Spain, France, Italy, and Germany. Germany requires your own Tankerkönig API key, while Spain, France, and Italy work without one. External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs. Visited places and country-day history stay on this Mac until you clear them. Anonymous install, launch, and daily background activity counts are always sent so app reach can be estimated; turn analytics off here to stop UI-based daily activity and window-open events.")
                     }
 
                     Section {
@@ -491,11 +491,11 @@ struct SettingsView: View {
         )
     }
 
-    private var localPriceLevelBinding: Binding<Bool> {
+    private var localInfoBinding: Binding<Bool> {
         Binding(
-            get: { settingsStore.settings.localPriceLevelEnabled },
+            get: { settingsStore.settings.localInfoEnabled },
             set: { isEnabled in
-                settingsStore.settings.localPriceLevelEnabled = isEnabled
+                settingsStore.settings.localInfoEnabled = isEnabled
                 snapshotStore.setCurrentLocation(locationStore.currentLocation)
             }
         )
@@ -552,17 +552,17 @@ struct SettingsView: View {
     }
 
     private var hudUserConfigurationWarning: Bool {
-        snapshotStore.snapshot.localPriceLevel?.status == .configurationRequired
-            && snapshotStore.snapshot.localPriceLevel?.countryCode == "US"
+        snapshotStore.snapshot.localInfo?.localPriceLevel?.status == .configurationRequired
+            && snapshotStore.snapshot.localInfo?.localPriceLevel?.countryCode == "US"
     }
 
     private var hudUserConfigurationMessage: String? {
         if hudUserConfigurationWarning {
-            return "US 1BR rent needs a valid HUD USER API token. Add it here, then refresh."
+            return "US 1BR rent inside Local Info needs a valid HUD USER API token. Add it here, then refresh."
         }
 
         if settingsStore.settings.hudUserAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Only needed for US 1-bedroom rent benchmarks. Europe price levels work without it."
+            return "Only needed for the optional US 1-bedroom rent row inside Local Info. Europe price signals work without it."
         }
 
         return "Stored locally in app settings and used only for HUD 1-bedroom rent lookups on this Mac."

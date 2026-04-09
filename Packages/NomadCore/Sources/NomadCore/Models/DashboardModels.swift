@@ -516,7 +516,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
     public let travelContext: TravelContextSnapshot
     public let travelAlerts: TravelAlertsSnapshot?
     public let weather: WeatherSnapshot?
-    public let localPriceLevel: LocalPriceLevelSnapshot?
+    public let localInfo: LocalInfoSnapshot?
     public let fuelPrices: FuelPriceSnapshot?
     public let fuelDiagnostics: FuelDiagnosticsSnapshot?
     public let emergencyCare: EmergencyCareSnapshot?
@@ -530,7 +530,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         travelContext: TravelContextSnapshot,
         travelAlerts: TravelAlertsSnapshot? = nil,
         weather: WeatherSnapshot?,
-        localPriceLevel: LocalPriceLevelSnapshot? = nil,
+        localInfo: LocalInfoSnapshot? = nil,
         fuelPrices: FuelPriceSnapshot? = nil,
         fuelDiagnostics: FuelDiagnosticsSnapshot? = nil,
         emergencyCare: EmergencyCareSnapshot? = nil,
@@ -543,7 +543,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         self.travelContext = travelContext
         self.travelAlerts = travelAlerts
         self.weather = weather
-        self.localPriceLevel = localPriceLevel
+        self.localInfo = localInfo
         self.fuelPrices = fuelPrices
         self.fuelDiagnostics = fuelDiagnostics
         self.emergencyCare = emergencyCare
@@ -601,7 +601,7 @@ public extension DashboardSnapshot {
             fetchedAt: nil
         ),
         weather: nil,
-        localPriceLevel: nil,
+        localInfo: nil,
         fuelPrices: nil,
         emergencyCare: nil,
         marine: nil,
@@ -841,51 +841,97 @@ public extension DashboardSnapshot {
             ],
             fetchedAt: .now
         ),
-        localPriceLevel: LocalPriceLevelSnapshot(
+        localInfo: LocalInfoSnapshot(
             status: .ready,
-            summaryBand: .medium,
+            locality: "Valencia",
+            administrativeRegion: "Valencian Community",
             countryCode: "ES",
             countryName: "Spain",
-            rows: [
-                LocalPriceIndicatorRow(
-                    kind: .mealOut,
-                    value: "Moderate",
-                    detail: "4% below EU average · Country fallback · 2024",
-                    precision: .countryFallback,
-                    source: LocalPriceSourceAttribution(
-                        name: "Eurostat",
-                        url: URL(string: "https://ec.europa.eu/eurostat/web/main/data/database")
-                    )
+            timeZoneIdentifier: "Europe/Madrid",
+            subdivisionCode: nil,
+            publicHolidayStatus: LocalHolidayStatus(
+                state: .upcoming,
+                currentPeriod: nil,
+                nextPeriod: HolidayPeriodSnapshot(
+                    name: "Labour Day",
+                    startDate: Calendar.current.date(byAdding: .day, value: 12, to: .now) ?? .now,
+                    endDate: Calendar.current.date(byAdding: .day, value: 12, to: .now) ?? .now
                 ),
-                LocalPriceIndicatorRow(
-                    kind: .groceries,
-                    value: "Moderate",
-                    detail: "4% below EU average · Country fallback · 2024",
-                    precision: .countryFallback,
-                    source: LocalPriceSourceAttribution(
-                        name: "Eurostat",
-                        url: URL(string: "https://ec.europa.eu/eurostat/web/main/data/database")
-                    )
+                note: nil
+            ),
+            schoolHolidayStatus: LocalHolidayStatus(
+                state: .upcoming,
+                currentPeriod: nil,
+                nextPeriod: HolidayPeriodSnapshot(
+                    name: "Summer Holidays",
+                    startDate: Calendar.current.date(byAdding: .day, value: 70, to: .now) ?? .now,
+                    endDate: Calendar.current.date(byAdding: .day, value: 140, to: .now) ?? .now
                 ),
-                LocalPriceIndicatorRow(
-                    kind: .overall,
-                    value: "Moderate",
-                    detail: "1% below EU average · Country fallback · 2024",
-                    precision: .countryFallback,
-                    source: LocalPriceSourceAttribution(
+                note: nil
+            ),
+            localPriceLevel: LocalPriceLevelSnapshot(
+                status: .ready,
+                summaryBand: .medium,
+                countryCode: "ES",
+                countryName: "Spain",
+                rows: [
+                    LocalPriceIndicatorRow(
+                        kind: .mealOut,
+                        value: "Moderate",
+                        detail: "4% below EU average · Country fallback · 2024",
+                        precision: .countryFallback,
+                        source: LocalPriceSourceAttribution(
+                            name: "Eurostat",
+                            url: URL(string: "https://ec.europa.eu/eurostat/web/main/data/database")
+                        )
+                    ),
+                    LocalPriceIndicatorRow(
+                        kind: .groceries,
+                        value: "Moderate",
+                        detail: "4% below EU average · Country fallback · 2024",
+                        precision: .countryFallback,
+                        source: LocalPriceSourceAttribution(
+                            name: "Eurostat",
+                            url: URL(string: "https://ec.europa.eu/eurostat/web/main/data/database")
+                        )
+                    ),
+                    LocalPriceIndicatorRow(
+                        kind: .overall,
+                        value: "Moderate",
+                        detail: "1% below EU average · Country fallback · 2024",
+                        precision: .countryFallback,
+                        source: LocalPriceSourceAttribution(
+                            name: "Eurostat",
+                            url: URL(string: "https://ec.europa.eu/eurostat/web/main/data/database")
+                        )
+                    )
+                ],
+                sources: [
+                    LocalPriceSourceAttribution(
                         name: "Eurostat",
                         url: URL(string: "https://ec.europa.eu/eurostat/web/main/data/database")
                     )
-                )
-            ],
+                ],
+                fetchedAt: .now,
+                detail: "Meal out and groceries use country-level Eurostat price indices.",
+                note: nil
+            ),
             sources: [
-                LocalPriceSourceAttribution(
+                HolidaySourceAttribution(
+                    name: "Nager.Date",
+                    url: URL(string: "https://date.nager.at/")
+                ),
+                HolidaySourceAttribution(
+                    name: "OpenHolidays",
+                    url: URL(string: "https://openholidaysapi.org/")
+                ),
+                HolidaySourceAttribution(
                     name: "Eurostat",
                     url: URL(string: "https://ec.europa.eu/eurostat/web/main/data/database")
                 )
             ],
             fetchedAt: .now,
-            detail: "Meal out and groceries use country-level Eurostat price indices.",
+            detail: "Compact local context with holidays and price signals.",
             note: nil
         ),
         fuelPrices: FuelPriceSnapshot(
@@ -1011,7 +1057,7 @@ public extension DashboardSnapshot {
             travelContext: travelContext,
             travelAlerts: travelAlerts,
             weather: weather,
-            localPriceLevel: localPriceLevel,
+            localInfo: localInfo,
             fuelPrices: fuelPrices,
             fuelDiagnostics: fuelDiagnostics,
             emergencyCare: emergencyCare,

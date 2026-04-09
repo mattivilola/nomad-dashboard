@@ -701,6 +701,31 @@ struct NomadUITests {
     }
 
     @Test
+    func travelAlertsPresentationKeepsAdvisoryDetailSummarySeparateFromMainSummary() {
+        let presentation = TravelAlertsCardPresentation(
+            preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: false, securityEnabled: false),
+            snapshot: makeTravelAlertsSnapshot(
+                enabledKinds: [.advisory],
+                states: [
+                    makeState(
+                        kind: .advisory,
+                        status: .ready,
+                        severity: .caution,
+                        summary: "France nearby: exercise a high degree of caution.",
+                        detailSummary: "Exercise a high degree of caution in France due to the threat of terrorism.",
+                        sourceURL: URL(string: "https://example.com/france")
+                    )
+                ]
+            )
+        )
+
+        let row = presentation.rows.first
+        #expect(row?.summary == "France nearby: exercise a high degree of caution.")
+        #expect(row?.detailSummary == "Exercise a high degree of caution in France due to the threat of terrorism.")
+        #expect(row?.sourceURL?.absoluteString == "https://example.com/france")
+    }
+
+    @Test
     func travelAlertsPresentationKeepsStaleRowVisible() {
         let lastSuccessAt = fixedTravelAlertDate(day: 7)
         let presentation = TravelAlertsCardPresentation(
@@ -1213,6 +1238,121 @@ struct NomadUITests {
     }
 
     @Test
+    func localInfoSectionPresentationShowsLocationHolidayAndPriceRows() {
+        var settings = AppSettings()
+        settings.localInfoEnabled = true
+
+        let presentation = LocalInfoSectionPresentation(
+            settings: settings,
+            snapshot: DashboardSnapshot.preview,
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.badge.title == "Live")
+        #expect(presentation.rows.map(\.title).prefix(3) == ["Location", "Public Holiday", "School Break"])
+        #expect(presentation.rows.contains(where: { $0.title == "Meal Out" }))
+        #expect(presentation.sourceLine?.contains("Nager.Date") == true)
+        #expect(presentation.rows.first(where: { $0.title == "School Break" })?.badge == nil)
+        #expect(presentation.rows.first(where: { $0.title == "Public Holiday" })?.badge == nil)
+    }
+
+    @Test
+    func localInfoSectionPresentationUsesLocationDetailWhenCountryContextIsMissing() {
+        var settings = AppSettings()
+        settings.localInfoEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            localInfo: LocalInfoSnapshot(
+                status: .locationRequired,
+                locality: nil,
+                administrativeRegion: nil,
+                countryCode: nil,
+                countryName: nil,
+                timeZoneIdentifier: nil,
+                subdivisionCode: nil,
+                publicHolidayStatus: LocalHolidayStatus(
+                    state: .unavailable,
+                    currentPeriod: nil,
+                    nextPeriod: nil,
+                    note: "Allow current location or external IP location to look up local holiday information."
+                ),
+                schoolHolidayStatus: nil,
+                localPriceLevel: nil,
+                sources: [],
+                fetchedAt: nil,
+                detail: "Allow current location or external IP location to estimate local info.",
+                note: nil
+            ),
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = LocalInfoSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: "Allow location access to use local info."
+        )
+
+        #expect(presentation.badge.title == "Location Needed")
+        #expect(presentation.rows.isEmpty)
+        #expect(presentation.emptyMessage == "Allow location access to use local info.")
+    }
+
+    @Test
+    func localInfoSectionPresentationShowsBusyTodayBadgeForActivePublicHoliday() {
+        var settings = AppSettings()
+        settings.localInfoEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            localInfo: LocalInfoSnapshot(
+                status: .partial,
+                locality: "Paris",
+                administrativeRegion: "Ile-de-France",
+                countryCode: "FR",
+                countryName: "France",
+                timeZoneIdentifier: "Europe/Paris",
+                subdivisionCode: nil,
+                publicHolidayStatus: LocalHolidayStatus(
+                    state: .current,
+                    currentPeriod: HolidayPeriodSnapshot(
+                        name: "Labour Day",
+                        startDate: .now,
+                        endDate: .now
+                    ),
+                    nextPeriod: nil,
+                    note: nil
+                ),
+                schoolHolidayStatus: nil,
+                localPriceLevel: nil,
+                sources: [HolidaySourceAttribution(name: "Nager.Date", url: nil)],
+                fetchedAt: .now,
+                detail: nil,
+                note: nil
+            ),
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = LocalInfoSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.rows.first(where: { $0.title == "Public Holiday" })?.badge?.title == "Busy Today")
+    }
+
+    @Test
     func emergencyCareSectionPresentationShowsRowsForReadySnapshot() {
         var settings = AppSettings()
         settings.emergencyCareEnabled = true
@@ -1523,7 +1663,9 @@ private func makeState(
     status: TravelAlertSignalStatus,
     severity: TravelAlertSeverity,
     summary: String,
+    detailSummary: String? = nil,
     sourceName: String? = nil,
+    sourceURL: URL? = nil,
     count: Int? = nil,
     updatedAt: Date = .now,
     lastAttemptedAt: Date = .now,
@@ -1546,15 +1688,16 @@ private func makeState(
             severity: severity,
             title: kind.rawValue,
             summary: summary,
+            detailSummary: detailSummary,
             sourceName: sourceName ?? defaultSourceName,
-            sourceURL: nil,
+            sourceURL: sourceURL,
             updatedAt: updatedAt,
             affectedCountryCodes: ["ES"],
             itemCount: count
         ),
         reason: nil,
         sourceName: sourceName ?? defaultSourceName,
-        sourceURL: nil,
+        sourceURL: sourceURL,
         lastAttemptedAt: lastAttemptedAt,
         lastSuccessAt: lastSuccessAt
     )

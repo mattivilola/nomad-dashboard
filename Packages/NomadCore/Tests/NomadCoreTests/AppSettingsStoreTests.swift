@@ -18,7 +18,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.publicIPGeolocationEnabled == true)
         #expect(store.settings.shareAnonymousAnalytics == true)
         #expect(store.settings.visitedPlacesEnabled == true)
-        #expect(store.settings.localPriceLevelEnabled == false)
+        #expect(store.settings.localInfoEnabled == false)
         #expect(store.settings.fuelPricesEnabled == false)
         #expect(store.settings.emergencyCareEnabled == false)
         #expect(store.settings.travelAdvisoryEnabled == true)
@@ -112,7 +112,7 @@ struct AppSettingsStoreTests {
             .travelAlerts,
             .fuelPrices,
             .emergencyCare,
-            .localPriceLevel,
+            .localInfo,
             .travelContext,
             .timeTracking,
             .power,
@@ -380,7 +380,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.automaticUpdateChecksEnabled == false)
         #expect(store.settings.launchAtLoginEnabled == true)
         #expect(store.settings.useCurrentLocationForWeather == false)
-        #expect(store.settings.localPriceLevelEnabled == false)
+        #expect(store.settings.localInfoEnabled == false)
         #expect(store.settings.fuelPricesEnabled == false)
         #expect(store.settings.emergencyCareEnabled == false)
         #expect(store.settings.visitedPlacesEnabled == false)
@@ -431,7 +431,7 @@ struct AppSettingsStoreTests {
             .connectivity,
             .timeTracking,
             .travelContext,
-            .localPriceLevel,
+            .localInfo,
             .fuelPrices,
             .emergencyCare,
             .travelAlerts

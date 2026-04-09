@@ -62,6 +62,7 @@ public struct TravelAlertSignalSnapshot: Codable, Equatable, Sendable, Identifia
     public let severity: TravelAlertSeverity
     public let title: String
     public let summary: String
+    public let detailSummary: String?
     public let sourceName: String
     public let sourceURL: URL?
     public let updatedAt: Date
@@ -77,6 +78,7 @@ public struct TravelAlertSignalSnapshot: Codable, Equatable, Sendable, Identifia
         severity: TravelAlertSeverity,
         title: String,
         summary: String,
+        detailSummary: String? = nil,
         sourceName: String,
         sourceURL: URL?,
         updatedAt: Date,
@@ -87,6 +89,7 @@ public struct TravelAlertSignalSnapshot: Codable, Equatable, Sendable, Identifia
         self.severity = severity
         self.title = title
         self.summary = summary
+        self.detailSummary = detailSummary
         self.sourceName = sourceName
         self.sourceURL = sourceURL
         self.updatedAt = updatedAt

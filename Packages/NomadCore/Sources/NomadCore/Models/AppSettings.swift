@@ -14,7 +14,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var launchAtLoginEnabled: Bool
     public var useCurrentLocationForWeather: Bool
     public var weatherForecastExpanded: Bool
-    public var localPriceLevelEnabled: Bool
+    public var localInfoEnabled: Bool
     public var fuelPricesEnabled: Bool
     public var emergencyCareEnabled: Bool
     public var visitedPlacesEnabled: Bool
@@ -43,7 +43,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         launchAtLoginEnabled: Bool = false,
         useCurrentLocationForWeather: Bool = true,
         weatherForecastExpanded: Bool = false,
-        localPriceLevelEnabled: Bool = false,
+        localInfoEnabled: Bool = false,
         fuelPricesEnabled: Bool = false,
         emergencyCareEnabled: Bool = false,
         visitedPlacesEnabled: Bool = true,
@@ -71,7 +71,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.launchAtLoginEnabled = launchAtLoginEnabled
         self.useCurrentLocationForWeather = useCurrentLocationForWeather
         self.weatherForecastExpanded = weatherForecastExpanded
-        self.localPriceLevelEnabled = localPriceLevelEnabled
+        self.localInfoEnabled = localInfoEnabled
         self.fuelPricesEnabled = fuelPricesEnabled
         self.emergencyCareEnabled = emergencyCareEnabled
         self.visitedPlacesEnabled = visitedPlacesEnabled
@@ -103,6 +103,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case weatherForecastExpanded
         case weatherHourlyForecastExpanded
         case weatherDailyForecastExpanded
+        case localInfoEnabled
         case localPriceLevelEnabled
         case fuelPricesEnabled
         case emergencyCareEnabled
@@ -125,11 +126,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
         appearanceMode = try container.decodeIfPresent(AppAppearanceMode.self, forKey: .appearanceMode) ?? .system
         let persistedCardOrder = (try? container.decodeIfPresent([String].self, forKey: .dashboardCardOrder))?
-            .compactMap(DashboardCardID.init(rawValue:))
+            .compactMap(DashboardCardID.fromPersistedRawValue(_:))
         dashboardCardOrder = DashboardCardID.sanitizedOrder(persistedCardOrder ?? DashboardCardID.defaultOrder)
         let persistedCardWidthModes = (try? container.decodeIfPresent([String: String].self, forKey: .dashboardCardWidthModes))?
             .reduce(into: [DashboardCardID: DashboardCardWidthMode]()) { result, entry in
-                guard let cardID = DashboardCardID(rawValue: entry.key),
+                guard let cardID = DashboardCardID.fromPersistedRawValue(entry.key),
                       let widthMode = DashboardCardWidthMode(rawValue: entry.value)
                 else {
                     return
@@ -152,7 +153,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         let legacyDailyForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherDailyForecastExpanded) ?? false
         weatherForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherForecastExpanded)
             ?? (legacyHourlyForecastExpanded || legacyDailyForecastExpanded)
-        localPriceLevelEnabled = try container.decodeIfPresent(Bool.self, forKey: .localPriceLevelEnabled) ?? false
+        localInfoEnabled = try container.decodeIfPresent(Bool.self, forKey: .localInfoEnabled)
+            ?? (try container.decodeIfPresent(Bool.self, forKey: .localPriceLevelEnabled) ?? false)
         fuelPricesEnabled = try container.decodeIfPresent(Bool.self, forKey: .fuelPricesEnabled) ?? false
         emergencyCareEnabled = try container.decodeIfPresent(Bool.self, forKey: .emergencyCareEnabled) ?? false
         visitedPlacesEnabled = try container.decodeIfPresent(Bool.self, forKey: .visitedPlacesEnabled) ?? false
@@ -188,7 +190,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encode(launchAtLoginEnabled, forKey: .launchAtLoginEnabled)
         try container.encode(useCurrentLocationForWeather, forKey: .useCurrentLocationForWeather)
         try container.encode(weatherForecastExpanded, forKey: .weatherForecastExpanded)
-        try container.encode(localPriceLevelEnabled, forKey: .localPriceLevelEnabled)
+        try container.encode(localInfoEnabled, forKey: .localInfoEnabled)
         try container.encode(fuelPricesEnabled, forKey: .fuelPricesEnabled)
         try container.encode(emergencyCareEnabled, forKey: .emergencyCareEnabled)
         try container.encode(visitedPlacesEnabled, forKey: .visitedPlacesEnabled)

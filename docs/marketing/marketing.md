@@ -84,7 +84,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Confirming public IP, network-detected location, time zone, Wi-Fi context, and VPN state
 - Reviewing current weather, wind, and the upcoming unified forecast before moving between locations
 - Surfacing optional travel alerts and regional context while on the move
-- Checking whether local prices feel cheap, medium, or expensive before settling in
+- Checking local holiday timing, city context, and whether local prices feel cheap, medium, or expensive before settling in
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
 - Tracking visited places locally on the Mac, with country-day summaries by year and month
 - Tracking awake work time locally on the Mac, then assigning it from the dashboard with quick project chips, interruption counts, and focus-adjusted day, week, and month summaries
