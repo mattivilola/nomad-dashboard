@@ -3060,9 +3060,13 @@ private struct LocalInfoSectionView: View {
 
                                     Spacer(minLength: 12)
 
-                                    Text(row.value)
-                                        .font(widthMode == .narrow ? .subheadline.weight(.semibold) : .headline)
-                                        .foregroundStyle(NomadTheme.primaryText)
+                                    if let badge = row.badge {
+                                        BadgeView(badge: badge, isCompact: widthMode == .narrow)
+                                    } else {
+                                        Text(row.value)
+                                            .font(widthMode == .narrow ? .subheadline.weight(.semibold) : .headline)
+                                            .foregroundStyle(NomadTheme.primaryText)
+                                    }
                                 }
 
                                 Text(row.detail)
@@ -4635,12 +4639,14 @@ struct LocalInfoRowModel: Identifiable {
     let title: String
     let value: String
     let detail: String
+    let badge: PillBadge?
 
-    init(id: String, title: String, value: String, detail: String) {
+    init(id: String, title: String, value: String, detail: String, badge: PillBadge? = nil) {
         self.id = id
         self.title = title
         self.value = value
         self.detail = detail
+        self.badge = badge
     }
 
     init(priceRow row: LocalPriceIndicatorRow) {
@@ -4648,6 +4654,7 @@ struct LocalInfoRowModel: Identifiable {
         title = row.kind.displayName
         value = row.value
         detail = row.detail
+        badge = nil
     }
 }
 
@@ -4783,7 +4790,12 @@ struct LocalInfoSectionPresentation {
                 id: "public-holiday",
                 title: "Public Holiday",
                 value: "Today",
-                detail: status.currentPeriod.map { "\($0.name) · \(formattedDay($0.startDate))" } ?? "Holiday today"
+                detail: status.currentPeriod.map { "\($0.name) · \(formattedDay($0.startDate))" } ?? "Holiday today",
+                badge: PillBadge(
+                    title: "Busy Today",
+                    symbolName: "exclamationmark.triangle.fill",
+                    tint: NomadTheme.sand
+                )
             )
         case .tomorrow:
             return LocalInfoRowModel(
@@ -4823,7 +4835,12 @@ struct LocalInfoSectionPresentation {
                 id: "school-holiday",
                 title: "School Break",
                 value: "On Break",
-                detail: status.currentPeriod.map { "\($0.name) · \(formattedRange($0))" } ?? "School break is active"
+                detail: status.currentPeriod.map { "\($0.name) · \(formattedRange($0))" } ?? "School break is active",
+                badge: PillBadge(
+                    title: "Busy Period",
+                    symbolName: "exclamationmark.triangle.fill",
+                    tint: NomadTheme.sand
+                )
             )
         case .tomorrow:
             return LocalInfoRowModel(
