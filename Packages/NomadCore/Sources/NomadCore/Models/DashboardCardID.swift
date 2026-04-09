@@ -5,7 +5,7 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
     case power
     case timeTracking
     case travelContext
-    case localPriceLevel
+    case localInfo
     case fuelPrices
     case emergencyCare
     case travelAlerts
@@ -16,7 +16,7 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
         .power,
         .timeTracking,
         .travelContext,
-        .localPriceLevel,
+        .localInfo,
         .fuelPrices,
         .emergencyCare,
         .travelAlerts,
@@ -46,5 +46,13 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
         }
 
         return sanitized
+    }
+
+    public static func fromPersistedRawValue(_ rawValue: String) -> DashboardCardID? {
+        if rawValue == "localPriceLevel" {
+            return .localInfo
+        }
+
+        return DashboardCardID(rawValue: rawValue)
     }
 }

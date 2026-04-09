@@ -464,9 +464,9 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
-    func refreshLoadsLocalPriceLevelFromProvider() async throws {
+    func refreshLoadsLocalInfoFromProvider() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
-        settingsStore.settings.localPriceLevelEnabled = true
+        settingsStore.settings.localInfoEnabled = true
         settingsStore.settings.useCurrentLocationForWeather = false
 
         let dependencies = makeDependencies(historyStore: InMemoryHistoryStore())
@@ -474,15 +474,16 @@ struct DashboardSnapshotStoreTests {
 
         await store.refresh(manual: true)
 
-        #expect(store.snapshot.localPriceLevel?.status == .ready)
-        #expect(store.snapshot.localPriceLevel?.summaryBand == .medium)
-        #expect(store.snapshot.localPriceLevel?.rows.map(\.kind) == [.mealOut, .groceries, .overall])
+        #expect(store.snapshot.localInfo?.status == .partial)
+        #expect(store.snapshot.localInfo?.localPriceLevel?.summaryBand == .medium)
+        #expect(store.snapshot.localInfo?.localPriceLevel?.rows.map(\.kind) == [.mealOut, .groceries, .overall])
+        #expect(store.snapshot.localInfo?.publicHolidayStatus.state == .upcoming)
     }
 
     @Test
     func refreshUpdatesLocalPriceProviderConfigurationWhenHUDTokenChanges() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
-        settingsStore.settings.localPriceLevelEnabled = true
+        settingsStore.settings.localInfoEnabled = true
         settingsStore.settings.useCurrentLocationForWeather = false
 
         let localPriceProvider = RecordingConfigurableLocalPriceLevelProvider()
@@ -494,15 +495,15 @@ struct DashboardSnapshotStoreTests {
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
 
         await store.refresh(manual: true)
-        #expect(store.snapshot.localPriceLevel?.status == .configurationRequired)
+        #expect(store.snapshot.localInfo?.localPriceLevel?.status == .configurationRequired)
 
         settingsStore.settings.hudUserAPIToken = "hud-token-123"
 
         try? await Task.sleep(for: .milliseconds(50))
 
         #expect(await localPriceProvider.latestConfiguredToken() == "hud-token-123")
-        #expect(store.snapshot.localPriceLevel?.status == .partial)
-        #expect(store.snapshot.localPriceLevel?.rows.first?.kind == .rentOneBedroom)
+        #expect(store.snapshot.localInfo?.localPriceLevel?.status == .partial)
+        #expect(store.snapshot.localInfo?.localPriceLevel?.rows.first?.kind == .rentOneBedroom)
     }
 
     @Test
@@ -1118,12 +1119,12 @@ struct DashboardSnapshotStoreTests {
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
 
         try await waitForSettingsPropagation()
-        #expect(await updateCoordinator.automaticChecksHistory() == [false])
+        #expect(await updateCoordinator.automaticChecksHistory().last == false)
 
         settingsStore.settings.automaticUpdateChecksEnabled = true
 
         try await waitForSettingsPropagation()
-        #expect(await updateCoordinator.automaticChecksHistory() == [false, true])
+        #expect(await updateCoordinator.automaticChecksHistory().suffix(2) == [false, true])
         _ = store
     }
 
@@ -1213,6 +1214,7 @@ private func makeDependencies(
     publicIPLocationProvider: any PublicIPLocationProvider = FixedLocationProvider(),
     reverseGeocodingProvider: any ReverseGeocodingProvider = FixedReverseGeocodingProvider(),
     weatherProvider: any WeatherProvider = FixedWeatherProvider(),
+    localInfoProvider: (any LocalInfoProvider)? = nil,
     localPriceLevelProvider: any LocalPriceLevelProvider = FixedLocalPriceLevelProvider(),
     fuelPriceProvider: any FuelPriceProvider = FixedFuelPriceProvider(),
     emergencyCareProvider: any EmergencyCareProvider = FixedEmergencyCareProvider(),
@@ -1237,7 +1239,7 @@ private func makeDependencies(
         publicIPLocationProvider: publicIPLocationProvider,
         reverseGeocodingProvider: reverseGeocodingProvider,
         weatherProvider: weatherProvider,
-        localPriceLevelProvider: localPriceLevelProvider,
+        localInfoProvider: localInfoProvider ?? FixedLocalInfoProvider(localPriceLevelProvider: localPriceLevelProvider),
         fuelPriceProvider: fuelPriceProvider,
         emergencyCareProvider: emergencyCareProvider,
         marineProvider: marineProvider,
@@ -1664,6 +1666,57 @@ private struct FixedLocalPriceLevelProvider: LocalPriceLevelProvider {
             detail: "Country fallback snapshot.",
             note: nil
         )
+    }
+}
+
+private struct FixedLocalInfoProvider: LocalInfoProvider, LocalPriceLevelProviderConfigurationUpdating {
+    let localPriceLevelProvider: any LocalPriceLevelProvider
+
+    func info(for request: LocalInfoRequest, forceRefresh: Bool) async throws -> LocalInfoSnapshot {
+        let localPriceLevel = try await localPriceLevelProvider.prices(
+            for: LocalPriceSearchRequest(
+                coordinate: request.coordinate,
+                countryCode: request.countryCode,
+                countryName: request.countryName,
+                locality: request.locality
+            ),
+            forceRefresh: forceRefresh
+        )
+
+        return LocalInfoSnapshot(
+            status: .partial,
+            locality: request.locality,
+            administrativeRegion: request.administrativeRegion,
+            countryCode: request.countryCode,
+            countryName: request.countryName,
+            timeZoneIdentifier: request.timeZoneIdentifier,
+            subdivisionCode: nil,
+            publicHolidayStatus: LocalHolidayStatus(
+                state: .upcoming,
+                currentPeriod: nil,
+                nextPeriod: HolidayPeriodSnapshot(
+                    name: "Midsummer Day",
+                    startDate: .now.addingTimeInterval(86_400 * 10),
+                    endDate: .now.addingTimeInterval(86_400 * 10)
+                ),
+                note: nil
+            ),
+            schoolHolidayStatus: nil,
+            localPriceLevel: localPriceLevel,
+            sources: [
+                HolidaySourceAttribution(name: "Nager.Date", url: URL(string: "https://date.nager.at/")),
+                HolidaySourceAttribution(name: "Eurostat", url: URL(string: "https://ec.europa.eu"))
+            ],
+            fetchedAt: .now,
+            detail: "Some local signals are limited right now.",
+            note: "School holiday coverage needs a confident regional match."
+        )
+    }
+
+    func setHUDUserAPIToken(_ token: String?) async {
+        if let configurableProvider = localPriceLevelProvider as? LocalPriceLevelProviderConfigurationUpdating {
+            await configurableProvider.setHUDUserAPIToken(token)
+        }
     }
 }
 

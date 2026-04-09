@@ -371,8 +371,8 @@ public struct DashboardPanelView: View {
             timeTrackingSection(widthMode: widthMode)
         case .travelContext:
             travelSection(widthMode: widthMode)
-        case .localPriceLevel:
-            localPriceLevelSection(widthMode: widthMode)
+        case .localInfo:
+            localInfoSection(widthMode: widthMode)
         case .fuelPrices:
             fuelPricesSection(widthMode: widthMode, viewportHeight: viewportHeight)
         case .emergencyCare:
@@ -951,11 +951,11 @@ public struct DashboardPanelView: View {
         )
     }
 
-    private func localPriceLevelSection(widthMode: DashboardCardWidthMode) -> some View {
-        LocalPriceLevelSectionView(
-            presentation: localPriceLevelSectionPresentation,
+    private func localInfoSection(widthMode: DashboardCardWidthMode) -> some View {
+        LocalInfoSectionView(
+            presentation: localInfoSectionPresentation,
             widthMode: widthMode,
-            accessory: cardControls(for: .localPriceLevel, title: "Local Price Level"),
+            accessory: cardControls(for: .localInfo, title: "Local Info"),
             openSettingsAction: openSettingsAction
         )
     }
@@ -1227,8 +1227,8 @@ public struct DashboardPanelView: View {
         )
     }
 
-    private var localPriceLevelSectionPresentation: LocalPriceLevelSectionPresentation {
-        LocalPriceLevelSectionPresentation(
+    private var localInfoSectionPresentation: LocalInfoSectionPresentation {
+        LocalInfoSectionPresentation(
             settings: settings,
             snapshot: snapshot,
             locationStatusDetail: locationStatusDetail
@@ -3022,15 +3022,15 @@ private struct EmergencyCareSectionView: View {
     }
 }
 
-private struct LocalPriceLevelSectionView: View {
-    let presentation: LocalPriceLevelSectionPresentation
+private struct LocalInfoSectionView: View {
+    let presentation: LocalInfoSectionPresentation
     let widthMode: DashboardCardWidthMode
     let accessory: AnyView
     let openSettingsAction: () -> Void
 
     var body: some View {
         DashboardCard(
-            title: "Local Price Level",
+            title: "Local Info",
             subtitle: presentation.subtitle,
             badge: presentation.badge,
             accessory: accessory,
@@ -4630,24 +4630,31 @@ struct FuelPricesSectionPresentation {
     }
 }
 
-struct LocalPriceLevelRowModel: Identifiable {
-    let id: LocalPriceIndicatorKind
+struct LocalInfoRowModel: Identifiable {
+    let id: String
     let title: String
     let value: String
     let detail: String
 
-    init(row: LocalPriceIndicatorRow) {
-        id = row.kind
+    init(id: String, title: String, value: String, detail: String) {
+        self.id = id
+        self.title = title
+        self.value = value
+        self.detail = detail
+    }
+
+    init(priceRow row: LocalPriceIndicatorRow) {
+        id = "price-\(row.kind.rawValue)"
         title = row.kind.displayName
         value = row.value
         detail = row.detail
     }
 }
 
-struct LocalPriceLevelSectionPresentation {
+struct LocalInfoSectionPresentation {
     let badge: PillBadge
     let subtitle: String
-    let rows: [LocalPriceLevelRowModel]
+    let rows: [LocalInfoRowModel]
     let emptyTitle: String
     let emptySystemImage: String
     let emptyMessage: String
@@ -4660,57 +4667,89 @@ struct LocalPriceLevelSectionPresentation {
         snapshot: DashboardSnapshot,
         locationStatusDetail: String?
     ) {
-        guard settings.localPriceLevelEnabled else {
-            badge = PillBadge(title: "Off", symbolName: "wallet.pass.fill", tint: NomadTheme.primaryText)
-            subtitle = "Traveller price levels are disabled"
+        guard settings.localInfoEnabled else {
+            badge = PillBadge(title: "Off", symbolName: "mappin.slash.circle.fill", tint: NomadTheme.primaryText)
+            subtitle = "Local context is disabled"
             rows = []
-            emptyTitle = "Local Price Level Off"
-            emptySystemImage = "wallet.pass.fill"
-            emptyMessage = "Enable local price level in Settings."
+            emptyTitle = "Local Info Off"
+            emptySystemImage = "mappin.slash.circle.fill"
+            emptyMessage = "Enable Local Info in Settings."
             emptyActionTitle = "Open Settings"
             sourceLine = nil
             note = nil
             return
         }
 
-        guard let localPriceLevel = snapshot.localPriceLevel else {
-            badge = PillBadge(title: "Checking", symbolName: "creditcard.viewfinder", tint: NomadTheme.secondaryText)
-            subtitle = "Looking up price levels"
+        guard let localInfo = snapshot.localInfo else {
+            badge = PillBadge(title: "Checking", symbolName: "calendar.badge.clock", tint: NomadTheme.secondaryText)
+            subtitle = "Looking up local context"
             rows = []
-            emptyTitle = "Checking Local Price Level"
-            emptySystemImage = "creditcard.viewfinder"
-            emptyMessage = "Looking up meal, grocery, rent, and overall price signals."
+            emptyTitle = "Checking Local Info"
+            emptySystemImage = "calendar.badge.clock"
+            emptyMessage = "Looking up local context and holiday calendar."
             emptyActionTitle = nil
             sourceLine = nil
             note = nil
             return
         }
 
-        rows = localPriceLevel.rows.map(LocalPriceLevelRowModel.init)
-        sourceLine = localPriceLevel.sources.isEmpty ? nil : "Sources: " + localPriceLevel.sources.map(\.name).joined(separator: " · ")
-        note = [localPriceLevel.detail, localPriceLevel.note]
+        var builtRows: [LocalInfoRowModel] = []
+        let locationValue = [localInfo.locality, localInfo.administrativeRegion, localInfo.countryName]
+            .compactMap(\.self)
+            .joined(separator: " · ")
+        if locationValue.isEmpty == false {
+            builtRows.append(
+                LocalInfoRowModel(
+                    id: "location",
+                    title: "Location",
+                    value: localInfo.locality ?? localInfo.countryName ?? "Resolved",
+                    detail: [localInfo.administrativeRegion, localInfo.countryName, localInfo.timeZoneIdentifier]
+                        .compactMap(\.self)
+                        .joined(separator: " · ")
+                )
+            )
+        }
+
+        if localInfo.status != .locationRequired {
+            builtRows.append(Self.publicHolidayRow(from: localInfo.publicHolidayStatus))
+
+            if let schoolHolidayStatus = localInfo.schoolHolidayStatus {
+                builtRows.append(Self.schoolHolidayRow(from: schoolHolidayStatus))
+            }
+        }
+
+        if let localPriceLevel = localInfo.localPriceLevel {
+            builtRows.append(contentsOf: localPriceLevel.rows.map(LocalInfoRowModel.init(priceRow:)))
+        }
+
+        rows = builtRows
+        sourceLine = localInfo.sources.isEmpty ? nil : "Sources: " + localInfo.sources.map(\.name).joined(separator: " · ")
+        note = [localInfo.detail, localInfo.note]
             .compactMap(\.self)
             .filter { $0.isEmpty == false }
             .joined(separator: " ")
             .nilIfEmpty
 
-        let subtitleCountry = localPriceLevel.countryName ?? "Current country"
-        let precisionSummary = localPriceLevel.rows.map { $0.precision.displayName }
-            .reduce(into: [String]()) { result, value in
-                if result.contains(value) == false {
-                    result.append(value)
-                }
-            }
-            .joined(separator: " · ")
+        let resolvedSubtitle = [
+            localInfo.countryName ?? "Current area",
+            Self.publicHolidaySubtitle(for: localInfo.publicHolidayStatus)
+        ]
+        .compactMap(\.self)
+        .joined(separator: " · ")
 
-        switch localPriceLevel.status {
-        case .ready, .partial:
-            badge = Self.badge(for: localPriceLevel)
-            subtitle = [subtitleCountry, precisionSummary.nilIfEmpty]
-                .compactMap(\.self)
-                .joined(separator: " · ")
+        switch localInfo.status {
+        case .ready:
+            badge = PillBadge(title: "Live", symbolName: "mappin.and.ellipse", tint: NomadTheme.teal)
+            subtitle = resolvedSubtitle
             emptyTitle = ""
-            emptySystemImage = "creditcard.viewfinder"
+            emptySystemImage = "mappin.and.ellipse"
+            emptyMessage = ""
+            emptyActionTitle = nil
+        case .partial:
+            badge = PillBadge(title: "Partial", symbolName: "ellipsis.circle.fill", tint: NomadTheme.sand)
+            subtitle = resolvedSubtitle
+            emptyTitle = ""
+            emptySystemImage = "ellipsis.circle.fill"
             emptyMessage = ""
             emptyActionTitle = nil
         case .locationRequired:
@@ -4718,43 +4757,126 @@ struct LocalPriceLevelSectionPresentation {
             subtitle = "Country context is required"
             emptyTitle = "Location Needed"
             emptySystemImage = "location.slash.fill"
-            emptyMessage = locationStatusDetail ?? localPriceLevel.detail ?? "Allow location access or enable external IP location."
-            emptyActionTitle = "Open Settings"
-        case .configurationRequired:
-            badge = PillBadge(title: "Setup", symbolName: "key.fill", tint: NomadTheme.sand)
-            subtitle = subtitleCountry
-            emptyTitle = "Source Setup Needed"
-            emptySystemImage = "key.fill"
-            emptyMessage = localPriceLevel.detail ?? "This source needs extra configuration."
+            emptyMessage = locationStatusDetail ?? localInfo.detail ?? "Allow location access or enable external IP location."
             emptyActionTitle = "Open Settings"
         case .unsupported:
             badge = PillBadge(title: "Unsupported", symbolName: "globe.badge.chevron.backward", tint: NomadTheme.primaryText)
-            subtitle = subtitleCountry
+            subtitle = resolvedSubtitle.nilIfEmpty ?? (localInfo.countryName ?? "Current area")
             emptyTitle = "Region Unsupported"
             emptySystemImage = "globe.badge.chevron.backward"
-            emptyMessage = localPriceLevel.detail ?? "Local price level is not supported here yet."
+            emptyMessage = localInfo.detail ?? "Local info is not supported here yet."
             emptyActionTitle = nil
         case .unavailable:
             badge = PillBadge(title: "Unavailable", symbolName: "wifi.exclamationmark", tint: NomadTheme.primaryText)
-            subtitle = subtitleCountry
-            emptyTitle = "Local Price Level Unavailable"
+            subtitle = resolvedSubtitle.nilIfEmpty ?? (localInfo.countryName ?? "Current area")
+            emptyTitle = "Local Info Unavailable"
             emptySystemImage = "wifi.exclamationmark"
-            emptyMessage = localPriceLevel.detail ?? "Local price level is unavailable right now."
+            emptyMessage = localInfo.detail ?? "Local info is unavailable right now."
             emptyActionTitle = nil
         }
     }
 
-    private static func badge(for snapshot: LocalPriceLevelSnapshot) -> PillBadge {
-        switch snapshot.summaryBand {
-        case .low:
-            PillBadge(title: "Low", symbolName: "arrow.down.circle.fill", tint: NomadTheme.teal)
-        case .high:
-            PillBadge(title: "High", symbolName: "arrow.up.circle.fill", tint: NomadTheme.coral)
-        case .limited:
-            PillBadge(title: "Limited", symbolName: "ellipsis.circle.fill", tint: NomadTheme.sand)
-        case .medium, .none:
-            PillBadge(title: "Medium", symbolName: "equal.circle.fill", tint: NomadTheme.sand)
+    private static func publicHolidayRow(from status: LocalHolidayStatus) -> LocalInfoRowModel {
+        switch status.state {
+        case .current:
+            return LocalInfoRowModel(
+                id: "public-holiday",
+                title: "Public Holiday",
+                value: "Today",
+                detail: status.currentPeriod.map { "\($0.name) · \(formattedDay($0.startDate))" } ?? "Holiday today"
+            )
+        case .tomorrow:
+            return LocalInfoRowModel(
+                id: "public-holiday",
+                title: "Public Holiday",
+                value: "Tomorrow",
+                detail: status.nextPeriod.map { "\($0.name) · \(formattedDay($0.startDate))" } ?? "Holiday tomorrow"
+            )
+        case .upcoming:
+            return LocalInfoRowModel(
+                id: "public-holiday",
+                title: "Public Holiday",
+                value: "Next",
+                detail: status.nextPeriod.map { "\($0.name) · \(formattedDay($0.startDate))" } ?? "Upcoming holiday"
+            )
+        case .unavailable:
+            return LocalInfoRowModel(
+                id: "public-holiday",
+                title: "Public Holiday",
+                value: "Unavailable",
+                detail: status.note ?? "Holiday data is unavailable right now."
+            )
+        case .unsupported:
+            return LocalInfoRowModel(
+                id: "public-holiday",
+                title: "Public Holiday",
+                value: "Not Available",
+                detail: status.note ?? "Holiday data is not supported here yet."
+            )
         }
+    }
+
+    private static func schoolHolidayRow(from status: LocalHolidayStatus) -> LocalInfoRowModel {
+        switch status.state {
+        case .current:
+            return LocalInfoRowModel(
+                id: "school-holiday",
+                title: "School Break",
+                value: "On Break",
+                detail: status.currentPeriod.map { "\($0.name) · \(formattedRange($0))" } ?? "School break is active"
+            )
+        case .tomorrow:
+            return LocalInfoRowModel(
+                id: "school-holiday",
+                title: "School Break",
+                value: "Tomorrow",
+                detail: status.nextPeriod.map { "\($0.name) · \(formattedRange($0))" } ?? "School break starts tomorrow"
+            )
+        case .upcoming:
+            return LocalInfoRowModel(
+                id: "school-holiday",
+                title: "School Break",
+                value: "Next Break",
+                detail: status.nextPeriod.map { "\($0.name) · \(formattedRange($0))" } ?? "Upcoming school break"
+            )
+        case .unavailable:
+            return LocalInfoRowModel(
+                id: "school-holiday",
+                title: "School Break",
+                value: "Unavailable",
+                detail: status.note ?? "School-break data is unavailable right now."
+            )
+        case .unsupported:
+            return LocalInfoRowModel(
+                id: "school-holiday",
+                title: "School Break",
+                value: "Not Available",
+                detail: status.note ?? "School-break data is not supported here yet."
+            )
+        }
+    }
+
+    private static func publicHolidaySubtitle(for status: LocalHolidayStatus) -> String? {
+        switch status.state {
+        case .current:
+            status.currentPeriod?.name ?? "Holiday today"
+        case .tomorrow:
+            status.nextPeriod.map { "Tomorrow: \($0.name)" }
+        case .upcoming:
+            status.nextPeriod.map { "Next: \($0.name)" }
+        case .unavailable, .unsupported:
+            nil
+        }
+    }
+
+    private static func formattedDay(_ date: Date) -> String {
+        date.formatted(.dateTime.month(.abbreviated).day())
+    }
+
+    private static func formattedRange(_ period: HolidayPeriodSnapshot) -> String {
+        let start = formattedDay(period.startDate)
+        let end = formattedDay(period.endDate)
+        return start == end ? start : "\(start) – \(end)"
     }
 }
 

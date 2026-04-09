@@ -215,7 +215,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             locationSnapshot: locationSnapshot
         )
         var weatherSnapshot = snapshot.weather
-        var localPriceLevelSnapshot = snapshot.localPriceLevel
+        var localInfoSnapshot = snapshot.localInfo
         var fuelPricesSnapshot = snapshot.fuelPrices
         var fuelDiagnosticsSnapshot = snapshot.fuelDiagnostics
         var emergencyCareSnapshot = snapshot.emergencyCare
@@ -270,13 +270,13 @@ public final class DashboardSnapshotStore: ObservableObject {
                 weatherSnapshot = nil
             }
 
-            if settings.localPriceLevelEnabled {
-                localPriceLevelSnapshot = await refreshLocalPriceLevel(
+            if settings.localInfoEnabled {
+                localInfoSnapshot = await refreshLocalInfo(
                     manual: manual,
                     ipLocationSnapshot: locationSnapshot
                 )
             } else {
-                localPriceLevelSnapshot = nil
+                localInfoSnapshot = nil
             }
 
             if settings.fuelPricesEnabled {
@@ -368,7 +368,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             ),
             travelAlerts: travelAlertsSnapshot,
             weather: weatherSnapshot,
-            localPriceLevel: localPriceLevelSnapshot,
+            localInfo: localInfoSnapshot,
             fuelPrices: fuelPricesSnapshot,
             fuelDiagnostics: fuelDiagnosticsSnapshot,
             emergencyCare: emergencyCareSnapshot,
@@ -450,7 +450,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             needsManualRefresh = true
         }
 
-        if previousSettings.localPriceLevelEnabled != newSettings.localPriceLevelEnabled {
+        if previousSettings.localInfoEnabled != newSettings.localInfoEnabled {
             needsManualRefresh = true
         }
 
@@ -472,8 +472,8 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         if previousSettings.hudUserAPIToken != newSettings.hudUserAPIToken {
-            if let configurableLocalPriceProvider = dependencies.localPriceLevelProvider as? LocalPriceLevelProviderConfigurationUpdating {
-                await configurableLocalPriceProvider.setHUDUserAPIToken(
+            if let configurableLocalInfoProvider = dependencies.localInfoProvider as? LocalPriceLevelProviderConfigurationUpdating {
+                await configurableLocalInfoProvider.setHUDUserAPIToken(
                     AppRuntimeConfiguration.resolveHUDUserAPIToken(userSetting: newSettings.hudUserAPIToken)
                 )
             }
@@ -518,13 +518,15 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
     }
 
-    private func refreshLocalPriceLevel(
+    private func refreshLocalInfo(
         manual: Bool,
         ipLocationSnapshot: IPLocationSnapshot?
-    ) async -> LocalPriceLevelSnapshot {
+    ) async -> LocalInfoSnapshot {
         var resolvedCountryCode = normalizedValue(ipLocationSnapshot?.countryCode)?.uppercased()
         var resolvedCountryName = normalizedValue(ipLocationSnapshot?.country)
         var locality = normalizedValue(ipLocationSnapshot?.city)
+        var administrativeRegion = normalizedValue(ipLocationSnapshot?.region)
+        var timeZoneIdentifier = normalizedValue(ipLocationSnapshot?.timeZone)
 
         if let currentLocation {
             do {
@@ -532,47 +534,71 @@ public final class DashboardSnapshotStore: ObservableObject {
                 resolvedCountryCode = normalizedValue(reverseGeocodedLocation.countryCode)?.uppercased()
                 resolvedCountryName = normalizedValue(reverseGeocodedLocation.country)
                 locality = normalizedValue(reverseGeocodedLocation.city) ?? locality
+                administrativeRegion = normalizedValue(reverseGeocodedLocation.region) ?? administrativeRegion
+                timeZoneIdentifier = normalizedValue(reverseGeocodedLocation.timeZoneIdentifier) ?? timeZoneIdentifier
             } catch {
                 // Keep the IP-derived country fallback when reverse geocoding is unavailable.
             }
         }
 
         guard let countryCode = resolvedCountryCode else {
-            return LocalPriceLevelSnapshot(
+            return LocalInfoSnapshot(
                 status: .locationRequired,
-                summaryBand: nil,
+                locality: locality,
+                administrativeRegion: administrativeRegion,
                 countryCode: nil,
                 countryName: nil,
-                rows: [],
+                timeZoneIdentifier: timeZoneIdentifier,
+                subdivisionCode: nil,
+                publicHolidayStatus: LocalHolidayStatus(
+                    state: .unavailable,
+                    currentPeriod: nil,
+                    nextPeriod: nil,
+                    note: "Allow current location or external IP location to look up local holiday information."
+                ),
+                schoolHolidayStatus: nil,
+                localPriceLevel: nil,
                 sources: [],
                 fetchedAt: nil,
-                detail: "Allow current location or external IP location to estimate the local price level.",
+                detail: "Allow current location or external IP location to estimate local info.",
                 note: nil
             )
         }
 
-        let request = LocalPriceSearchRequest(
+        let request = LocalInfoRequest(
             coordinate: currentLocation?.coordinate,
             countryCode: countryCode,
             countryName: resolvedCountryName,
-            locality: locality
+            locality: locality,
+            administrativeRegion: administrativeRegion,
+            timeZoneIdentifier: timeZoneIdentifier
         )
 
         do {
-            return try await dependencies.localPriceLevelProvider.prices(
+            return try await dependencies.localInfoProvider.info(
                 for: request,
                 forceRefresh: manual
             )
         } catch {
-            return LocalPriceLevelSnapshot(
+            return LocalInfoSnapshot(
                 status: .unavailable,
-                summaryBand: nil,
+                locality: locality,
+                administrativeRegion: administrativeRegion,
                 countryCode: countryCode,
                 countryName: resolvedCountryName,
-                rows: [],
+                timeZoneIdentifier: timeZoneIdentifier,
+                subdivisionCode: nil,
+                publicHolidayStatus: LocalHolidayStatus(
+                    state: .unavailable,
+                    currentPeriod: nil,
+                    nextPeriod: nil,
+                    note: "Local holiday calendar is unavailable right now."
+                ),
+                schoolHolidayStatus: nil,
+                localPriceLevel: nil,
                 sources: [],
                 fetchedAt: Date(),
-                detail: "Local price level is unavailable right now.",
+                detail: "Local info is unavailable right now.",
                 note: nil
             )
         }

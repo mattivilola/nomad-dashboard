@@ -11,7 +11,7 @@ public struct DashboardDependencies: Sendable {
     public let publicIPLocationProvider: any PublicIPLocationProvider
     public let reverseGeocodingProvider: any ReverseGeocodingProvider
     public let weatherProvider: any WeatherProvider
-    public let localPriceLevelProvider: any LocalPriceLevelProvider
+    public let localInfoProvider: any LocalInfoProvider
     public let fuelPriceProvider: any FuelPriceProvider
     public let emergencyCareProvider: any EmergencyCareProvider
     public let marineProvider: any MarineProvider
@@ -35,7 +35,7 @@ public struct DashboardDependencies: Sendable {
         publicIPLocationProvider: any PublicIPLocationProvider,
         reverseGeocodingProvider: any ReverseGeocodingProvider,
         weatherProvider: any WeatherProvider,
-        localPriceLevelProvider: any LocalPriceLevelProvider,
+        localInfoProvider: any LocalInfoProvider,
         fuelPriceProvider: any FuelPriceProvider,
         emergencyCareProvider: any EmergencyCareProvider,
         marineProvider: any MarineProvider,
@@ -58,7 +58,7 @@ public struct DashboardDependencies: Sendable {
         self.publicIPLocationProvider = publicIPLocationProvider
         self.reverseGeocodingProvider = reverseGeocodingProvider
         self.weatherProvider = weatherProvider
-        self.localPriceLevelProvider = localPriceLevelProvider
+        self.localInfoProvider = localInfoProvider
         self.fuelPriceProvider = fuelPriceProvider
         self.emergencyCareProvider = emergencyCareProvider
         self.marineProvider = marineProvider
@@ -84,6 +84,7 @@ public struct DashboardDependencies: Sendable {
     ) -> DashboardDependencies {
         let latencyEndpoints = latencyHosts.compactMap(LatencyEndpoint.from(hostString:))
         let publicIPClient = CachedFreeIPAPIClient()
+        let localPriceLevelProvider = LiveLocalPriceLevelProvider(hudUserAPIToken: hudUserAPIToken)
 
         return DashboardDependencies(
             throughputMonitor: LiveThroughputMonitor(),
@@ -96,7 +97,7 @@ public struct DashboardDependencies: Sendable {
             publicIPLocationProvider: CachedIPLocationProvider(client: publicIPClient),
             reverseGeocodingProvider: CachedReverseGeocodingProvider(),
             weatherProvider: LiveWeatherProvider(),
-            localPriceLevelProvider: LiveLocalPriceLevelProvider(hudUserAPIToken: hudUserAPIToken),
+            localInfoProvider: LiveLocalInfoProvider(localPriceLevelProvider: localPriceLevelProvider),
             fuelPriceProvider: LiveEuropeanFuelPriceProvider(tankerkonigAPIKey: tankerkonigAPIKey),
             emergencyCareProvider: LiveEmergencyCareProvider(),
             marineProvider: LiveOpenMeteoMarineProvider(),

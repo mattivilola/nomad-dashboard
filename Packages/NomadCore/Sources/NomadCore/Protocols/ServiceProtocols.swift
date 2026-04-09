@@ -63,6 +63,10 @@ public protocol LocalPriceLevelProvider: Sendable {
     func prices(for request: LocalPriceSearchRequest, forceRefresh: Bool) async throws -> LocalPriceLevelSnapshot
 }
 
+public protocol LocalInfoProvider: Sendable {
+    func info(for request: LocalInfoRequest, forceRefresh: Bool) async throws -> LocalInfoSnapshot
+}
+
 public protocol FuelPriceProviderConfigurationUpdating: Sendable {
     func setTankerkonigAPIKey(_ apiKey: String?) async
 }

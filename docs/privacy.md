@@ -3,7 +3,7 @@
 - Weather uses device location when permission is granted.
 - External IP lookups use FreeIPAPI.
 - External IP location display is enabled by default for new installs and can be disabled in Settings.
-- Local price level uses official public datasets. Europe price signals use Eurostat country-level price indices, and US 1-bedroom rent uses HUD USER plus the US Census Geocoder when the user adds a HUD token and current location is available.
+- Local Info uses resolved location context plus public data sources. Public holidays use Nager.Date, school holiday coverage uses OpenHolidays only when a confident regional match is available, Europe price signals use Eurostat country-level indices, and US 1-bedroom rent uses HUD USER plus the US Census Geocoder when the user adds a HUD token and current location is available.
 - Project time tracking stores projects, exact time entries, and runtime tracking state locally on the Mac.
 - Project time tracking interruption events are also stored locally on the Mac and are used only for local summaries, focus-loss estimates, and exports.
 - Dashboard quick-allocation chips for project time tracking are populated from that same local project and tracking data.
