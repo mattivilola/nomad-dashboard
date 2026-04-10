@@ -1349,7 +1349,67 @@ struct NomadUITests {
             locationStatusDetail: nil
         )
 
+        #expect(presentation.rows.first(where: { $0.title == "Public Holiday" })?.value == "Today")
         #expect(presentation.rows.first(where: { $0.title == "Public Holiday" })?.badge?.title == "Busy Today")
+    }
+
+    @Test
+    func localInfoSectionPresentationShowsBusyPeriodBadgeForActiveSchoolBreak() {
+        var settings = AppSettings()
+        settings.localInfoEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            localInfo: LocalInfoSnapshot(
+                status: .partial,
+                locality: "Berlin",
+                administrativeRegion: "Berlin",
+                countryCode: "DE",
+                countryName: "Germany",
+                timeZoneIdentifier: "Europe/Berlin",
+                subdivisionCode: "DE-BE",
+                publicHolidayStatus: LocalHolidayStatus(
+                    state: .upcoming,
+                    currentPeriod: nil,
+                    nextPeriod: HolidayPeriodSnapshot(
+                        name: "Labour Day",
+                        startDate: .now.addingTimeInterval(86_400),
+                        endDate: .now.addingTimeInterval(86_400)
+                    ),
+                    note: nil
+                ),
+                schoolHolidayStatus: LocalHolidayStatus(
+                    state: .current,
+                    currentPeriod: HolidayPeriodSnapshot(
+                        name: "Easter Holidays",
+                        startDate: .now.addingTimeInterval(-86_400),
+                        endDate: .now.addingTimeInterval(4 * 86_400)
+                    ),
+                    nextPeriod: nil,
+                    note: nil
+                ),
+                localPriceLevel: nil,
+                sources: [HolidaySourceAttribution(name: "OpenHolidays", url: nil)],
+                fetchedAt: .now,
+                detail: nil,
+                note: nil
+            ),
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = LocalInfoSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.rows.first(where: { $0.title == "School Break" })?.value == "On Break")
+        #expect(presentation.rows.first(where: { $0.title == "School Break" })?.badge?.title == "Busy Period")
     }
 
     @Test

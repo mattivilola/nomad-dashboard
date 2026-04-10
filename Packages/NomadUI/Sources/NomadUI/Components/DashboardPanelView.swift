@@ -3060,12 +3060,14 @@ private struct LocalInfoSectionView: View {
 
                                     Spacer(minLength: 12)
 
-                                    if let badge = row.badge {
-                                        BadgeView(badge: badge, isCompact: widthMode == .narrow)
-                                    } else {
+                                    HStack(alignment: .firstTextBaseline, spacing: 8) {
                                         Text(row.value)
                                             .font(widthMode == .narrow ? .subheadline.weight(.semibold) : .headline)
                                             .foregroundStyle(NomadTheme.primaryText)
+
+                                        if let badge = row.badge {
+                                            BadgeView(badge: badge, isCompact: widthMode == .narrow)
+                                        }
                                     }
                                 }
 
