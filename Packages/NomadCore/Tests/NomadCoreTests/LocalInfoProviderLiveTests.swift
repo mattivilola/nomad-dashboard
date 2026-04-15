@@ -143,6 +143,45 @@ struct LocalInfoProviderLiveTests {
         #expect(await requestCounter.count(for: "https://date.nager.at/api/v3/publicholidays/2027/FI") == 1)
     }
 
+    @Test
+    func infoPreservesLocalPriceNoteWhenPriceRowsExist() async throws {
+        let session = makeMockLocalInfoSession { request in
+            let url = try #require(request.url)
+            switch (url.path, url.query ?? "") {
+            case ("/api/v3/publicholidays/2026/US", _):
+                return (200, """
+                [{"date":"2026-07-04","localName":"Independence Day","name":"Independence Day","counties":null}]
+                """)
+            case ("/Subdivisions", let query) where query.contains("countryIsoCode=US"):
+                return (200, "[]")
+            default:
+                Issue.record("Unexpected request: \(url.absoluteString)")
+                return (404, "[]")
+            }
+        }
+
+        let provider = LiveLocalInfoProvider(
+            session: session,
+            localPriceLevelProvider: FixedPriceRowsProviderWithNote(),
+            nowProvider: { Self.makeDate(year: 2026, month: 4, day: 1, timeZoneID: "America/New_York") }
+        )
+
+        let snapshot = try await provider.info(
+            for: LocalInfoRequest(
+                coordinate: CLLocationCoordinate2D(latitude: 40.7128, longitude: -74.0060),
+                countryCode: "US",
+                countryName: "United States",
+                locality: "New York",
+                administrativeRegion: "New York",
+                timeZoneIdentifier: "America/New_York"
+            ),
+            forceRefresh: true
+        )
+
+        #expect(snapshot.localPriceLevel?.rows.isEmpty == false)
+        #expect(snapshot.note?.contains("Kings County") == true)
+    }
+
     private static func makeDate(year: Int, month: Int, day: Int, timeZoneID: String) -> Date {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: timeZoneID) ?? .current
@@ -184,6 +223,30 @@ private struct FixedPriceRowsProvider: LocalPriceLevelProvider {
             fetchedAt: .now,
             detail: "Country fallback snapshot.",
             note: nil
+        )
+    }
+}
+
+private struct FixedPriceRowsProviderWithNote: LocalPriceLevelProvider {
+    func prices(for request: LocalPriceSearchRequest, forceRefresh: Bool) async throws -> LocalPriceLevelSnapshot {
+        LocalPriceLevelSnapshot(
+            status: .partial,
+            summaryBand: .limited,
+            countryCode: request.countryCode,
+            countryName: request.countryName,
+            rows: [
+                LocalPriceIndicatorRow(
+                    kind: .rentOneBedroom,
+                    value: "$2,100/mo",
+                    detail: "County exact · HUD USER · 2026",
+                    precision: .countyBenchmark,
+                    source: LocalPriceSourceAttribution(name: "HUD USER", url: URL(string: "https://www.huduser.gov"))
+                )
+            ],
+            sources: [LocalPriceSourceAttribution(name: "HUD USER", url: URL(string: "https://www.huduser.gov"))],
+            fetchedAt: .now,
+            detail: "US v1 currently shows the HUD 1-bedroom rent benchmark only.",
+            note: "Kings County"
         )
     }
 }

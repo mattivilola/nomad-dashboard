@@ -1304,6 +1304,53 @@ struct NomadUITests {
     }
 
     @Test
+    func localInfoSectionPresentationKeepsLocationRequiredStateEvenWithPartialPlaceText() {
+        var settings = AppSettings()
+        settings.localInfoEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            localInfo: LocalInfoSnapshot(
+                status: .locationRequired,
+                locality: "Paris",
+                administrativeRegion: "Ile-de-France",
+                countryCode: nil,
+                countryName: "France",
+                timeZoneIdentifier: "Europe/Paris",
+                subdivisionCode: nil,
+                publicHolidayStatus: LocalHolidayStatus(
+                    state: .unavailable,
+                    currentPeriod: nil,
+                    nextPeriod: nil,
+                    note: "Allow current location or external IP location to look up local holiday information."
+                ),
+                schoolHolidayStatus: nil,
+                localPriceLevel: nil,
+                sources: [],
+                fetchedAt: nil,
+                detail: "Allow current location or external IP location to estimate local info.",
+                note: nil
+            ),
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = LocalInfoSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: "Allow location access to use local info."
+        )
+
+        #expect(presentation.rows.isEmpty)
+        #expect(presentation.emptyActionTitle == "Open Settings")
+        #expect(presentation.emptyMessage == "Allow location access to use local info.")
+    }
+
+    @Test
     func localInfoSectionPresentationShowsBusyTodayBadgeForActivePublicHoliday() {
         var settings = AppSettings()
         settings.localInfoEnabled = true

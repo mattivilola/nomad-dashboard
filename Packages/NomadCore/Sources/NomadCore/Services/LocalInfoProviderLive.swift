@@ -125,8 +125,12 @@ public actor LiveLocalInfoProvider: LocalInfoProvider, LocalPriceLevelProviderCo
         if let note = schoolHolidayResult.note {
             noteParts.append(note)
         }
-        if let localPriceLevel, localPriceLevel.rows.isEmpty {
-            noteParts.append(contentsOf: [localPriceLevel.detail, localPriceLevel.note].compactMap(\.self))
+        if let localPriceLevel {
+            if localPriceLevel.rows.isEmpty {
+                noteParts.append(contentsOf: [localPriceLevel.detail, localPriceLevel.note].compactMap(\.self))
+            } else if let note = localPriceLevel.note {
+                noteParts.append(note)
+            }
         }
 
         let sources = uniqueSources(

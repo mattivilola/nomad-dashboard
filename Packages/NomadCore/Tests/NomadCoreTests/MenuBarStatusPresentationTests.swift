@@ -156,6 +156,7 @@ private func makeSnapshot(
             wifi: WiFiSnapshot(interfaceName: "en0", ssid: "Nomad Hub", rssi: rssi, noise: -91, transmitRateMbps: 720),
             vpn: VPNStatusSnapshot(isActive: true, interfaceNames: ["utun3"]),
             timeZoneIdentifier: "Europe/Madrid",
+            deviceLocation: nil,
             publicIP: PublicIPSnapshot(address: "198.51.100.12", provider: "test", fetchedAt: .now),
             location: nil
         ),

@@ -453,6 +453,20 @@ struct AppSettingsStoreTests {
     }
 
     @Test
+    func localInfoFeatureUsesDeviceLocationWhenEnabledAlone() {
+        let settings = AppSettings(
+            useCurrentLocationForWeather: false,
+            localInfoEnabled: true,
+            fuelPricesEnabled: false,
+            emergencyCareEnabled: false,
+            visitedPlacesEnabled: false,
+            travelWeatherAlertsEnabled: false
+        )
+
+        #expect(settings.usesDeviceLocation == true)
+    }
+
+    @Test
     func sanitizesInvalidPersistedDashboardCardWidthModes() throws {
         let suiteName = UUID().uuidString
         let defaults = try #require(UserDefaults(suiteName: suiteName))

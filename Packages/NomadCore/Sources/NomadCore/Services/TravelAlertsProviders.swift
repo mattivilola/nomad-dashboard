@@ -341,7 +341,7 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
         let selected = try selectedMatch ?? Self.selectedMatch(from: matches, primaryCountryCode: primaryCountryCode)
         let sourceURL = selected.destination.url
         let summary = if selected.countryCode == primaryCountryCode {
-            detailSummary ?? "\(selected.countryName): \(selected.destination.adviceText)."
+            "\(selected.countryName): \(selected.destination.adviceText)."
         } else if selected.severity == .clear {
             "No elevated travel advisories across your nearby countries."
         } else {
@@ -1289,6 +1289,7 @@ private func decodeHTMLEntities(_ value: String) -> String {
         .replacingOccurrences(of: "&nbsp;", with: " ")
         .replacingOccurrences(of: "&amp;", with: "&")
         .replacingOccurrences(of: "&quot;", with: "\"")
+        .replacingOccurrences(of: "&#039;", with: "'")
         .replacingOccurrences(of: "&#39;", with: "'")
         .replacingOccurrences(of: "&apos;", with: "'")
         .replacingOccurrences(of: "&lt;", with: "<")

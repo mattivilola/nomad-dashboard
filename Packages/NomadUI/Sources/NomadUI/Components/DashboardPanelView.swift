@@ -246,12 +246,8 @@ public struct DashboardPanelView: View {
                 }
             }
 
-            HStack(alignment: .lastTextBaseline, spacing: 12) {
-                Text(snapshot.travelContext.location.flatMap(formattedLocation) ?? "Travel-ready system telemetry")
-                    .font(.subheadline)
-                    .foregroundStyle(NomadTheme.secondaryText)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+            HStack(alignment: .top, spacing: 12) {
+                headerLocationComparison
 
                 Spacer(minLength: 12)
 
@@ -1332,6 +1328,47 @@ public struct DashboardPanelView: View {
         return "Throughput \(download) down · \(upload) up"
     }
 
+    @ViewBuilder
+    private var headerLocationComparison: some View {
+        if headerLocationRows.isEmpty {
+            Text(snapshot.travelContext.location.flatMap(formattedLocation) ?? "Travel-ready system telemetry")
+                .font(.subheadline)
+                .foregroundStyle(NomadTheme.secondaryText)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        } else {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(headerLocationRows) { row in
+                    HeaderLocationComparisonRow(row: row)
+                }
+            }
+        }
+    }
+
+    private var headerLocationRows: [HeaderLocationComparisonPresentation] {
+        [
+            headerLocationComparisonRow(
+                kind: .device,
+                location: snapshot.travelContext.deviceLocation
+            ),
+            headerLocationComparisonRow(
+                kind: .ip,
+                location: snapshot.travelContext.location
+            )
+        ].compactMap(\.self)
+    }
+
+    private func headerLocationComparisonRow(
+        kind: HeaderLocationComparisonPresentation.Kind,
+        location: IPLocationSnapshot?
+    ) -> HeaderLocationComparisonPresentation? {
+        guard let location, let value = formattedLocation(location) else {
+            return nil
+        }
+
+        return HeaderLocationComparisonPresentation(kind: kind, value: value)
+    }
+
     private func compactDrainSummary(_ metrics: PowerMetricsPresentation) -> String {
         "Drain status: \(metrics.drainValue)"
     }
@@ -2307,7 +2344,8 @@ private struct SummaryTile: View {
             Text(presentation.detail)
                 .font(.caption)
                 .foregroundStyle(NomadTheme.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(3)
+                .truncationMode(.tail)
         }
         .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
         .padding(12)
@@ -2319,6 +2357,67 @@ private struct SummaryTile: View {
                             .stroke(presentation.tone.tint.opacity(0.18), lineWidth: 1)
                 )
         )
+    }
+}
+
+private struct HeaderLocationComparisonPresentation: Identifiable {
+    enum Kind: String {
+        case device
+        case ip
+
+        var label: String {
+            switch self {
+            case .device:
+                "Device"
+            case .ip:
+                "IP"
+            }
+        }
+
+        var symbolName: String {
+            switch self {
+            case .device:
+                "location.fill"
+            case .ip:
+                "globe"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .device:
+                NomadTheme.teal
+            case .ip:
+                NomadTheme.sand
+            }
+        }
+    }
+
+    let kind: Kind
+    let value: String
+
+    var id: Kind { kind }
+}
+
+private struct HeaderLocationComparisonRow: View {
+    let row: HeaderLocationComparisonPresentation
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: row.kind.symbolName)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(row.kind.tint)
+
+            (
+                Text("\(row.kind.label) ")
+                    .fontWeight(.semibold)
+                + Text(row.value)
+            )
+            .font(.caption)
+            .foregroundStyle(NomadTheme.secondaryText)
+            .lineLimit(1)
+            .truncationMode(.tail)
+        }
     }
 }
 
@@ -4706,7 +4805,7 @@ struct LocalInfoSectionPresentation {
         let locationValue = [localInfo.locality, localInfo.administrativeRegion, localInfo.countryName]
             .compactMap(\.self)
             .joined(separator: " · ")
-        if locationValue.isEmpty == false {
+        if localInfo.status != .locationRequired, locationValue.isEmpty == false {
             builtRows.append(
                 LocalInfoRowModel(
                     id: "location",

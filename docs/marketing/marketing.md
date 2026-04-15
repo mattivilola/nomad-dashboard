@@ -81,7 +81,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 
 - Checking whether the current network is good enough for a call, upload, or coding session
 - Seeing whether the laptop is charging normally or draining too fast
-- Confirming public IP, network-detected location, time zone, Wi-Fi context, and VPN state
+- Confirming public IP, device location, network-detected location, time zone, Wi-Fi context, and VPN state
 - Reviewing current weather, wind, and the upcoming unified forecast before moving between locations
 - Surfacing optional travel alerts and regional context while on the move
 - Checking local holiday timing, city context, and whether local prices feel cheap, medium, or expensive before settling in
