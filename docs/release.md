@@ -80,6 +80,8 @@ private keys into tracked config or the shipped app bundle.
   Creates a DMG from the archived app without regenerating tracked branding exports.
 - `make release-dry-run`
   Prints the exact version, tag, repository, feed URL, and artifact paths the release pipeline will use.
+- `make release-check-setup`
+  Verifies the local release prerequisites before you start: command availability, `Config/Signing.env`, Developer ID signing identity, GitHub CLI auth, Sparkle CLI tools, and the stored notary profile. If Apple has blocked notarization because a required agreement is unsigned or expired, this usually surfaces in the notary-profile check once the profile exists.
 - `make release-setup-notary APPLE_ID=<apple-id>`
   Stores or refreshes the `notarytool` keychain profile from `Config/Signing.env`. `notarytool` will still prompt interactively for the app-specific password, but the profile name and Team ID no longer need to be typed manually.
 - `make release`
