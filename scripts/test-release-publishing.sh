@@ -31,6 +31,7 @@ bootstrap_repo() {
   cp "$REPO_ROOT/scripts/release-preflight.sh" "$repo_path/scripts/release-preflight.sh"
   cp "$REPO_ROOT/scripts/sign-and-notarize.sh" "$repo_path/scripts/sign-and-notarize.sh"
   cp "$REPO_ROOT/scripts/publish-update.sh" "$repo_path/scripts/publish-update.sh"
+  cp "$REPO_ROOT/scripts/check-release-setup.sh" "$repo_path/scripts/check-release-setup.sh"
   cp "$REPO_ROOT/scripts/setup-notary-profile.sh" "$repo_path/scripts/setup-notary-profile.sh"
   chmod +x "$repo_path/scripts/"*.sh
 
@@ -435,6 +436,162 @@ EOF
   assert_contains "$output" "make release-setup-notary APPLE_ID=you@example.com" "setup-notary-profile should explain how to provide the Apple ID"
 }
 
+run_release_check_setup_success_test() {
+  local repo_path="$TEST_ROOT/release-check-setup-success"
+  local fake_bin="$repo_path/fake-bin"
+  local output
+
+  bootstrap_repo "$repo_path"
+  mkdir -p "$fake_bin" "$repo_path/sparkle-bin"
+  touch "$repo_path/sparkle_private_key.pem"
+
+  cat > "$repo_path/Config/Signing.env" <<EOF
+export NOMAD_TEAM_ID="TEAM123456"
+export NOMAD_SIGNING_IDENTITY="Developer ID Application: Example Corp (TEAM123456)"
+export NOMAD_NOTARY_PROFILE="NomadDashboardNotary"
+export NOMAD_GITHUB_REPOSITORY="mattivilola/nomad-dashboard"
+export NOMAD_SPARKLE_PRIVATE_KEY_PATH="$repo_path/sparkle_private_key.pem"
+export NOMAD_SPARKLE_PUBLIC_ED_KEY="sparkle-public-key"
+export NOMAD_SPARKLE_BIN_DIR="$repo_path/sparkle-bin"
+EOF
+
+  cat > "$repo_path/sparkle-bin/generate_appcast" <<'EOF'
+#!/bin/zsh
+exit 0
+EOF
+
+  cat > "$repo_path/sparkle-bin/sign_update" <<'EOF'
+#!/bin/zsh
+exit 0
+EOF
+
+  cat > "$fake_bin/gh" <<'EOF'
+#!/bin/zsh
+if [[ "$1" == "auth" && "$2" == "status" ]]; then
+  exit 0
+fi
+exit 1
+EOF
+
+  cat > "$fake_bin/security" <<'EOF'
+#!/bin/zsh
+if [[ "$1" == "find-identity" ]]; then
+  echo '  1) ABCDEF1234567890 "Developer ID Application: Example Corp (TEAM123456)"'
+  exit 0
+fi
+exit 1
+EOF
+
+  cat > "$fake_bin/xcrun" <<'EOF'
+#!/bin/zsh
+if [[ "$1" == "notarytool" && "$2" == "history" && "$3" == "--keychain-profile" && "$4" == "NomadDashboardNotary" ]]; then
+  exit 0
+fi
+exit 1
+EOF
+
+  chmod +x \
+    "$repo_path/sparkle-bin/generate_appcast" \
+    "$repo_path/sparkle-bin/sign_update" \
+    "$fake_bin/gh" \
+    "$fake_bin/security" \
+    "$fake_bin/xcrun"
+
+  output="$(
+    cd "$repo_path" &&
+      PATH="$fake_bin:$PATH" \
+      ./scripts/check-release-setup.sh
+  )"
+
+  assert_contains "$output" "OK   Signing environment configuration" "release-check-setup should validate signing config"
+  assert_contains "$output" "OK   Developer ID signing identity" "release-check-setup should validate the signing identity"
+  assert_contains "$output" "OK   GitHub CLI authentication" "release-check-setup should validate gh auth"
+  assert_contains "$output" "OK   Sparkle CLI tools" "release-check-setup should validate Sparkle CLI tools"
+  assert_contains "$output" "OK   Notary keychain profile" "release-check-setup should validate the notary profile"
+  assert_contains "$output" "Release setup looks ready" "release-check-setup should report success when all checks pass"
+}
+
+run_release_check_setup_reports_missing_notary_profile_test() {
+  local repo_path="$TEST_ROOT/release-check-setup-missing-notary-profile"
+  local fake_bin="$repo_path/fake-bin"
+  local output
+  local exit_code
+
+  bootstrap_repo "$repo_path"
+  mkdir -p "$fake_bin" "$repo_path/sparkle-bin"
+  touch "$repo_path/sparkle_private_key.pem"
+
+  cat > "$repo_path/Config/Signing.env" <<EOF
+export NOMAD_TEAM_ID="TEAM123456"
+export NOMAD_SIGNING_IDENTITY="Developer ID Application: Example Corp (TEAM123456)"
+export NOMAD_NOTARY_PROFILE="NomadDashboardNotary"
+export NOMAD_GITHUB_REPOSITORY="mattivilola/nomad-dashboard"
+export NOMAD_SPARKLE_PRIVATE_KEY_PATH="$repo_path/sparkle_private_key.pem"
+export NOMAD_SPARKLE_PUBLIC_ED_KEY="sparkle-public-key"
+export NOMAD_SPARKLE_BIN_DIR="$repo_path/sparkle-bin"
+EOF
+
+  cat > "$repo_path/sparkle-bin/generate_appcast" <<'EOF'
+#!/bin/zsh
+exit 0
+EOF
+
+  cat > "$repo_path/sparkle-bin/sign_update" <<'EOF'
+#!/bin/zsh
+exit 0
+EOF
+
+  cat > "$fake_bin/gh" <<'EOF'
+#!/bin/zsh
+if [[ "$1" == "auth" && "$2" == "status" ]]; then
+  exit 0
+fi
+exit 1
+EOF
+
+  cat > "$fake_bin/security" <<'EOF'
+#!/bin/zsh
+if [[ "$1" == "find-identity" ]]; then
+  echo '  1) ABCDEF1234567890 "Developer ID Application: Example Corp (TEAM123456)"'
+  exit 0
+fi
+exit 1
+EOF
+
+  cat > "$fake_bin/xcrun" <<'EOF'
+#!/bin/zsh
+if [[ "$1" == "notarytool" && "$2" == "history" ]]; then
+  echo "Error: HTTP status code: 403. A required agreement is missing or has expired." >&2
+  exit 1
+fi
+exit 1
+EOF
+
+  chmod +x \
+    "$repo_path/sparkle-bin/generate_appcast" \
+    "$repo_path/sparkle-bin/sign_update" \
+    "$fake_bin/gh" \
+    "$fake_bin/security" \
+    "$fake_bin/xcrun"
+
+  set +e
+  output="$(
+    cd "$repo_path" &&
+      PATH="$fake_bin:$PATH" \
+      ./scripts/check-release-setup.sh 2>&1
+  )"
+  exit_code=$?
+  set -e
+
+  if [[ "$exit_code" -eq 0 ]]; then
+    fail "release-check-setup should fail when the notary profile is invalid"
+  fi
+
+  assert_contains "$output" "FAIL Notary keychain profile" "release-check-setup should report a failing notary profile check"
+  assert_contains "$output" "required agreement is missing or has expired" "release-check-setup should surface Apple agreement failures from notarytool"
+  assert_contains "$output" "Release setup check failed" "release-check-setup should report an overall failure summary"
+}
+
 run_sign_dry_run_test
 run_publish_dry_run_test
 run_dirty_tree_rejection_test
@@ -447,5 +604,7 @@ run_archive_secret_guard_test
 run_archive_secret_guard_absent_key_set_e_test
 run_setup_notary_profile_test
 run_setup_notary_profile_requires_apple_id_test
+run_release_check_setup_success_test
+run_release_check_setup_reports_missing_notary_profile_test
 
 echo "release publishing tests passed"

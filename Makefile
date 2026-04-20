@@ -3,7 +3,7 @@ SCHEME := NomadDashboard
 PROJECT := $(APP_NAME).xcodeproj
 .DEFAULT_GOAL := help
 
-.PHONY: help bootstrap generate open build run rerun test probe-sources lint archive brand-assets dmg release release-patch release-minor release-major release-dry-run release-setup-notary clean
+.PHONY: help bootstrap generate open build run rerun test probe-sources lint archive brand-assets dmg release release-patch release-minor release-major release-dry-run release-check-setup release-setup-notary clean
 
 help: ## Print available make targets
 	@printf "\nAvailable commands:\n\n"
@@ -63,6 +63,9 @@ release-major: ## Prepare and push a major release
 release-dry-run: ## Dry-run signing and publishing steps
 	./scripts/sign-and-notarize.sh --dry-run
 	./scripts/publish-update.sh --dry-run
+
+release-check-setup: ## Verify local release prerequisites before attempting a release
+	./scripts/check-release-setup.sh
 
 release-setup-notary: ## Store or refresh the notarytool keychain profile (pass APPLE_ID=you@example.com)
 	APPLE_ID="$(APPLE_ID)" ./scripts/setup-notary-profile.sh
