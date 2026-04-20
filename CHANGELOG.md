@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.11.2] - 2026-04-20
+
+### Changed
+
+- Add `make release-check-setup` target to verify local release prerequisites
+
 ## [0.11.1] - 2026-04-20
 
 ### Changed
