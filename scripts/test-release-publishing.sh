@@ -31,6 +31,7 @@ bootstrap_repo() {
   cp "$REPO_ROOT/scripts/release-preflight.sh" "$repo_path/scripts/release-preflight.sh"
   cp "$REPO_ROOT/scripts/sign-and-notarize.sh" "$repo_path/scripts/sign-and-notarize.sh"
   cp "$REPO_ROOT/scripts/publish-update.sh" "$repo_path/scripts/publish-update.sh"
+  cp "$REPO_ROOT/scripts/setup-notary-profile.sh" "$repo_path/scripts/setup-notary-profile.sh"
   chmod +x "$repo_path/scripts/"*.sh
 
   cat > "$repo_path/Config/Version.xcconfig" <<'EOF'
@@ -354,6 +355,86 @@ EOF
   assert_contains "$output" "OK" "archive secret guard should succeed under set -e when TankerkonigAPIKey is absent"
 }
 
+run_setup_notary_profile_test() {
+  local repo_path="$TEST_ROOT/setup-notary-profile"
+  local fake_bin="$repo_path/fake-bin"
+  local output
+
+  bootstrap_repo "$repo_path"
+  mkdir -p "$fake_bin"
+
+  cat > "$repo_path/Config/Signing.env" <<'EOF'
+export NOMAD_TEAM_ID="TEAM123456"
+export NOMAD_NOTARY_PROFILE="NomadDashboardNotary"
+EOF
+
+  cat > "$fake_bin/xcrun" <<'EOF'
+#!/bin/zsh
+set -euo pipefail
+
+STATE_FILE="${TEST_NOTARY_STATE_FILE:?}"
+
+if [[ "$1" != "notarytool" ]]; then
+  exit 1
+fi
+
+case "$2" in
+  history)
+    [[ "$3" == "--keychain-profile" ]] || exit 1
+    [[ -f "$STATE_FILE" && "$(cat "$STATE_FILE")" == "$4" ]] || exit 1
+    exit 0
+    ;;
+  store-credentials)
+    [[ "$3" == "NomadDashboardNotary" ]] || exit 1
+    [[ "$4" == "--apple-id" ]] || exit 1
+    [[ "$5" == "release@example.com" ]] || exit 1
+    [[ "$6" == "--team-id" ]] || exit 1
+    [[ "$7" == "TEAM123456" ]] || exit 1
+    printf '%s\n' "$3" > "$STATE_FILE"
+    exit 0
+    ;;
+esac
+
+exit 1
+EOF
+
+  chmod +x "$fake_bin/xcrun"
+
+  output="$(
+    cd "$repo_path" &&
+      PATH="$fake_bin:$PATH" \
+      TEST_NOTARY_STATE_FILE="$repo_path/notary-profile.txt" \
+      ./scripts/setup-notary-profile.sh --apple-id release@example.com
+  )"
+
+  assert_contains "$output" "Stored notary profile" "setup-notary-profile should report success after storing credentials"
+  assert_contains "$output" "Profile: NomadDashboardNotary" "setup-notary-profile should print the configured profile name"
+}
+
+run_setup_notary_profile_requires_apple_id_test() {
+  local repo_path="$TEST_ROOT/setup-notary-profile-missing-apple-id"
+  local output
+  local exit_code
+
+  bootstrap_repo "$repo_path"
+
+  cat > "$repo_path/Config/Signing.env" <<'EOF'
+export NOMAD_TEAM_ID="TEAM123456"
+export NOMAD_NOTARY_PROFILE="NomadDashboardNotary"
+EOF
+
+  set +e
+  output="$(cd "$repo_path" && ./scripts/setup-notary-profile.sh 2>&1)"
+  exit_code=$?
+  set -e
+
+  if [[ "$exit_code" -eq 0 ]]; then
+    fail "setup-notary-profile should require an Apple ID"
+  fi
+
+  assert_contains "$output" "make release-setup-notary APPLE_ID=you@example.com" "setup-notary-profile should explain how to provide the Apple ID"
+}
+
 run_sign_dry_run_test
 run_publish_dry_run_test
 run_dirty_tree_rejection_test
@@ -364,5 +445,7 @@ run_release_preflight_missing_remote_tag_test
 run_publish_missing_remote_tag_test
 run_archive_secret_guard_test
 run_archive_secret_guard_absent_key_set_e_test
+run_setup_notary_profile_test
+run_setup_notary_profile_requires_apple_id_test
 
 echo "release publishing tests passed"

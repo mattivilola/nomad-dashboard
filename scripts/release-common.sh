@@ -250,7 +250,7 @@ assert_signing_identity_available() {
 }
 
 assert_notary_profile_available() {
-  xcrun notarytool history --keychain-profile "$NOMAD_NOTARY_PROFILE" >/dev/null 2>&1 || fail "Notary profile '$NOMAD_NOTARY_PROFILE' is not available or not valid. Re-run 'xcrun notarytool store-credentials'."
+  xcrun notarytool history --keychain-profile "$NOMAD_NOTARY_PROFILE" >/dev/null 2>&1 || fail "Notary profile '$NOMAD_NOTARY_PROFILE' is not available or not valid. Run 'make release-setup-notary APPLE_ID=<apple-id>' or re-run 'xcrun notarytool store-credentials'."
 }
 
 plist_value() {
