@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.11.1] - 2026-04-20
+
+### Changed
+
+- Add make target to simplify notarization profile setup
+
 ## [0.11.0] - 2026-04-20
 
 ### Changed

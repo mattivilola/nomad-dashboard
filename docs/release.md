@@ -20,6 +20,8 @@ private keys into tracked config or the shipped app bundle.
    `gh auth login -h github.com`
 3. Store notarization credentials in the keychain:
    `xcrun notarytool store-credentials NomadDashboardNotary --apple-id <apple-id> --team-id <team-id>`
+   or use the repo helper:
+   `make release-setup-notary APPLE_ID=<apple-id>`
 4. Generate or import Sparkle signing keys:
    `generate_keys --account nomad-dashboard`
    or export an existing private key to the path referenced by `NOMAD_SPARKLE_PRIVATE_KEY_PATH`.
@@ -78,6 +80,8 @@ private keys into tracked config or the shipped app bundle.
   Creates a DMG from the archived app without regenerating tracked branding exports.
 - `make release-dry-run`
   Prints the exact version, tag, repository, feed URL, and artifact paths the release pipeline will use.
+- `make release-setup-notary APPLE_ID=<apple-id>`
+  Stores or refreshes the `notarytool` keychain profile from `Config/Signing.env`. `notarytool` will still prompt interactively for the app-specific password, but the profile name and Team ID no longer need to be typed manually.
 - `make release`
   Verifies the pushed release tag first, then runs signing/notarization and publishes the versioned Sparkle zip, DMG, and `appcast.xml` to GitHub Releases.
   If you recently cleaned `DerivedData`, run `make build` once before publishing so Sparkle's CLI tools are downloaded again, or point `NOMAD_SPARKLE_BIN_DIR` at the Sparkle `bin` directory directly.
