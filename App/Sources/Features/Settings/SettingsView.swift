@@ -497,6 +497,10 @@ struct SettingsView: View {
             set: { isEnabled in
                 settingsStore.settings.localInfoEnabled = isEnabled
                 snapshotStore.setCurrentLocation(locationStore.currentLocation)
+
+                if settingsStore.settings.usesDeviceLocation {
+                    locationStore.prepareForWeather()
+                }
             }
         )
     }

@@ -207,6 +207,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         var powerSnapshot = snapshot.power.snapshot
         var wifiSnapshot = snapshot.travelContext.wifi
         var vpnSnapshot = snapshot.travelContext.vpn
+        var deviceLocationSnapshot = snapshot.travelContext.deviceLocation
         var publicIPSnapshot = snapshot.travelContext.publicIP
         var locationSnapshot = snapshot.travelContext.location
         var travelAlertsSnapshot = synchronizedTravelAlertsSnapshot(
@@ -227,6 +228,14 @@ public final class DashboardSnapshotStore: ObservableObject {
             powerSnapshot = await dependencies.powerMonitor.currentSnapshot()
             wifiSnapshot = await dependencies.wifiMonitor.currentSnapshot()
             vpnSnapshot = await dependencies.vpnStatusProvider.currentStatus()
+
+            if settings.usesDeviceLocation, let currentLocation {
+                do {
+                    deviceLocationSnapshot = try await makeDeviceLocationSnapshot(from: currentLocation, now: now)
+                } catch {}
+            } else {
+                deviceLocationSnapshot = nil
+            }
 
             if let latencySample {
                 try? await dependencies.historyStore.append(
@@ -343,7 +352,9 @@ public final class DashboardSnapshotStore: ObservableObject {
         let history = await (try? dependencies.historyStore.loadAll()) ?? [:]
         let projectedHistory = projectedDashboardHistory(history)
         let updateState = await dependencies.updateCoordinator.currentState()
-        let timeZoneIdentifier = locationSnapshot?.timeZone ?? TimeZone.current.identifier
+        let timeZoneIdentifier = deviceLocationSnapshot?.timeZone
+            ?? locationSnapshot?.timeZone
+            ?? TimeZone.current.identifier
 
         snapshot = DashboardSnapshot(
             network: NetworkSectionSnapshot(
@@ -363,6 +374,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                 wifi: wifiSnapshot,
                 vpn: vpnSnapshot,
                 timeZoneIdentifier: timeZoneIdentifier,
+                deviceLocation: deviceLocationSnapshot,
                 publicIP: publicIPSnapshot,
                 location: locationSnapshot
             ),
@@ -955,6 +967,22 @@ public final class DashboardSnapshotStore: ObservableObject {
         } catch {}
 
         return didRecord
+    }
+
+    private func makeDeviceLocationSnapshot(from location: CLLocation, now: Date) async throws -> IPLocationSnapshot {
+        let details = try await dependencies.reverseGeocodingProvider.details(for: location)
+
+        return IPLocationSnapshot(
+            city: normalizedValue(details.city),
+            region: normalizedValue(details.region),
+            country: normalizedValue(details.country),
+            countryCode: normalizedValue(details.countryCode)?.uppercased(),
+            latitude: location.coordinate.latitude,
+            longitude: location.coordinate.longitude,
+            timeZone: normalizedValue(details.timeZoneIdentifier),
+            provider: "Core Location",
+            fetchedAt: now
+        )
     }
 
     private func appendHistory(from throughputSample: NetworkThroughputSample) async {

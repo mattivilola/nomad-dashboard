@@ -235,7 +235,12 @@ public extension AppSettings {
     }
 
     var usesDeviceLocation: Bool {
-        useCurrentLocationForWeather || fuelPricesEnabled || emergencyCareEnabled || travelWeatherAlertsEnabled || visitedPlacesEnabled
+        useCurrentLocationForWeather
+            || localInfoEnabled
+            || fuelPricesEnabled
+            || emergencyCareEnabled
+            || travelWeatherAlertsEnabled
+            || visitedPlacesEnabled
     }
 }
 

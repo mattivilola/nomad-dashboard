@@ -480,6 +480,7 @@ public struct TravelContextSnapshot: Equatable, Sendable {
     public let wifi: WiFiSnapshot?
     public let vpn: VPNStatusSnapshot?
     public let timeZoneIdentifier: String
+    public let deviceLocation: IPLocationSnapshot?
     public let publicIP: PublicIPSnapshot?
     public let location: IPLocationSnapshot?
 
@@ -487,12 +488,14 @@ public struct TravelContextSnapshot: Equatable, Sendable {
         wifi: WiFiSnapshot?,
         vpn: VPNStatusSnapshot?,
         timeZoneIdentifier: String,
+        deviceLocation: IPLocationSnapshot?,
         publicIP: PublicIPSnapshot?,
         location: IPLocationSnapshot?
     ) {
         self.wifi = wifi
         self.vpn = vpn
         self.timeZoneIdentifier = timeZoneIdentifier
+        self.deviceLocation = deviceLocation
         self.publicIP = publicIP
         self.location = location
     }
@@ -578,6 +581,7 @@ public extension DashboardSnapshot {
             wifi: nil,
             vpn: VPNStatusSnapshot(isActive: false, interfaceNames: [], serviceNames: []),
             timeZoneIdentifier: TimeZone.current.identifier,
+            deviceLocation: nil,
             publicIP: nil,
             location: nil
         ),
@@ -655,6 +659,17 @@ public extension DashboardSnapshot {
             wifi: WiFiSnapshot(interfaceName: "en0", ssid: "Nomad Hub", rssi: -56, noise: -91, transmitRateMbps: 720),
             vpn: VPNStatusSnapshot(isActive: true, interfaceNames: [], serviceNames: ["Nomad VPN"]),
             timeZoneIdentifier: "Europe/Madrid",
+            deviceLocation: IPLocationSnapshot(
+                city: "Valencia",
+                region: "Valencian Community",
+                country: "Spain",
+                countryCode: "ES",
+                latitude: 39.4699,
+                longitude: -0.3763,
+                timeZone: "Europe/Madrid",
+                provider: "Core Location",
+                fetchedAt: .now
+            ),
             publicIP: PublicIPSnapshot(address: "203.0.113.42", provider: "preview", fetchedAt: .now),
             location: IPLocationSnapshot(
                 city: "Valencia",

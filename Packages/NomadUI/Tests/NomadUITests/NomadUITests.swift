@@ -1304,6 +1304,53 @@ struct NomadUITests {
     }
 
     @Test
+    func localInfoSectionPresentationKeepsLocationRequiredStateEvenWithPartialPlaceText() {
+        var settings = AppSettings()
+        settings.localInfoEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            localInfo: LocalInfoSnapshot(
+                status: .locationRequired,
+                locality: "Paris",
+                administrativeRegion: "Ile-de-France",
+                countryCode: nil,
+                countryName: "France",
+                timeZoneIdentifier: "Europe/Paris",
+                subdivisionCode: nil,
+                publicHolidayStatus: LocalHolidayStatus(
+                    state: .unavailable,
+                    currentPeriod: nil,
+                    nextPeriod: nil,
+                    note: "Allow current location or external IP location to look up local holiday information."
+                ),
+                schoolHolidayStatus: nil,
+                localPriceLevel: nil,
+                sources: [],
+                fetchedAt: nil,
+                detail: "Allow current location or external IP location to estimate local info.",
+                note: nil
+            ),
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = LocalInfoSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: "Allow location access to use local info."
+        )
+
+        #expect(presentation.rows.isEmpty)
+        #expect(presentation.emptyActionTitle == "Open Settings")
+        #expect(presentation.emptyMessage == "Allow location access to use local info.")
+    }
+
+    @Test
     func localInfoSectionPresentationShowsBusyTodayBadgeForActivePublicHoliday() {
         var settings = AppSettings()
         settings.localInfoEnabled = true
@@ -1349,7 +1396,67 @@ struct NomadUITests {
             locationStatusDetail: nil
         )
 
+        #expect(presentation.rows.first(where: { $0.title == "Public Holiday" })?.value == "Today")
         #expect(presentation.rows.first(where: { $0.title == "Public Holiday" })?.badge?.title == "Busy Today")
+    }
+
+    @Test
+    func localInfoSectionPresentationShowsBusyPeriodBadgeForActiveSchoolBreak() {
+        var settings = AppSettings()
+        settings.localInfoEnabled = true
+
+        let snapshot = DashboardSnapshot(
+            network: DashboardSnapshot.preview.network,
+            power: DashboardSnapshot.preview.power,
+            travelContext: DashboardSnapshot.preview.travelContext,
+            travelAlerts: DashboardSnapshot.preview.travelAlerts,
+            weather: DashboardSnapshot.preview.weather,
+            localInfo: LocalInfoSnapshot(
+                status: .partial,
+                locality: "Berlin",
+                administrativeRegion: "Berlin",
+                countryCode: "DE",
+                countryName: "Germany",
+                timeZoneIdentifier: "Europe/Berlin",
+                subdivisionCode: "DE-BE",
+                publicHolidayStatus: LocalHolidayStatus(
+                    state: .upcoming,
+                    currentPeriod: nil,
+                    nextPeriod: HolidayPeriodSnapshot(
+                        name: "Labour Day",
+                        startDate: .now.addingTimeInterval(86_400),
+                        endDate: .now.addingTimeInterval(86_400)
+                    ),
+                    note: nil
+                ),
+                schoolHolidayStatus: LocalHolidayStatus(
+                    state: .current,
+                    currentPeriod: HolidayPeriodSnapshot(
+                        name: "Easter Holidays",
+                        startDate: .now.addingTimeInterval(-86_400),
+                        endDate: .now.addingTimeInterval(4 * 86_400)
+                    ),
+                    nextPeriod: nil,
+                    note: nil
+                ),
+                localPriceLevel: nil,
+                sources: [HolidaySourceAttribution(name: "OpenHolidays", url: nil)],
+                fetchedAt: .now,
+                detail: nil,
+                note: nil
+            ),
+            marine: DashboardSnapshot.preview.marine,
+            appState: DashboardSnapshot.preview.appState
+        )
+
+        let presentation = LocalInfoSectionPresentation(
+            settings: settings,
+            snapshot: snapshot,
+            locationStatusDetail: nil
+        )
+
+        #expect(presentation.rows.first(where: { $0.title == "School Break" })?.value == "On Break")
+        #expect(presentation.rows.first(where: { $0.title == "School Break" })?.badge?.title == "Busy Period")
     }
 
     @Test

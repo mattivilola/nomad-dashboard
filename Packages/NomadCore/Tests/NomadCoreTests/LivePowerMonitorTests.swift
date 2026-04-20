@@ -107,6 +107,7 @@ struct LivePowerMonitorTests {
                 wifi: WiFiSnapshot(interfaceName: "en0", ssid: "Nomad Hub", rssi: -55, noise: -92, transmitRateMbps: 720),
                 vpn: VPNStatusSnapshot(isActive: false, interfaceNames: [], serviceNames: []),
                 timeZoneIdentifier: "Europe/Madrid",
+                deviceLocation: nil,
                 publicIP: nil,
                 location: nil
             ),

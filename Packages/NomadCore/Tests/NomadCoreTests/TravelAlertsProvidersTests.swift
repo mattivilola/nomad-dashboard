@@ -50,7 +50,7 @@ struct TravelAlertsProvidersTests {
     }
 
     @Test
-    func advisorySignalUsesParsedPrimaryCountryDetailAsMainSummary() throws {
+    func advisorySignalKeepsPrimaryCountrySummaryCompactWhenDetailExists() throws {
         let signal = try SmartravellerAdvisoryProvider.signal(
             from: [
                 AdvisoryMatch(
@@ -69,7 +69,7 @@ struct TravelAlertsProvidersTests {
             now: .now
         )
 
-        #expect(signal.summary == "Exercise a high degree of caution in France due to the threat of terrorism.")
+        #expect(signal.summary == "France: exercise a high degree of caution.")
         #expect(signal.detailSummary == "Exercise a high degree of caution in France due to the threat of terrorism.")
         #expect(signal.sourceURL?.absoluteString == "https://example.com/france")
     }
@@ -220,7 +220,7 @@ struct TravelAlertsProvidersTests {
         let signal = try await provider.advisory(for: ["FR", "ES"], primaryCountryCode: "FR", forceRefresh: true)
 
         #expect(signal.severity == .caution)
-        #expect(signal.summary == "Exercise a high degree of caution in France due to the threat of terrorism.")
+        #expect(signal.summary == "France: exercise a high degree of caution.")
         #expect(signal.detailSummary == "Exercise a high degree of caution in France due to the threat of terrorism.")
         #expect(signal.sourceURL?.absoluteString == "https://example.com/destinations/europe/france")
     }
@@ -279,6 +279,23 @@ struct TravelAlertsProvidersTests {
         )
 
         #expect(summary == "Do not travel to parts of Exampleland.")
+    }
+
+    @Test
+    func advisoryProviderDecodesNumericApostropheEntityInDestinationDetailSummary() {
+        let summary = SmartravellerAdvisoryProvider.parseDestinationDetailSummary(
+            from: Data(
+                """
+                <html>
+                  <body>
+                    <p>Exercise a high degree of caution because you&#039;re travelling during a disruption.</p>
+                  </body>
+                </html>
+                """.utf8
+            )
+        )
+
+        #expect(summary == "Exercise a high degree of caution because you're travelling during a disruption.")
     }
 
     @Test

@@ -72,6 +72,7 @@ Users can see whether the MacBook is draining normally, charging properly, or li
 
 - Shows public IP address
 - Can show IP-based city, region, country, and time zone context
+- Shows device and IP-based location side by side in the dashboard header when both are available
 - Helps compare network-detected location with expected location
 - Uses current country context to support travel-oriented features where available
 

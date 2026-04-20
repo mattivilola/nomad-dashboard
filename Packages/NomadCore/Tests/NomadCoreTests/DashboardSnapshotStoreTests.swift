@@ -17,10 +17,12 @@ struct DashboardSnapshotStoreTests {
         let dependencies = makeDependencies(historyStore: historyStore)
 
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        store.setCurrentLocation(CLLocation(latitude: 60.1699, longitude: 24.9384))
         store.setWeatherCoordinate(CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384))
 
         await store.refresh(manual: true)
 
+        #expect(store.snapshot.travelContext.deviceLocation?.city == "Helsinki")
         #expect(store.snapshot.travelContext.publicIP?.address == "198.51.100.12")
         #expect(store.snapshot.travelContext.location?.country == "Finland")
         #expect(store.snapshot.weather?.conditionDescription == "Clear")

@@ -20,6 +20,14 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.11.0] - 2026-04-20
+
+### Changed
+
+- Combine local info row value and badge display
+- Add device location to dashboard and show comparison with IP location
+- Prepare weather data when local info is enabled and uses device location
+
 ## [0.10.0] - 2026-04-09
 
 ### Changed
