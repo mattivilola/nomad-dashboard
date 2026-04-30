@@ -20,6 +20,13 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.12.0] - 2026-04-30
+
+### Changed
+
+- Add chronological travel path map and log
+- Refine travel path event merging and map rendering
+
 ## [0.11.2] - 2026-04-20
 
 ### Changed
