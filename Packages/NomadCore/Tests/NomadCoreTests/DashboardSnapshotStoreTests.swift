@@ -301,12 +301,12 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
-    func refreshStoresUniqueVisitedPlaceFromIPAndDeviceLocation() async throws {
+    func refreshStoresVisitedPlaceFromDeviceLocationBeforeIPGeolocation() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = true
         settingsStore.settings.visitedPlacesEnabled = true
 
-        let dependencies = makeDependencies()
+        let dependencies = makeDependencies(publicIPLocationProvider: VPNLocationProvider())
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
         store.setCurrentLocation(CLLocation(latitude: 60.1699, longitude: 24.9384))
 
@@ -315,14 +315,39 @@ struct DashboardSnapshotStoreTests {
         #expect(store.visitedPlaces.count == 1)
         #expect(store.visitedPlaces.first?.city == "Helsinki")
         #expect(store.visitedPlaces.first?.countryCode == "FI")
-        #expect(Set(store.visitedPlaces.first?.sources ?? []) == Set([.publicIPGeolocation, .deviceLocation]))
+        #expect(store.visitedPlaces.first?.sources == [.deviceLocation])
         #expect(store.visitedPlaceSummary.citiesVisited == 1)
         #expect(store.visitedPlaceSummary.countriesVisited == 1)
+        #expect(store.visitedPlaceEvents.count == 1)
+        #expect(store.visitedPlaceEvents.first?.city == "Helsinki")
+        #expect(store.visitedPlaceEvents.first?.countryCode == "FI")
+        #expect(store.visitedPlaceEvents.first?.sources == [.deviceLocation])
+        #expect(store.visitedPlaceEventYears.count == 1)
+        #expect(store.visitedPlaceTravelStops(for: store.visitedPlaceEventYears[0]).count == 1)
         #expect(store.visitedCountryDays.count == 1)
         #expect(store.visitedCountryDays.first?.countryCode == "FI")
         #expect(store.visitedCountryDays.first?.source == .deviceLocation)
         #expect(store.visitedCountryDayYears.count == 1)
         #expect(store.visitedCountryDaySummary(for: store.visitedCountryDayYears[0])?.totalTrackedDays == 1)
+    }
+
+    @Test
+    func refreshFallsBackToIPVisitedPlaceWhenDeviceLocationIsUnavailable() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.publicIPGeolocationEnabled = true
+        settingsStore.settings.visitedPlacesEnabled = true
+
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: makeDependencies())
+
+        await store.refresh(manual: true)
+
+        #expect(store.visitedPlaces.count == 1)
+        #expect(store.visitedPlaces.first?.city == "Helsinki")
+        #expect(store.visitedPlaces.first?.countryCode == "FI")
+        #expect(store.visitedPlaces.first?.sources == [.publicIPGeolocation])
+        #expect(store.visitedPlaceEvents.count == 1)
+        #expect(store.visitedPlaceEvents.first?.sources == [.publicIPGeolocation])
+        #expect(store.visitedCountryDays.first?.source == .publicIPGeolocation)
     }
 
     @Test
@@ -338,6 +363,7 @@ struct DashboardSnapshotStoreTests {
         await store.refresh(manual: true)
 
         #expect(store.visitedPlaces.isEmpty)
+        #expect(store.visitedPlaceEvents.isEmpty)
         #expect(store.visitedPlaceSummary.citiesVisited == 0)
         #expect(store.visitedPlaceSummary.countriesVisited == 0)
         #expect(store.visitedCountryDays.isEmpty)
@@ -355,12 +381,13 @@ struct DashboardSnapshotStoreTests {
 
         await store.refresh(manual: true)
         #expect(store.visitedPlaces.isEmpty == false)
+        #expect(store.visitedPlaceEvents.isEmpty == false)
         #expect(store.visitedCountryDays.isEmpty == false)
 
         store.clearVisitedPlaces()
 
         try await waitUntil {
-            store.visitedPlaces.isEmpty && store.visitedCountryDays.isEmpty
+            store.visitedPlaces.isEmpty && store.visitedPlaceEvents.isEmpty && store.visitedCountryDays.isEmpty
         }
         #expect(store.visitedCountryDayYears.isEmpty)
     }
@@ -1226,6 +1253,7 @@ private func makeDependencies(
     travelWeatherAlertsProvider: any TravelWeatherAlertsProvider = FixedTravelWeatherAlertsProvider(),
     regionalSecurityProvider: any RegionalSecurityProvider = FixedRegionalSecurityProvider(),
     visitedPlacesStore: any VisitedPlacesStore = InMemoryVisitedPlacesStore(),
+    visitedPlaceEventsStore: any VisitedPlaceEventsStore = InMemoryVisitedPlaceEventsStore(),
     visitedCountryDaysStore: any VisitedCountryDaysStore = InMemoryVisitedCountryDaysStore(),
     historyStore: any MetricHistoryStore = InMemoryHistoryStore(),
     updateCoordinator: any UpdateCoordinator = NoopUpdateCoordinator()
@@ -1250,6 +1278,7 @@ private func makeDependencies(
         travelWeatherAlertsProvider: travelWeatherAlertsProvider,
         regionalSecurityProvider: regionalSecurityProvider,
         visitedPlacesStore: visitedPlacesStore,
+        visitedPlaceEventsStore: visitedPlaceEventsStore,
         visitedCountryDaysStore: visitedCountryDaysStore,
         historyStore: historyStore,
         updateCoordinator: updateCoordinator
@@ -1351,6 +1380,30 @@ private actor InMemoryVisitedPlacesStore: VisitedPlacesStore {
     private func uniquedSources(_ values: [VisitedPlaceSource]) -> [VisitedPlaceSource] {
         var seen = Set<VisitedPlaceSource>()
         return values.filter { seen.insert($0).inserted }
+    }
+}
+
+private actor InMemoryVisitedPlaceEventsStore: VisitedPlaceEventsStore {
+    private var values: [VisitedPlaceEvent] = []
+
+    func loadAll() async throws -> [VisitedPlaceEvent] {
+        values.sorted { $0.firstObservedAt < $1.firstObservedAt }
+    }
+
+    func record(_ input: VisitedPlaceEventInput) async throws {
+        guard let event = VisitedPlaceEvent.from(input) else {
+            return
+        }
+
+        if let index = values.indices.last, values[index].coalescingKey == event.coalescingKey {
+            values[index] = values[index].merging(input: input)
+        } else {
+            values.append(event)
+        }
+    }
+
+    func reset() async throws {
+        values = []
     }
 }
 
@@ -1600,6 +1653,22 @@ private struct FixedLocationProvider: PublicIPLocationProvider {
             latitude: 60.1699,
             longitude: 24.9384,
             timeZone: "Europe/Helsinki",
+            provider: "test",
+            fetchedAt: .now
+        )
+    }
+}
+
+private struct VPNLocationProvider: PublicIPLocationProvider {
+    func currentLocation(for ipAddress: String, forceRefresh: Bool) async throws -> IPLocationSnapshot {
+        IPLocationSnapshot(
+            city: "Amsterdam",
+            region: "North Holland",
+            country: "Netherlands",
+            countryCode: "NL",
+            latitude: 52.3676,
+            longitude: 4.9041,
+            timeZone: "Europe/Amsterdam",
             provider: "test",
             fetchedAt: .now
         )

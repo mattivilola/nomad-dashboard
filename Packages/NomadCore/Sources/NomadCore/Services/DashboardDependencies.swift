@@ -20,6 +20,7 @@ public struct DashboardDependencies: Sendable {
     public let travelWeatherAlertsProvider: any TravelWeatherAlertsProvider
     public let regionalSecurityProvider: any RegionalSecurityProvider
     public let visitedPlacesStore: any VisitedPlacesStore
+    public let visitedPlaceEventsStore: any VisitedPlaceEventsStore
     public let visitedCountryDaysStore: any VisitedCountryDaysStore
     public let historyStore: any MetricHistoryStore
     public let updateCoordinator: any UpdateCoordinator
@@ -44,6 +45,7 @@ public struct DashboardDependencies: Sendable {
         travelWeatherAlertsProvider: any TravelWeatherAlertsProvider,
         regionalSecurityProvider: any RegionalSecurityProvider,
         visitedPlacesStore: any VisitedPlacesStore,
+        visitedPlaceEventsStore: any VisitedPlaceEventsStore,
         visitedCountryDaysStore: any VisitedCountryDaysStore,
         historyStore: any MetricHistoryStore,
         updateCoordinator: any UpdateCoordinator
@@ -67,6 +69,7 @@ public struct DashboardDependencies: Sendable {
         self.travelWeatherAlertsProvider = travelWeatherAlertsProvider
         self.regionalSecurityProvider = regionalSecurityProvider
         self.visitedPlacesStore = visitedPlacesStore
+        self.visitedPlaceEventsStore = visitedPlaceEventsStore
         self.visitedCountryDaysStore = visitedCountryDaysStore
         self.historyStore = historyStore
         self.updateCoordinator = updateCoordinator
@@ -109,6 +112,9 @@ public struct DashboardDependencies: Sendable {
             regionalSecurityProvider: ReliefWebSecurityProvider(appName: reliefWebAppName),
             visitedPlacesStore: FileVisitedPlacesStore(
                 fileURL: applicationSupportDirectory.appendingPathComponent("visited-places.json")
+            ),
+            visitedPlaceEventsStore: FileVisitedPlaceEventsStore(
+                fileURL: applicationSupportDirectory.appendingPathComponent("visited-place-events.json")
             ),
             visitedCountryDaysStore: FileVisitedCountryDaysStore(
                 fileURL: applicationSupportDirectory.appendingPathComponent("visited-country-days.json")

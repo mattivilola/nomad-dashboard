@@ -10,7 +10,9 @@
 - Dashboard quick-allocation chips for project time tracking are populated from that same local project and tracking data.
 - Project time tracking exports go only to the system clipboard when the user explicitly chooses to copy a monthly report.
 - Non-production and development builds use a separate local time-tracking storage namespace from the live app.
-- Visited places and country-day travel history are stored locally on the Mac and can be cleared by the user.
+- Visited places, chronological visited-place events, and country-day travel history are stored locally on the Mac and can be cleared by the user.
+- Visited history prefers device location when available. IP geolocation is stored for visited history only when device location cannot be resolved for that capture.
+- Chronological visited-place events include resolved city and country context, approximate coordinates when available, source type, and first and last local observation timestamps so the app can draw a yearly travel path.
 - Country-day history may estimate missing days between two known countries using surrounding captures.
 - Country-day year and month summaries can be copied to the clipboard as plain text when the user chooses to export them.
 - Travel advisory uses Smartraveller and is enabled by default.

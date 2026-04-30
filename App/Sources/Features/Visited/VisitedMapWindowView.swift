@@ -8,7 +8,9 @@ struct VisitedMapWindowView: View {
     @ObservedObject var settingsStore: AppSettingsStore
 
     @Environment(\.openWindow) private var openWindow
+    @State private var mapMode: VisitedMapMode = .footprint
     @State private var selectedCountryDaysYear: Int?
+    @State private var selectedTravelYear: Int?
     @State private var expandedMonthIDs = Set<String>()
     @State private var exportStatusMessage: String?
 
@@ -27,6 +29,9 @@ struct VisitedMapWindowView: View {
                     } else {
                         metrics
                         mapCard
+                        if mapMode == .travelPath, selectedTravelStops.isEmpty == false {
+                            travelLogCard
+                        }
                         countryDaysCard
                         guidanceCard
                     }
@@ -38,6 +43,9 @@ struct VisitedMapWindowView: View {
         .onAppear(perform: syncSelectedCountryDaysYear)
         .onChange(of: availableCountryDayYears) { _, _ in
             syncSelectedCountryDaysYear()
+        }
+        .onChange(of: availableTravelYears) { _, _ in
+            syncSelectedTravelYear()
         }
         .onChange(of: resolvedSelectedCountryDaysYear) { _, _ in
             exportStatusMessage = nil
@@ -88,29 +96,137 @@ struct VisitedMapWindowView: View {
     private var mapCard: some View {
         card {
             VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("World Footprint")
+                        Text(mapMode.title)
                             .font(.headline)
                             .foregroundStyle(NomadTheme.primaryText)
 
-                        Text("Drag, zoom, and inspect the saved cities. Countries with at least one saved place are tinted.")
+                        Text(mapMode.description)
                             .font(.subheadline)
                             .foregroundStyle(NomadTheme.secondaryText)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Spacer()
+                    VStack(alignment: .trailing, spacing: 8) {
+                        HStack(spacing: 10) {
+                            if availableTravelYears.isEmpty == false {
+                                HStack(spacing: 6) {
+                                    Text("Map View")
+                                        .font(.callout)
+                                        .foregroundStyle(NomadTheme.primaryText)
 
-                    legend
+                                    Picker("Map View", selection: $mapMode) {
+                                        ForEach(VisitedMapMode.allCases) { mode in
+                                            Text(mode.title).tag(mode)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.segmented)
+                                    .frame(width: 260)
+                                }
+                            }
+
+                            if mapMode == .travelPath, availableTravelYears.isEmpty == false {
+                                HStack(spacing: 6) {
+                                    Text("Year")
+                                        .font(.callout)
+                                        .foregroundStyle(NomadTheme.primaryText)
+
+                                    Picker("Year", selection: selectedTravelYearBinding) {
+                                        ForEach(availableTravelYears, id: \.self) { year in
+                                            Text("\(year)").tag(year)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.menu)
+                                    .frame(width: 110)
+                                }
+                            }
+                        }
+
+                        legend
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
                 }
 
-                VisitedWorldMapView(places: places)
+                VisitedWorldMapView(places: places, travelStops: mapMode == .travelPath ? selectedTravelStops : [])
                     .frame(minHeight: 520)
                     .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
                     )
+            }
+        }
+    }
+
+    private var travelLogCard: some View {
+        card {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Travel Log")
+                            .font(.headline)
+                            .foregroundStyle(NomadTheme.primaryText)
+
+                        Text(travelLogDescription)
+                            .font(.subheadline)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                    }
+
+                    Spacer()
+
+                    Text("\(selectedTravelStops.count) \(selectedTravelStops.count == 1 ? "stop" : "stops")")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NomadTheme.secondaryText)
+                }
+
+                VStack(spacing: 0) {
+                    ForEach(selectedTravelStops) { stop in
+                        HStack(alignment: .top, spacing: 12) {
+                            Text("\(stop.sequenceNumber)")
+                                .font(.caption.weight(.bold).monospacedDigit())
+                                .foregroundStyle(.white)
+                                .frame(width: 26, height: 26)
+                                .background(Circle().fill(NomadTheme.teal))
+
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(stop.displayName)
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(NomadTheme.primaryText)
+
+                                Text(travelStopDateText(for: stop))
+                                    .font(.caption)
+                                    .foregroundStyle(NomadTheme.secondaryText)
+                            }
+
+                            Spacer(minLength: 24)
+
+                            VStack(alignment: .trailing, spacing: 5) {
+                                Text(stop.dayCount == 1 ? "1 day" : "\(stop.dayCount) days")
+                                    .font(.callout.weight(.semibold))
+                                    .foregroundStyle(NomadTheme.primaryText)
+
+                                Text(sourceLabel(for: stop.sources))
+                                    .font(.caption)
+                                    .foregroundStyle(NomadTheme.secondaryText)
+
+                                if stop.coordinate == nil {
+                                    Text("No map coordinate")
+                                        .font(.caption)
+                                        .foregroundStyle(NomadTheme.tertiaryText)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 10)
+
+                        if stop.id != selectedTravelStops.last?.id {
+                            Divider()
+                                .overlay(NomadTheme.cardBorder.opacity(0.65))
+                        }
+                    }
+                }
             }
         }
     }
@@ -122,7 +238,7 @@ struct VisitedMapWindowView: View {
                     .font(.headline)
                     .foregroundStyle(NomadTheme.primaryText)
 
-                Text("Pins and country days are stored locally on this Mac only. The app determines country from your enabled location sources, prefers device location over IP when both arrive for the same day, keeps the first resolved country for a day, and estimates missing in-between days by splitting them between the surrounding countries.")
+                Text("Pins, travel paths, and country days are stored locally on this Mac only. When device location is available, visited history uses it and ignores IP geolocation for that capture. IP geolocation is used only as a fallback when device location cannot be resolved, and country-day gaps can be estimated from surrounding captures.")
                     .font(.subheadline)
                     .foregroundStyle(NomadTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -353,7 +469,7 @@ struct VisitedMapWindowView: View {
     private var legend: some View {
         HStack(spacing: 10) {
             legendItem(title: "Visited Country", tint: NomadTheme.teal)
-            legendItem(title: "Saved City", tint: NomadTheme.coral)
+            legendItem(title: mapMode == .travelPath ? "Travel Stop" : "Saved City", tint: mapMode == .travelPath ? NomadTheme.teal : NomadTheme.coral)
         }
     }
 
@@ -427,6 +543,10 @@ struct VisitedMapWindowView: View {
         snapshotStore.visitedCountryDays
     }
 
+    private var travelEvents: [VisitedPlaceEvent] {
+        snapshotStore.visitedPlaceEvents
+    }
+
     private var visitedCountryCodes: Set<String> {
         Set(places.compactMap { $0.countryCode?.uppercased() })
     }
@@ -468,6 +588,18 @@ struct VisitedMapWindowView: View {
         snapshotStore.visitedCountryDayYears
     }
 
+    private var availableTravelYears: [Int] {
+        snapshotStore.visitedPlaceEventYears
+    }
+
+    private var selectedTravelStops: [VisitedPlaceTravelStop] {
+        guard let selectedYear = resolvedSelectedTravelYear else {
+            return []
+        }
+
+        return snapshotStore.visitedPlaceTravelStops(for: selectedYear)
+    }
+
     private var selectedCountryDaySummary: VisitedCountryDayYearSummary? {
         guard let selectedYear = resolvedSelectedCountryDaysYear else {
             return nil
@@ -482,6 +614,14 @@ struct VisitedMapWindowView: View {
         }
 
         return countryDays.monthlySummaries(for: selectedYear)
+    }
+
+    private var travelLogDescription: String {
+        guard let selectedYear = resolvedSelectedTravelYear else {
+            return "Your chronological city-level travel log will appear here after new captures are recorded."
+        }
+
+        return "Your saved chronological path for \(selectedYear), based on local device captures with IP used only when device location was unavailable."
     }
 
     private var countryDaysDescription: String {
@@ -499,6 +639,13 @@ struct VisitedMapWindowView: View {
         )
     }
 
+    private var selectedTravelYearBinding: Binding<Int> {
+        Binding(
+            get: { resolvedSelectedTravelYear ?? currentYear },
+            set: { selectedTravelYear = $0 }
+        )
+    }
+
     private var resolvedSelectedCountryDaysYear: Int? {
         if let selectedCountryDaysYear, availableCountryDayYears.contains(selectedCountryDaysYear) {
             return selectedCountryDaysYear
@@ -511,12 +658,28 @@ struct VisitedMapWindowView: View {
         return availableCountryDayYears.first
     }
 
+    private var resolvedSelectedTravelYear: Int? {
+        if let selectedTravelYear, availableTravelYears.contains(selectedTravelYear) {
+            return selectedTravelYear
+        }
+
+        if availableTravelYears.contains(currentYear) {
+            return currentYear
+        }
+
+        return availableTravelYears.first
+    }
+
     private var currentYear: Int {
         Calendar.autoupdatingCurrent.component(.year, from: .now)
     }
 
     private func syncSelectedCountryDaysYear() {
         selectedCountryDaysYear = resolvedSelectedCountryDaysYear
+    }
+
+    private func syncSelectedTravelYear() {
+        selectedTravelYear = resolvedSelectedTravelYear
     }
 
     private func countryDayValueText(for item: VisitedCountryDaySummaryItem) -> String {
@@ -548,6 +711,31 @@ struct VisitedMapWindowView: View {
 
     private func dayLabel(for day: VisitedCountryDay) -> String {
         String(format: "%02d", day.day.day)
+    }
+
+    private func travelStopDateText(for stop: VisitedPlaceTravelStop) -> String {
+        guard let firstObservedAt = stop.firstObservedAt else {
+            return "Date unknown"
+        }
+
+        guard let lastObservedAt = stop.lastObservedAt, !Calendar.autoupdatingCurrent.isDate(firstObservedAt, inSameDayAs: lastObservedAt) else {
+            return firstObservedAt.formatted(date: .abbreviated, time: .omitted)
+        }
+
+        return "\(firstObservedAt.formatted(date: .abbreviated, time: .omitted)) - \(lastObservedAt.formatted(date: .abbreviated, time: .omitted))"
+    }
+
+    private func sourceLabel(for sources: [VisitedPlaceSource]) -> String {
+        let labels = sources.map { source in
+            switch source {
+            case .deviceLocation:
+                return "Device"
+            case .publicIPGeolocation:
+                return "IP"
+            }
+        }
+
+        return labels.joined(separator: " + ")
     }
 
     private func copySelectedYearSummaryToClipboard() {
@@ -591,5 +779,32 @@ struct VisitedMapWindowView: View {
         }
 
         return lines.joined(separator: "\n")
+    }
+}
+
+private enum VisitedMapMode: String, CaseIterable, Identifiable {
+    case footprint
+    case travelPath
+
+    var id: String {
+        rawValue
+    }
+
+    var title: String {
+        switch self {
+        case .footprint:
+            return "World Footprint"
+        case .travelPath:
+            return "Travel Path"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .footprint:
+            return "Drag, zoom, and inspect the saved cities. Countries with at least one saved place are tinted."
+        case .travelPath:
+            return "Follow your chronological city-level path for the selected year."
+        }
     }
 }
