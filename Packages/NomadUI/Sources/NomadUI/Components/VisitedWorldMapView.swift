@@ -27,7 +27,8 @@ public struct VisitedWorldMapView: NSViewRepresentable {
         mapView.pointOfInterestFilter = .excludingAll
         mapView.showsZoomControls = true
         mapView.showsTraffic = false
-        mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: Coordinator.annotationReuseIdentifier)
+        mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: Coordinator.placeAnnotationReuseIdentifier)
+        mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: Coordinator.travelStopAnnotationReuseIdentifier)
         mapView.register(MKMarkerAnnotationView.self, forAnnotationViewWithReuseIdentifier: Coordinator.clusterReuseIdentifier)
         return mapView
     }
@@ -42,7 +43,8 @@ public struct VisitedWorldMapView: NSViewRepresentable {
     }
 
     public final class Coordinator: NSObject, MKMapViewDelegate {
-        fileprivate static let annotationReuseIdentifier = "VisitedPlaceAnnotation"
+        fileprivate static let placeAnnotationReuseIdentifier = "VisitedPlaceAnnotation"
+        fileprivate static let travelStopAnnotationReuseIdentifier = "VisitedTravelStopAnnotation"
         fileprivate static let clusterReuseIdentifier = "VisitedPlaceCluster"
 
         private var overlayCountryCodes: [ObjectIdentifier: String] = [:]
@@ -67,9 +69,9 @@ public struct VisitedWorldMapView: NSViewRepresentable {
             mapView.addOverlays(overlays.map(\.overlay))
 
             if travelStops.isEmpty == false {
-                let routeCoordinates = travelStops.compactMap(\.coordinate)
-                if routeCoordinates.count > 1 {
-                    mapView.addOverlay(MKPolyline(coordinates: routeCoordinates, count: routeCoordinates.count))
+                for routeCoordinates in routeCoordinateSegments(from: travelStops) where routeCoordinates.count > 1 {
+                    var coordinates = routeCoordinates
+                    mapView.addOverlay(MKPolyline(coordinates: &coordinates, count: coordinates.count))
                 }
             }
 
@@ -137,13 +139,14 @@ public struct VisitedWorldMapView: NSViewRepresentable {
 
             if annotation is VisitedTravelStopAnnotation {
                 let view = mapView.dequeueReusableAnnotationView(
-                    withIdentifier: Self.annotationReuseIdentifier,
+                    withIdentifier: Self.travelStopAnnotationReuseIdentifier,
                     for: annotation
-                ) as? MKMarkerAnnotationView ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: Self.annotationReuseIdentifier)
+                ) as? MKMarkerAnnotationView ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: Self.travelStopAnnotationReuseIdentifier)
                 view.annotation = annotation
                 view.canShowCallout = true
                 view.animatesWhenAdded = false
                 view.markerTintColor = NSColor(hex: 0x0E8C92)
+                view.glyphImage = nil
                 view.glyphText = (annotation as? VisitedTravelStopAnnotation).map { "\($0.sequenceNumber)" }
                 view.displayPriority = .required
                 view.clusteringIdentifier = nil
@@ -151,17 +154,41 @@ public struct VisitedWorldMapView: NSViewRepresentable {
             }
 
             let view = mapView.dequeueReusableAnnotationView(
-                withIdentifier: Self.annotationReuseIdentifier,
+                withIdentifier: Self.placeAnnotationReuseIdentifier,
                 for: annotation
-            ) as? MKMarkerAnnotationView ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: Self.annotationReuseIdentifier)
+            ) as? MKMarkerAnnotationView ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: Self.placeAnnotationReuseIdentifier)
             view.annotation = annotation
             view.canShowCallout = true
             view.animatesWhenAdded = false
             view.markerTintColor = NSColor(hex: 0xC85C34)
+            view.glyphText = nil
             view.glyphImage = NSImage(systemSymbolName: "mappin.circle.fill", accessibilityDescription: "Visited place")
             view.displayPriority = .required
             view.clusteringIdentifier = "visited-place"
             return view
+        }
+
+        private func routeCoordinateSegments(from travelStops: [VisitedPlaceTravelStop]) -> [[CLLocationCoordinate2D]] {
+            var segments: [[CLLocationCoordinate2D]] = []
+            var currentSegment: [CLLocationCoordinate2D] = []
+
+            for stop in travelStops {
+                guard let coordinate = stop.coordinate, CLLocationCoordinate2DIsValid(coordinate) else {
+                    if currentSegment.isEmpty == false {
+                        segments.append(currentSegment)
+                        currentSegment = []
+                    }
+                    continue
+                }
+
+                currentSegment.append(coordinate)
+            }
+
+            if currentSegment.isEmpty == false {
+                segments.append(currentSegment)
+            }
+
+            return segments
         }
 
         private func applyCountryStyling(to renderer: MKOverlayPathRenderer, isVisited: Bool) {

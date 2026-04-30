@@ -26,9 +26,9 @@ public actor FileVisitedPlaceEventsStore: VisitedPlaceEventsStore {
         }
 
         var events = try loadPersistedEvents()
-        let key = event.id
+        let key = event.coalescingKey
 
-        if let index = events.firstIndex(where: { $0.id == key }) {
+        if let index = events.indices.last, events[index].coalescingKey == key {
             events[index] = events[index].merging(input: input)
         } else {
             events.append(event)

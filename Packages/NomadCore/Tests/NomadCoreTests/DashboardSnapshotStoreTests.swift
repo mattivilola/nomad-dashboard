@@ -1395,7 +1395,7 @@ private actor InMemoryVisitedPlaceEventsStore: VisitedPlaceEventsStore {
             return
         }
 
-        if let index = values.firstIndex(where: { $0.id == event.id }) {
+        if let index = values.indices.last, values[index].coalescingKey == event.coalescingKey {
             values[index] = values[index].merging(input: input)
         } else {
             values.append(event)

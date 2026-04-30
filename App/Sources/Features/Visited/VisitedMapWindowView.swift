@@ -96,7 +96,7 @@ struct VisitedMapWindowView: View {
     private var mapCard: some View {
         card {
             VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .firstTextBaseline) {
+                HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(mapMode.title)
                             .font(.headline)
@@ -106,32 +106,48 @@ struct VisitedMapWindowView: View {
                             .font(.subheadline)
                             .foregroundStyle(NomadTheme.secondaryText)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Spacer()
+                    VStack(alignment: .trailing, spacing: 8) {
+                        HStack(spacing: 10) {
+                            if availableTravelYears.isEmpty == false {
+                                HStack(spacing: 6) {
+                                    Text("Map View")
+                                        .font(.callout)
+                                        .foregroundStyle(NomadTheme.primaryText)
 
-                    HStack(spacing: 10) {
-                        if availableTravelYears.isEmpty == false {
-                            Picker("Map View", selection: $mapMode) {
-                                ForEach(VisitedMapMode.allCases) { mode in
-                                    Text(mode.title).tag(mode)
+                                    Picker("Map View", selection: $mapMode) {
+                                        ForEach(VisitedMapMode.allCases) { mode in
+                                            Text(mode.title).tag(mode)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.segmented)
+                                    .frame(width: 260)
                                 }
                             }
-                            .pickerStyle(.segmented)
-                            .frame(width: 260)
-                        }
 
-                        if mapMode == .travelPath, availableTravelYears.isEmpty == false {
-                            Picker("Year", selection: selectedTravelYearBinding) {
-                                ForEach(availableTravelYears, id: \.self) { year in
-                                    Text("\(year)").tag(year)
+                            if mapMode == .travelPath, availableTravelYears.isEmpty == false {
+                                HStack(spacing: 6) {
+                                    Text("Year")
+                                        .font(.callout)
+                                        .foregroundStyle(NomadTheme.primaryText)
+
+                                    Picker("Year", selection: selectedTravelYearBinding) {
+                                        ForEach(availableTravelYears, id: \.self) { year in
+                                            Text("\(year)").tag(year)
+                                        }
+                                    }
+                                    .labelsHidden()
+                                    .pickerStyle(.menu)
+                                    .frame(width: 110)
                                 }
                             }
-                            .pickerStyle(.menu)
-                            .frame(width: 110)
                         }
 
                         legend
                     }
+                    .fixedSize(horizontal: true, vertical: false)
                 }
 
                 VisitedWorldMapView(places: places, travelStops: mapMode == .travelPath ? selectedTravelStops : [])
@@ -195,6 +211,12 @@ struct VisitedMapWindowView: View {
                                 Text(sourceLabel(for: stop.sources))
                                     .font(.caption)
                                     .foregroundStyle(NomadTheme.secondaryText)
+
+                                if stop.coordinate == nil {
+                                    Text("No map coordinate")
+                                        .font(.caption)
+                                        .foregroundStyle(NomadTheme.tertiaryText)
+                                }
                             }
                         }
                         .padding(.vertical, 10)

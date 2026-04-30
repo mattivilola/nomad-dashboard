@@ -250,7 +250,7 @@ public struct VisitedPlaceEvent: Codable, Equatable, Sendable, Identifiable {
     }
 
     public var id: String {
-        Self.storageKey(countryCode: countryCode, country: country, city: city, observedDay: observedDay)
+        "\(Self.timestampKey(firstObservedAt))|\(coalescingKey)"
     }
 
     public var coordinate: CLLocationCoordinate2D? {
@@ -344,6 +344,10 @@ public struct VisitedPlaceEvent: Codable, Equatable, Sendable, Identifiable {
 
     private static func normalizedCountryCode(_ value: String?) -> String? {
         normalizedValue(value)?.uppercased()
+    }
+
+    private static func timestampKey(_ date: Date) -> String {
+        String(format: "%.6f", date.timeIntervalSince1970)
     }
 }
 
@@ -474,7 +478,11 @@ private extension Array where Element: Hashable {
     }
 }
 
-private extension VisitedPlaceEvent {
+extension VisitedPlaceEvent {
+    var coalescingKey: String {
+        Self.storageKey(countryCode: countryCode, country: country, city: city, observedDay: observedDay)
+    }
+
     var placeKey: String {
         VisitedPlace.storageKey(countryCode: countryCode, country: country, city: city)
     }

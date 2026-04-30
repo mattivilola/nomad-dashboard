@@ -20,7 +20,7 @@ struct FileVisitedPlaceEventsStoreTests {
     }
 
     @Test
-    func mergesSamePlaceOnSameDayAndPrefersDeviceCoordinates() async throws {
+    func mergesConsecutiveSamePlaceOnSameDayAndPrefersDeviceCoordinates() async throws {
         let store = makeStore()
         let firstObservedAt = Date(timeIntervalSince1970: 1_767_225_600)
         let secondObservedAt = firstObservedAt.addingTimeInterval(3_600)
@@ -51,6 +51,25 @@ struct FileVisitedPlaceEventsStoreTests {
         #expect(values.first?.firstObservedAt == firstObservedAt)
         #expect(values.first?.lastObservedAt == secondObservedAt)
         #expect(Set(values.first?.sources ?? []) == Set([.publicIPGeolocation, .deviceLocation]))
+    }
+
+    @Test
+    func keepsNonConsecutiveSameDayReturnVisitsAsSeparateStops() async throws {
+        let store = makeStore()
+        let berlinMorning = Date(timeIntervalSince1970: 1_767_225_600)
+        let parisNoon = berlinMorning.addingTimeInterval(3_600)
+        let berlinEvening = berlinMorning.addingTimeInterval(7_200)
+
+        try await store.record(input(city: "Berlin", country: "Germany", countryCode: "DE", observedAt: berlinMorning))
+        try await store.record(input(city: "Paris", country: "France", countryCode: "FR", observedAt: parisNoon))
+        try await store.record(input(city: "Berlin", country: "Germany", countryCode: "DE", observedAt: berlinEvening))
+
+        let values = try await store.loadAll()
+        let stops = values.travelStops(for: 2026)
+
+        #expect(values.count == 3)
+        #expect(stops.map(\.displayName) == ["Berlin, Germany", "Paris, France", "Berlin, Germany"])
+        #expect(stops.map(\.sequenceNumber) == [1, 2, 3])
     }
 
     @Test
