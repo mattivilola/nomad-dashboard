@@ -5,9 +5,11 @@ import SwiftUI
 
 public struct VisitedWorldMapView: NSViewRepresentable {
     private let places: [VisitedPlace]
+    private let travelStops: [VisitedPlaceTravelStop]
 
-    public init(places: [VisitedPlace]) {
+    public init(places: [VisitedPlace], travelStops: [VisitedPlaceTravelStop] = []) {
         self.places = places
+        self.travelStops = travelStops
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -34,6 +36,7 @@ public struct VisitedWorldMapView: NSViewRepresentable {
         context.coordinator.apply(
             to: mapView,
             places: places,
+            travelStops: travelStops,
             visitedCountryCodes: Set(places.compactMap { $0.countryCode?.uppercased() })
         )
     }
@@ -49,6 +52,7 @@ public struct VisitedWorldMapView: NSViewRepresentable {
         fileprivate func apply(
             to mapView: MKMapView,
             places: [VisitedPlace],
+            travelStops: [VisitedPlaceTravelStop],
             visitedCountryCodes: Set<String>
         ) {
             self.visitedCountryCodes = visitedCountryCodes
@@ -62,7 +66,18 @@ public struct VisitedWorldMapView: NSViewRepresentable {
             }
             mapView.addOverlays(overlays.map(\.overlay))
 
-            let annotations = places.compactMap(VisitedPlaceAnnotation.init(place:))
+            if travelStops.isEmpty == false {
+                let routeCoordinates = travelStops.compactMap(\.coordinate)
+                if routeCoordinates.count > 1 {
+                    mapView.addOverlay(MKPolyline(coordinates: routeCoordinates, count: routeCoordinates.count))
+                }
+            }
+
+            let annotations: [any MKAnnotation] = if travelStops.isEmpty {
+                places.compactMap(VisitedPlaceAnnotation.init(place:))
+            } else {
+                travelStops.compactMap(VisitedTravelStopAnnotation.init(stop:))
+            }
             mapView.addAnnotations(annotations)
 
             if hasConfiguredInitialViewport == false {
@@ -90,6 +105,15 @@ public struct VisitedWorldMapView: NSViewRepresentable {
                 return renderer
             }
 
+            if let polyline = overlay as? MKPolyline {
+                let renderer = MKPolylineRenderer(polyline: polyline)
+                renderer.strokeColor = NSColor(hex: 0x0E8C92, alpha: 0.82)
+                renderer.lineWidth = 4
+                renderer.lineJoin = .round
+                renderer.lineCap = .round
+                return renderer
+            }
+
             return MKOverlayRenderer(overlay: overlay)
         }
 
@@ -108,6 +132,21 @@ public struct VisitedWorldMapView: NSViewRepresentable {
                 view.markerTintColor = NSColor(hex: 0x0E8C92)
                 view.glyphText = "\(cluster.memberAnnotations.count)"
                 view.displayPriority = .required
+                return view
+            }
+
+            if annotation is VisitedTravelStopAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(
+                    withIdentifier: Self.annotationReuseIdentifier,
+                    for: annotation
+                ) as? MKMarkerAnnotationView ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: Self.annotationReuseIdentifier)
+                view.annotation = annotation
+                view.canShowCallout = true
+                view.animatesWhenAdded = false
+                view.markerTintColor = NSColor(hex: 0x0E8C92)
+                view.glyphText = (annotation as? VisitedTravelStopAnnotation).map { "\($0.sequenceNumber)" }
+                view.displayPriority = .required
+                view.clusteringIdentifier = nil
                 return view
             }
 
@@ -130,6 +169,26 @@ public struct VisitedWorldMapView: NSViewRepresentable {
             renderer.strokeColor = isVisited ? NSColor(hex: 0x0E8C92, alpha: 0.62) : NSColor(hex: 0x17303A, alpha: 0.14)
             renderer.fillColor = isVisited ? NSColor(hex: 0x0E8C92, alpha: 0.24) : NSColor(hex: 0x17303A, alpha: 0.03)
         }
+    }
+}
+
+private final class VisitedTravelStopAnnotation: NSObject, MKAnnotation {
+    let coordinate: CLLocationCoordinate2D
+    let sequenceNumber: Int
+    let title: String?
+    let subtitle: String?
+
+    init?(stop: VisitedPlaceTravelStop) {
+        guard let coordinate = stop.coordinate, CLLocationCoordinate2DIsValid(coordinate) else {
+            return nil
+        }
+
+        self.coordinate = coordinate
+        sequenceNumber = stop.sequenceNumber
+        title = "\(stop.sequenceNumber). \(stop.displayName)"
+
+        let dayText = stop.dayCount == 1 ? "1 tracked day" : "\(stop.dayCount) tracked days"
+        subtitle = "\(dayText) in \(stop.country)"
     }
 }
 

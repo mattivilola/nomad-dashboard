@@ -16,6 +16,7 @@ public final class DashboardSnapshotStore: ObservableObject {
 
     @Published public private(set) var snapshot: DashboardSnapshot
     @Published public private(set) var visitedPlaces: [VisitedPlace] = []
+    @Published public private(set) var visitedPlaceEvents: [VisitedPlaceEvent] = []
     @Published public private(set) var visitedCountryDays: [VisitedCountryDay] = []
     @Published public private(set) var refreshActivity: DashboardRefreshActivity = .idle
 
@@ -28,7 +29,6 @@ public final class DashboardSnapshotStore: ObservableObject {
     private var appliedSettings: AppSettings
     private var currentLocation: CLLocation?
     private var currentCoordinate: CLLocationCoordinate2D?
-    private var pendingVisitedDeviceLocation: CLLocation?
     private var lastSlowRefresh: Date?
     private var refreshInFlight = false
     private var pendingAutomaticRefresh = false
@@ -94,7 +94,6 @@ public final class DashboardSnapshotStore: ObservableObject {
     public func setCurrentLocation(_ location: CLLocation?) {
         currentLocation = location
         currentCoordinate = location?.coordinate
-        pendingVisitedDeviceLocation = location
     }
 
     public var visitedPlaceSummary: VisitedPlaceSummary {
@@ -103,6 +102,14 @@ public final class DashboardSnapshotStore: ObservableObject {
 
     public var visitedCountryDayYears: [Int] {
         visitedCountryDays.availableYears
+    }
+
+    public var visitedPlaceEventYears: [Int] {
+        visitedPlaceEvents.availableYears
+    }
+
+    public func visitedPlaceTravelStops(for year: Int) -> [VisitedPlaceTravelStop] {
+        visitedPlaceEvents.travelStops(for: year)
     }
 
     public func visitedCountryDaySummary(for year: Int) -> VisitedCountryDayYearSummary? {
@@ -116,8 +123,10 @@ public final class DashboardSnapshotStore: ObservableObject {
             }
 
             try? await dependencies.visitedPlacesStore.reset()
+            try? await dependencies.visitedPlaceEventsStore.reset()
             try? await dependencies.visitedCountryDaysStore.reset()
             await loadVisitedPlaces()
+            await loadVisitedPlaceEvents()
             await loadVisitedCountryDays()
         }
     }
@@ -222,6 +231,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         var emergencyCareSnapshot = snapshot.emergencyCare
         var marineSnapshot = surfSpotConfiguration.isValid ? snapshot.marine : nil
         var didUpdateVisitedHistory = false
+        var refreshedDeviceLocationSnapshot: IPLocationSnapshot?
 
         if includeSlowMetrics {
             latencySample = await dependencies.latencyProbe.currentSample()
@@ -231,7 +241,9 @@ public final class DashboardSnapshotStore: ObservableObject {
 
             if settings.usesDeviceLocation, let currentLocation {
                 do {
-                    deviceLocationSnapshot = try await makeDeviceLocationSnapshot(from: currentLocation, now: now)
+                    let deviceSnapshot = try await makeDeviceLocationSnapshot(from: currentLocation, now: now)
+                    deviceLocationSnapshot = deviceSnapshot
+                    refreshedDeviceLocationSnapshot = deviceSnapshot
                 } catch {}
             } else {
                 deviceLocationSnapshot = nil
@@ -319,13 +331,19 @@ public final class DashboardSnapshotStore: ObservableObject {
             }
 
             if settings.visitedPlacesEnabled {
-                if let locationSnapshot {
-                    didUpdateVisitedHistory = await recordVisitedPlace(from: locationSnapshot, visitedAt: now) || didUpdateVisitedHistory
+                if let refreshedDeviceLocationSnapshot {
+                    didUpdateVisitedHistory = await recordVisitedPlace(
+                        from: refreshedDeviceLocationSnapshot,
+                        source: .deviceLocation,
+                        visitedAt: now
+                    ) || didUpdateVisitedHistory
+                } else if let locationSnapshot {
+                    didUpdateVisitedHistory = await recordVisitedPlace(
+                        from: locationSnapshot,
+                        source: .publicIPGeolocation,
+                        visitedAt: now
+                    ) || didUpdateVisitedHistory
                 }
-
-                didUpdateVisitedHistory = await recordPendingDeviceLocation(visitedAt: now) || didUpdateVisitedHistory
-            } else {
-                pendingVisitedDeviceLocation = nil
             }
 
             travelAlertsSnapshot = synchronizedTravelAlertsSnapshot(
@@ -346,6 +364,7 @@ public final class DashboardSnapshotStore: ObservableObject {
 
         if didUpdateVisitedHistory {
             await loadVisitedPlaces()
+            await loadVisitedPlaceEvents()
             await loadVisitedCountryDays()
         }
 
@@ -439,6 +458,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         try? await dependencies.historyStore.setRetentionHours(appliedSettings.historyRetentionHours)
         await dependencies.updateCoordinator.setAutomaticChecksEnabled(appliedSettings.automaticUpdateChecksEnabled)
         await loadVisitedPlaces()
+        await loadVisitedPlaceEvents()
         await loadVisitedCountryDays()
     }
 
@@ -884,11 +904,19 @@ public final class DashboardSnapshotStore: ObservableObject {
         visitedPlaces = await (try? dependencies.visitedPlacesStore.loadAll()) ?? []
     }
 
+    private func loadVisitedPlaceEvents() async {
+        visitedPlaceEvents = await (try? dependencies.visitedPlaceEventsStore.loadAll()) ?? []
+    }
+
     private func loadVisitedCountryDays() async {
         visitedCountryDays = await (try? dependencies.visitedCountryDaysStore.loadAll()) ?? []
     }
 
-    private func recordVisitedPlace(from snapshot: IPLocationSnapshot, visitedAt: Date) async -> Bool {
+    private func recordVisitedPlace(
+        from snapshot: IPLocationSnapshot,
+        source: VisitedPlaceSource,
+        visitedAt: Date
+    ) async -> Bool {
         guard let country = normalizedValue(snapshot.country) else {
             return false
         }
@@ -900,64 +928,45 @@ public final class DashboardSnapshotStore: ObservableObject {
             countryCode: normalizedValue(snapshot.countryCode)?.uppercased(),
             latitude: snapshot.latitude,
             longitude: snapshot.longitude,
-            source: .publicIPGeolocation,
+            source: source,
             visitedAt: visitedAt
         )
         let dayInput = VisitedCountryDayInput(
             day: VisitedCountryDayStamp(date: visitedAt, calendar: .autoupdatingCurrent),
             country: country,
             countryCode: normalizedValue(snapshot.countryCode)?.uppercased(),
-            source: .publicIPGeolocation,
+            source: source,
             observedAt: visitedAt
         )
+        let eventInput = VisitedPlaceEventInput(
+            city: placeInput.city,
+            region: placeInput.region,
+            country: placeInput.country,
+            countryCode: placeInput.countryCode,
+            latitude: placeInput.latitude,
+            longitude: placeInput.longitude,
+            source: placeInput.source,
+            observedAt: visitedAt,
+            observedDay: dayInput.day
+        )
 
-        return await recordVisitedHistory(placeInput: placeInput, dayInput: dayInput)
-    }
-
-    private func recordPendingDeviceLocation(visitedAt: Date) async -> Bool {
-        guard let pendingVisitedDeviceLocation else {
-            return false
-        }
-
-        self.pendingVisitedDeviceLocation = nil
-
-        do {
-            let details = try await dependencies.reverseGeocodingProvider.details(for: pendingVisitedDeviceLocation)
-            guard let country = normalizedValue(details.country) else {
-                return false
-            }
-
-            let placeInput = VisitedPlaceInput(
-                city: normalizedValue(details.city),
-                region: normalizedValue(details.region),
-                country: country,
-                countryCode: normalizedValue(details.countryCode)?.uppercased(),
-                latitude: pendingVisitedDeviceLocation.coordinate.latitude,
-                longitude: pendingVisitedDeviceLocation.coordinate.longitude,
-                source: .deviceLocation,
-                visitedAt: visitedAt
-            )
-            let dayInput = VisitedCountryDayInput(
-                day: VisitedCountryDayStamp(date: visitedAt, calendar: .autoupdatingCurrent),
-                country: country,
-                countryCode: normalizedValue(details.countryCode)?.uppercased(),
-                source: .deviceLocation,
-                observedAt: visitedAt
-            )
-            return await recordVisitedHistory(placeInput: placeInput, dayInput: dayInput)
-        } catch {
-            return false
-        }
+        return await recordVisitedHistory(placeInput: placeInput, eventInput: eventInput, dayInput: dayInput)
     }
 
     private func recordVisitedHistory(
         placeInput: VisitedPlaceInput,
+        eventInput: VisitedPlaceEventInput,
         dayInput: VisitedCountryDayInput
     ) async -> Bool {
         var didRecord = false
 
         do {
             try await dependencies.visitedPlacesStore.record(placeInput)
+            didRecord = true
+        } catch {}
+
+        do {
+            try await dependencies.visitedPlaceEventsStore.record(eventInput)
             didRecord = true
         } catch {}
 

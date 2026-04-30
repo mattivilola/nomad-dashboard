@@ -108,6 +108,12 @@ public protocol VisitedPlacesStore: Sendable {
     func reset() async throws
 }
 
+public protocol VisitedPlaceEventsStore: Sendable {
+    func loadAll() async throws -> [VisitedPlaceEvent]
+    func record(_ input: VisitedPlaceEventInput) async throws
+    func reset() async throws
+}
+
 public protocol VisitedCountryDaysStore: Sendable {
     func loadAll() async throws -> [VisitedCountryDay]
     func record(_ input: VisitedCountryDayInput) async throws
