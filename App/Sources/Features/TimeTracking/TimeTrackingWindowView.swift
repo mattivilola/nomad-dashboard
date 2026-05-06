@@ -596,9 +596,12 @@ struct TimeTrackingWindowView: View {
             )
         }
 
+        let selectedDayInterval = dayInterval(containing: resolvedSelectedDay)
         let dayEntries = controller.entries(forDay: resolvedSelectedDay).map { entry in
             let resolvedEnd = entry.resolvedEnd(at: referenceDate)
-            let duration = max(resolvedEnd.timeIntervalSince(entry.startAt), 0)
+            let displayedStart = max(entry.startAt, selectedDayInterval.start)
+            let displayedEnd = min(resolvedEnd, selectedDayInterval.end)
+            let duration = max(displayedEnd.timeIntervalSince(displayedStart), 0)
             let durationLabel = formattedDuration(duration)
             let bucketTitle = controller.title(for: entry.bucket)
             let needsAction = entry.isOpen || entry.bucket == .unallocated
@@ -607,7 +610,7 @@ struct TimeTrackingWindowView: View {
                 entry: entry,
                 resolvedEndAt: resolvedEnd,
                 currentBucketTitle: bucketTitle,
-                summaryLabel: "\(formattedTime(entry.startAt)) - \(formattedTime(resolvedEnd)) • \(durationLabel)",
+                summaryLabel: "\(formattedTime(displayedStart)) - \(formattedTime(displayedEnd)) • \(durationLabel)",
                 durationLabel: durationLabel,
                 needsAction: needsAction,
                 statusLabel: needsAction ? (entry.isOpen ? "Open" : "Pending") : nil
@@ -640,6 +643,11 @@ struct TimeTrackingWindowView: View {
         }
 
         return isoWeek
+    }
+
+    private func dayInterval(containing date: Date) -> DateInterval {
+        calendar.dateInterval(of: .day, for: date)
+            ?? DateInterval(start: calendar.startOfDay(for: date), duration: 86_400)
     }
 
     private func roundedDownToMinute(_ date: Date) -> Date {

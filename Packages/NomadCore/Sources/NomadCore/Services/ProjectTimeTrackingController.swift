@@ -144,18 +144,7 @@ public final class ProjectTimeTrackingController: ObservableObject {
             let dayInterval = try dayInterval(containing: currentNow)
             var didChange = false
 
-            for index in ledger.entries.indices {
-                let entry = ledger.entries[index]
-                guard entry.bucket == .unallocated,
-                      entry.startAt >= dayInterval.start,
-                      entry.startAt < dayInterval.end
-                else {
-                    continue
-                }
-
-                ledger.entries[index].bucket = bucket
-                didChange = true
-            }
+            didChange = allocateUnallocatedEntries(overlapping: dayInterval, to: bucket, now: currentNow)
 
             ledger.entries = mergeAdjacentEntries(ledger.entries)
             ledger.entries = TimeTrackingLedger.normalizedEntries(ledger.entries)
@@ -291,7 +280,10 @@ public final class ProjectTimeTrackingController: ObservableObject {
         }
 
         return TimeTrackingLedger.normalizedEntries(
-            ledger.entries.filter { $0.startAt >= interval.start && $0.startAt < interval.end }
+            ledger.entries.filter { entry in
+                let entryInterval = DateInterval(start: entry.startAt, end: entry.resolvedEnd(at: now()))
+                return entryInterval.intersects(interval)
+            }
         )
     }
 
@@ -686,6 +678,85 @@ public final class ProjectTimeTrackingController: ObservableObject {
         } catch {
             lastErrorMessage = error.localizedDescription
         }
+    }
+
+    @discardableResult
+    private func allocateUnallocatedEntries(
+        overlapping interval: DateInterval,
+        to bucket: TimeTrackingBucket,
+        now currentNow: Date
+    ) -> Bool {
+        guard bucket != .unallocated else {
+            return false
+        }
+
+        var nextEntries: [TimeTrackingEntry] = []
+        var didChange = false
+
+        func appendEntry(
+            _ entry: TimeTrackingEntry,
+            startAt: Date,
+            endAt: Date,
+            bucket: TimeTrackingBucket,
+            preservesOriginalID: Bool
+        ) {
+            guard endAt > startAt else {
+                return
+            }
+
+            nextEntries.append(
+                TimeTrackingEntry(
+                    id: preservesOriginalID ? entry.id : UUID(),
+                    startAt: startAt,
+                    endAt: endAt,
+                    bucket: bucket
+                )
+            )
+        }
+
+        for entry in ledger.entries {
+            let resolvedEnd = entry.resolvedEnd(at: currentNow)
+            let entryInterval = DateInterval(start: entry.startAt, end: resolvedEnd)
+
+            guard entry.bucket == .unallocated,
+                  let overlap = entryInterval.intersection(with: interval),
+                  overlap.duration > 0
+            else {
+                nextEntries.append(entry)
+                continue
+            }
+
+            didChange = true
+
+            let coversWholeEntry = overlap.start == entry.startAt && overlap.end == resolvedEnd
+            appendEntry(
+                entry,
+                startAt: entry.startAt,
+                endAt: overlap.start,
+                bucket: .unallocated,
+                preservesOriginalID: false
+            )
+            appendEntry(
+                entry,
+                startAt: overlap.start,
+                endAt: overlap.end,
+                bucket: bucket,
+                preservesOriginalID: coversWholeEntry
+            )
+            appendEntry(
+                entry,
+                startAt: overlap.end,
+                endAt: resolvedEnd,
+                bucket: .unallocated,
+                preservesOriginalID: false
+            )
+        }
+
+        if didChange {
+            ledger.entries = nextEntries
+        }
+
+        return didChange
     }
 
     @discardableResult
