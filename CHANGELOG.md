@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.12.1] - 2026-05-07
+
+### Changed
+
+- Refine handling of time tracking entries that span day boundaries. Entries are now accurately clipped for display and can be split for allocation to specific days.
+
 ## [0.12.0] - 2026-04-30
 
 ### Changed

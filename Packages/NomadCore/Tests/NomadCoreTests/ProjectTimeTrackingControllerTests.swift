@@ -125,6 +125,66 @@ struct ProjectTimeTrackingControllerTests {
     }
 
     @Test
+    func currentDayAllocationSplitsOvernightPendingEntry() async throws {
+        let project = TimeTrackingProject(id: UUID(), name: "Client A")
+        let overnightEntry = TimeTrackingEntry(
+            id: UUID(),
+            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 8, minute: 7),
+            bucket: .unallocated
+        )
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
+            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
+            initialLedger: TimeTrackingLedger(
+                entries: [overnightEntry],
+                runtimeState: TimeTrackingRuntimeState(activityState: .paused)
+            )
+        )
+        await harness.controller.waitUntilLoaded()
+
+        #expect(harness.controller.daySummary(for: harness.clock.current).unallocatedDuration == TimeInterval(8 * 60 * 60 + 7 * 60))
+
+        await harness.controller.allocateCurrentDayPending(to: .project(project.id))
+
+        let previousDaySummary = harness.controller.daySummary(
+            for: makeDate(year: 2026, month: 3, day: 30, hour: 12, minute: 0)
+        )
+        let currentDaySummary = harness.controller.daySummary(for: harness.clock.current)
+
+        #expect(previousDaySummary.unallocatedDuration == TimeInterval(30 * 60))
+        #expect(currentDaySummary.unallocatedDuration == 0)
+        #expect(
+            currentDaySummary.bucketDurations
+                .first(where: { $0.bucket == .project(project.id) })?
+                .duration == TimeInterval(8 * 60 * 60 + 7 * 60)
+        )
+    }
+
+    @Test
+    func entriesForDayIncludesEntriesThatStartedBeforeMidnight() async throws {
+        let overnightEntry = TimeTrackingEntry(
+            id: UUID(),
+            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 8, minute: 7),
+            bucket: .unallocated
+        )
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true),
+            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
+            initialLedger: TimeTrackingLedger(
+                entries: [overnightEntry],
+                runtimeState: TimeTrackingRuntimeState(activityState: .paused)
+            )
+        )
+        await harness.controller.waitUntilLoaded()
+
+        let entries = harness.controller.entries(forDay: harness.clock.current)
+
+        #expect(entries.map(\.id).contains(overnightEntry.id))
+    }
+
+    @Test
     func interruptionsFollowLaterProjectAllocationAndProduceFocusMetrics() async throws {
         let project = TimeTrackingProject(id: UUID(), name: "Client A")
         let harness = try makeHarness(
