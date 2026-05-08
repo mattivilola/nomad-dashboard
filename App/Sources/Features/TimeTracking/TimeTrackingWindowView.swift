@@ -321,16 +321,16 @@ struct TimeTrackingWindowView: View {
                                     setEntryExpanded(entry.id, isExpanded: isExpanded)
                                 },
                                 onReassign: { bucket in
-                                    await controller.reassignEntry(id: entry.id, to: bucket)
+                                    await controller.reassignEntry(id: entry.id, to: bucket, within: entry.displayedInterval)
                                 },
                                 onQuickAllocate: { bucket in
-                                    await controller.quickAllocateEntry(id: entry.id, to: bucket)
+                                    await controller.quickAllocateEntry(id: entry.id, to: bucket, within: entry.displayedInterval)
                                 },
                                 onResize: { startAt, endAt in
-                                    await controller.updateEntry(id: entry.id, startAt: startAt, endAt: endAt)
+                                    await controller.updateEntry(id: entry.id, startAt: startAt, endAt: endAt, within: entry.displayedInterval)
                                 },
                                 onSplit: { splitAt, bucket in
-                                    await controller.splitEntry(id: entry.id, at: splitAt, secondBucket: bucket)
+                                    await controller.splitEntry(id: entry.id, within: entry.displayedInterval, at: splitAt, secondBucket: bucket)
                                 }
                             )
                         }
@@ -609,6 +609,8 @@ struct TimeTrackingWindowView: View {
             return TimeTrackingEntryRowModel(
                 entry: entry,
                 resolvedEndAt: resolvedEnd,
+                displayedStartAt: displayedStart,
+                displayedEndAt: displayedEnd,
                 currentBucketTitle: bucketTitle,
                 summaryLabel: "\(formattedTime(displayedStart)) - \(formattedTime(displayedEnd)) • \(durationLabel)",
                 durationLabel: durationLabel,
@@ -870,11 +872,11 @@ private struct TimeTrackingEntryEditorRow: View {
         self.onResize = onResize
         self.onSplit = onSplit
 
-        let resolvedEnd = model.resolvedEndAt
+        let resolvedEnd = model.displayedEndAt
         _selectedBucketID = State(initialValue: model.entry.bucket.stableID)
-        _startAt = State(initialValue: model.entry.startAt)
+        _startAt = State(initialValue: model.displayedStartAt)
         _endAt = State(initialValue: resolvedEnd)
-        _splitAt = State(initialValue: model.entry.startAt.addingTimeInterval(max(resolvedEnd.timeIntervalSince(model.entry.startAt), 60) / 2))
+        _splitAt = State(initialValue: model.displayedStartAt.addingTimeInterval(max(resolvedEnd.timeIntervalSince(model.displayedStartAt), 60) / 2))
         _splitBucketID = State(initialValue: TimeTrackingBucket.unallocated.stableID)
     }
 
@@ -1119,11 +1121,11 @@ private struct TimeTrackingEntryEditorRow: View {
     }
 
     private func syncFromModel(_ model: TimeTrackingEntryRowModel) {
-        let resolvedEnd = model.resolvedEndAt
+        let resolvedEnd = model.displayedEndAt
         selectedBucketID = model.entry.bucket.stableID
-        startAt = model.entry.startAt
+        startAt = model.displayedStartAt
         endAt = resolvedEnd
-        splitAt = model.entry.startAt.addingTimeInterval(max(resolvedEnd.timeIntervalSince(model.entry.startAt), 60) / 2)
+        splitAt = model.displayedStartAt.addingTimeInterval(max(resolvedEnd.timeIntervalSince(model.displayedStartAt), 60) / 2)
     }
 
     private func syncSplitAtWithinEditableRange() {
@@ -1569,6 +1571,8 @@ private struct TimeTrackingDisplayedDaySummary: Identifiable, Equatable {
 private struct TimeTrackingEntryRowModel: Identifiable, Equatable {
     let entry: TimeTrackingEntry
     let resolvedEndAt: Date
+    let displayedStartAt: Date
+    let displayedEndAt: Date
     let currentBucketTitle: String
     let summaryLabel: String
     let durationLabel: String
@@ -1577,6 +1581,10 @@ private struct TimeTrackingEntryRowModel: Identifiable, Equatable {
 
     var id: UUID {
         entry.id
+    }
+
+    var displayedInterval: DateInterval {
+        DateInterval(start: displayedStartAt, end: displayedEndAt)
     }
 }
 
