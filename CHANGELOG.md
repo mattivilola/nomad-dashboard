@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.12.2] - 2026-05-08
+
+### Changed
+
+- Enable daily-scoped editing for time tracking entries
+
 ## [0.12.1] - 2026-05-07
 
 ### Changed

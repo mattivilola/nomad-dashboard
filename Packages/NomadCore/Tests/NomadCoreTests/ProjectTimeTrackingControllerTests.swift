@@ -185,6 +185,179 @@ struct ProjectTimeTrackingControllerTests {
     }
 
     @Test
+    func entriesForDayExcludesEntriesThatOnlyTouchMidnightBoundary() async throws {
+        let previousDayEntry = TimeTrackingEntry(
+            id: UUID(),
+            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 0, minute: 0),
+            bucket: .unallocated
+        )
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true),
+            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
+            initialLedger: TimeTrackingLedger(
+                entries: [previousDayEntry],
+                runtimeState: TimeTrackingRuntimeState(activityState: .paused)
+            )
+        )
+        await harness.controller.waitUntilLoaded()
+
+        let entries = harness.controller.entries(forDay: harness.clock.current)
+
+        #expect(entries.isEmpty)
+    }
+
+    @Test
+    func scopedReassignOnlyUpdatesSelectedDayOverlap() async throws {
+        let project = TimeTrackingProject(id: UUID(), name: "Client A")
+        let overnightEntry = TimeTrackingEntry(
+            id: UUID(),
+            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 8, minute: 7),
+            bucket: .unallocated
+        )
+        let selectedDay = makeDate(year: 2026, month: 3, day: 31, hour: 12, minute: 0)
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
+            now: selectedDay,
+            initialLedger: TimeTrackingLedger(
+                entries: [overnightEntry],
+                runtimeState: TimeTrackingRuntimeState(activityState: .paused)
+            )
+        )
+        await harness.controller.waitUntilLoaded()
+
+        await harness.controller.reassignEntry(
+            id: overnightEntry.id,
+            to: .project(project.id),
+            within: try dayInterval(containing: selectedDay)
+        )
+
+        let previousDaySummary = harness.controller.daySummary(for: makeDate(year: 2026, month: 3, day: 30, hour: 12, minute: 0))
+        let selectedDaySummary = harness.controller.daySummary(for: selectedDay)
+
+        #expect(previousDaySummary.unallocatedDuration == TimeInterval(30 * 60))
+        #expect(selectedDaySummary.unallocatedDuration == 0)
+        #expect(
+            selectedDaySummary.bucketDurations
+                .first(where: { $0.bucket == .project(project.id) })?
+                .duration == TimeInterval(8 * 60 * 60 + 7 * 60)
+        )
+    }
+
+    @Test
+    func scopedQuickAllocateOnlyUpdatesSelectedDayOverlap() async throws {
+        let project = TimeTrackingProject(id: UUID(), name: "Client A")
+        let overnightEntry = TimeTrackingEntry(
+            id: UUID(),
+            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 8, minute: 7),
+            bucket: .unallocated
+        )
+        let selectedDay = makeDate(year: 2026, month: 3, day: 31, hour: 12, minute: 0)
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
+            now: selectedDay,
+            initialLedger: TimeTrackingLedger(
+                entries: [overnightEntry],
+                runtimeState: TimeTrackingRuntimeState(activityState: .paused)
+            )
+        )
+        await harness.controller.waitUntilLoaded()
+
+        await harness.controller.quickAllocateEntry(
+            id: overnightEntry.id,
+            to: .project(project.id),
+            within: try dayInterval(containing: selectedDay)
+        )
+
+        let previousDaySummary = harness.controller.daySummary(for: makeDate(year: 2026, month: 3, day: 30, hour: 12, minute: 0))
+        let selectedDaySummary = harness.controller.daySummary(for: selectedDay)
+
+        #expect(previousDaySummary.unallocatedDuration == TimeInterval(30 * 60))
+        #expect(selectedDaySummary.unallocatedDuration == 0)
+        #expect(
+            selectedDaySummary.bucketDurations
+                .first(where: { $0.bucket == .project(project.id) })?
+                .duration == TimeInterval(8 * 60 * 60 + 7 * 60)
+        )
+    }
+
+    @Test
+    func scopedUpdateOnlyResizesSelectedDayOverlap() async throws {
+        let project = TimeTrackingProject(id: UUID(), name: "Client A")
+        let overnightEntry = TimeTrackingEntry(
+            id: UUID(),
+            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 8, minute: 0),
+            bucket: .project(project.id)
+        )
+        let selectedDay = makeDate(year: 2026, month: 3, day: 31, hour: 12, minute: 0)
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
+            now: selectedDay,
+            initialLedger: TimeTrackingLedger(
+                entries: [overnightEntry],
+                runtimeState: TimeTrackingRuntimeState(activityState: .paused)
+            )
+        )
+        await harness.controller.waitUntilLoaded()
+
+        await harness.controller.updateEntry(
+            id: overnightEntry.id,
+            startAt: makeDate(year: 2026, month: 3, day: 31, hour: 1, minute: 0),
+            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 7, minute: 0),
+            within: try dayInterval(containing: selectedDay)
+        )
+
+        let previousDaySummary = harness.controller.daySummary(for: makeDate(year: 2026, month: 3, day: 30, hour: 12, minute: 0))
+        let selectedDaySummary = harness.controller.daySummary(for: selectedDay)
+
+        #expect(previousDaySummary.bucketDurations.first(where: { $0.bucket == .project(project.id) })?.duration == TimeInterval(30 * 60))
+        #expect(selectedDaySummary.bucketDurations.first(where: { $0.bucket == .project(project.id) })?.duration == TimeInterval(6 * 60 * 60))
+        #expect(selectedDaySummary.unallocatedDuration == TimeInterval(2 * 60 * 60))
+    }
+
+    @Test
+    func scopedSplitOnlySplitsSelectedDayOverlap() async throws {
+        let project = TimeTrackingProject(id: UUID(), name: "Client A")
+        let overnightEntry = TimeTrackingEntry(
+            id: UUID(),
+            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 8, minute: 0),
+            bucket: .unallocated
+        )
+        let selectedDay = makeDate(year: 2026, month: 3, day: 31, hour: 12, minute: 0)
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
+            now: selectedDay,
+            initialLedger: TimeTrackingLedger(
+                entries: [overnightEntry],
+                runtimeState: TimeTrackingRuntimeState(activityState: .paused)
+            )
+        )
+        await harness.controller.waitUntilLoaded()
+
+        await harness.controller.splitEntry(
+            id: overnightEntry.id,
+            within: try dayInterval(containing: selectedDay),
+            at: makeDate(year: 2026, month: 3, day: 31, hour: 4, minute: 0),
+            secondBucket: .project(project.id)
+        )
+
+        let previousDaySummary = harness.controller.daySummary(for: makeDate(year: 2026, month: 3, day: 30, hour: 12, minute: 0))
+        let selectedDaySummary = harness.controller.daySummary(for: selectedDay)
+
+        #expect(previousDaySummary.unallocatedDuration == TimeInterval(30 * 60))
+        #expect(selectedDaySummary.unallocatedDuration == TimeInterval(4 * 60 * 60))
+        #expect(
+            selectedDaySummary.bucketDurations
+                .first(where: { $0.bucket == .project(project.id) })?
+                .duration == TimeInterval(4 * 60 * 60)
+        )
+    }
+
+    @Test
     func interruptionsFollowLaterProjectAllocationAndProduceFocusMetrics() async throws {
         let project = TimeTrackingProject(id: UUID(), name: "Client A")
         let harness = try makeHarness(
@@ -649,6 +822,10 @@ private final class TestClock: @unchecked Sendable {
     init(current: Date) {
         self.current = current
     }
+}
+
+private func dayInterval(containing date: Date) throws -> DateInterval {
+    try #require(mondayCalendar.dateInterval(of: .day, for: date))
 }
 
 private actor InMemoryTimeTrackingLedgerStore: TimeTrackingLedgerStore {
