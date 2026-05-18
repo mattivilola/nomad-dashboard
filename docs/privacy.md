@@ -22,6 +22,7 @@
 - Regional security uses ReliefWeb and stays off until you enable it.
 - Advisory and regional security scope use the current country plus bordering countries when country context is available.
 - External lookups are cached to reduce noise, latency, and battery impact.
+- Hidden menu-bar background refreshes run at a slower cadence than the open dashboard to reduce battery impact.
 - Anonymous TelemetryDeck analytics are enabled by default.
 - `app_install_first_seen`, `app_launch`, and `app_background_active_day` are always sent to estimate install, launch, and background reach.
 - `app_active_day`, `primary_ui_opened`, and `settings_opened` follow the in-app `Share anonymous analytics` setting.

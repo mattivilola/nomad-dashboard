@@ -354,6 +354,7 @@ Users can capture and assign work time with less friction by using the dashboard
 - Supports launch at login
 - Supports appearance settings
 - Supports configurable refresh cadence and history retention
+- Slows hidden menu-bar background refreshes automatically to reduce battery impact
 - Supports dashboard card reordering
 - Supports dashboard card width customization
 - Supports settings for weather, travel modules, analytics, and location-aware features

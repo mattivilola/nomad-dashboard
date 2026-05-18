@@ -15,6 +15,8 @@ struct AppSettingsStoreTests {
         #expect(store.settings.appearanceMode == .system)
         #expect(store.settings.dashboardCardOrder == DashboardCardID.defaultOrder)
         #expect(store.settings.dashboardCardWidthModes == DashboardCardID.defaultWidthModes)
+        #expect(store.settings.refreshIntervalSeconds == AppSettings.defaultRefreshIntervalSeconds)
+        #expect(store.settings.slowRefreshIntervalSeconds == AppSettings.defaultSlowRefreshIntervalSeconds)
         #expect(store.settings.publicIPGeolocationEnabled == true)
         #expect(store.settings.shareAnonymousAnalytics == true)
         #expect(store.settings.visitedPlacesEnabled == true)
@@ -32,6 +34,52 @@ struct AppSettingsStoreTests {
         #expect(store.settings.surfSpotLatitude == nil)
         #expect(store.settings.surfSpotLongitude == nil)
         #expect(store.settings.weatherForecastExpanded == false)
+    }
+
+    @Test
+    func appSettingsDecodingSanitizesBatteryHostileRefreshCadence() throws {
+        let payload = """
+        {
+          "appearanceMode": "system",
+          "dashboardCardOrder": ["travelContext", "connectivity", "power", "weather", "travelAlerts", "fuelPrices", "emergencyCare", "timeTracking"],
+          "dashboardCardWidthModes": {
+            "travelContext": "wide",
+            "connectivity": "wide",
+            "power": "wide",
+            "weather": "wide",
+            "travelAlerts": "wide",
+            "fuelPrices": "wide",
+            "emergencyCare": "wide",
+            "timeTracking": "wide"
+          },
+          "refreshIntervalSeconds": 2,
+          "slowRefreshIntervalSeconds": 30,
+          "historyRetentionHours": 24,
+          "publicIPGeolocationEnabled": true,
+          "shareAnonymousAnalytics": true,
+          "automaticUpdateChecksEnabled": true,
+          "launchAtLoginEnabled": false,
+          "useCurrentLocationForWeather": true,
+          "weatherForecastExpanded": false,
+          "localInfoEnabled": false,
+          "fuelPricesEnabled": false,
+          "emergencyCareEnabled": false,
+          "visitedPlacesEnabled": true,
+          "travelAdvisoryEnabled": true,
+          "travelWeatherAlertsEnabled": false,
+          "regionalSecurityEnabled": false,
+          "projectTimeTrackingEnabled": false,
+          "timeTrackingProjects": [],
+          "tankerkonigAPIKey": "",
+          "surfSpotName": "",
+          "latencyHosts": ["1.1.1.1:443", "8.8.8.8:443"]
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: payload)
+
+        #expect(decoded.refreshIntervalSeconds == AppSettings.minimumRefreshIntervalSeconds)
+        #expect(decoded.slowRefreshIntervalSeconds == AppSettings.minimumSlowRefreshIntervalSeconds)
     }
 
     @Test

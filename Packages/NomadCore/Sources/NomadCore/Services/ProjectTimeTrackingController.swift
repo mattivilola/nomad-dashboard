@@ -679,8 +679,7 @@ public final class ProjectTimeTrackingController: ObservableObject {
         isLoaded = true
 
         if startBackgroundTasks {
-            startTickerTask()
-            startHeartbeatTask()
+            updateBackgroundTasks(isEnabled: settingsStore.settings.projectTimeTrackingEnabled)
         }
     }
 
@@ -708,6 +707,7 @@ public final class ProjectTimeTrackingController: ObservableObject {
                     runtimeState.activityState = .stopped
                     runtimeState.lastShutdownKind = .stopped
                 }
+                updateBackgroundTasks(isEnabled: newSettings.projectTimeTrackingEnabled)
             }
 
             try await persistLedger()
@@ -735,6 +735,22 @@ public final class ProjectTimeTrackingController: ObservableObject {
                 try? await Task.sleep(for: .seconds(10))
                 await self?.handleHeartbeat()
             }
+        }
+    }
+
+    private func updateBackgroundTasks(isEnabled: Bool) {
+        guard startBackgroundTasks else {
+            return
+        }
+
+        if isEnabled {
+            startTickerTask()
+            startHeartbeatTask()
+        } else {
+            tickerTask?.cancel()
+            tickerTask = nil
+            heartbeatTask?.cancel()
+            heartbeatTask = nil
         }
     }
 

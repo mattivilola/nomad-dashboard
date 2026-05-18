@@ -88,7 +88,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
 - Tracking visited places locally on the Mac, with yearly travel paths, chronological stop logs, and country-day summaries by year and month
 - Tracking awake work time locally on the Mac, then assigning it from the dashboard with quick project chips, interruption counts, and focus-adjusted day, week, and month summaries
-- Keeping all of the above in a compact menu bar workflow instead of a full-size monitoring dashboard
+- Keeping all of the above in a compact menu bar workflow instead of a full-size monitoring dashboard, with hidden background refreshes slowed to protect battery life
 
 ## Benefit Statements
 
