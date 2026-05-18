@@ -206,16 +206,16 @@ struct SettingsView: View {
                     }
 
                     Section {
-                        Stepper(value: fastRefreshBinding, in: 2...10) {
+                        Stepper(value: fastRefreshBinding, in: Int(AppSettings.minimumRefreshIntervalSeconds)...Int(AppSettings.maximumRefreshIntervalSeconds), step: 5) {
                             LabeledContent("Fast refresh") {
-                                Text("\(fastRefreshValue) seconds")
+                                Text(refreshDurationText(fastRefreshValue))
                                     .monospacedDigit()
                             }
                         }
 
-                        Stepper(value: slowRefreshBinding, in: 30...300, step: 15) {
+                        Stepper(value: slowRefreshBinding, in: Int(AppSettings.minimumSlowRefreshIntervalSeconds)...Int(AppSettings.maximumSlowRefreshIntervalSeconds), step: 60) {
                             LabeledContent("Slow refresh") {
-                                Text("\(slowRefreshValue) seconds")
+                                Text(refreshDurationText(slowRefreshValue))
                                     .monospacedDigit()
                             }
                         }
@@ -229,7 +229,7 @@ struct SettingsView: View {
                     } header: {
                         Text("Refresh & History")
                     } footer: {
-                        Text("Fast refresh controls lightweight polling. Slow refresh covers heavier network, power, location, and weather lookups.")
+                        Text("Fast refresh controls lightweight polling while the dashboard is open. Hidden background refreshes are automatically slowed to reduce battery use. Slow refresh covers heavier network, power, location, and weather lookups.")
                     }
 
                     Section {
@@ -587,14 +587,14 @@ struct SettingsView: View {
     private var fastRefreshBinding: Binding<Int> {
         Binding(
             get: { fastRefreshValue },
-            set: { settingsStore.settings.refreshIntervalSeconds = Double($0) }
+            set: { settingsStore.settings.refreshIntervalSeconds = AppSettings.sanitizedRefreshInterval(Double($0)) }
         )
     }
 
     private var slowRefreshBinding: Binding<Int> {
         Binding(
             get: { slowRefreshValue },
-            set: { settingsStore.settings.slowRefreshIntervalSeconds = Double($0) }
+            set: { settingsStore.settings.slowRefreshIntervalSeconds = AppSettings.sanitizedSlowRefreshInterval(Double($0)) }
         )
     }
 
@@ -604,6 +604,15 @@ struct SettingsView: View {
 
     private var slowRefreshValue: Int {
         Int(settingsStore.settings.slowRefreshIntervalSeconds)
+    }
+
+    private func refreshDurationText(_ seconds: Int) -> String {
+        if seconds >= 60, seconds.isMultiple(of: 60) {
+            let minutes = seconds / 60
+            return minutes == 1 ? "1 minute" : "\(minutes) minutes"
+        }
+
+        return seconds == 1 ? "1 second" : "\(seconds) seconds"
     }
 
     private var locationActionTitle: String {

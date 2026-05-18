@@ -70,6 +70,7 @@ struct DashboardRootView: View {
         )
         .task {
             snapshotStore.setCurrentLocation(locationStore.currentLocation)
+            snapshotStore.setDashboardInterfaceActive(true)
             snapshotStore.start()
             if settingsStore.settings.usesDeviceLocation {
                 locationStore.prepareForWeather()
@@ -98,8 +99,10 @@ struct DashboardRootView: View {
         }
         .onDisappear {
             locationRefreshTask?.cancel()
+            snapshotStore.setDashboardInterfaceActive(false)
         }
         .onAppear {
+            snapshotStore.setDashboardInterfaceActive(true)
             analytics.recordPrimaryUIOpened(analyticsEnabled: settingsStore.settings.shareAnonymousAnalytics)
         }
     }

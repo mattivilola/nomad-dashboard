@@ -267,6 +267,26 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func hiddenDashboardDefersSlowRefreshWorkEvenWhenUserCadenceIsAggressive() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.slowRefreshIntervalSeconds = 0
+        let publicIPProvider = RecordingPublicIPProvider()
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(
+                publicIPProvider: publicIPProvider,
+                historyStore: InMemoryHistoryStore()
+            )
+        )
+
+        await store.refresh(manual: true)
+        store.setDashboardInterfaceActive(false)
+        await store.refresh(manual: false)
+
+        #expect(await publicIPProvider.callCount() == 1)
+    }
+
+    @Test
     func overlappingRefreshesCoalesceIntoSingleManualFollowUp() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         let throughputMonitor = SlowThroughputMonitor()
@@ -1147,13 +1167,17 @@ struct DashboardSnapshotStoreTests {
 
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
 
-        try await waitForSettingsPropagation()
-        #expect(await updateCoordinator.automaticChecksHistory().last == false)
+        try await waitUntil {
+            let history = await updateCoordinator.automaticChecksHistory()
+            return history.last == false
+        }
 
         settingsStore.settings.automaticUpdateChecksEnabled = true
 
-        try await waitForSettingsPropagation()
-        #expect(await updateCoordinator.automaticChecksHistory().suffix(2) == [false, true])
+        try await waitUntil {
+            let history = await updateCoordinator.automaticChecksHistory()
+            return Array(history.suffix(2)) == [false, true]
+        }
         _ = store
     }
 
@@ -1222,6 +1246,22 @@ struct DashboardSnapshotStoreTests {
     ) async throws {
         let deadline = ContinuousClock.now + timeout
         while condition() == false {
+            if ContinuousClock.now >= deadline {
+                Issue.record("Condition was not met before timeout.")
+                return
+            }
+
+            try await Task.sleep(for: pollInterval)
+        }
+    }
+
+    private func waitUntil(
+        timeout: Duration = .seconds(1),
+        pollInterval: Duration = .milliseconds(10),
+        condition: @escaping () async -> Bool
+    ) async throws {
+        let deadline = ContinuousClock.now + timeout
+        while await condition() == false {
             if ContinuousClock.now >= deadline {
                 Issue.record("Condition was not met before timeout.")
                 return

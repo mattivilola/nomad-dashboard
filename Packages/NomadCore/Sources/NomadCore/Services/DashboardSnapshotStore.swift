@@ -5,6 +5,9 @@ import OSLog
 
 @MainActor
 public final class DashboardSnapshotStore: ObservableObject {
+    private static let minimumBackgroundRefreshIntervalSeconds: TimeInterval = 60
+    private static let minimumBackgroundSlowRefreshIntervalSeconds: TimeInterval = 900
+
     private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "NomadDashboard",
         category: "TravelAlerts"
@@ -33,6 +36,7 @@ public final class DashboardSnapshotStore: ObservableObject {
     private var refreshInFlight = false
     private var pendingAutomaticRefresh = false
     private var pendingManualRefresh = false
+    private var dashboardInterfaceActive = true
 
     public init(
         settingsStore: AppSettingsStore,
@@ -75,7 +79,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             await refresh(manual: true)
 
             while !Task.isCancelled {
-                let interval = settingsStore.settings.refreshIntervalSeconds
+                let interval = effectiveRefreshInterval(for: settingsStore.settings)
                 try? await Task.sleep(for: .seconds(interval))
                 await refresh()
             }
@@ -94,6 +98,20 @@ public final class DashboardSnapshotStore: ObservableObject {
     public func setCurrentLocation(_ location: CLLocation?) {
         currentLocation = location
         currentCoordinate = location?.coordinate
+    }
+
+    public func setDashboardInterfaceActive(_ isActive: Bool) {
+        guard dashboardInterfaceActive != isActive else {
+            return
+        }
+
+        dashboardInterfaceActive = isActive
+
+        if isActive {
+            Task { [weak self] in
+                await self?.refresh(manual: true)
+            }
+        }
     }
 
     public var visitedPlaceSummary: VisitedPlaceSummary {
@@ -156,7 +174,10 @@ public final class DashboardSnapshotStore: ObservableObject {
         while true {
             let now = Date()
             let settings = settingsStore.settings
-            let includeSlowMetrics = nextRefreshIsManual || shouldRefreshSlowMetrics(now: now, interval: settings.slowRefreshIntervalSeconds)
+            let includeSlowMetrics = nextRefreshIsManual || shouldRefreshSlowMetrics(
+                now: now,
+                interval: effectiveSlowRefreshInterval(for: settings)
+            )
             refreshActivity = refreshActivity(forManual: nextRefreshIsManual, includeSlowMetrics: includeSlowMetrics)
 
             await performRefresh(
@@ -430,6 +451,26 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         return now.timeIntervalSince(lastSlowRefresh) >= interval
+    }
+
+    private func effectiveRefreshInterval(for settings: AppSettings) -> TimeInterval {
+        let interval = AppSettings.sanitizedRefreshInterval(settings.refreshIntervalSeconds)
+        guard dashboardInterfaceActive == false else {
+            return interval
+        }
+
+        return max(interval, Self.minimumBackgroundRefreshIntervalSeconds)
+    }
+
+    private func effectiveSlowRefreshInterval(for settings: AppSettings) -> TimeInterval {
+        guard dashboardInterfaceActive == false else {
+            return settings.slowRefreshIntervalSeconds.isFinite
+                ? settings.slowRefreshIntervalSeconds
+                : AppSettings.defaultSlowRefreshIntervalSeconds
+        }
+
+        let interval = AppSettings.sanitizedSlowRefreshInterval(settings.slowRefreshIntervalSeconds)
+        return max(interval, Self.minimumBackgroundSlowRefreshIntervalSeconds)
     }
 
     private func projectedDashboardHistory(_ history: [MetricSeriesKind: [MetricPoint]]) -> [MetricSeriesKind: [MetricPoint]] {

@@ -13,11 +13,11 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- _Nothing yet_
+- Reduce idle battery impact by using slower default refresh intervals, enforcing safer persisted refresh bounds, and throttling hidden menu-bar background refreshes.
 
 ### Fixed
 
-- _Nothing yet_
+- Stop the project time-tracking ticker and heartbeat from running while time tracking is disabled.
 
 
 ## [0.12.2] - 2026-05-08

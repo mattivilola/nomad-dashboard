@@ -2,6 +2,13 @@ import CoreLocation
 import Foundation
 
 public struct AppSettings: Codable, Equatable, Sendable {
+    public static let defaultRefreshIntervalSeconds: TimeInterval = 15
+    public static let defaultSlowRefreshIntervalSeconds: TimeInterval = 300
+    public static let minimumRefreshIntervalSeconds: TimeInterval = 5
+    public static let maximumRefreshIntervalSeconds: TimeInterval = 60
+    public static let minimumSlowRefreshIntervalSeconds: TimeInterval = 60
+    public static let maximumSlowRefreshIntervalSeconds: TimeInterval = 1_800
+
     public var appearanceMode: AppAppearanceMode
     public var dashboardCardOrder: [DashboardCardID]
     public var dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode]
@@ -34,8 +41,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         appearanceMode: AppAppearanceMode = .system,
         dashboardCardOrder: [DashboardCardID] = DashboardCardID.defaultOrder,
         dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode] = DashboardCardID.defaultWidthModes,
-        refreshIntervalSeconds: TimeInterval = 2,
-        slowRefreshIntervalSeconds: TimeInterval = 60,
+        refreshIntervalSeconds: TimeInterval = Self.defaultRefreshIntervalSeconds,
+        slowRefreshIntervalSeconds: TimeInterval = Self.defaultSlowRefreshIntervalSeconds,
         historyRetentionHours: Int = 24,
         publicIPGeolocationEnabled: Bool = true,
         shareAnonymousAnalytics: Bool = true,
@@ -62,8 +69,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.appearanceMode = appearanceMode
         self.dashboardCardOrder = DashboardCardID.sanitizedOrder(dashboardCardOrder)
         self.dashboardCardWidthModes = DashboardCardID.sanitizedWidthModes(dashboardCardWidthModes)
-        self.refreshIntervalSeconds = refreshIntervalSeconds
-        self.slowRefreshIntervalSeconds = slowRefreshIntervalSeconds
+        self.refreshIntervalSeconds = Self.sanitizedRefreshInterval(refreshIntervalSeconds)
+        self.slowRefreshIntervalSeconds = Self.sanitizedSlowRefreshInterval(slowRefreshIntervalSeconds)
         self.historyRetentionHours = historyRetentionHours
         self.publicIPGeolocationEnabled = publicIPGeolocationEnabled
         self.shareAnonymousAnalytics = shareAnonymousAnalytics
@@ -141,8 +148,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
         dashboardCardWidthModes = DashboardCardID.sanitizedWidthModes(
             persistedCardWidthModes ?? DashboardCardID.defaultWidthModes
         )
-        refreshIntervalSeconds = try container.decode(TimeInterval.self, forKey: .refreshIntervalSeconds)
-        slowRefreshIntervalSeconds = try container.decode(TimeInterval.self, forKey: .slowRefreshIntervalSeconds)
+        let decodedRefreshIntervalSeconds = try container.decode(TimeInterval.self, forKey: .refreshIntervalSeconds)
+        refreshIntervalSeconds = Self.sanitizedRefreshInterval(decodedRefreshIntervalSeconds)
+        let decodedSlowRefreshIntervalSeconds = try container.decode(TimeInterval.self, forKey: .slowRefreshIntervalSeconds)
+        slowRefreshIntervalSeconds = Self.sanitizedSlowRefreshInterval(decodedSlowRefreshIntervalSeconds)
         historyRetentionHours = try container.decode(Int.self, forKey: .historyRetentionHours)
         publicIPGeolocationEnabled = try container.decode(Bool.self, forKey: .publicIPGeolocationEnabled)
         shareAnonymousAnalytics = try container.decodeIfPresent(Bool.self, forKey: .shareAnonymousAnalytics) ?? true
@@ -153,8 +162,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         let legacyDailyForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherDailyForecastExpanded) ?? false
         weatherForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherForecastExpanded)
             ?? (legacyHourlyForecastExpanded || legacyDailyForecastExpanded)
+        let legacyLocalPriceLevelEnabled = try container.decodeIfPresent(Bool.self, forKey: .localPriceLevelEnabled)
         localInfoEnabled = try container.decodeIfPresent(Bool.self, forKey: .localInfoEnabled)
-            ?? (try container.decodeIfPresent(Bool.self, forKey: .localPriceLevelEnabled) ?? false)
+            ?? (legacyLocalPriceLevelEnabled ?? false)
         fuelPricesEnabled = try container.decodeIfPresent(Bool.self, forKey: .fuelPricesEnabled) ?? false
         emergencyCareEnabled = try container.decodeIfPresent(Bool.self, forKey: .emergencyCareEnabled) ?? false
         visitedPlacesEnabled = try container.decodeIfPresent(Bool.self, forKey: .visitedPlacesEnabled) ?? false
@@ -205,6 +215,22 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encodeIfPresent(surfSpotLatitude, forKey: .surfSpotLatitude)
         try container.encodeIfPresent(surfSpotLongitude, forKey: .surfSpotLongitude)
         try container.encode(latencyHosts, forKey: .latencyHosts)
+    }
+
+    public static func sanitizedRefreshInterval(_ value: TimeInterval) -> TimeInterval {
+        guard value.isFinite else {
+            return defaultRefreshIntervalSeconds
+        }
+
+        return min(max(value, minimumRefreshIntervalSeconds), maximumRefreshIntervalSeconds)
+    }
+
+    public static func sanitizedSlowRefreshInterval(_ value: TimeInterval) -> TimeInterval {
+        guard value.isFinite else {
+            return defaultSlowRefreshIntervalSeconds
+        }
+
+        return min(max(value, minimumSlowRefreshIntervalSeconds), maximumSlowRefreshIntervalSeconds)
     }
 }
 
