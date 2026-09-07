@@ -6,7 +6,7 @@ Nomad Dashboard is a native macOS menu bar app for digital nomads, remote worker
 
 ## Positioning
 
-Nomad Dashboard turns a MacBook into a compact travel instrument panel. It keeps the signals that matter close at hand in the menu bar: connection quality, internet reachability, power state, travel context, weather, local project time tracking, and optional travel-oriented tools such as alerts, local price-level context, nearby fuel prices, emergency hospitals, surf conditions, and visited places.
+Nomad Dashboard turns a MacBook into a compact travel instrument panel. It keeps the signals that matter close at hand in the menu bar: connection quality, internet reachability, power state, travel context, weather, local project time tracking, and optional travel-oriented tools such as alerts, local price-level context, nearby fuel prices, emergency hospitals, surf conditions, visited places, and a local work diary.
 
 The product should be positioned as:
 
@@ -88,6 +88,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
 - Tracking visited places locally on the Mac, with yearly travel paths, chronological stop logs, and country-day summaries by year and month
 - Tracking awake work time locally on the Mac, then assigning it from the dashboard with quick project chips, interruption counts, and focus-adjusted day, week, and month summaries
+- Optionally collecting stationary workplace visits from authorized device location, reviewing a local work diary, and comparing current and home time
 - Keeping all of the above in a compact menu bar workflow instead of a full-size monitoring dashboard, with hidden background refreshes slowed to protect battery life
 
 ## Benefit Statements
@@ -151,6 +152,8 @@ Marketing copy can safely say:
 - Several travel modules are optional
 - Local price level uses official public datasets and can stay limited to country fallback data where exact local sources are not available
 - Project time tracking stays local to the Mac and can be turned off entirely
+- The optional work diary uses authorized device location only, keeps entries local, and never uses IP address or VPN state to identify a venue
+- Quiet connection alerts are opt-in, respect quiet hours and cooldowns, and do not include location or IP address
 - Interruption tracking for project time tracking also stays local to the Mac and uses the same local ledger
 - Development builds keep separate local time-tracking storage from the live app
 - Anonymous analytics are privacy-conscious and configurable in-app, with some install and reach estimation events always collected
@@ -190,6 +193,7 @@ Likely near-term direction based on the current roadmap:
 - more refined power diagnostics
 - smarter travel-oriented alerts
 - longer local trend history
+- richer local work-diary review and readiness context
 - more public-facing polish for screenshots and demos
 
 ## Website Builder Notes

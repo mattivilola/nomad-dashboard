@@ -1,6 +1,6 @@
 import Foundation
 
-public actor FileTimeTrackingLedgerStore: TimeTrackingLedgerStore {
+public actor FileTimeTrackingLedgerStore: TimeTrackingLedgerStore, TimeTrackingHeartbeatStore {
     private let fileURL: URL
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -20,11 +20,18 @@ public actor FileTimeTrackingLedgerStore: TimeTrackingLedgerStore {
         do {
             let data = try Data(contentsOf: fileURL)
             let ledger = try decoder.decode(TimeTrackingLedger.self, from: data)
-            return TimeTrackingLedger(
+            var normalizedLedger = TimeTrackingLedger(
                 entries: TimeTrackingLedger.normalizedEntries(ledger.entries),
                 interruptions: TimeTrackingLedger.normalizedInterruptions(ledger.interruptions),
                 runtimeState: ledger.runtimeState
             )
+            if let heartbeat = try? await loadHeartbeat(), heartbeat.openEntryID == normalizedLedger.runtimeState.openEntryID {
+                normalizedLedger.runtimeState.lastHeartbeatAt = max(
+                    normalizedLedger.runtimeState.lastHeartbeatAt ?? .distantPast,
+                    heartbeat.recordedAt
+                )
+            }
+            return normalizedLedger
         } catch {
             let backupURL = try recoveredLedgerBackupURL()
             try FileManager.default.moveItem(at: fileURL, to: backupURL)
@@ -46,6 +53,7 @@ public actor FileTimeTrackingLedgerStore: TimeTrackingLedgerStore {
         do {
             let data = try encoder.encode(normalizedLedger)
             try data.write(to: fileURL, options: [.atomic])
+            try await clearHeartbeat()
         } catch {
             throw FileTimeTrackingLedgerStoreError.saveFailed(
                 fileURL: fileURL,
@@ -59,6 +67,29 @@ public actor FileTimeTrackingLedgerStore: TimeTrackingLedgerStore {
         if FileManager.default.fileExists(atPath: fileURL.path) {
             try FileManager.default.removeItem(at: fileURL)
         }
+        try await clearHeartbeat()
+    }
+
+    public func loadHeartbeat() async throws -> TimeTrackingHeartbeat? {
+        let heartbeatURL = heartbeatURL
+        guard FileManager.default.fileExists(atPath: heartbeatURL.path) else { return nil }
+        return try decoder.decode(TimeTrackingHeartbeat.self, from: Data(contentsOf: heartbeatURL))
+    }
+
+    public func saveHeartbeat(_ heartbeat: TimeTrackingHeartbeat) async throws {
+        try ensureDirectory()
+        do {
+            try encoder.encode(heartbeat).write(to: heartbeatURL, options: [.atomic])
+        } catch {
+            throw FileTimeTrackingLedgerStoreError.saveFailed(fileURL: heartbeatURL, underlyingError: error)
+        }
+    }
+
+    public func clearHeartbeat() async throws {
+        let heartbeatURL = heartbeatURL
+        if FileManager.default.fileExists(atPath: heartbeatURL.path) {
+            try FileManager.default.removeItem(at: heartbeatURL)
+        }
     }
 
     private func ensureDirectory() throws {
@@ -66,6 +97,10 @@ public actor FileTimeTrackingLedgerStore: TimeTrackingLedgerStore {
             at: fileURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
+    }
+
+    private var heartbeatURL: URL {
+        fileURL.deletingPathExtension().appendingPathExtension("heartbeat.json")
     }
 
     private func recoveredLedgerBackupURL() throws -> URL {
@@ -91,9 +126,9 @@ public enum FileTimeTrackingLedgerStoreError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case let .recoveredCorruptLedger(_, backupURL, underlyingError):
-            return "Recovered unreadable time tracking data and backed it up as \(backupURL.lastPathComponent). \(underlyingError.localizedDescription)"
+            "Recovered unreadable time tracking data and backed it up as \(backupURL.lastPathComponent). \(underlyingError.localizedDescription)"
         case let .saveFailed(fileURL, underlyingError):
-            return "Failed to save time tracking data to \(fileURL.lastPathComponent). \(underlyingError.localizedDescription)"
+            "Failed to save time tracking data to \(fileURL.lastPathComponent). \(underlyingError.localizedDescription)"
         }
     }
 }

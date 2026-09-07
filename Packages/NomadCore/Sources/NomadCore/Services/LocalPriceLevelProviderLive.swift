@@ -49,14 +49,13 @@ public actor LiveLocalPriceLevelProvider: LocalPriceLevelProvider, LocalPriceLev
             return cached
         }
 
-        let snapshot: LocalPriceLevelSnapshot
-        switch normalizedCountryCode(request.countryCode) {
+        let snapshot: LocalPriceLevelSnapshot = switch normalizedCountryCode(request.countryCode) {
         case "US":
-            snapshot = try await usSnapshot(for: request)
+            try await usSnapshot(for: request)
         case let code where Self.eurostatCountryCodes.contains(code):
-            snapshot = try await eurostatSnapshot(for: request, countryCode: code)
+            try await eurostatSnapshot(for: request, countryCode: code)
         default:
-            snapshot = LocalPriceLevelSnapshot(
+            LocalPriceLevelSnapshot(
                 status: .unsupported,
                 summaryBand: nil,
                 countryCode: normalizedCountryCode(request.countryCode),

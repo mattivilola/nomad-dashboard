@@ -6,10 +6,16 @@ import SwiftUI
 public struct VisitedWorldMapView: NSViewRepresentable {
     private let places: [VisitedPlace]
     private let travelStops: [VisitedPlaceTravelStop]
+    private let visitedCountryCodes: Set<String>
 
-    public init(places: [VisitedPlace], travelStops: [VisitedPlaceTravelStop] = []) {
+    public init(
+        places: [VisitedPlace],
+        travelStops: [VisitedPlaceTravelStop] = [],
+        visitedCountryCodes: Set<String>? = nil
+    ) {
         self.places = places
         self.travelStops = travelStops
+        self.visitedCountryCodes = visitedCountryCodes ?? Set(places.compactMap { $0.countryCode?.uppercased() })
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -38,7 +44,7 @@ public struct VisitedWorldMapView: NSViewRepresentable {
             to: mapView,
             places: places,
             travelStops: travelStops,
-            visitedCountryCodes: Set(places.compactMap { $0.countryCode?.uppercased() })
+            visitedCountryCodes: visitedCountryCodes
         )
     }
 
@@ -50,6 +56,11 @@ public struct VisitedWorldMapView: NSViewRepresentable {
         private var overlayCountryCodes: [ObjectIdentifier: String] = [:]
         private var visitedCountryCodes: Set<String> = []
         private var hasConfiguredInitialViewport = false
+        private var hasAddedCountryOverlays = false
+        private var displayedPlaces: [VisitedPlace] = []
+        private var displayedTravelStops: [VisitedPlaceTravelStop] = []
+        private var displayedTravelMode = false
+        private var routeOverlays: [any MKOverlay] = []
 
         fileprivate func apply(
             to mapView: MKMapView,
@@ -57,21 +68,40 @@ public struct VisitedWorldMapView: NSViewRepresentable {
             travelStops: [VisitedPlaceTravelStop],
             visitedCountryCodes: Set<String>
         ) {
+            let countryCodesChanged = self.visitedCountryCodes != visitedCountryCodes
             self.visitedCountryCodes = visitedCountryCodes
 
-            mapView.removeAnnotations(mapView.annotations)
-            mapView.removeOverlays(mapView.overlays)
-
-            let overlays = CountryGeometryLoader.records
-            overlayCountryCodes = overlays.reduce(into: [:]) { result, record in
-                result[ObjectIdentifier(record.overlay as AnyObject)] = record.countryCode
+            if hasAddedCountryOverlays == false {
+                let overlays = CountryGeometryLoader.records
+                overlayCountryCodes = overlays.reduce(into: [:]) { result, record in
+                    result[ObjectIdentifier(record.overlay as AnyObject)] = record.countryCode
+                }
+                mapView.addOverlays(overlays.map(\.overlay))
+                hasAddedCountryOverlays = true
+            } else if countryCodesChanged {
+                // Country geometry is static. Redraw it in place so the user's viewport
+                // and any selected annotation stay intact.
+                for overlay in mapView.overlays {
+                    mapView.renderer(for: overlay)?.setNeedsDisplay()
+                }
             }
-            mapView.addOverlays(overlays.map(\.overlay))
+
+            let showingTravelStops = travelStops.isEmpty == false
+            guard displayedPlaces != places || displayedTravelStops != travelStops || displayedTravelMode != showingTravelStops else {
+                configureInitialViewport(of: mapView)
+                return
+            }
+
+            mapView.removeAnnotations(mapView.annotations.filter { $0 is VisitedPlaceAnnotation || $0 is VisitedTravelStopAnnotation })
+            mapView.removeOverlays(routeOverlays)
+            routeOverlays = []
 
             if travelStops.isEmpty == false {
                 for routeCoordinates in routeCoordinateSegments(from: travelStops) where routeCoordinates.count > 1 {
                     var coordinates = routeCoordinates
-                    mapView.addOverlay(MKPolyline(coordinates: &coordinates, count: coordinates.count))
+                    let route = MKPolyline(coordinates: &coordinates, count: coordinates.count)
+                    routeOverlays.append(route)
+                    mapView.addOverlay(route)
                 }
             }
 
@@ -82,14 +112,21 @@ public struct VisitedWorldMapView: NSViewRepresentable {
             }
             mapView.addAnnotations(annotations)
 
-            if hasConfiguredInitialViewport == false {
-                mapView.setVisibleMapRect(
-                    MKMapRect.world,
-                    edgePadding: NSEdgeInsets(top: 32, left: 32, bottom: 32, right: 32),
-                    animated: false
-                )
-                hasConfiguredInitialViewport = true
-            }
+            displayedPlaces = places
+            displayedTravelStops = travelStops
+            displayedTravelMode = showingTravelStops
+
+            configureInitialViewport(of: mapView)
+        }
+
+        private func configureInitialViewport(of mapView: MKMapView) {
+            guard hasConfiguredInitialViewport == false else { return }
+            mapView.setVisibleMapRect(
+                MKMapRect.world,
+                edgePadding: NSEdgeInsets(top: 32, left: 32, bottom: 32, right: 32),
+                animated: false
+            )
+            hasConfiguredInitialViewport = true
         }
 
         public func mapView(_ mapView: MKMapView, rendererFor overlay: any MKOverlay) -> MKOverlayRenderer {

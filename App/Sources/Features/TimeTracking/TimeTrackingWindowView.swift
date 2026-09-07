@@ -229,11 +229,11 @@ struct TimeTrackingWindowView: View {
                     }
                 }
 
-                    if let exportStatusMessage {
-                        Text(exportStatusMessage)
-                            .font(.caption)
-                            .foregroundStyle(NomadTheme.secondaryText)
-                    }
+                if let exportStatusMessage {
+                    Text(exportStatusMessage)
+                        .font(.caption)
+                        .foregroundStyle(NomadTheme.secondaryText)
+                }
 
                 if let lastErrorMessage = renderState.lastErrorMessage {
                     Text(lastErrorMessage)
@@ -438,11 +438,11 @@ struct TimeTrackingWindowView: View {
     private var summaryInterruptionSubtitle: String {
         switch selectedPeriod {
         case .day:
-            return "Today assumes up to 23 minutes of focus recovery per interruption."
+            "Today assumes up to 23 minutes of focus recovery per interruption."
         case .week:
-            return "Week totals subtract 23 minutes per interruption to estimate focus time."
+            "Week totals subtract 23 minutes per interruption to estimate focus time."
         case .month:
-            return "Month totals subtract 23 minutes per interruption to estimate focus time."
+            "Month totals subtract 23 minutes per interruption to estimate focus time."
         }
     }
 
@@ -1207,9 +1207,9 @@ private struct TimeTrackingEntryEditorRow: View {
         .buttonStyle(.plain)
     }
 
-    private func compactField<Content: View>(
+    private func compactField(
         _ title: String,
-        @ViewBuilder content: () -> Content
+        @ViewBuilder content: () -> some View
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)

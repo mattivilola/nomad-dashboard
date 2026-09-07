@@ -7,6 +7,7 @@ import OSLog
 public final class DashboardSnapshotStore: ObservableObject {
     private static let minimumBackgroundRefreshIntervalSeconds: TimeInterval = 60
     private static let minimumBackgroundSlowRefreshIntervalSeconds: TimeInterval = 900
+    private static let maximumDeviceLocationAge: TimeInterval = 15 * 60
 
     private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "NomadDashboard",
@@ -33,9 +34,24 @@ public final class DashboardSnapshotStore: ObservableObject {
     private var currentLocation: CLLocation?
     private var currentCoordinate: CLLocationCoordinate2D?
     private var lastSlowRefresh: Date?
-    private var refreshInFlight = false
-    private var pendingAutomaticRefresh = false
-    private var pendingManualRefresh = false
+    private var localRefreshTask: Task<Void, Never>?
+    private var externalRefreshTask: Task<Void, Never>?
+    private var initializationTask: Task<Void, Never>?
+    private var cacheSaveTask: Task<Void, Never>?
+    private var settingsRefreshTask: Task<Void, Never>?
+    private var refreshGeneration = 0
+    private var activeManualRequests = 0
+    private var activeAutomaticSlowRequests = 0
+    private var externalRefreshIsManual = false
+    private var lastLatencyCheck: Date?
+    private var failureCounts: [DashboardDataSection: Int] = [:]
+    private var retryAfter: [DashboardDataSection: Date] = [:]
+    private var cachedLocationKey: String?
+    private var automaticPlaceCollectionEnabled = false
+    @Published public private(set) var sectionActivity: [DashboardDataSection: DashboardSectionActivity] = [:]
+    @Published public private(set) var resourcePolicy = DashboardResourcePolicy.normal
+    @Published public private(set) var offlineSavedAt: Date?
+    @Published public private(set) var offlineCacheError: String?
     private var dashboardInterfaceActive = true
 
     public init(
@@ -57,31 +73,32 @@ public final class DashboardSnapshotStore: ObservableObject {
             )
         )
         configureSettingsObservation()
-        Task { [weak self] in
+        initializationTask = Task { [weak self] in
             await self?.applyInitialSettings()
         }
     }
 
     deinit {
         refreshTask?.cancel()
+        externalRefreshTask?.cancel()
+        localRefreshTask?.cancel()
+        cacheSaveTask?.cancel()
+        settingsRefreshTask?.cancel()
     }
 
     public func start() {
-        guard refreshTask == nil else {
-            return
-        }
-
+        guard refreshTask == nil else { return }
         refreshTask = Task { [weak self] in
-            guard let self else {
-                return
-            }
-
-            await refresh(manual: true)
-
+            await self?.initializationTask?.value
+            var initial = true
             while !Task.isCancelled {
-                let interval = effectiveRefreshInterval(for: settingsStore.settings)
-                try? await Task.sleep(for: .seconds(interval))
-                await refresh()
+                guard let self else { return }
+                updateResourcePolicy()
+                _ = scheduleExternalRefresh(force: false, startup: initial)
+                await refreshLocalMetrics()
+                initial = false
+                do { try await Task.sleep(for: .seconds(effectiveRefreshInterval(for: settingsStore.settings))) }
+                catch { return }
             }
         }
     }
@@ -89,29 +106,69 @@ public final class DashboardSnapshotStore: ObservableObject {
     public func stop() {
         refreshTask?.cancel()
         refreshTask = nil
+        localRefreshTask?.cancel()
+        localRefreshTask = nil
+        invalidateExternalRefresh()
+        Task { await flushPersistence() }
+    }
+
+    public func flushPersistence() async {
+        await initializationTask?.value
+        if let flushable = dependencies.historyStore as? any MetricHistoryFlushable {
+            try? await flushable.flush()
+        }
+        await saveOfflineContent()
     }
 
     public func setWeatherCoordinate(_ coordinate: CLLocationCoordinate2D?) {
         currentCoordinate = coordinate
     }
 
+    public func setAutomaticPlaceCollectionEnabled(_ enabled: Bool) {
+        guard automaticPlaceCollectionEnabled != enabled else { return }
+        automaticPlaceCollectionEnabled = enabled
+        lastSlowRefresh = nil
+    }
+
     public func setCurrentLocation(_ location: CLLocation?) {
+        let moved = currentLocation.map { previous in location.map { $0.distance(from: previous) > 1_000 } ?? true } ?? (location != nil)
         currentLocation = location
         currentCoordinate = location?.coordinate
+        if moved {
+            invalidateExternalRefresh()
+            lastSlowRefresh = nil
+            failureCounts = [:]
+            retryAfter = [:]
+            if let location, let cachedLocationKey, cachedLocationKey != locationKey(location.coordinate) {
+                clearLocationDependentContent()
+            }
+        }
     }
 
     public func setDashboardInterfaceActive(_ isActive: Bool) {
-        guard dashboardInterfaceActive != isActive else {
-            return
-        }
-
+        guard dashboardInterfaceActive != isActive else { return }
         dashboardInterfaceActive = isActive
-
         if isActive {
-            Task { [weak self] in
-                await self?.refresh(manual: true)
-            }
+            Task { [weak self] in await self?.refresh() }
+        } else {
+            Task { [weak self] in await self?.flushPersistence() }
         }
+    }
+
+    public func setCountryDayOverride(_ override: VisitedCountryDayOverride) async throws {
+        guard let store = dependencies.visitedCountryDaysStore as? any EditableVisitedCountryDaysStore else {
+            throw CocoaError(.featureUnsupported)
+        }
+        try await store.setOverride(override)
+        await loadVisitedCountryDays()
+    }
+
+    public func restoreCountryDay(_ day: VisitedCountryDayStamp) async throws {
+        guard let store = dependencies.visitedCountryDaysStore as? any EditableVisitedCountryDaysStore else {
+            throw CocoaError(.featureUnsupported)
+        }
+        try await store.restoreObservation(for: day)
+        await loadVisitedCountryDays()
     }
 
     public var visitedPlaceSummary: VisitedPlaceSummary {
@@ -156,293 +213,639 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
     }
 
+    /// Explicit refresh waits for completion; the periodic local sampler never waits for remote cards.
     public func refresh(manual: Bool = false) async {
-        if refreshInFlight {
+        let showsSlowActivity = !manual && shouldRefreshSlowMetrics(now: Date(), interval: effectiveSlowRefreshInterval(for: settingsStore.settings))
+        if manual {
+            activeManualRequests += 1
+        }
+        if showsSlowActivity {
+            activeAutomaticSlowRequests += 1
+        }
+        updateRefreshActivity()
+        defer {
             if manual {
-                pendingManualRefresh = true
-                pendingAutomaticRefresh = false
-                refreshActivity = .manualInProgress
-            } else if pendingManualRefresh == false {
-                pendingAutomaticRefresh = true
+                activeManualRequests -= 1
             }
+            if showsSlowActivity {
+                activeAutomaticSlowRequests -= 1
+            }
+            updateRefreshActivity()
+        }
+        await initializationTask?.value
+        guard !Task.isCancelled else { return }
+        if let localRefreshTask {
+            await localRefreshTask.value
+            await externalRefreshTask?.value
             return
         }
+        updateResourcePolicy()
+        let external = scheduleExternalRefresh(force: manual)
+        updateRefreshActivity()
+        await refreshLocalMetrics()
+        await external?.value
+    }
 
-        refreshInFlight = true
-        var nextRefreshIsManual = manual
+    public func refresh(section: DashboardDataSection) async {
+        await initializationTask?.value
+        // A click never creates overlapping calls to the same source.
+        if let externalRefreshTask {
+            await externalRefreshTask.value
+        }
+        guard !Task.isCancelled else { return }
+        activeManualRequests += 1
+        defer { activeManualRequests -= 1
+            updateRefreshActivity()
+        }
+        updateResourcePolicy()
+        let task = scheduleExternalRefresh(force: true, only: section)
+        updateRefreshActivity()
+        await task?.value
+    }
 
-        while true {
-            let now = Date()
-            let settings = settingsStore.settings
-            let includeSlowMetrics = nextRefreshIsManual || shouldRefreshSlowMetrics(
-                now: now,
-                interval: effectiveSlowRefreshInterval(for: settings)
+    private func updateRefreshActivity() {
+        let next: DashboardRefreshActivity = if activeManualRequests > 0 || (externalRefreshTask != nil && externalRefreshIsManual) {
+            .manualInProgress
+        } else if externalRefreshTask != nil || activeAutomaticSlowRequests > 0 {
+            .slowAutomaticInProgress
+        } else {
+            .idle
+        }
+        if refreshActivity != next {
+            refreshActivity = next
+        }
+    }
+
+    private func updateResourcePolicy() {
+        var conditions = dependencies.resourceConditions.currentConditions()
+        if snapshot.network.connectivity.internetState == .offline {
+            conditions.pathAvailable = false
+        }
+        let previous = resourcePolicy
+        let next = DashboardResourcePolicy(mode: settingsStore.settings.dataUsageMode, conditions: conditions)
+        if previous != next {
+            resourcePolicy = next
+        }
+        if previous.isOffline, !next.isOffline {
+            lastSlowRefresh = nil
+            retryAfter = [:]
+        }
+    }
+
+    private func mutateSnapshot(_ mutation: (inout DashboardSnapshotDraft) -> Void) {
+        var draft = DashboardSnapshotDraft(snapshot)
+        mutation(&draft)
+        let next = draft.snapshot
+        if snapshot != next {
+            snapshot = next
+        }
+    }
+
+    private func refreshLocalMetrics() async {
+        if let localRefreshTask {
+            await localRefreshTask.value
+            return
+        }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await collectLocalMetrics()
+        }
+        localRefreshTask = task
+        await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
+        localRefreshTask = nil
+    }
+
+    private enum LocalReading: Sendable {
+        case throughput(NetworkThroughputSample?), connectivity(ConnectivitySnapshot), power(PowerSnapshot?)
+        case wifi(WiFiSnapshot?), vpn(VPNStatusSnapshot), latency(LatencySample?)
+    }
+
+    private func collectLocalMetrics() async {
+        let dependencies = dependencies
+        let now = Date()
+        let shouldProbeLatency = !resourcePolicy.isOffline && !resourcePolicy.reducesBackgroundWork && dashboardInterfaceActive
+            && (lastLatencyCheck.map { now.timeIntervalSince($0) >= 60 } ?? true)
+        if shouldProbeLatency {
+            lastLatencyCheck = now
+        }
+        await withTaskGroup(of: LocalReading.self) { group in
+            group.addTask { await .throughput(dependencies.throughputMonitor.currentSample()) }
+            group.addTask { await .connectivity(dependencies.connectivityMonitor.currentSnapshot()) }
+            group.addTask { await .power(dependencies.powerMonitor.currentSnapshot()) }
+            group.addTask { await .wifi(dependencies.wifiMonitor.currentSnapshot()) }
+            group.addTask { await .vpn(dependencies.vpnStatusProvider.currentStatus()) }
+            if shouldProbeLatency {
+                group.addTask { await .latency(dependencies.latencyProbe.currentSample()) }
+            }
+            for await reading in group {
+                guard !Task.isCancelled else { group.cancelAll()
+                    return
+                }
+                switch reading {
+                case let .throughput(sample):
+                    if let sample {
+                        mutateSnapshot { draft in
+                            let old = draft.network
+                            draft.network = NetworkSectionSnapshot(
+                                throughput: sample,
+                                connectivity: old.connectivity,
+                                latency: old.latency,
+                                downloadHistory: old.downloadHistory,
+                                uploadHistory: old.uploadHistory,
+                                latencyHistory: old.latencyHistory
+                            )
+                        }
+                        await appendHistory(from: sample)
+                    }
+                case let .connectivity(value):
+                    mutateSnapshot { draft in
+                        let old = draft.network
+                        draft.network = NetworkSectionSnapshot(
+                            throughput: old.throughput,
+                            connectivity: value,
+                            latency: old.latency,
+                            downloadHistory: old.downloadHistory,
+                            uploadHistory: old.uploadHistory,
+                            latencyHistory: old.latencyHistory
+                        )
+                    }
+                    updateResourcePolicy()
+                case let .power(value):
+                    if let value {
+                        mutateSnapshot { $0.power = PowerSectionSnapshot(snapshot: value, chargeHistory: $0.power.chargeHistory, dischargeHistory: $0.power.dischargeHistory) }
+                        await appendHistory(from: value)
+                    }
+                case let .wifi(value):
+                    mutateSnapshot { draft in
+                        let old = draft.travelContext
+                        draft.travelContext = TravelContextSnapshot(
+                            wifi: value,
+                            vpn: old.vpn,
+                            timeZoneIdentifier: old.timeZoneIdentifier,
+                            deviceLocation: old.deviceLocation,
+                            publicIP: old.publicIP,
+                            location: old.location
+                        )
+                    }
+                case let .vpn(value):
+                    mutateSnapshot { draft in
+                        let old = draft.travelContext
+                        draft.travelContext = TravelContextSnapshot(
+                            wifi: old.wifi,
+                            vpn: value,
+                            timeZoneIdentifier: old.timeZoneIdentifier,
+                            deviceLocation: old.deviceLocation,
+                            publicIP: old.publicIP,
+                            location: old.location
+                        )
+                    }
+                case let .latency(value):
+                    if let value {
+                        mutateSnapshot { draft in
+                            let old = draft.network
+                            draft.network = NetworkSectionSnapshot(
+                                throughput: old.throughput,
+                                connectivity: old.connectivity,
+                                latency: value,
+                                downloadHistory: old.downloadHistory,
+                                uploadHistory: old.uploadHistory,
+                                latencyHistory: old.latencyHistory
+                            )
+                        }
+                        try? await dependencies.historyStore.append(MetricPoint(timestamp: value.collectedAt, value: value.milliseconds), to: .latencyMilliseconds)
+                    }
+                }
+            }
+        }
+        guard !Task.isCancelled else { return }
+        let history = await projectedDashboardHistory((try? dependencies.historyStore.loadAll()) ?? [:])
+        let update = await dependencies.updateCoordinator.currentState()
+        mutateSnapshot { draft in
+            let old = draft.network
+            draft.network = NetworkSectionSnapshot(
+                throughput: old.throughput,
+                connectivity: old.connectivity,
+                latency: old.latency,
+                downloadHistory: history[.downloadMbps] ?? [],
+                uploadHistory: history[.uploadMbps] ?? [],
+                latencyHistory: history[.latencyMilliseconds] ?? []
             )
-            refreshActivity = refreshActivity(forManual: nextRefreshIsManual, includeSlowMetrics: includeSlowMetrics)
+            draft.power = PowerSectionSnapshot(snapshot: draft.power.snapshot, chargeHistory: history[.batteryChargePercent] ?? [], dischargeHistory: history[.batteryDischargeWatts] ?? [])
+            draft.appState = AppStatusSnapshot(lastRefresh: now, updateState: update, issues: draft.appState.issues)
+        }
+    }
 
-            await performRefresh(
-                manual: nextRefreshIsManual,
-                now: now,
-                settings: settings,
-                includeSlowMetrics: includeSlowMetrics
-            )
-
-            if nextRefreshIsManual == false, includeSlowMetrics {
+    private func scheduleExternalRefresh(force: Bool, startup: Bool = false, only: DashboardDataSection? = nil) -> Task<Void, Never>? {
+        if let externalRefreshTask {
+            return externalRefreshTask
+        }
+        let now = Date()
+        guard force || shouldRefreshSlowMetrics(now: now, interval: effectiveSlowRefreshInterval(for: settingsStore.settings)) else { return nil }
+        if resourcePolicy.isOffline {
+            for section in enabledSections() {
+                var state = sectionActivity[section] ?? DashboardSectionActivity()
+                state.isRefreshing = false
+                state.message = state.lastSuccessAt == nil ? "Available when you're online" : "Offline · showing saved information"
+                sectionActivity[section] = state
+            }
+            return nil
+        }
+        let sections = enabledSections().filter { section in
+            guard only == nil || only == section || section == .location || section == .publicIP else { return false }
+            if !force, resourcePolicy.reducesBackgroundWork, section.isLargeDownload {
+                return false
+            }
+            return force || (retryAfter[section].map { now >= $0 } ?? true)
+        }
+        guard !sections.isEmpty else { return nil }
+        lastSlowRefresh = now
+        let generation = refreshGeneration
+        let settings = settingsStore.settings
+        externalRefreshIsManual = force || startup
+        let task = Task(priority: force ? .userInitiated : .utility) { [weak self] in
+            guard let self else { return }
+            await performExternalRefresh(sections: sections, manual: force, settings: settings, generation: generation)
+            guard generation == refreshGeneration else { return }
+            externalRefreshTask = nil
+            externalRefreshIsManual = false
+            if !force, !startup {
                 analytics?.recordBackgroundActiveDay()
             }
-
-            if pendingManualRefresh {
-                pendingManualRefresh = false
-                pendingAutomaticRefresh = false
-                nextRefreshIsManual = true
-                continue
-            }
-
-            if pendingAutomaticRefresh {
-                pendingAutomaticRefresh = false
-                nextRefreshIsManual = false
-                continue
-            }
-
-            break
+            updateRefreshActivity()
+            await saveOfflineContent()
         }
-
-        refreshInFlight = false
-        refreshActivity = .idle
+        externalRefreshTask = task
+        updateRefreshActivity()
+        return task
     }
 
-    private func performRefresh(
-        manual: Bool,
-        now: Date,
+    private func enabledSections() -> [DashboardDataSection] {
+        let settings = settingsStore.settings
+        var result: [DashboardDataSection] = [.publicIP]
+        if settings.usesDeviceLocation || automaticPlaceCollectionEnabled {
+            result.append(.location)
+        }
+        if settings.useCurrentLocationForWeather {
+            result.append(.weather)
+        }
+        if settings.localInfoEnabled {
+            result.append(.localInfo)
+        }
+        if settings.fuelPricesEnabled {
+            result.append(.fuel)
+        }
+        if settings.emergencyCareEnabled {
+            result.append(.emergencyCare)
+        }
+        if settings.surfSpotConfiguration.isValid {
+            result.append(.marine)
+        }
+        if !settings.travelAlertPreferences.enabledKinds.isEmpty {
+            result.append(.travelAlerts)
+        }
+        return result
+    }
+
+    private func performExternalRefresh(sections: [DashboardDataSection], manual: Bool, settings: AppSettings, generation: Int) async {
+        let budget = ProviderRequestBudget(limit: resourcePolicy.reducesBackgroundWork ? 1 : 3)
+        let location = currentLocation
+        let coordinate = currentCoordinate
+        let deviceTask = Task { [weak self] () -> IPLocationSnapshot? in
+            guard let self, sections.contains(.location), let location else { return nil }
+            return await refreshDeviceLocation(location, budget: budget, generation: generation)
+        }
+        let ipTask = Task { [weak self] () -> IPLocationSnapshot? in
+            guard let self, sections.contains(.publicIP) else { return nil }
+            return await refreshPublicIP(settings: settings, manual: manual, budget: budget, generation: generation)
+        }
+        await withTaskCancellationHandler {
+            await withTaskGroup(of: Void.self) { group in
+                for section in sections where section != .location && section != .publicIP {
+                    group.addTask { [weak self] in
+                        guard let self else { return }
+                        var context: IPLocationSnapshot?
+                        if section == .localInfo || section == .fuel || section == .travelAlerts {
+                            context = await deviceTask.value
+                            if context == nil {
+                                context = await ipTask.value
+                            }
+                        }
+                        guard !Task.isCancelled else { return }
+                        await self.refreshSection(
+                            section,
+                            context: context,
+                            coordinate: coordinate,
+                            settings: settings,
+                            manual: manual,
+                            budget: budget,
+                            generation: generation
+                        )
+                    }
+                }
+            }
+            let device = await deviceTask.value
+            let ip = await ipTask.value
+            guard generation == refreshGeneration, !Task.isCancelled else { return }
+            if settings.visitedPlacesEnabled, let observed = device ?? ip {
+                if await recordVisitedPlace(from: observed, source: device == nil ? .publicIPGeolocation : .deviceLocation, visitedAt: Date()) {
+                    await loadVisitedPlaces()
+                    await loadVisitedPlaceEvents()
+                    await loadVisitedCountryDays()
+                }
+            }
+        } onCancel: { deviceTask.cancel()
+            ipTask.cancel()
+        }
+    }
+
+    private func refreshDeviceLocation(_ location: CLLocation, budget: ProviderRequestBudget, generation: Int) async -> IPLocationSnapshot? {
+        guard location.timestamp >= Date().addingTimeInterval(-Self.maximumDeviceLocationAge) else {
+            return nil
+        }
+        beginSection(.location, generation: generation)
+        do {
+            let value = try await budget.run {
+                try await withProviderDeadline { try await self.makeDeviceLocationSnapshot(from: location, now: Date()) }
+            }
+            guard accepts(generation) else { return nil }
+            cachedLocationKey = locationKey(location.coordinate)
+            mutateSnapshot { draft in
+                let old = draft.travelContext
+                draft.travelContext = TravelContextSnapshot(
+                    wifi: old.wifi,
+                    vpn: old.vpn,
+                    timeZoneIdentifier: value.timeZone ?? TimeZone.current.identifier,
+                    deviceLocation: value,
+                    publicIP: old.publicIP,
+                    location: old.location
+                )
+            }
+            finishSection(.location, fetchedAt: value.fetchedAt, generation: generation)
+            return value
+        } catch { failSection(.location, error: error, generation: generation)
+            return nil
+        }
+    }
+
+    private func refreshPublicIP(settings: AppSettings, manual: Bool, budget: ProviderRequestBudget, generation: Int) async -> IPLocationSnapshot? {
+        beginSection(.publicIP, generation: generation)
+        do {
+            let ip = try await budget.run {
+                try await withProviderDeadline { try await self.dependencies.publicIPProvider.currentIP(forceRefresh: manual) }
+            }
+            guard accepts(generation) else { return nil }
+            mutateSnapshot { draft in
+                let old = draft.travelContext
+                draft.travelContext = TravelContextSnapshot(
+                    wifi: old.wifi,
+                    vpn: old.vpn,
+                    timeZoneIdentifier: old.timeZoneIdentifier,
+                    deviceLocation: old.deviceLocation,
+                    publicIP: ip,
+                    location: settings.publicIPGeolocationEnabled ? old.location : nil
+                )
+            }
+            setIssue(.publicIPLookupUnavailable, present: false)
+            var resolved: IPLocationSnapshot?
+            if settings.publicIPGeolocationEnabled {
+                do {
+                    resolved = try await budget.run {
+                        try await withProviderDeadline { try await self.dependencies.publicIPLocationProvider.currentLocation(for: ip.address, forceRefresh: manual) }
+                    }
+                } catch {
+                    guard accepts(generation) else { return nil }
+                    setIssue(.ipLocationUnavailable, present: true)
+                    failSection(.publicIP, error: error, generation: generation)
+                    return nil
+                }
+            }
+            guard accepts(generation) else { return nil }
+            if let resolved {
+                mutateSnapshot { draft in
+                    let old = draft.travelContext
+                    draft.travelContext = TravelContextSnapshot(
+                        wifi: old.wifi,
+                        vpn: old.vpn,
+                        timeZoneIdentifier: old.deviceLocation?.timeZone ?? TimeZone.current.identifier,
+                        deviceLocation: old.deviceLocation,
+                        publicIP: ip,
+                        location: resolved
+                    )
+                }
+            }
+            setIssue(.ipLocationUnavailable, present: false)
+            finishSection(.publicIP, fetchedAt: ip.fetchedAt, generation: generation)
+            return resolved
+        } catch {
+            if accepts(generation) {
+                setIssue(.publicIPLookupUnavailable, present: true)
+            }
+            failSection(.publicIP, error: error, generation: generation)
+            return nil
+        }
+    }
+
+    private enum RemoteValue: Sendable {
+        case weather(WeatherSnapshot), localInfo(LocalInfoSnapshot), fuel(FuelPriceSnapshot, FuelDiagnosticsSnapshot)
+        case emergency(EmergencyCareSnapshot), marine(MarineSnapshot), alerts(TravelAlertsSnapshot)
+    }
+
+    private func refreshSection(
+        _ section: DashboardDataSection,
+        context: IPLocationSnapshot?,
+        coordinate: CLLocationCoordinate2D?,
         settings: AppSettings,
-        includeSlowMetrics: Bool
+        manual: Bool,
+        budget: ProviderRequestBudget,
+        generation: Int
     ) async {
-        let surfSpotConfiguration = settings.surfSpotConfiguration
-        var issues: [DashboardIssue] = []
-
-        if surfSpotConfiguration.isConfigured == false {
-            issues.append(.marineSpotNotConfigured)
-        } else if surfSpotConfiguration.isValid == false {
-            issues.append(.marineSpotInvalid)
-        }
-
-        let throughputSample = await dependencies.throughputMonitor.currentSample()
-        let connectivitySnapshot = await dependencies.connectivityMonitor.currentSnapshot()
-
-        if let throughputSample {
-            await appendHistory(from: throughputSample)
-        }
-
-        var latencySample = snapshot.network.latency
-        var powerSnapshot = snapshot.power.snapshot
-        var wifiSnapshot = snapshot.travelContext.wifi
-        var vpnSnapshot = snapshot.travelContext.vpn
-        var deviceLocationSnapshot = snapshot.travelContext.deviceLocation
-        var publicIPSnapshot = snapshot.travelContext.publicIP
-        var locationSnapshot = snapshot.travelContext.location
-        var travelAlertsSnapshot = synchronizedTravelAlertsSnapshot(
-            previous: snapshot.travelAlerts,
-            settings: settings,
-            locationSnapshot: locationSnapshot
-        )
-        var weatherSnapshot = snapshot.weather
-        var localInfoSnapshot = snapshot.localInfo
-        var fuelPricesSnapshot = snapshot.fuelPrices
-        var fuelDiagnosticsSnapshot = snapshot.fuelDiagnostics
-        var emergencyCareSnapshot = snapshot.emergencyCare
-        var marineSnapshot = surfSpotConfiguration.isValid ? snapshot.marine : nil
-        var didUpdateVisitedHistory = false
-        var refreshedDeviceLocationSnapshot: IPLocationSnapshot?
-
-        if includeSlowMetrics {
-            latencySample = await dependencies.latencyProbe.currentSample()
-            powerSnapshot = await dependencies.powerMonitor.currentSnapshot()
-            wifiSnapshot = await dependencies.wifiMonitor.currentSnapshot()
-            vpnSnapshot = await dependencies.vpnStatusProvider.currentStatus()
-
-            if settings.usesDeviceLocation, let currentLocation {
-                do {
-                    let deviceSnapshot = try await makeDeviceLocationSnapshot(from: currentLocation, now: now)
-                    deviceLocationSnapshot = deviceSnapshot
-                    refreshedDeviceLocationSnapshot = deviceSnapshot
-                } catch {}
-            } else {
-                deviceLocationSnapshot = nil
-            }
-
-            if let latencySample {
-                try? await dependencies.historyStore.append(
-                    MetricPoint(timestamp: latencySample.collectedAt, value: latencySample.milliseconds),
-                    to: .latencyMilliseconds
-                )
-            }
-
-            if let powerSnapshot {
-                await appendHistory(from: powerSnapshot)
-            }
-
-            do {
-                publicIPSnapshot = try await dependencies.publicIPProvider.currentIP(forceRefresh: manual)
-            } catch {
-                issues.append(.publicIPLookupUnavailable)
-            }
-
-            if settings.publicIPGeolocationEnabled, let publicIPSnapshot {
-                do {
-                    locationSnapshot = try await dependencies.publicIPLocationProvider.currentLocation(
-                        for: publicIPSnapshot.address,
-                        forceRefresh: manual
-                    )
-                } catch {
-                    issues.append(.ipLocationUnavailable)
-                }
-            } else {
-                locationSnapshot = nil
-            }
-
-            if settings.useCurrentLocationForWeather {
-                do {
-                    weatherSnapshot = try await dependencies.weatherProvider.weather(for: currentCoordinate)
-                } catch ProviderError.missingCoordinate {
-                    issues.append(.weatherLocationRequired)
-                } catch {
-                    issues.append(.weatherUnavailable)
-                }
-            } else {
-                weatherSnapshot = nil
-            }
-
-            if settings.localInfoEnabled {
-                localInfoSnapshot = await refreshLocalInfo(
-                    manual: manual,
-                    ipLocationSnapshot: locationSnapshot
-                )
-            } else {
-                localInfoSnapshot = nil
-            }
-
-            if settings.fuelPricesEnabled {
-                let fuelRefresh = await refreshFuelPrices(manual: manual)
-                fuelPricesSnapshot = fuelRefresh.snapshot
-                fuelDiagnosticsSnapshot = fuelRefresh.diagnostics
-            } else {
-                fuelPricesSnapshot = nil
-            }
-
-            if settings.emergencyCareEnabled {
-                emergencyCareSnapshot = await refreshEmergencyCare(manual: manual)
-            } else {
-                emergencyCareSnapshot = nil
-            }
-
-            if surfSpotConfiguration.isValid,
-               let surfSpotName = surfSpotConfiguration.name,
-               let coordinate = surfSpotConfiguration.coordinate
-            {
-                do {
-                    marineSnapshot = try await dependencies.marineProvider.marine(
-                        for: MarineSpot(name: surfSpotName, coordinate: coordinate)
-                    )
-                } catch {
-                    marineSnapshot = nil
-                    issues.append(.marineUnavailable)
-                }
-            } else {
-                marineSnapshot = nil
-            }
-
-            if settings.visitedPlacesEnabled {
-                if let refreshedDeviceLocationSnapshot {
-                    didUpdateVisitedHistory = await recordVisitedPlace(
-                        from: refreshedDeviceLocationSnapshot,
-                        source: .deviceLocation,
-                        visitedAt: now
-                    ) || didUpdateVisitedHistory
-                } else if let locationSnapshot {
-                    didUpdateVisitedHistory = await recordVisitedPlace(
-                        from: locationSnapshot,
-                        source: .publicIPGeolocation,
-                        visitedAt: now
-                    ) || didUpdateVisitedHistory
+        guard accepts(generation) else { return }
+        beginSection(section, generation: generation)
+        let previousAlerts = snapshot.travelAlerts?.primaryCountryCode == context?.countryCode?.uppercased() ? snapshot.travelAlerts : nil
+        do {
+            let value: RemoteValue = try await budget.run {
+                try await withProviderDeadline(seconds: section == .travelAlerts ? 55 : 25) {
+                    switch section {
+                    case .weather: return try await .weather(self.dependencies.weatherProvider.weather(for: coordinate))
+                    case .localInfo: return await .localInfo(self.refreshLocalInfo(manual: manual, ipLocationSnapshot: context))
+                    case .fuel:
+                        let value = await self.refreshFuelPrices(manual: manual)
+                        return .fuel(value.snapshot, value.diagnostics)
+                    case .emergencyCare: return await .emergency(self.refreshEmergencyCare(manual: manual))
+                    case .marine:
+                        guard let name = settings.surfSpotConfiguration.name, let spotCoordinate = settings.surfSpotConfiguration.coordinate else { throw ProviderError.missingCoordinate }
+                        return try await .marine(self.dependencies.marineProvider.marine(for: MarineSpot(name: name, coordinate: spotCoordinate)))
+                    case .travelAlerts:
+                        return await .alerts(self.refreshTravelAlerts(settings: settings, locationSnapshot: context, previousSnapshot: previousAlerts, manual: manual, now: Date()))
+                    case .location, .publicIP: throw ProviderError.invalidResponse
+                    }
                 }
             }
-
-            travelAlertsSnapshot = synchronizedTravelAlertsSnapshot(
-                previous: travelAlertsSnapshot,
-                settings: settings,
-                locationSnapshot: locationSnapshot
-            )
-            travelAlertsSnapshot = await refreshTravelAlerts(
-                settings: settings,
-                locationSnapshot: locationSnapshot,
-                previousSnapshot: travelAlertsSnapshot,
-                manual: manual,
-                now: now
-            )
-
-            lastSlowRefresh = now
+            guard accepts(generation) else { return }
+            var fetchedAt: Date?
+            var failed = false
+            mutateSnapshot { draft in
+                switch value {
+                case let .weather(value): draft.weather = value
+                    fetchedAt = value.fetchedAt
+                case let .localInfo(value):
+                    failed = value.status == .unavailable
+                    if !failed || draft.localInfo == nil {
+                        draft.localInfo = value
+                    }
+                    fetchedAt = failed ? nil : value.fetchedAt
+                case let .fuel(value, diagnostics):
+                    failed = value.status == .unavailable
+                    if !failed || draft.fuelPrices == nil {
+                        draft.fuelPrices = value
+                    }
+                    draft.fuelDiagnostics = diagnostics
+                    fetchedAt = failed ? nil : value.fetchedAt
+                case let .emergency(value):
+                    failed = value.status == .unavailable
+                    if !failed || draft.emergencyCare == nil {
+                        draft.emergencyCare = value
+                    }
+                    fetchedAt = failed ? nil : value.fetchedAt
+                case let .marine(value): draft.marine = value
+                    fetchedAt = value.fetchedAt
+                case let .alerts(value):
+                    draft.travelAlerts = value
+                    failed = value.hasStaleStates || value.hasUnavailableStates
+                    fetchedAt = failed ? nil : value.fetchedAt
+                }
+            }
+            if failed {
+                failSection(section, error: ProviderError.invalidResponse, generation: generation)
+            } else {
+                finishSection(section, fetchedAt: fetchedAt, generation: generation)
+                if section == .weather {
+                    setIssue(.weatherUnavailable, present: false)
+                    setIssue(.weatherLocationRequired, present: false)
+                }
+                if section == .marine {
+                    setIssue(.marineUnavailable, present: false)
+                }
+            }
+        } catch {
+            guard accepts(generation) else { return }
+            if section == .weather {
+                if case ProviderError.missingCoordinate = error {
+                    setIssue(.weatherLocationRequired, present: true)
+                } else {
+                    setIssue(.weatherUnavailable, present: true)
+                }
+            }
+            if section == .marine {
+                setIssue(.marineUnavailable, present: true)
+            }
+            failSection(section, error: error, generation: generation)
         }
-
-        if didUpdateVisitedHistory {
-            await loadVisitedPlaces()
-            await loadVisitedPlaceEvents()
-            await loadVisitedCountryDays()
-        }
-
-        let history = await (try? dependencies.historyStore.loadAll()) ?? [:]
-        let projectedHistory = projectedDashboardHistory(history)
-        let updateState = await dependencies.updateCoordinator.currentState()
-        let timeZoneIdentifier = deviceLocationSnapshot?.timeZone
-            ?? locationSnapshot?.timeZone
-            ?? TimeZone.current.identifier
-
-        snapshot = DashboardSnapshot(
-            network: NetworkSectionSnapshot(
-                throughput: throughputSample ?? snapshot.network.throughput,
-                connectivity: connectivitySnapshot,
-                latency: latencySample,
-                downloadHistory: projectedHistory[.downloadMbps] ?? snapshot.network.downloadHistory,
-                uploadHistory: projectedHistory[.uploadMbps] ?? snapshot.network.uploadHistory,
-                latencyHistory: projectedHistory[.latencyMilliseconds] ?? snapshot.network.latencyHistory
-            ),
-            power: PowerSectionSnapshot(
-                snapshot: powerSnapshot,
-                chargeHistory: projectedHistory[.batteryChargePercent] ?? snapshot.power.chargeHistory,
-                dischargeHistory: projectedHistory[.batteryDischargeWatts] ?? snapshot.power.dischargeHistory
-            ),
-            travelContext: TravelContextSnapshot(
-                wifi: wifiSnapshot,
-                vpn: vpnSnapshot,
-                timeZoneIdentifier: timeZoneIdentifier,
-                deviceLocation: deviceLocationSnapshot,
-                publicIP: publicIPSnapshot,
-                location: locationSnapshot
-            ),
-            travelAlerts: travelAlertsSnapshot,
-            weather: weatherSnapshot,
-            localInfo: localInfoSnapshot,
-            fuelPrices: fuelPricesSnapshot,
-            fuelDiagnostics: fuelDiagnosticsSnapshot,
-            emergencyCare: emergencyCareSnapshot,
-            marine: marineSnapshot,
-            appState: AppStatusSnapshot(
-                lastRefresh: now,
-                updateState: updateState,
-                issues: issues
-            )
-        )
     }
 
-    private func refreshActivity(forManual manual: Bool, includeSlowMetrics: Bool) -> DashboardRefreshActivity {
-        if manual {
-            return .manualInProgress
-        }
+    private func accepts(_ generation: Int) -> Bool {
+        generation == refreshGeneration && !Task.isCancelled
+    }
 
-        if includeSlowMetrics {
-            return .slowAutomaticInProgress
-        }
+    private func beginSection(_ section: DashboardDataSection, generation: Int) {
+        guard accepts(generation) else { return }
+        var state = sectionActivity[section] ?? DashboardSectionActivity()
+        state.isRefreshing = true
+        state.message = nil
+        sectionActivity[section] = state
+    }
 
-        return .idle
+    private func finishSection(_ section: DashboardDataSection, fetchedAt: Date?, generation: Int) {
+        guard accepts(generation) else { return }
+        sectionActivity[section] = DashboardSectionActivity(lastSuccessAt: fetchedAt)
+        failureCounts[section] = nil
+        retryAfter[section] = nil
+        cacheSaveTask?.cancel()
+        cacheSaveTask = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(400)) } catch { return }
+            await self?.saveOfflineContent()
+        }
+    }
+
+    private func failSection(_ section: DashboardDataSection, error: Error, generation: Int) {
+        guard accepts(generation), !(error is CancellationError) else { return }
+        var state = sectionActivity[section] ?? DashboardSectionActivity()
+        state.isRefreshing = false
+        state.message = state.lastSuccessAt == nil ? "Couldn't update. Try again when your connection improves." : "Couldn't update · keeping saved information"
+        sectionActivity[section] = state
+        let failures = min((failureCounts[section] ?? 0) + 1, 6)
+        failureCounts[section] = failures
+        retryAfter[section] = Date().addingTimeInterval(min(1_800, 30 * pow(2, Double(failures - 1))))
+    }
+
+    private func setIssue(_ issue: DashboardIssue, present: Bool) {
+        mutateSnapshot { draft in
+            var issues = draft.appState.issues.filter { $0 != issue }
+            if present {
+                issues.append(issue)
+            }
+            draft.appState = AppStatusSnapshot(lastRefresh: draft.appState.lastRefresh, updateState: draft.appState.updateState, issues: issues)
+        }
+    }
+
+    private func invalidateExternalRefresh() {
+        refreshGeneration += 1
+        externalRefreshTask?.cancel()
+        externalRefreshTask = nil
+        externalRefreshIsManual = false
+        for section in sectionActivity.keys {
+            sectionActivity[section]?.isRefreshing = false
+        }
+        updateRefreshActivity()
+    }
+
+    private func locationKey(_ coordinate: CLLocationCoordinate2D) -> String {
+        String(format: "%.2f,%.2f", coordinate.latitude, coordinate.longitude)
+    }
+
+    private func clearLocationDependentContent() {
+        mutateSnapshot { draft in
+            draft.weather = nil
+            draft.localInfo = nil
+            draft.fuelPrices = nil
+            draft.fuelDiagnostics = nil
+            draft.emergencyCare = nil
+            draft.travelAlerts = nil
+            let old = draft.travelContext
+            draft.travelContext = TravelContextSnapshot(
+                wifi: old.wifi,
+                vpn: old.vpn,
+                timeZoneIdentifier: TimeZone.current.identifier,
+                deviceLocation: nil,
+                publicIP: old.publicIP,
+                location: old.location
+            )
+        }
+        for section in [DashboardDataSection.location, .weather, .localInfo, .fuel, .emergencyCare, .travelAlerts] {
+            sectionActivity[section] = DashboardSectionActivity(message: "Updating for your new location")
+        }
+    }
+
+    private func saveOfflineContent() async {
+        guard let cache = dependencies.offlineCache else { return }
+        guard hasOfflineContentWorthSaving else { return }
+        do {
+            let content = OfflineDashboardContent(snapshot: snapshot, savedAt: Date(), locationKey: cachedLocationKey)
+            try await cache.save(content)
+            offlineSavedAt = content.savedAt
+            offlineCacheError = nil
+        } catch { offlineCacheError = "Couldn't save offline information. Your live dashboard is still available." }
+    }
+
+    private var hasOfflineContentWorthSaving: Bool {
+        snapshot.weather != nil
+            || snapshot.localInfo != nil
+            || snapshot.fuelPrices != nil
+            || snapshot.emergencyCare != nil
+            || snapshot.marine != nil
+            || snapshot.travelAlerts?.states.contains(where: { $0.resolvedSignal != nil }) == true
+            || snapshot.travelContext.deviceLocation != nil
+            || snapshot.travelContext.location != nil
     }
 
     private func shouldRefreshSlowMetrics(now: Date, interval: TimeInterval) -> Bool {
@@ -454,7 +857,7 @@ public final class DashboardSnapshotStore: ObservableObject {
     }
 
     private func effectiveRefreshInterval(for settings: AppSettings) -> TimeInterval {
-        let interval = AppSettings.sanitizedRefreshInterval(settings.refreshIntervalSeconds)
+        let interval = max(AppSettings.sanitizedRefreshInterval(settings.refreshIntervalSeconds), resourcePolicy.reducesBackgroundWork ? 30 : 0)
         guard dashboardInterfaceActive == false else {
             return interval
         }
@@ -463,7 +866,7 @@ public final class DashboardSnapshotStore: ObservableObject {
     }
 
     private func effectiveSlowRefreshInterval(for settings: AppSettings) -> TimeInterval {
-        guard dashboardInterfaceActive == false else {
+        guard dashboardInterfaceActive == false || resourcePolicy.reducesBackgroundWork else {
             return settings.slowRefreshIntervalSeconds.isFinite
                 ? settings.slowRefreshIntervalSeconds
                 : AppSettings.defaultSlowRefreshIntervalSeconds
@@ -496,6 +899,30 @@ public final class DashboardSnapshotStore: ObservableObject {
     }
 
     private func applyInitialSettings() async {
+        if let cache = dependencies.offlineCache {
+            do {
+                if let content = try await cache.load() {
+                    let currentLocationKey = currentLocation.map { locationKey($0.coordinate) }
+                    if currentLocationKey == nil || currentLocationKey == content.locationKey {
+                        snapshot = content.applying(to: snapshot)
+                        cachedLocationKey = content.locationKey
+                        offlineSavedAt = content.savedAt
+                        let dates: [DashboardDataSection: Date?] = [
+                            .location: content.deviceLocation?.fetchedAt, .weather: content.weather?.fetchedAt,
+                            .localInfo: content.localInfo?.fetchedAt, .fuel: content.fuelPrices?.fetchedAt,
+                            .emergencyCare: content.emergencyCare?.fetchedAt, .marine: content.marine?.fetchedAt,
+                            .travelAlerts: content.travelAlerts?.fetchedAt
+                        ]
+                        for (section, date) in dates {
+                            if let date {
+                                sectionActivity[section] = DashboardSectionActivity(lastSuccessAt: date, isSaved: true)
+                            }
+                        }
+                    }
+                }
+            } catch { offlineCacheError = "Saved information couldn't be opened. It will refresh when you're online." }
+        }
+        sanitizeDisabledSections()
         try? await dependencies.historyStore.setRetentionHours(appliedSettings.historyRetentionHours)
         await dependencies.updateCoordinator.setAutomaticChecksEnabled(appliedSettings.automaticUpdateChecksEnabled)
         await loadVisitedPlaces()
@@ -504,6 +931,11 @@ public final class DashboardSnapshotStore: ObservableObject {
     }
 
     private func applySettingsChange(from previousSettings: AppSettings, to newSettings: AppSettings) async {
+        if previousSettings.dataUsageMode != newSettings.dataUsageMode {
+            invalidateExternalRefresh()
+            updateResourcePolicy()
+            lastSlowRefresh = nil
+        }
         if previousSettings.automaticUpdateChecksEnabled != newSettings.automaticUpdateChecksEnabled {
             await dependencies.updateCoordinator.setAutomaticChecksEnabled(newSettings.automaticUpdateChecksEnabled)
         }
@@ -586,9 +1018,71 @@ public final class DashboardSnapshotStore: ObservableObject {
             )
         }
 
+        sanitizeDisabledSections()
         if needsManualRefresh {
-            await refresh(manual: true)
+            invalidateExternalRefresh()
+            lastSlowRefresh = nil
+            scheduleSettingsRefresh()
         }
+    }
+
+    private func scheduleSettingsRefresh() {
+        settingsRefreshTask?.cancel()
+        settingsRefreshTask = Task { [weak self] in
+            await Task.yield()
+            guard Task.isCancelled == false else { return }
+            await self?.performScheduledSettingsRefresh()
+        }
+    }
+
+    private func performScheduledSettingsRefresh() async {
+        settingsRefreshTask = nil
+        await refresh(manual: true)
+    }
+
+    private func sanitizeDisabledSections() {
+        let settings = settingsStore.settings
+        mutateSnapshot { draft in
+            if !settings.useCurrentLocationForWeather {
+                draft.weather = nil
+            }
+            if !settings.localInfoEnabled {
+                draft.localInfo = nil
+            }
+            if !settings.fuelPricesEnabled {
+                draft.fuelPrices = nil
+                draft.fuelDiagnostics = nil
+            }
+            if !settings.emergencyCareEnabled {
+                draft.emergencyCare = nil
+            }
+            if !settings.surfSpotConfiguration.isValid {
+                draft.marine = nil
+            }
+            if let marine = draft.marine, let coordinate = settings.surfSpotConfiguration.coordinate,
+               marine.coordinate.latitude != coordinate.latitude || marine.coordinate.longitude != coordinate.longitude
+            {
+                draft.marine = nil
+            }
+            let old = draft.travelContext
+            draft.travelContext = TravelContextSnapshot(
+                wifi: old.wifi,
+                vpn: old.vpn,
+                timeZoneIdentifier: old.timeZoneIdentifier,
+                deviceLocation: settings.usesDeviceLocation || automaticPlaceCollectionEnabled ? old.deviceLocation : nil,
+                publicIP: old.publicIP,
+                location: settings.publicIPGeolocationEnabled ? old.location : nil
+            )
+            draft.travelAlerts = synchronizedTravelAlertsSnapshot(
+                previous: draft.travelAlerts,
+                settings: settings,
+                locationSnapshot: old.deviceLocation ?? old.location
+            )
+        }
+        setIssue(.marineSpotNotConfigured, present: !settings.surfSpotConfiguration.isConfigured)
+        setIssue(.marineSpotInvalid, present: settings.surfSpotConfiguration.isConfigured && !settings.surfSpotConfiguration.isValid)
+        let enabled = Set(enabledSections())
+        sectionActivity = sectionActivity.filter { enabled.contains($0.key) }
     }
 
     private func refreshLocalInfo(
@@ -604,6 +1098,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         if let currentLocation {
             do {
                 let reverseGeocodedLocation = try await dependencies.reverseGeocodingProvider.details(for: currentLocation)
+                try Task.checkCancellation()
                 resolvedCountryCode = normalizedValue(reverseGeocodedLocation.countryCode)?.uppercased()
                 resolvedCountryName = normalizedValue(reverseGeocodedLocation.country)
                 locality = normalizedValue(reverseGeocodedLocation.city) ?? locality
@@ -648,6 +1143,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         )
 
         do {
+            try Task.checkCancellation()
             return try await dependencies.localInfoProvider.info(
                 for: request,
                 forceRefresh: manual
@@ -721,6 +1217,7 @@ public final class DashboardSnapshotStore: ObservableObject {
 
         do {
             let reverseGeocodedLocation = try await dependencies.reverseGeocodingProvider.details(for: currentLocation)
+            try Task.checkCancellation()
             resolvedCountryName = reverseGeocodedLocation.country
             guard let countryCode = normalizedValue(reverseGeocodedLocation.countryCode)?.uppercased() else {
                 let fuelSnapshot = FuelPriceSnapshot(
@@ -879,6 +1376,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         do {
+            try Task.checkCancellation()
             return try await dependencies.emergencyCareProvider.nearbyHospitals(
                 for: EmergencyCareSearchRequest(
                     coordinate: currentLocation.coordinate,
@@ -1093,7 +1591,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             )
         }
 
-        if preferences.advisoryEnabled {
+        if preferences.advisoryEnabled, !Task.isCancelled {
             await states.append(
                 refreshAlertState(
                     kind: .advisory,
@@ -1115,7 +1613,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             )
         }
 
-        if preferences.weatherEnabled {
+        if preferences.weatherEnabled, !Task.isCancelled {
             let weatherAlertCoordinate = currentCoordinate ?? locationSnapshot?.coordinate
             await states.append(
                 refreshAlertState(
@@ -1133,7 +1631,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             )
         }
 
-        if preferences.securityEnabled {
+        if preferences.securityEnabled, !Task.isCancelled {
             await states.append(
                 refreshAlertState(
                     kind: .security,
@@ -1372,11 +1870,10 @@ public func projectedMetricHistory(_ points: [MetricPoint], maxPoints: Int = 120
     let scale = Double(points.count - 1) / Double(maxPoints - 1)
 
     return (0..<maxPoints).map { position in
-        let index: Int
-        if position == maxPoints - 1 {
-            index = points.count - 1
+        let index: Int = if position == maxPoints - 1 {
+            points.count - 1
         } else {
-            index = Int((Double(position) * scale).rounded(.down))
+            Int((Double(position) * scale).rounded(.down))
         }
 
         return points[index]

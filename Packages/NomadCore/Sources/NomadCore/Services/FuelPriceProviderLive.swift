@@ -1,7 +1,7 @@
 import CoreLocation
 import Foundation
 
-private struct FuelSourceDescriptor {
+struct FuelSourceDescriptor: Sendable {
     let name: String
     let url: URL?
     let note: String?
@@ -50,7 +50,7 @@ private struct ScoredFuelStationCandidate {
     let distanceKilometers: Double
 }
 
-private struct FuelHTTPFetchResult {
+struct FuelHTTPFetchResult: @unchecked Sendable {
     enum Transport: String {
         case urlSession
         case curlFallback
@@ -151,6 +151,7 @@ public struct FuelPriceProviderError: Error, Sendable {
 public actor LiveEuropeanFuelPriceProvider: FuelPriceProvider, FuelPriceDiagnosticsProviding, FuelPriceProviderConfigurationUpdating {
     private let session: URLSession
     private let ttl: TimeInterval
+    private let sourceDatasetCache: FuelSourceDatasetCache
     private var tankerkonigAPIKey: String?
     private var cache: [String: FuelPriceSnapshot] = [:]
     private var latestDiagnostics: FuelProviderRequestDiagnostics?
@@ -158,11 +159,14 @@ public actor LiveEuropeanFuelPriceProvider: FuelPriceProvider, FuelPriceDiagnost
     public init(
         session: URLSession = .shared,
         ttl: TimeInterval = 900,
-        tankerkonigAPIKey: String? = nil
+        tankerkonigAPIKey: String? = nil,
+        sourceCacheDirectory: URL? = nil,
+        sourceDatasetTTL: TimeInterval = 6 * 60 * 60
     ) {
         self.session = session
         self.ttl = ttl
         self.tankerkonigAPIKey = tankerkonigAPIKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+        sourceDatasetCache = FuelSourceDatasetCache(directory: sourceCacheDirectory, ttl: sourceDatasetTTL)
     }
 
     public func setTankerkonigAPIKey(_ apiKey: String?) async {
@@ -174,6 +178,7 @@ public actor LiveEuropeanFuelPriceProvider: FuelPriceProvider, FuelPriceDiagnost
     }
 
     public func prices(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> FuelPriceSnapshot {
+        try Task.checkCancellation()
         let cacheKey = Self.cacheKey(for: request)
         if !forceRefresh,
            let cached = cache[cacheKey],
@@ -253,11 +258,11 @@ public actor LiveEuropeanFuelPriceProvider: FuelPriceProvider, FuelPriceDiagnost
     private func provider(for countryCode: String) -> any CountryFuelPriceSource {
         switch countryCode.uppercased() {
         case "ES":
-            SpainFuelPriceSource(session: session)
+            SpainFuelPriceSource(session: session, datasetCache: sourceDatasetCache)
         case "FR":
             FranceFuelPriceSource(session: session)
         case "IT":
-            ItalyFuelPriceSource(session: session)
+            ItalyFuelPriceSource(session: session, datasetCache: sourceDatasetCache)
         case "DE":
             GermanyFuelPriceSource(session: session, apiKey: tankerkonigAPIKey)
         default:
@@ -306,6 +311,7 @@ private struct UnsupportedFuelPriceSource: CountryFuelPriceSource {
 
 private struct SpainFuelPriceSource: CountryFuelPriceSource {
     let session: URLSession
+    let datasetCache: FuelSourceDatasetCache
     let descriptor = FuelSourceDescriptor(
         name: "Spanish Ministry Fuel Prices",
         url: URL(string: "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/"),
@@ -314,8 +320,9 @@ private struct SpainFuelPriceSource: CountryFuelPriceSource {
     )
 
     func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> CountryFuelPriceSourceResult {
-        let fetch = try await fetchData(
+        let fetch = try await datasetCache.fetch(
             from: URL(string: "https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes/EstacionesTerrestres/")!,
+            forceRefresh: forceRefresh,
             session: session,
             descriptor: descriptor
         )
@@ -518,6 +525,7 @@ private struct FranceFuelPriceSource: CountryFuelPriceSource {
 
 private struct ItalyFuelPriceSource: CountryFuelPriceSource {
     let session: URLSession
+    let datasetCache: FuelSourceDatasetCache
     let descriptor = FuelSourceDescriptor(
         name: "MIMIT Fuel Prices",
         url: URL(string: "https://www.mimit.gov.it/it/open-data/elenco-dataset/carburanti-prezzi-praticati-e-anagrafica-degli-impianti"),
@@ -525,13 +533,15 @@ private struct ItalyFuelPriceSource: CountryFuelPriceSource {
     )
 
     func snapshot(for request: FuelSearchRequest, forceRefresh: Bool) async throws -> CountryFuelPriceSourceResult {
-        let stationFetch = try await fetchData(
+        let stationFetch = try await datasetCache.fetch(
             from: URL(string: "https://www.mimit.gov.it/images/exportCSV/anagrafica_impianti_attivi.csv")!,
+            forceRefresh: forceRefresh,
             session: session,
             descriptor: descriptor
         )
-        let priceFetch = try await fetchData(
+        let priceFetch = try await datasetCache.fetch(
             from: URL(string: "https://www.mimit.gov.it/images/exportCSV/prezzo_alle_8.csv")!,
+            forceRefresh: forceRefresh,
             session: session,
             descriptor: descriptor
         )
@@ -890,14 +900,22 @@ private func bestStation(for fuelType: FuelType, in candidates: [ScoredFuelStati
     )
 }
 
-private func fetchData(
+func fetchData(
     from url: URL,
     session: URLSession,
-    descriptor: FuelSourceDescriptor
+    descriptor: FuelSourceDescriptor,
+    headers: [String: String] = [:],
+    allowsNotModified: Bool = false
 ) async throws -> FuelHTTPFetchResult {
+    try Task.checkCancellation()
     let startedAt = Date()
     do {
-        let (data, response) = try await session.data(from: url)
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        for (name, value) in headers {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
+        let (data, response) = try await session.data(for: request)
         let finishedAt = Date()
         guard let httpResponse = response as? HTTPURLResponse else {
             throw FuelPriceProviderError(
@@ -915,7 +933,7 @@ private func fetchData(
             )
         }
 
-        guard (200...299).contains(httpResponse.statusCode) else {
+        guard (200...299).contains(httpResponse.statusCode) || (allowsNotModified && httpResponse.statusCode == 304) else {
             throw FuelPriceProviderError(
                 sourceName: descriptor.name,
                 sourceURL: descriptor.url,
@@ -942,13 +960,19 @@ private func fetchData(
             finishedAt: finishedAt,
             transport: .urlSession
         )
+    } catch is CancellationError {
+        throw CancellationError()
     } catch let error as FuelPriceProviderError {
         throw error
     } catch {
+        if Task.isCancelled {
+            throw CancellationError()
+        }
         let diagnostics = makeDiagnosticsError(from: error, fallbackURL: url)
         if descriptor.curlFallbackEnabled,
            shouldUseCurlFallback(for: diagnostics.failureKind)
         {
+            try Task.checkCancellation()
             return try await fetchDataViaCurl(from: url, descriptor: descriptor, startedAt: startedAt)
         }
 
@@ -975,6 +999,7 @@ private func fetchDataViaCurl(
     descriptor: FuelSourceDescriptor,
     startedAt: Date
 ) async throws -> FuelHTTPFetchResult {
+    try Task.checkCancellation()
     let temporaryDirectory = FileManager.default.temporaryDirectory
     let identifier = UUID().uuidString
     let bodyURL = temporaryDirectory.appendingPathComponent("nomad-fuel-\(identifier).body")
@@ -985,13 +1010,18 @@ private func fetchDataViaCurl(
         try? FileManager.default.removeItem(at: headerURL)
     }
 
+    let processBox = CurlProcessBox()
     let process = Process()
+    processBox.process = process
     process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
     process.arguments = [
         "--silent",
         "--show-error",
         "--location",
         "--compressed",
+        "--connect-timeout", "8",
+        "--max-time", "15",
+        "--retry", "0",
         "--output", bodyURL.path,
         "--dump-header", headerURL.path,
         url.absoluteString
@@ -1001,8 +1031,12 @@ private func fetchDataViaCurl(
     process.standardError = stderrPipe
 
     do {
-        try process.run()
-        process.waitUntilExit()
+        try await withTaskCancellationHandler {
+            try process.run()
+            process.waitUntilExit()
+        } onCancel: {
+            processBox.terminate()
+        }
     } catch {
         throw FuelPriceProviderError(
             sourceName: descriptor.name,
@@ -1018,6 +1052,8 @@ private func fetchDataViaCurl(
             )
         )
     }
+
+    try Task.checkCancellation()
 
     let finishedAt = Date()
     let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
@@ -1093,6 +1129,23 @@ private func fetchDataViaCurl(
         finishedAt: finishedAt,
         transport: .curlFallback
     )
+}
+
+private final class CurlProcessBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedProcess: Process?
+
+    var process: Process? {
+        get { lock.withLock { storedProcess } }
+        set { lock.withLock { storedProcess = newValue } }
+    }
+
+    func terminate() {
+        lock.withLock {
+            guard let storedProcess, storedProcess.isRunning else { return }
+            storedProcess.terminate()
+        }
+    }
 }
 
 private func parseCurlResponseHeaders(_ headerString: String) -> (statusCode: Int, headers: [String: String]) {

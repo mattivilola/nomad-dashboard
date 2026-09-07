@@ -5,6 +5,10 @@ import SwiftUI
 
 public struct DashboardPanelView: View {
     private let snapshot: DashboardSnapshot
+    private let overviewContent: AnyView?
+    private let sectionActivity: [DashboardDataSection: DashboardSectionActivity]
+    private let resourcePolicy: DashboardResourcePolicy
+    private let retrySection: (DashboardDataSection) -> Void
     private let refreshActivity: DashboardRefreshActivity
     private let settings: AppSettings
     private let dashboardCardOrder: [DashboardCardID]
@@ -50,6 +54,10 @@ public struct DashboardPanelView: View {
 
     public init(
         snapshot: DashboardSnapshot,
+        overviewContent: AnyView? = nil,
+        sectionActivity: [DashboardDataSection: DashboardSectionActivity] = [:],
+        resourcePolicy: DashboardResourcePolicy = .normal,
+        retrySection: @escaping (DashboardDataSection) -> Void = { _ in },
         refreshActivity: DashboardRefreshActivity,
         settings: AppSettings,
         dashboardCardOrder: [DashboardCardID],
@@ -89,6 +97,10 @@ public struct DashboardPanelView: View {
         onWeatherForecastExpandedChange: @escaping (Bool) -> Void = { _ in }
     ) {
         self.snapshot = snapshot
+        self.overviewContent = overviewContent
+        self.sectionActivity = sectionActivity
+        self.resourcePolicy = resourcePolicy
+        self.retrySection = retrySection
         self.refreshActivity = refreshActivity
         self.settings = settings
         self.dashboardCardOrder = DashboardCardID.sanitizedOrder(dashboardCardOrder)
@@ -140,7 +152,11 @@ public struct DashboardPanelView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         header
-                        summaryStrip
+                        if let overviewContent {
+                            overviewContent
+                        } else {
+                            summaryStrip
+                        }
                         orderedCardSections(viewportHeight: viewport.size.height)
                         footer
                     }
@@ -151,6 +167,7 @@ public struct DashboardPanelView: View {
             }
         }
         .frame(width: 430, height: 640)
+        .environment(\.nomadLowImpact, resourcePolicy.reducesBackgroundWork)
         .onChange(of: dashboardCardOrder) { _, newValue in
             let sanitizedOrder = DashboardCardID.sanitizedOrder(newValue)
             guard resolvedCardOrder != sanitizedOrder else {
@@ -348,7 +365,24 @@ public struct DashboardPanelView: View {
             cardID: item.cardID,
             renderWidth: item.renderWidth
         ) {
-            dashboardCard(for: item.cardID, widthMode: item.preferredWidthMode, viewportHeight: viewportHeight)
+            VStack(alignment: .leading, spacing: 5) {
+                dashboardCard(for: item.cardID, widthMode: item.preferredWidthMode, viewportHeight: viewportHeight)
+                if let section = dataSection(for: item.cardID), let state = sectionActivity[section] {
+                    DashboardCardRefreshFooter(section: section, state: state, isOffline: resourcePolicy.isOffline) { retrySection(section) }
+                }
+            }
+        }
+    }
+
+    private func dataSection(for card: DashboardCardID) -> DashboardDataSection? {
+        switch card {
+        case .travelContext: .publicIP
+        case .localInfo: .localInfo
+        case .fuelPrices: .fuel
+        case .emergencyCare: .emergencyCare
+        case .travelAlerts: .travelAlerts
+        case .weather: .weather
+        default: nil
         }
     }
 
@@ -380,10 +414,10 @@ public struct DashboardPanelView: View {
         }
     }
 
-    private func interactiveCard<Content: View>(
+    private func interactiveCard(
         cardID: DashboardCardID,
         renderWidth: DashboardCardRenderWidth,
-        @ViewBuilder content: @escaping () -> Content
+        @ViewBuilder content: @escaping () -> some View
     ) -> some View {
         DashboardCardDropTarget(
             isHighlighted: activeDropCardID == cardID,
@@ -1606,14 +1640,13 @@ public struct DashboardPanelView: View {
     private func timeTrackingBucketTitle(_ bucket: TimeTrackingBucket) -> String {
         switch bucket {
         case let .project(id):
-            return timeTrackingDashboardState.activeProjects.first(where: { $0.id == id })?.trimmedName ?? "Archived Project"
+            timeTrackingDashboardState.activeProjects.first(where: { $0.id == id })?.trimmedName ?? "Archived Project"
         case .other:
-            return "Other"
+            "Other"
         case .unallocated:
-            return "Unallocated"
+            "Unallocated"
         }
     }
-
 }
 
 enum TimeTrackingDashboardActionRole {
@@ -1630,12 +1663,11 @@ struct TimeTrackingDashboardActionButtonStyle: Equatable {
         role: TimeTrackingDashboardActionRole,
         isEnabled: Bool
     ) -> TimeTrackingDashboardActionButtonStyle {
-        let foreground: Color
-        switch role {
+        let foreground: Color = switch role {
         case .highlighted:
-            foreground = NomadTheme.teal
+            NomadTheme.teal
         case .neutral:
-            foreground = NomadTheme.primaryText
+            NomadTheme.primaryText
         }
 
         return TimeTrackingDashboardActionButtonStyle(
@@ -1977,34 +2009,24 @@ private struct DashboardCardRowItem: Identifiable {
     let preferredWidthMode: DashboardCardWidthMode
     let renderWidth: DashboardCardRenderWidth
 
-    var id: DashboardCardID { cardID }
+    var id: DashboardCardID {
+        cardID
+    }
 }
 
 private struct DashboardCardRow: Identifiable {
     let items: [DashboardCardRowItem]
 
     var id: String {
-        items.map { $0.cardID.rawValue }.joined(separator: "|")
+        items.map(\.cardID.rawValue).joined(separator: "|")
     }
 }
 
 private struct DashboardCardDropTarget<Content: View>: View {
     let isHighlighted: Bool
-    let content: () -> Content
+    @ViewBuilder let content: () -> Content
     let onDrop: ([String], CGPoint, CGSize) -> Bool
     let isTargeted: (Bool) -> Void
-
-    init(
-        isHighlighted: Bool,
-        @ViewBuilder content: @escaping () -> Content,
-        onDrop: @escaping ([String], CGPoint, CGSize) -> Bool,
-        isTargeted: @escaping (Bool) -> Void
-    ) {
-        self.isHighlighted = isHighlighted
-        self.content = content
-        self.onDrop = onDrop
-        self.isTargeted = isTargeted
-    }
 
     var body: some View {
         content()
@@ -2076,7 +2098,7 @@ private struct HeaderActionIcon: View {
     var activity: DashboardRefreshActivity = .idle
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: activity == .idle)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 10.0, paused: activity == .idle)) { context in
             let phase = context.date.timeIntervalSinceReferenceDate
             let rotation = rotationAngle(for: phase)
             let pulse = pulseValue(for: phase)
@@ -2265,11 +2287,10 @@ struct SummaryTilePresentation: Equatable {
     }
 
     init(title: String, power: PowerSectionSnapshot, health: SectionHealth) {
-        let detail: String
-        if let chargePercent = power.snapshot?.chargePercent {
-            detail = "\(NomadFormatters.percentage(chargePercent * 100)) · \(health.reason)"
+        let detail: String = if let chargePercent = power.snapshot?.chargePercent {
+            "\(NomadFormatters.percentage(chargePercent * 100)) · \(health.reason)"
         } else {
-            detail = health.reason
+            health.reason
         }
 
         self.init(title: title, health: health, detail: detail)
@@ -2350,11 +2371,11 @@ private struct SummaryTile: View {
         .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
         .padding(12)
         .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(NomadTheme.tileBackground)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(presentation.tone.tint.opacity(0.18), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(NomadTheme.tileBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(presentation.tone.tint.opacity(0.18), lineWidth: 1)
                 )
         )
     }
@@ -2396,7 +2417,9 @@ private struct HeaderLocationComparisonPresentation: Identifiable {
     let kind: Kind
     let value: String
 
-    var id: Kind { kind }
+    var id: Kind {
+        kind
+    }
 }
 
 private struct HeaderLocationComparisonRow: View {
@@ -2411,7 +2434,7 @@ private struct HeaderLocationComparisonRow: View {
             (
                 Text("\(row.kind.label) ")
                     .fontWeight(.semibold)
-                + Text(row.value)
+                    + Text(row.value)
             )
             .font(.caption)
             .foregroundStyle(NomadTheme.secondaryText)
@@ -2525,46 +2548,44 @@ private struct DetailRow: View {
     }
 
     var body: some View {
-        Group {
-            if isCompact {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(label)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(NomadTheme.tertiaryText)
+        if isCompact {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NomadTheme.tertiaryText)
 
-                    HStack(alignment: .top, spacing: 6) {
-                        Text(value)
-                            .font(.caption)
-                            .foregroundStyle(NomadTheme.primaryText)
-                            .lineLimit(compactLineLimit)
-                            .minimumScaleFactor(0.8)
-                            .truncationMode(compactLineLimit == 1 ? .middle : .tail)
+                HStack(alignment: .top, spacing: 6) {
+                    Text(value)
+                        .font(.caption)
+                        .foregroundStyle(NomadTheme.primaryText)
+                        .lineLimit(compactLineLimit)
+                        .minimumScaleFactor(0.8)
+                        .truncationMode(compactLineLimit == 1 ? .middle : .tail)
 
-                        Spacer(minLength: 0)
+                    Spacer(minLength: 0)
 
-                        if let action {
-                            DetailRowActionButton(action: action)
-                        }
+                    if let action {
+                        DetailRowActionButton(action: action)
                     }
                 }
-            } else {
-                HStack(alignment: .top, spacing: 12) {
-                    Text(label)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(NomadTheme.tertiaryText)
+            }
+        } else {
+            HStack(alignment: .top, spacing: 12) {
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NomadTheme.tertiaryText)
 
-                    Spacer(minLength: 12)
+                Spacer(minLength: 12)
 
-                    HStack(alignment: .top, spacing: 6) {
-                        Text(value)
-                            .font(.caption)
-                            .foregroundStyle(NomadTheme.primaryText)
-                            .multilineTextAlignment(.trailing)
-                            .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top, spacing: 6) {
+                    Text(value)
+                        .font(.caption)
+                        .foregroundStyle(NomadTheme.primaryText)
+                        .multilineTextAlignment(.trailing)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                        if let action {
-                            DetailRowActionButton(action: action)
-                        }
+                    if let action {
+                        DetailRowActionButton(action: action)
                     }
                 }
             }
@@ -3035,7 +3056,9 @@ private enum DashboardScrollCoordinateSpace {
 }
 
 private struct FuelCardFramePreferenceKey: PreferenceKey {
-    static var defaultValue: CGRect { .null }
+    static var defaultValue: CGRect {
+        .null
+    }
 
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
         let nextFrame = nextValue()
@@ -3210,6 +3233,7 @@ private struct FuelPricesSectionView: View {
     let openGoogleMapsAction: (FuelStationMapDestination) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.nomadLowImpact) private var lowImpact
     @State private var cardFrame: CGRect = .null
 
     var body: some View {
@@ -3217,7 +3241,7 @@ private struct FuelPricesSectionView: View {
             frame: cardFrame,
             viewportHeight: viewportHeight,
             visualMode: presentation.visualMode,
-            reduceMotion: reduceMotion
+            reduceMotion: reduceMotion || lowImpact
         )
 
         DashboardCard(
@@ -3344,9 +3368,9 @@ private struct FuelCardBackdrop: View {
     private var resolvedStaticPhase: Double {
         switch visualMode {
         case .animatedCamper:
-            return lastResolvedPhase
+            lastResolvedPhase
         case .ambient, .staticScene:
-            return 0.18
+            0.18
         }
     }
 }
@@ -3733,9 +3757,9 @@ private enum TravelAlertCompactDisplayRow: Identifiable {
     var id: String {
         switch self {
         case let .alert(row):
-            return row.id.rawValue
+            row.id.rawValue
         case let .overflow(count):
-            return "overflow-\(count)"
+            "overflow-\(count)"
         }
     }
 }
@@ -4072,39 +4096,37 @@ private struct BadgeView: View {
     var isCompact: Bool = false
 
     var body: some View {
-        Group {
-            if isCompact {
-                Image(systemName: badge.symbolName)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(badge.tint)
-                    .frame(width: 28, height: 28)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(badge.tint.opacity(0.12))
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(badge.tint.opacity(0.18), lineWidth: 1)
-                    )
-                    .help(badge.title)
-                    .accessibilityLabel(badge.title)
-            } else {
-                Label(badge.title, systemImage: badge.symbolName)
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .foregroundStyle(badge.tint)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(badge.tint.opacity(0.12))
-                    )
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(badge.tint.opacity(0.18), lineWidth: 1)
-                    )
-            }
+        if isCompact {
+            Image(systemName: badge.symbolName)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(badge.tint)
+                .frame(width: 28, height: 28)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(badge.tint.opacity(0.12))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(badge.tint.opacity(0.18), lineWidth: 1)
+                )
+                .help(badge.title)
+                .accessibilityLabel(badge.title)
+        } else {
+            Label(badge.title, systemImage: badge.symbolName)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .foregroundStyle(badge.tint)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(badge.tint.opacity(0.12))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(badge.tint.opacity(0.18), lineWidth: 1)
+                )
         }
     }
 }
@@ -4455,21 +4477,7 @@ private struct ForecastDisclosureSection<Content: View>: View {
     let summary: String
     let isExpanded: Bool
     let action: () -> Void
-    let content: Content
-
-    init(
-        title: String,
-        summary: String,
-        isExpanded: Bool,
-        action: @escaping () -> Void,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.title = title
-        self.summary = summary
-        self.isExpanded = isExpanded
-        self.action = action
-        self.content = content()
-    }
+    @ViewBuilder let content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -4887,7 +4895,7 @@ struct LocalInfoSectionPresentation {
     private static func publicHolidayRow(from status: LocalHolidayStatus) -> LocalInfoRowModel {
         switch status.state {
         case .current:
-            return LocalInfoRowModel(
+            LocalInfoRowModel(
                 id: "public-holiday",
                 title: "Public Holiday",
                 value: "Today",
@@ -4899,28 +4907,28 @@ struct LocalInfoSectionPresentation {
                 )
             )
         case .tomorrow:
-            return LocalInfoRowModel(
+            LocalInfoRowModel(
                 id: "public-holiday",
                 title: "Public Holiday",
                 value: "Tomorrow",
                 detail: status.nextPeriod.map { "\($0.name) · \(formattedDay($0.startDate))" } ?? "Holiday tomorrow"
             )
         case .upcoming:
-            return LocalInfoRowModel(
+            LocalInfoRowModel(
                 id: "public-holiday",
                 title: "Public Holiday",
                 value: "Next",
                 detail: status.nextPeriod.map { "\($0.name) · \(formattedDay($0.startDate))" } ?? "Upcoming holiday"
             )
         case .unavailable:
-            return LocalInfoRowModel(
+            LocalInfoRowModel(
                 id: "public-holiday",
                 title: "Public Holiday",
                 value: "Unavailable",
                 detail: status.note ?? "Holiday data is unavailable right now."
             )
         case .unsupported:
-            return LocalInfoRowModel(
+            LocalInfoRowModel(
                 id: "public-holiday",
                 title: "Public Holiday",
                 value: "Not Available",
@@ -4932,7 +4940,7 @@ struct LocalInfoSectionPresentation {
     private static func schoolHolidayRow(from status: LocalHolidayStatus) -> LocalInfoRowModel {
         switch status.state {
         case .current:
-            return LocalInfoRowModel(
+            LocalInfoRowModel(
                 id: "school-holiday",
                 title: "School Break",
                 value: "On Break",
@@ -4944,28 +4952,28 @@ struct LocalInfoSectionPresentation {
                 )
             )
         case .tomorrow:
-            return LocalInfoRowModel(
+            LocalInfoRowModel(
                 id: "school-holiday",
                 title: "School Break",
                 value: "Tomorrow",
                 detail: status.nextPeriod.map { "\($0.name) · \(formattedRange($0))" } ?? "School break starts tomorrow"
             )
         case .upcoming:
-            return LocalInfoRowModel(
+            LocalInfoRowModel(
                 id: "school-holiday",
                 title: "School Break",
                 value: "Next Break",
                 detail: status.nextPeriod.map { "\($0.name) · \(formattedRange($0))" } ?? "Upcoming school break"
             )
         case .unavailable:
-            return LocalInfoRowModel(
+            LocalInfoRowModel(
                 id: "school-holiday",
                 title: "School Break",
                 value: "Unavailable",
                 detail: status.note ?? "School-break data is unavailable right now."
             )
         case .unsupported:
-            return LocalInfoRowModel(
+            LocalInfoRowModel(
                 id: "school-holiday",
                 title: "School Break",
                 value: "Not Available",

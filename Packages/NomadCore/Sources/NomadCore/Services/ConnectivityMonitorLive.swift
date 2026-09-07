@@ -5,18 +5,20 @@ public protocol PathAvailabilityReading: Sendable {
     func currentPathAvailable() -> Bool?
 }
 
-public final class NWPathAvailabilityReader: PathAvailabilityReading, @unchecked Sendable {
+public final class NWPathAvailabilityReader: PathAvailabilityReading, ResourceConditionsReading, @unchecked Sendable {
     private let monitor: NWPathMonitor
     private let queue: DispatchQueue
     private let lock = NSLock()
     private var latestPathAvailable: Bool?
+    private var isExpensive = false
+    private var isConstrained = false
 
     public init(monitor: NWPathMonitor = NWPathMonitor()) {
         self.monitor = monitor
         queue = DispatchQueue(label: "NomadDashboard.ConnectivityPathMonitor")
 
         monitor.pathUpdateHandler = { [weak self] path in
-            self?.store(pathAvailable: path.status == .satisfied)
+            self?.store(pathAvailable: path.status == .satisfied, isExpensive: path.isExpensive, isConstrained: path.isConstrained)
         }
         monitor.start(queue: queue)
     }
@@ -34,9 +36,23 @@ public final class NWPathAvailabilityReader: PathAvailabilityReading, @unchecked
         return latestPathAvailable
     }
 
-    private func store(pathAvailable: Bool) {
+    public func currentConditions() -> ResourceConditions {
+        lock.lock()
+        defer { lock.unlock() }
+        return ResourceConditions(
+            pathAvailable: latestPathAvailable,
+            isExpensive: isExpensive,
+            isConstrained: isConstrained,
+            isLowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
+            isThermallyLimited: ProcessInfo.processInfo.thermalState == .serious || ProcessInfo.processInfo.thermalState == .critical
+        )
+    }
+
+    private func store(pathAvailable: Bool, isExpensive: Bool, isConstrained: Bool) {
         lock.lock()
         latestPathAvailable = pathAvailable
+        self.isExpensive = isExpensive
+        self.isConstrained = isConstrained
         lock.unlock()
     }
 }
@@ -64,6 +80,7 @@ public actor LiveConnectivityMonitor: ConnectivityMonitor {
     }
 
     public func currentSnapshot() async -> ConnectivitySnapshot {
+        guard !Task.isCancelled else { return cachedSnapshot }
         let now = nowProvider()
         let pathAvailable = pathReader.currentPathAvailable()
 
@@ -100,6 +117,7 @@ public actor LiveConnectivityMonitor: ConnectivityMonitor {
 
     private func canReachInternet() async -> Bool {
         for endpoint in endpoints {
+            guard !Task.isCancelled else { return false }
             if await connector.measureLatency(to: endpoint, timeout: 1.5) != nil {
                 return true
             }

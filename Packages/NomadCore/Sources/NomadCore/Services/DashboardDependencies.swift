@@ -24,6 +24,8 @@ public struct DashboardDependencies: Sendable {
     public let visitedCountryDaysStore: any VisitedCountryDaysStore
     public let historyStore: any MetricHistoryStore
     public let updateCoordinator: any UpdateCoordinator
+    public let resourceConditions: any ResourceConditionsReading
+    public let offlineCache: OfflineDashboardCache?
 
     public init(
         throughputMonitor: any ThroughputMonitor,
@@ -48,7 +50,9 @@ public struct DashboardDependencies: Sendable {
         visitedPlaceEventsStore: any VisitedPlaceEventsStore,
         visitedCountryDaysStore: any VisitedCountryDaysStore,
         historyStore: any MetricHistoryStore,
-        updateCoordinator: any UpdateCoordinator
+        updateCoordinator: any UpdateCoordinator,
+        resourceConditions: any ResourceConditionsReading = DefaultResourceConditionsReader(),
+        offlineCache: OfflineDashboardCache? = nil
     ) {
         self.throughputMonitor = throughputMonitor
         self.connectivityMonitor = connectivityMonitor
@@ -73,6 +77,8 @@ public struct DashboardDependencies: Sendable {
         self.visitedCountryDaysStore = visitedCountryDaysStore
         self.historyStore = historyStore
         self.updateCoordinator = updateCoordinator
+        self.resourceConditions = resourceConditions
+        self.offlineCache = offlineCache
     }
 
     public static func live(
@@ -86,13 +92,21 @@ public struct DashboardDependencies: Sendable {
         updateCoordinator: any UpdateCoordinator
     ) -> DashboardDependencies {
         let latencyEndpoints = latencyHosts.compactMap(LatencyEndpoint.from(hostString:))
-        let publicIPClient = CachedFreeIPAPIClient()
-        let localPriceLevelProvider = LiveLocalPriceLevelProvider(hudUserAPIToken: hudUserAPIToken)
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = 15
+        configuration.timeoutIntervalForResource = 30
+        configuration.waitsForConnectivity = false
+        configuration.httpMaximumConnectionsPerHost = 2
+        let session = URLSession(configuration: configuration)
+        let pathReader = NWPathAvailabilityReader()
+        let connector = SharedLatencyConnector()
+        let publicIPClient = CachedFreeIPAPIClient(session: session)
+        let localPriceLevelProvider = LiveLocalPriceLevelProvider(session: session, hudUserAPIToken: hudUserAPIToken)
 
         return DashboardDependencies(
             throughputMonitor: LiveThroughputMonitor(),
-            connectivityMonitor: LiveConnectivityMonitor(endpoints: latencyEndpoints),
-            latencyProbe: LiveLatencyProbe(endpoints: latencyEndpoints),
+            connectivityMonitor: LiveConnectivityMonitor(endpoints: latencyEndpoints, pathReader: pathReader, connector: connector),
+            latencyProbe: LiveLatencyProbe(endpoints: latencyEndpoints, connector: connector),
             powerMonitor: LivePowerMonitor(),
             wifiMonitor: LiveWiFiMonitor(),
             vpnStatusProvider: LiveVPNStatusProvider(),
@@ -100,16 +114,21 @@ public struct DashboardDependencies: Sendable {
             publicIPLocationProvider: CachedIPLocationProvider(client: publicIPClient),
             reverseGeocodingProvider: CachedReverseGeocodingProvider(),
             weatherProvider: LiveWeatherProvider(),
-            localInfoProvider: LiveLocalInfoProvider(localPriceLevelProvider: localPriceLevelProvider),
-            fuelPriceProvider: LiveEuropeanFuelPriceProvider(tankerkonigAPIKey: tankerkonigAPIKey),
+            localInfoProvider: LiveLocalInfoProvider(session: session, localPriceLevelProvider: localPriceLevelProvider),
+            fuelPriceProvider: LiveEuropeanFuelPriceProvider(
+                session: session,
+                tankerkonigAPIKey: tankerkonigAPIKey,
+                sourceCacheDirectory: applicationSupportDirectory.appendingPathComponent("FuelSourceCache")
+            ),
             emergencyCareProvider: LiveEmergencyCareProvider(),
-            marineProvider: LiveOpenMeteoMarineProvider(),
+            marineProvider: LiveOpenMeteoMarineProvider(session: session),
             neighborCountryResolver: BundledNeighborCountryResolver(),
             travelAdvisoryProvider: SmartravellerAdvisoryProvider(
+                session: session,
                 browserFetcher: smartravellerBrowserFetcher
             ),
             travelWeatherAlertsProvider: WeatherKitAlertProvider(),
-            regionalSecurityProvider: ReliefWebSecurityProvider(appName: reliefWebAppName),
+            regionalSecurityProvider: ReliefWebSecurityProvider(session: session, appName: reliefWebAppName),
             visitedPlacesStore: FileVisitedPlacesStore(
                 fileURL: applicationSupportDirectory.appendingPathComponent("visited-places.json")
             ),
@@ -123,7 +142,9 @@ public struct DashboardDependencies: Sendable {
                 fileURL: applicationSupportDirectory.appendingPathComponent("metric-history.json"),
                 retentionHours: historyRetentionHours
             ),
-            updateCoordinator: updateCoordinator
+            updateCoordinator: updateCoordinator,
+            resourceConditions: pathReader,
+            offlineCache: OfflineDashboardCache(fileURL: applicationSupportDirectory.appendingPathComponent("offline-essentials.json"))
         )
     }
 }

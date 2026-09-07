@@ -6,6 +6,9 @@ import NomadUI
 import SwiftUI
 
 struct DashboardRootView: View {
+    @ObservedObject var lifeController: NomadLifeController
+    let runtimeCoordinator: NomadRuntimeCoordinator
+    @State private var showsOfflineEssentials = false
     @ObservedObject var snapshotStore: DashboardSnapshotStore
     @ObservedObject var settingsStore: AppSettingsStore
     @ObservedObject var locationStore: CurrentLocationStore
@@ -26,6 +29,19 @@ struct DashboardRootView: View {
     var body: some View {
         DashboardPanelView(
             snapshot: snapshotStore.snapshot,
+            overviewContent: AnyView(NomadWorkReadinessView(
+                snapshot: snapshotStore.snapshot,
+                policy: snapshotStore.resourcePolicy,
+                homeTimeZoneIdentifier: lifeController.preferences.homeTimeZoneIdentifier,
+                dataUsageMode: settingsStore.settings.dataUsageMode,
+                changeDataUsage: { settingsStore.settings.dataUsageMode = $0 },
+                openDiary: { openDashboardWindow(.workplaceDiary) },
+                openPreferences: { openDashboardWindow(.nomadPreferences) },
+                openOfflineEssentials: { showsOfflineEssentials = true }
+            )),
+            sectionActivity: snapshotStore.sectionActivity,
+            resourcePolicy: snapshotStore.resourcePolicy,
+            retrySection: { section in Task { await snapshotStore.refresh(section: section) } },
             refreshActivity: snapshotStore.refreshActivity,
             settings: settingsStore.settings,
             dashboardCardOrder: settingsStore.settings.dashboardCardOrder,
@@ -69,22 +85,11 @@ struct DashboardRootView: View {
             onWeatherForecastExpandedChange: persistWeatherForecastExpanded
         )
         .task {
-            snapshotStore.setCurrentLocation(locationStore.currentLocation)
-            snapshotStore.setDashboardInterfaceActive(true)
-            snapshotStore.start()
-            if settingsStore.settings.usesDeviceLocation {
+            if settingsStore.settings.usesDeviceLocation || lifeController.preferences.isAutomaticCollectionEnabled {
                 locationStore.prepareForWeather()
             }
         }
-        .onReceive(locationStore.$currentLocation) { location in
-            snapshotStore.setCurrentLocation(location)
-
-            guard settingsStore.settings.usesDeviceLocation else {
-                return
-            }
-
-            scheduleLocationRefresh(for: location)
-        }
+        .sheet(isPresented: $showsOfflineEssentials) { OfflineEssentialsView(store: snapshotStore) }
         .sheet(item: $selectedFuelStation) { station in
             FuelStationPreviewSheet(
                 station: station,
@@ -99,10 +104,10 @@ struct DashboardRootView: View {
         }
         .onDisappear {
             locationRefreshTask?.cancel()
-            snapshotStore.setDashboardInterfaceActive(false)
+            runtimeCoordinator.setVisible(false, surface: "dashboard")
         }
         .onAppear {
-            snapshotStore.setDashboardInterfaceActive(true)
+            runtimeCoordinator.setVisible(true, surface: "dashboard")
             analytics.recordPrimaryUIOpened(analyticsEnabled: settingsStore.settings.shareAnonymousAnalytics)
         }
     }
@@ -194,7 +199,7 @@ struct DashboardRootView: View {
     }
 
     private func quitApplication() {
-        NSApp.terminate(nil)
+        runtimeCoordinator.quitApplication()
     }
 
     private func persistDashboardCardOrder(_ cardOrder: [DashboardCardID]) {
@@ -426,7 +431,6 @@ struct MenuBarStatusLabel: View {
         }
     }
 
-    @ViewBuilder
     private func statusIcon(for presentation: MenuBarStatusPresentation) -> some View {
         StatusSymbolView(
             systemName: presentation.symbolName,

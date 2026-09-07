@@ -439,7 +439,7 @@ public extension [VisitedPlace] {
 
 public extension [VisitedPlaceEvent] {
     var availableYears: [Int] {
-        Set(map { $0.observedDay.year }).sorted(by: >)
+        Set(map(\.observedDay.year)).sorted(by: >)
     }
 
     func events(for year: Int) -> [VisitedPlaceEvent] {

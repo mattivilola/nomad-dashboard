@@ -96,7 +96,7 @@ enum SmartravellerProviderError: Error, Equatable, TravelAlertDiagnosticError, C
 
                 return false
             }),
-               case let .unexpectedStatus(statusCode) = firstUnexpectedStatus.kind
+                case let .unexpectedStatus(statusCode) = firstUnexpectedStatus.kind
             {
                 return "Smartraveller returned HTTP \(statusCode)."
             }
@@ -655,7 +655,7 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
     private static func responseSnippet(from data: Data) -> String? {
         guard
             let text = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
+            .trimmingCharacters(in: .whitespacesAndNewlines),
             text.isEmpty == false
         else {
             return nil

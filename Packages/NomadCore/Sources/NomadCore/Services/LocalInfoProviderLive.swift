@@ -601,7 +601,7 @@ public actor LiveLocalInfoProvider: LocalInfoProvider, LocalPriceLevelProviderCo
                 values.insert(normalizedKey(for: String(suffix)))
             }
         }
-        subdivision.name.forEach { value in
+        for value in subdivision.name {
             values.insert(normalizedKey(for: value.text))
         }
         return values

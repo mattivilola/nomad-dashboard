@@ -1,6 +1,6 @@
 import Foundation
 
-public actor FileVisitedCountryDaysStore: VisitedCountryDaysStore {
+public actor FileVisitedCountryDaysStore: EditableVisitedCountryDaysStore {
     private let fileURL: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
@@ -21,7 +21,7 @@ public actor FileVisitedCountryDaysStore: VisitedCountryDaysStore {
     }
 
     public func loadAll() async throws -> [VisitedCountryDay] {
-        try loadPersistedDays().sorted { $0.day < $1.day }
+        try effectiveEntries(from: loadState()).sorted { $0.day < $1.day }
     }
 
     public func record(_ input: VisitedCountryDayInput) async throws {
@@ -29,7 +29,8 @@ public actor FileVisitedCountryDaysStore: VisitedCountryDaysStore {
             return
         }
 
-        var entries = try loadPersistedDays().sorted { $0.day < $1.day }
+        var state = try loadState()
+        var entries = state.observations.sorted { $0.day < $1.day }
 
         if let existingIndex = entries.firstIndex(where: { $0.day == entry.day }) {
             let existingEntry = entries[existingIndex]
@@ -42,7 +43,22 @@ public actor FileVisitedCountryDaysStore: VisitedCountryDaysStore {
             entries.append(entry)
         }
 
-        try persist(rebuiltEntries(from: entries))
+        state.observations = entries
+        try persist(state)
+    }
+
+    public func setOverride(_ override: VisitedCountryDayOverride) async throws {
+        try validate(override)
+        var state = try loadState()
+        state.overrides.removeAll { $0.day == override.day }
+        state.overrides.append(override)
+        try persist(state)
+    }
+
+    public func restoreObservation(for day: VisitedCountryDayStamp) async throws {
+        var state = try loadState()
+        state.overrides.removeAll { $0.day == day }
+        try persist(state)
     }
 
     public func reset() async throws {
@@ -78,7 +94,7 @@ public actor FileVisitedCountryDaysStore: VisitedCountryDaysStore {
                 previousEntry.countryCode == nil
                     && currentEntry.countryCode == nil
                     && previousEntry.country.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-                        == currentEntry.country.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                    == currentEntry.country.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             )
 
         let previousCountryCount = usesSameCountry ? gapDays : (gapDays + 1) / 2
@@ -99,9 +115,28 @@ public actor FileVisitedCountryDaysStore: VisitedCountryDaysStore {
         }
     }
 
-    private func rebuiltEntries(from entries: [VisitedCountryDay]) -> [VisitedCountryDay] {
-        let observedEntries = entries
-            .filter { $0.isInferred == false }
+    private func effectiveEntries(from state: PersistedState) -> [VisitedCountryDay] {
+        var anchorEntries: [VisitedCountryDayStamp: VisitedCountryDay] = [:]
+        for observation in state.observations where observation.isInferred == false {
+            // A malformed legacy file can contain duplicate days. Keep its first
+            // observation, matching the normal recorder's first-write behavior.
+            if anchorEntries[observation.day] == nil {
+                anchorEntries[observation.day] = observation
+            }
+        }
+
+        for override in state.overrides {
+            anchorEntries[override.day] = VisitedCountryDay(
+                day: override.day,
+                country: override.country,
+                countryCode: override.countryCode,
+                source: .deviceLocation,
+                isInferred: false,
+                isManual: true
+            )
+        }
+
+        let observedEntries = anchorEntries.values
             .sorted { $0.day < $1.day }
 
         guard let firstEntry = observedEntries.first else {
@@ -164,21 +199,52 @@ public actor FileVisitedCountryDaysStore: VisitedCountryDaysStore {
         ))
     }
 
-    private func persist(_ entries: [VisitedCountryDay]) throws {
+    private func persist(_ state: PersistedState) throws {
         try ensureDirectory()
-        let data = try encoder.encode(entries)
+        let data = try encoder.encode(state)
         try data.write(to: fileURL, options: [.atomic])
     }
 
-    private func loadPersistedDays() throws -> [VisitedCountryDay] {
+    private func loadState() throws -> PersistedState {
         try ensureDirectory()
 
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            return []
+            return .init(observations: [], overrides: [])
         }
 
         let data = try Data(contentsOf: fileURL)
-        return try decoder.decode([VisitedCountryDay].self, from: data)
+        if let state = try? decoder.decode(PersistedState.self, from: data) {
+            return state
+        }
+
+        // Version 1 stored the derived list directly. Retaining only observed entries
+        // keeps its history while letting this version regenerate estimates.
+        let legacyEntries = try decoder.decode([VisitedCountryDay].self, from: data)
+        return .init(
+            observations: legacyEntries.filter { $0.isInferred == false && $0.isManual == false },
+            overrides: []
+        )
+    }
+
+    private func validate(_ override: VisitedCountryDayOverride) throws {
+        guard let date = date(for: override.day) else {
+            throw VisitedCountryDayStoreError.invalidDay(override.day)
+        }
+        let components = dayCalendar.dateComponents([.year, .month, .day], from: date)
+        guard components.year == override.day.year,
+              components.month == override.day.month,
+              components.day == override.day.day
+        else {
+            throw VisitedCountryDayStoreError.invalidDay(override.day)
+        }
+        guard override.country.isEmpty == false else {
+            throw VisitedCountryDayStoreError.missingCountry
+        }
+        if let countryCode = override.countryCode,
+           countryCode.range(of: "^[A-Z]{2}$", options: .regularExpression) == nil
+        {
+            throw VisitedCountryDayStoreError.invalidCountryCode(countryCode)
+        }
     }
 
     private func ensureDirectory() throws {
@@ -192,5 +258,18 @@ public actor FileVisitedCountryDaysStore: VisitedCountryDaysStore {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
         return calendar
+    }
+
+    private struct PersistedState: Codable {
+        static let currentVersion = 2
+        let version: Int
+        var observations: [VisitedCountryDay]
+        var overrides: [VisitedCountryDayOverride]
+
+        init(observations: [VisitedCountryDay], overrides: [VisitedCountryDayOverride]) {
+            version = Self.currentVersion
+            self.observations = observations
+            self.overrides = overrides
+        }
     }
 }

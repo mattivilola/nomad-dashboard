@@ -16,7 +16,7 @@ struct FileVisitedPlaceEventsStoreTests {
         #expect(values.first?.countryCode == "FR")
         #expect(values.first?.firstObservedAt == observedAt)
         #expect(values.first?.lastObservedAt == observedAt)
-        #expect(values.first?.observedDay == .init(year: 2026, month: 1, day: 1))
+        #expect(values.first?.observedDay == .init(year: 2_026, month: 1, day: 1))
     }
 
     @Test
@@ -65,7 +65,7 @@ struct FileVisitedPlaceEventsStoreTests {
         try await store.record(input(city: "Berlin", country: "Germany", countryCode: "DE", observedAt: berlinEvening))
 
         let values = try await store.loadAll()
-        let stops = values.travelStops(for: 2026)
+        let stops = values.travelStops(for: 2_026)
 
         #expect(values.count == 3)
         #expect(stops.map(\.displayName) == ["Berlin, Germany", "Paris, France", "Berlin, Germany"])
@@ -84,24 +84,24 @@ struct FileVisitedPlaceEventsStoreTests {
             country: "Germany",
             countryCode: "DE",
             observedAt: secondObservedAt,
-            day: .init(year: 2026, month: 1, day: 2)
+            day: .init(year: 2_026, month: 1, day: 2)
         ))
 
         let values = try await store.loadAll()
-        let stops = values.travelStops(for: 2026)
+        let stops = values.travelStops(for: 2_026)
         #expect(values.count == 2)
         #expect(stops.count == 1)
         #expect(stops.first?.dayCount == 2)
     }
 
     @Test
-    func buildsSeparateTravelStopsWhenPlaceChanges() async throws {
+    func buildsSeparateTravelStopsWhenPlaceChanges() {
         let events = [
             event(city: "Tarifa", country: "Spain", countryCode: "ES", observedAt: Date(timeIntervalSince1970: 1_767_225_600)),
             event(city: "Paris", country: "France", countryCode: "FR", observedAt: Date(timeIntervalSince1970: 1_767_312_000))
         ]
 
-        let stops = events.travelStops(for: 2026)
+        let stops = events.travelStops(for: 2_026)
 
         #expect(stops.count == 2)
         #expect(stops.map(\.sequenceNumber) == [1, 2])
@@ -121,7 +121,7 @@ struct FileVisitedPlaceEventsStoreTests {
         longitude: Double = 2.3522,
         source: VisitedPlaceSource = .publicIPGeolocation,
         observedAt: Date,
-        day: VisitedCountryDayStamp = .init(year: 2026, month: 1, day: 1)
+        day: VisitedCountryDayStamp = .init(year: 2_026, month: 1, day: 1)
     ) -> VisitedPlaceEventInput {
         VisitedPlaceEventInput(
             city: city,
@@ -152,7 +152,7 @@ struct FileVisitedPlaceEventsStoreTests {
             sources: [.deviceLocation],
             firstObservedAt: observedAt,
             lastObservedAt: observedAt,
-            observedDay: .init(year: 2026, month: 1, day: 1)
+            observedDay: .init(year: 2_026, month: 1, day: 1)
         )
     }
 }

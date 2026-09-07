@@ -6,6 +6,68 @@ import Testing
 @MainActor
 struct DashboardSnapshotStoreTests {
     @Test
+    func localAndIndependentCardsPublishBeforeSuspendedWeather() async throws {
+        let settings = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let weather = HeldWeatherProvider()
+        let store = DashboardSnapshotStore(settingsStore: settings, dependencies: makeDependencies(weatherProvider: weather))
+        store.setCurrentLocation(CLLocation(latitude: 60.17, longitude: 24.94))
+        let task = Task { await store.refresh(manual: true) }
+        try await waitUntil { await weather.hasStarted() }
+        try await waitUntil { store.snapshot.power.snapshot != nil && store.snapshot.travelContext.publicIP != nil }
+        #expect(store.snapshot.weather == nil)
+        #expect(store.snapshot.network.throughput != nil)
+        #expect(store.sectionActivity[.weather]?.isRefreshing == true)
+        await weather.release()
+        await task.value
+        #expect(store.snapshot.weather != nil)
+    }
+
+    @Test
+    func cancellationRejectsLateProviderResult() async throws {
+        let settings = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let weather = HeldWeatherProvider()
+        let store = DashboardSnapshotStore(settingsStore: settings, dependencies: makeDependencies(weatherProvider: weather))
+        let task = Task { await store.refresh(manual: true) }
+        try await waitUntil { await weather.hasStarted() }
+        store.stop()
+        await task.value
+        await weather.release()
+        await Task.yield()
+        #expect(store.snapshot.weather == nil)
+        #expect(store.refreshActivity == .idle)
+        #expect(store.sectionActivity.values.allSatisfy { !$0.isRefreshing })
+    }
+
+    @Test
+    func reopeningUsesFreshProviderCachesWithoutForcingRequests() async throws {
+        let settings = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let ip = RecordingPublicIPProvider()
+        let store = DashboardSnapshotStore(settingsStore: settings, dependencies: makeDependencies(publicIPProvider: ip))
+        await store.refresh(manual: true)
+        store.setDashboardInterfaceActive(false)
+        store.setDashboardInterfaceActive(true)
+        await store.refresh()
+        #expect(await ip.callCount() == 1)
+    }
+
+    @Test
+    func lowDataModeDefersLargeOptionalBackgroundCards() async throws {
+        let settings = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settings.settings.dataUsageMode = .lowData
+        settings.settings.localInfoEnabled = true
+        settings.settings.fuelPricesEnabled = true
+        let store = DashboardSnapshotStore(settingsStore: settings, dependencies: makeDependencies())
+        store.setCurrentLocation(CLLocation(latitude: 60.17, longitude: 24.94))
+        await store.refresh()
+        #expect(store.resourcePolicy.isLowData)
+        #expect(store.snapshot.weather != nil)
+        #expect(store.snapshot.fuelPrices == nil)
+        #expect(store.snapshot.localInfo == nil)
+        await store.refresh(section: .localInfo)
+        #expect(store.snapshot.localInfo != nil)
+    }
+
+    @Test
     func refreshBuildsSnapshotFromDependencies() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = true
@@ -287,7 +349,7 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
-    func overlappingRefreshesCoalesceIntoSingleManualFollowUp() async throws {
+    func overlappingRefreshesShareCurrentWorkWithoutForcedFollowUp() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         let throughputMonitor = SlowThroughputMonitor()
         let publicIPProvider = RecordingPublicIPProvider()
@@ -316,8 +378,8 @@ struct DashboardSnapshotStoreTests {
             await task.value
         }
 
-        #expect(await throughputMonitor.callCount() == 2)
-        #expect(await publicIPProvider.callCount() == 2)
+        #expect(await throughputMonitor.callCount() == 1)
+        #expect(await publicIPProvider.callCount() == 1)
     }
 
     @Test
@@ -416,10 +478,10 @@ struct DashboardSnapshotStoreTests {
     func loadsVisitedCountryDayYearsAndSummary() async throws {
         let settingsStore = try AppSettingsStore(defaults: isolatedDefaults())
         let visitedCountryDaysStore = InMemoryVisitedCountryDaysStore(values: [
-            .init(day: .init(year: 2025, month: 12, day: 30), country: "Spain", countryCode: "ES", source: .publicIPGeolocation, isInferred: false),
-            .init(day: .init(year: 2026, month: 1, day: 1), country: "Finland", countryCode: "FI", source: .deviceLocation, isInferred: false),
-            .init(day: .init(year: 2026, month: 1, day: 2), country: "Finland", countryCode: "FI", source: .deviceLocation, isInferred: true),
-            .init(day: .init(year: 2026, month: 1, day: 3), country: "Sweden", countryCode: "SE", source: .deviceLocation, isInferred: false)
+            .init(day: .init(year: 2_025, month: 12, day: 30), country: "Spain", countryCode: "ES", source: .publicIPGeolocation, isInferred: false),
+            .init(day: .init(year: 2_026, month: 1, day: 1), country: "Finland", countryCode: "FI", source: .deviceLocation, isInferred: false),
+            .init(day: .init(year: 2_026, month: 1, day: 2), country: "Finland", countryCode: "FI", source: .deviceLocation, isInferred: true),
+            .init(day: .init(year: 2_026, month: 1, day: 3), country: "Sweden", countryCode: "SE", source: .deviceLocation, isInferred: false)
         ])
 
         let store = DashboardSnapshotStore(
@@ -431,8 +493,8 @@ struct DashboardSnapshotStoreTests {
             store.visitedCountryDays.count == 4
         }
 
-        #expect(store.visitedCountryDayYears == [2026, 2025])
-        let summary = store.visitedCountryDaySummary(for: 2026)
+        #expect(store.visitedCountryDayYears == [2_026, 2_025])
+        let summary = store.visitedCountryDaySummary(for: 2_026)
         #expect(summary?.totalTrackedDays == 3)
         #expect(summary?.items.map(\.countryCode) == ["FI", "SE"])
         #expect(summary?.items.map(\.dayCount) == [2, 1])
@@ -1125,9 +1187,34 @@ struct DashboardSnapshotStoreTests {
         settingsStore.settings.surfSpotLatitude = 60.1699
         settingsStore.settings.surfSpotLongitude = 24.9384
 
-        try await waitForSettingsPropagation()
-        #expect(await marineProvider.callCount() >= 1)
+        try await waitUntil { await marineProvider.callCount() >= 1 }
         #expect(store.snapshot.marine?.spotName == "Helsinki Beach")
+    }
+
+    @Test
+    func staleDeviceLocationIsNotReverseGeocodedOrRecordedAsCurrent() async throws {
+        let reverseGeocoder = RecordingReverseGeocodingProvider()
+        let dependencies = makeDependencies(
+            reverseGeocodingProvider: reverseGeocoder,
+            historyStore: InMemoryHistoryStore()
+        )
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.publicIPGeolocationEnabled = false
+        let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
+        let staleLocation = CLLocation(
+            coordinate: CLLocationCoordinate2D(latitude: 60.1699, longitude: 24.9384),
+            altitude: 0,
+            horizontalAccuracy: 10,
+            verticalAccuracy: 10,
+            timestamp: Date().addingTimeInterval(-16 * 60)
+        )
+        store.setCurrentLocation(staleLocation)
+
+        await store.refresh(manual: true)
+
+        #expect(await reverseGeocoder.callCount() == 0)
+        #expect(store.snapshot.travelContext.deviceLocation == nil)
+        #expect(store.visitedPlaces.isEmpty)
     }
 
     @Test
@@ -1509,7 +1596,7 @@ private actor InMemoryVisitedCountryDaysStore: VisitedCountryDaysStore {
                     previous.countryCode == nil
                         && current.countryCode == nil
                         && previous.country.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-                            == current.country.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                        == current.country.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
                 )
             let previousCountryCount = usesSameCountry ? gapDays : (gapDays + 1) / 2
 
@@ -1724,6 +1811,19 @@ private struct FixedReverseGeocodingProvider: ReverseGeocodingProvider {
             countryCode: "FI",
             timeZoneIdentifier: "Europe/Helsinki"
         )
+    }
+}
+
+private actor RecordingReverseGeocodingProvider: ReverseGeocodingProvider {
+    private var calls = 0
+
+    func details(for location: CLLocation) async throws -> ReverseGeocodedLocation {
+        calls += 1
+        return try await FixedReverseGeocodingProvider().details(for: location)
+    }
+
+    func callCount() -> Int {
+        calls
     }
 }
 
@@ -2460,5 +2560,28 @@ private actor RecordingUpdateCoordinator: UpdateCoordinator {
 
     func automaticChecksHistory() -> [Bool] {
         history
+    }
+}
+
+private actor HeldWeatherProvider: WeatherProvider {
+    private var continuation: CheckedContinuation<WeatherSnapshot, Error>?
+    private var started = false
+    func hasStarted() -> Bool {
+        started
+    }
+
+    func weather(for coordinate: CLLocationCoordinate2D?) async throws -> WeatherSnapshot {
+        started = true
+        return try await withCheckedThrowingContinuation { continuation = $0 }
+    }
+
+    func release() async {
+        let value = try? await FixedWeatherProvider().weather(for: nil)
+        if let value {
+            continuation?.resume(returning: value)
+        } else {
+            continuation?.resume(throwing: ProviderError.invalidResponse)
+        }
+        continuation = nil
     }
 }

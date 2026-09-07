@@ -69,6 +69,7 @@ actor CachedFreeIPAPIClient {
     private let ttl: TimeInterval
     private var currentCache: CachedResponse?
     private var cacheByAddress: [String: CachedResponse] = [:]
+    private var hasCurrentResponseForForcedLocationLookup = false
 
     init(session: URLSession = .shared, ttl: TimeInterval = 900) {
         self.session = session
@@ -84,15 +85,21 @@ actor CachedFreeIPAPIClient {
         let cached = CachedResponse(response: response, fetchedAt: Date())
         currentCache = cached
         cacheByAddress[response.ipAddress] = cached
+        hasCurrentResponseForForcedLocationLookup = forceRefresh
         return response
     }
 
     func response(for ipAddress: String, forceRefresh: Bool) async throws -> FreeIPAPIResponse {
-        if !forceRefresh,
-           let currentCache,
+        // A manual dashboard refresh first obtains the current address, then its
+        // location. Consume that exact fresh payload once instead of immediately
+        // issuing a duplicate address lookup; later forced lookups still bypass
+        // the cache as requested.
+        if let currentCache,
            currentCache.response.ipAddress == ipAddress,
-           isFresh(currentCache)
+           isFresh(currentCache),
+           !forceRefresh || hasCurrentResponseForForcedLocationLookup
         {
+            hasCurrentResponseForForcedLocationLookup = false
             return currentCache.response
         }
 

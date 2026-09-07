@@ -8,7 +8,7 @@ struct AppAnalyticsTests {
     func firstLaunchTracksInstallAndLaunch() throws {
         let defaults = try isolatedDefaults()
         let recorder = RecordingAnalyticsClient()
-        let analytics = analytics(defaults: defaults, keyPrefix: "first-launch", client: recorder, now: day(2026, 3, 16))
+        let analytics = analytics(defaults: defaults, keyPrefix: "first-launch", client: recorder, now: day(2_026, 3, 16))
 
         analytics.recordAppLaunch()
 
@@ -19,7 +19,7 @@ struct AppAnalyticsTests {
     func relaunchTracksLaunchOnlyAfterFirstSeen() throws {
         let defaults = try isolatedDefaults()
         let recorder = RecordingAnalyticsClient()
-        let analytics = analytics(defaults: defaults, keyPrefix: "relaunch", client: recorder, now: day(2026, 3, 16))
+        let analytics = analytics(defaults: defaults, keyPrefix: "relaunch", client: recorder, now: day(2_026, 3, 16))
 
         analytics.recordAppLaunch()
         analytics.recordAppLaunch()
@@ -33,11 +33,11 @@ struct AppAnalyticsTests {
         let recorder = RecordingAnalyticsClient()
         let keyPrefix = "active-day"
 
-        let firstDayAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2026, 3, 16))
+        let firstDayAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2_026, 3, 16))
         firstDayAnalytics.recordPrimaryUIOpened(analyticsEnabled: true)
         firstDayAnalytics.recordPrimaryUIOpened(analyticsEnabled: true)
 
-        let secondDayAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2026, 3, 17))
+        let secondDayAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2_026, 3, 17))
         secondDayAnalytics.recordSettingsOpened(analyticsEnabled: true)
 
         #expect(recorder.events.map(\.event) == [
@@ -55,11 +55,11 @@ struct AppAnalyticsTests {
         let recorder = RecordingAnalyticsClient()
         let keyPrefix = "background-day"
 
-        let firstDayAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2026, 3, 16))
+        let firstDayAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2_026, 3, 16))
         firstDayAnalytics.recordBackgroundActiveDay()
         firstDayAnalytics.recordBackgroundActiveDay()
 
-        let secondDayAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2026, 3, 17))
+        let secondDayAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2_026, 3, 17))
         secondDayAnalytics.recordBackgroundActiveDay()
 
         #expect(recorder.events.map(\.event) == [
@@ -72,7 +72,7 @@ struct AppAnalyticsTests {
     func disabledAnalyticsSuppressesGatedEventsButNotLaunch() throws {
         let defaults = try isolatedDefaults()
         let recorder = RecordingAnalyticsClient()
-        let analytics = analytics(defaults: defaults, keyPrefix: "disabled", client: recorder, now: day(2026, 3, 16))
+        let analytics = analytics(defaults: defaults, keyPrefix: "disabled", client: recorder, now: day(2_026, 3, 16))
 
         analytics.recordPrimaryUIOpened(analyticsEnabled: false)
         analytics.recordSettingsOpened(analyticsEnabled: false)
@@ -85,7 +85,7 @@ struct AppAnalyticsTests {
     func backgroundActiveDayIsNotBlockedByDisabledUIAnalytics() throws {
         let defaults = try isolatedDefaults()
         let recorder = RecordingAnalyticsClient()
-        let analytics = analytics(defaults: defaults, keyPrefix: "background-with-disabled-ui", client: recorder, now: day(2026, 3, 16))
+        let analytics = analytics(defaults: defaults, keyPrefix: "background-with-disabled-ui", client: recorder, now: day(2_026, 3, 16))
 
         analytics.recordPrimaryUIOpened(analyticsEnabled: false)
         analytics.recordBackgroundActiveDay()
@@ -99,11 +99,11 @@ struct AppAnalyticsTests {
         let recorder = RecordingAnalyticsClient()
         let keyPrefix = "reenable"
 
-        let disabledAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2026, 3, 16))
+        let disabledAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2_026, 3, 16))
         disabledAnalytics.recordAppLaunch()
         disabledAnalytics.recordPrimaryUIOpened(analyticsEnabled: false)
 
-        let enabledAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2026, 3, 17))
+        let enabledAnalytics = analytics(defaults: defaults, keyPrefix: keyPrefix, client: recorder, now: day(2_026, 3, 17))
         enabledAnalytics.recordAppLaunch()
         enabledAnalytics.recordPrimaryUIOpened(analyticsEnabled: true)
 
@@ -120,7 +120,7 @@ struct AppAnalyticsTests {
     func backgroundActiveDayDoesNotInterfereWithLaunchOrUIActivityMarkers() throws {
         let defaults = try isolatedDefaults()
         let recorder = RecordingAnalyticsClient()
-        let analytics = analytics(defaults: defaults, keyPrefix: "independent-markers", client: recorder, now: day(2026, 3, 16))
+        let analytics = analytics(defaults: defaults, keyPrefix: "independent-markers", client: recorder, now: day(2_026, 3, 16))
 
         analytics.recordAppLaunch()
         analytics.recordBackgroundActiveDay()

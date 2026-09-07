@@ -15,6 +15,12 @@
 - Chronological visited-place events include resolved city and country context, approximate coordinates when available, source type, and first and last local observation timestamps so the app can draw a yearly travel path.
 - Country-day history may estimate missing days between two known countries using surrounding captures.
 - Country-day year and month summaries can be copied to the clipboard as plain text when the user chooses to export them.
+- Country-day entries can be added, edited, or restored by the user; these manual changes are saved locally on the Mac.
+- Nomad Life workplace collection is off until enabled. When enabled, it uses authorized device-location samples only to group stationary visits locally; IP address and VPN state are never used to identify a venue.
+- Nomad Life may ask Apple MapKit for a nearby coworking or café suggestion. Suggested venue names remain unconfirmed until the user confirms or edits them.
+- Nomad Life diary entries and preferences, including the chosen home time zone and local work-readiness context, are stored locally on the Mac.
+- Opening Google Maps for a diary entry is an explicit user action and sends the selected map request to Google Maps.
+- Quiet connection alerts are opt-in. They use connection, VPN, and charging state changes with cooldowns and configured quiet hours; alert text does not include location or IP address.
 - Travel advisory uses Smartraveller and is enabled by default.
 - Smartraveller advisory fetches use direct HTTPS requests first and may retry through a hidden WebKit-backed page load when the direct transport path stalls.
 - After a destination is matched, Smartraveller may also fetch that destination page directly to extract a short advisory reason sentence and keep a source link for `More details`.
@@ -23,6 +29,7 @@
 - Advisory and regional security scope use the current country plus bordering countries when country context is available.
 - External lookups are cached to reduce noise, latency, and battery impact.
 - Hidden menu-bar background refreshes run at a slower cadence than the open dashboard to reduce battery impact.
+- A bounded local cache retains selected remote dashboard content for temporary offline use. It intentionally excludes live network, latency, battery, diagnostics, and metric-history data.
 - Anonymous TelemetryDeck analytics are enabled by default.
 - `app_install_first_seen`, `app_launch`, and `app_background_active_day` are always sent to estimate install, launch, and background reach.
 - `app_active_day`, `primary_ui_opened`, and `settings_opened` follow the in-app `Share anonymous analytics` setting.

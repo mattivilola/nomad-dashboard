@@ -70,23 +70,23 @@ struct DebugScreenshotArtifactsTests {
             .appendingPathComponent("Nomad Dashboard Dev.app", isDirectory: true)
         try fileManager.createDirectory(at: bundleURL, withIntermediateDirectories: true)
 
-        let timestamp = DateComponents(
+        let timestamp = try #require(DateComponents(
             calendar: Calendar(identifier: .gregorian),
             timeZone: TimeZone(secondsFromGMT: 0),
-            year: 2026,
+            year: 2_026,
             month: 3,
             day: 24,
             hour: 15,
             minute: 42,
             second: 18,
             nanosecond: 123_000_000
-        ).date!
+        ).date)
 
         let fileURL = try DebugScreenshotArtifacts.screenshotFileURL(
             windowTitle: "Visited Map / QA #1",
             bundleURL: bundleURL,
             date: timestamp,
-            timeZone: TimeZone(secondsFromGMT: 0)!,
+            timeZone: #require(TimeZone(secondsFromGMT: 0)),
             fileManager: fileManager
         )
 
@@ -111,23 +111,23 @@ struct DebugScreenshotArtifactsTests {
             .appendingPathComponent("Nomad Dashboard Dev.app", isDirectory: true)
         try fileManager.createDirectory(at: bundleURL, withIntermediateDirectories: true)
 
-        let timestamp = DateComponents(
+        let timestamp = try #require(DateComponents(
             calendar: Calendar(identifier: .gregorian),
             timeZone: TimeZone(secondsFromGMT: 0),
-            year: 2026,
+            year: 2_026,
             month: 3,
             day: 24,
             hour: 15,
             minute: 42,
             second: 18,
             nanosecond: 123_000_000
-        ).date!
+        ).date)
 
         let firstURL = try DebugScreenshotArtifacts.screenshotFileURL(
             windowTitle: "Dashboard",
             bundleURL: bundleURL,
             date: timestamp,
-            timeZone: TimeZone(secondsFromGMT: 0)!,
+            timeZone: #require(TimeZone(secondsFromGMT: 0)),
             fileManager: fileManager
         )
         try Data("first".utf8).write(to: firstURL)
@@ -136,7 +136,7 @@ struct DebugScreenshotArtifactsTests {
             windowTitle: "Dashboard",
             bundleURL: bundleURL,
             date: timestamp,
-            timeZone: TimeZone(secondsFromGMT: 0)!,
+            timeZone: #require(TimeZone(secondsFromGMT: 0)),
             fileManager: fileManager
         )
 
