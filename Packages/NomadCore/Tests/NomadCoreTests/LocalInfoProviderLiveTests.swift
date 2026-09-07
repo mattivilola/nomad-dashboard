@@ -289,7 +289,7 @@ private final class MockLocalInfoURLProtocol: URLProtocol, @unchecked Sendable {
             return
         }
 
-        Task {
+        Task { @Sendable [self, request = request] in
             do {
                 let (statusCode, body) = try await handler(request)
                 let response = try HTTPURLResponse(
