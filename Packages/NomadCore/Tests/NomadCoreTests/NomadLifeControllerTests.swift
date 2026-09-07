@@ -35,7 +35,7 @@ struct NomadLifeControllerTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try JSONEncoder().encode([entry]).write(to: url)
         let reloaded = NomadLifeController(storageURL: url, preferencesKey: key, defaults: defaults)
-        try await Task.sleep(for: .milliseconds(80))
+        await reloaded.flush()
         #expect(reloaded.preferences.homeTimeZoneIdentifier == "Europe/Helsinki")
         #expect(reloaded.entries.first?.displayName == "Near test")
     }
@@ -47,7 +47,7 @@ struct NomadLifeControllerTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try JSONEncoder().encode([entry]).write(to: url)
         let controller = try NomadLifeController(storageURL: url, preferencesKey: UUID().uuidString, defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
-        try await Task.sleep(for: .milliseconds(80))
+        await controller.flush()
         controller.updateEntry(id: entry.id, name: "Near test", note: "Good desk", confirmVenue: false)
         #expect(controller.entries.first?.confidence == .suggested)
         #expect(controller.entries.first?.note == "Good desk")

@@ -51,7 +51,7 @@ private keys into tracked config or the shipped app bundle.
 
 ## Release Checklist
 
-1. Make sure `staging` contains the final release-ready changes.
+1. Make sure `staging` contains the final release-ready changes. Run `make test`, `make build`, and `make lint` locally. After promotion to `main`, wait for its full GitHub CI run (including the app build) before cutting a release tag; CI also verifies compatibility with its older macOS SDK.
 2. Merge or fast-forward `staging` into `main`.
 3. Confirm `git status --short` is empty on `main`.
 4. Update `CHANGELOG.md` under `## [Unreleased]`.
