@@ -22,19 +22,28 @@ final class UserNotificationCenterNomadLifeDelivery: ObservableObject, NomadLife
     func refreshAuthorization() {
         Task { [weak self] in
             guard let self else { return }
-            authorizationStatus = await (center.notificationSettings()).authorizationStatus
+            authorizationStatus = await readAuthorizationStatus()
         }
     }
 
     func requestPermission() {
         Task { [weak self] in
             guard let self else { return }
-            let settings = await center.notificationSettings()
-            authorizationStatus = settings.authorizationStatus
-            guard settings.authorizationStatus == .notDetermined else { return }
+            authorizationStatus = await readAuthorizationStatus()
+            guard authorizationStatus == .notDetermined else { return }
             _ = try? await center.requestAuthorization(options: [.alert])
-            authorizationStatus = await (center.notificationSettings()).authorizationStatus
+            authorizationStatus = await readAuthorizationStatus()
         }
+    }
+
+    private func readAuthorizationStatus() async -> UNAuthorizationStatus {
+        // Keep the framework response in its callback context on older SDKs.
+        let rawValue: Int = await withCheckedContinuation { continuation in
+            center.getNotificationSettings { settings in
+                continuation.resume(returning: settings.authorizationStatus.rawValue)
+            }
+        }
+        return UNAuthorizationStatus(rawValue: rawValue) ?? .notDetermined
     }
 
     func deliver(_ alerts: [NomadLifeQuietAlert]) {
