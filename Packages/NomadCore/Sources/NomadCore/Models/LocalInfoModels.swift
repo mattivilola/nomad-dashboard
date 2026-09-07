@@ -17,7 +17,7 @@ public enum LocalHolidayState: String, Codable, Equatable, Sendable {
     case unsupported
 }
 
-public struct HolidaySourceAttribution: Equatable, Sendable, Hashable {
+public struct HolidaySourceAttribution: Codable, Equatable, Sendable, Hashable {
     public let name: String
     public let url: URL?
 
@@ -27,7 +27,7 @@ public struct HolidaySourceAttribution: Equatable, Sendable, Hashable {
     }
 }
 
-public struct HolidayPeriodSnapshot: Equatable, Sendable {
+public struct HolidayPeriodSnapshot: Codable, Equatable, Sendable {
     public let name: String
     public let startDate: Date
     public let endDate: Date
@@ -39,7 +39,7 @@ public struct HolidayPeriodSnapshot: Equatable, Sendable {
     }
 }
 
-public struct LocalHolidayStatus: Equatable, Sendable {
+public struct LocalHolidayStatus: Codable, Equatable, Sendable {
     public let state: LocalHolidayState
     public let currentPeriod: HolidayPeriodSnapshot?
     public let nextPeriod: HolidayPeriodSnapshot?
@@ -93,7 +93,7 @@ public struct LocalInfoRequest: Equatable, Sendable {
     }
 }
 
-public struct LocalInfoSnapshot: Equatable, Sendable {
+public struct LocalInfoSnapshot: Codable, Equatable, Sendable {
     public let status: LocalInfoStatus
     public let locality: String?
     public let administrativeRegion: String?

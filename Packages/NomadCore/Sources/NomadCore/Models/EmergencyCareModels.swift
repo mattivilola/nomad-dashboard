@@ -48,7 +48,7 @@ public struct EmergencyCareSearchRequest: Equatable, Sendable {
     }
 }
 
-public struct EmergencyHospital: Equatable, Sendable, Identifiable {
+public struct EmergencyHospital: Codable, Equatable, Sendable, Identifiable {
     public let name: String
     public let address: String?
     public let locality: String?
@@ -153,7 +153,7 @@ public struct EmergencyHospitalMapDestination: Identifiable, Equatable, Sendable
     }
 }
 
-public struct EmergencyCareSnapshot: Equatable, Sendable {
+public struct EmergencyCareSnapshot: Codable, Equatable, Sendable {
     public let status: EmergencyCareStatus
     public let sourceName: String
     public let sourceURL: URL?

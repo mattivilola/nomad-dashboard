@@ -190,11 +190,11 @@ public struct TimeTrackingLedger: Codable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        entries = TimeTrackingLedger.normalizedEntries(
-            try container.decodeIfPresent([TimeTrackingEntry].self, forKey: .entries) ?? []
+        entries = try TimeTrackingLedger.normalizedEntries(
+            container.decodeIfPresent([TimeTrackingEntry].self, forKey: .entries) ?? []
         )
-        interruptions = TimeTrackingLedger.normalizedInterruptions(
-            try container.decodeIfPresent([TimeTrackingInterruption].self, forKey: .interruptions) ?? []
+        interruptions = try TimeTrackingLedger.normalizedInterruptions(
+            container.decodeIfPresent([TimeTrackingInterruption].self, forKey: .interruptions) ?? []
         )
         runtimeState = try container.decodeIfPresent(TimeTrackingRuntimeState.self, forKey: .runtimeState) ?? TimeTrackingRuntimeState()
     }

@@ -16,6 +16,9 @@ public struct TimeTrackingInterruptionButton: View {
     private let action: () -> Void
 
     @State private var flashProgress = 0.0
+    @State private var feedbackActive = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.nomadLowImpact) private var lowImpact
 
     public init(
         title: String,
@@ -34,7 +37,7 @@ public struct TimeTrackingInterruptionButton: View {
     }
 
     public var body: some View {
-        TimelineView(.animation(minimumInterval: 1, paused: false)) { context in
+        TimelineView(.animation(minimumInterval: 10, paused: !feedbackActive || reduceMotion || lowImpact)) { context in
             Button {
                 triggerFlash()
                 action()
@@ -45,6 +48,13 @@ public struct TimeTrackingInterruptionButton: View {
             .disabled(isEnabled == false)
             .help(helpText)
             .accessibilityLabel(helpText)
+        }
+        .task(id: lastReportedAt) {
+            let remaining = lastReportedAt.map { TimeTrackingFocusMetrics.interruptionRecoveryDuration - Date().timeIntervalSince($0) } ?? 0
+            feedbackActive = remaining > 0
+            guard remaining > 0 else { return }
+            do { try await Task.sleep(for: .seconds(remaining)) } catch { return }
+            feedbackActive = false
         }
     }
 
@@ -79,69 +89,68 @@ public struct TimeTrackingInterruptionButton: View {
         .opacity(isEnabled ? 1 : 0.76)
     }
 
+    @ViewBuilder
     private func content(metrics: StyleMetrics, heat: Double) -> some View {
-        Group {
-            switch style {
-            case .compact:
-                HStack(spacing: 6) {
-                    icon(metrics: metrics, heat: heat)
-                    countBadge(metrics: metrics, heat: heat)
-                }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 7)
-            case .standard:
-                HStack(spacing: 10) {
-                    icon(metrics: metrics, heat: heat)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(NomadTheme.primaryText.opacity(isEnabled ? 1 : 0.74))
-                            .lineLimit(1)
-
-                        Text(countLine)
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(NomadTheme.secondaryText.opacity(isEnabled ? 1 : 0.72))
-                            .lineLimit(1)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    countBadge(metrics: metrics, heat: heat)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-            case .prominent:
-                HStack(spacing: 14) {
-                    icon(metrics: metrics, heat: heat)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(title)
-                            .font(.headline)
-                            .foregroundStyle(NomadTheme.primaryText.opacity(isEnabled ? 1 : 0.74))
-                            .lineLimit(1)
-
-                        Text(helpText)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(NomadTheme.secondaryText.opacity(isEnabled ? 1 : 0.72))
-                            .lineLimit(2)
-                    }
-
-                    Spacer(minLength: 12)
-
-                    VStack(alignment: .trailing, spacing: 4) {
-                        countBadge(metrics: metrics, heat: heat)
-
-                        if count > 0 {
-                            Text("23m each")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(NomadTheme.secondaryText)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+        switch style {
+        case .compact:
+            HStack(spacing: 6) {
+                icon(metrics: metrics, heat: heat)
+                countBadge(metrics: metrics, heat: heat)
             }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 7)
+        case .standard:
+            HStack(spacing: 10) {
+                icon(metrics: metrics, heat: heat)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NomadTheme.primaryText.opacity(isEnabled ? 1 : 0.74))
+                        .lineLimit(1)
+
+                    Text(countLine)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(NomadTheme.secondaryText.opacity(isEnabled ? 1 : 0.72))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                countBadge(metrics: metrics, heat: heat)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+        case .prominent:
+            HStack(spacing: 14) {
+                icon(metrics: metrics, heat: heat)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(NomadTheme.primaryText.opacity(isEnabled ? 1 : 0.74))
+                        .lineLimit(1)
+
+                    Text(helpText)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(NomadTheme.secondaryText.opacity(isEnabled ? 1 : 0.72))
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 12)
+
+                VStack(alignment: .trailing, spacing: 4) {
+                    countBadge(metrics: metrics, heat: heat)
+
+                    if count > 0 {
+                        Text("23m each")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(NomadTheme.secondaryText)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
         }
     }
 
@@ -185,9 +194,7 @@ public struct TimeTrackingInterruptionButton: View {
     }
 
     private func triggerFlash() {
-        guard isEnabled else {
-            return
-        }
+        guard isEnabled, !reduceMotion, !lowImpact else { return }
 
         withAnimation(.easeOut(duration: 0.14)) {
             flashProgress = 1

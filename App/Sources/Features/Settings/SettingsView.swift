@@ -106,6 +106,22 @@ struct SettingsView: View {
                     }
 
                     Section {
+                        Picker("Data usage", selection: binding(\.dataUsageMode)) {
+                            ForEach(DataUsageMode.allCases, id: \.self) { mode in Text(mode.title).tag(mode) }
+                        }
+                        .pickerStyle(.segmented)
+                        Text("Automatic reduces optional downloads on hotspots, Low Data Mode, Low Power Mode, or when your Mac is under thermal pressure. Choose Low Data for mobile routers that look like regular Wi-Fi.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        LabeledContent("Offline essentials", value: "Saved automatically")
+                        Text("Your enabled travel cards stay available offline with their source and last update time. Opening the dashboard reuses fresh data; Refresh fetches once on demand.")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if let error = snapshotStore.offlineCacheError {
+                            Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+                        }
+                        Button("Workplaces, Time Zones & Alerts…") { openAndActivateWindow(.nomadPreferences, with: openWindow) }
+                    } header: { Text("Network & Nomad Life") }
+
+                    Section {
                         Toggle("Use current location for weather", isOn: weatherLocationBinding)
                         Toggle("Show local info", isOn: localInfoBinding)
                         TextField("HUD USER API token (US rent in Local Info)", text: binding(\.hudUserAPIToken))

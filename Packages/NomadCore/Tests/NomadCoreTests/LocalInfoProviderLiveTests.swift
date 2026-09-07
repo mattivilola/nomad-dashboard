@@ -14,11 +14,11 @@ struct LocalInfoProviderLiveTests {
                 return (200, """
                 [{"date":"2026-05-01","localName":"Tag der Arbeit","name":"Labour Day","counties":null}]
                 """)
-            case ("/Subdivisions", let query) where query.contains("countryIsoCode=DE"):
+            case let ("/Subdivisions", query) where query.contains("countryIsoCode=DE"):
                 return (200, """
                 [{"code":"DE-BE","isoCode":"DE-BE","shortName":"BE","name":[{"language":"EN","text":"Berlin"}]}]
                 """)
-            case ("/SchoolHolidays", let query) where query.contains("countryIsoCode=DE"):
+            case let ("/SchoolHolidays", query) where query.contains("countryIsoCode=DE"):
                 return (200, """
                 [{"startDate":"2026-03-30","endDate":"2026-04-10","name":[{"language":"EN","text":"Easter Holidays"}],"nationwide":false,"subdivisions":[{"code":"DE-BE"}]}]
                 """)
@@ -31,7 +31,7 @@ struct LocalInfoProviderLiveTests {
         let provider = LiveLocalInfoProvider(
             session: session,
             localPriceLevelProvider: FixedPriceRowsProvider(),
-            nowProvider: { Self.makeDate(year: 2026, month: 4, day: 1, timeZoneID: "Europe/Berlin") }
+            nowProvider: { Self.makeDate(year: 2_026, month: 4, day: 1, timeZoneID: "Europe/Berlin") }
         )
 
         let snapshot = try await provider.info(
@@ -65,7 +65,7 @@ struct LocalInfoProviderLiveTests {
                 return (200, """
                 [{"date":"2026-05-01","localName":"Vappu","name":"May Day","counties":null}]
                 """)
-            case ("/Subdivisions", let query) where query.contains("countryIsoCode=FI"):
+            case let ("/Subdivisions", query) where query.contains("countryIsoCode=FI"):
                 return (200, "[]")
             default:
                 Issue.record("Unexpected request: \(url.absoluteString)")
@@ -76,7 +76,7 @@ struct LocalInfoProviderLiveTests {
         let provider = LiveLocalInfoProvider(
             session: session,
             localPriceLevelProvider: FixedPriceRowsProvider(),
-            nowProvider: { Self.makeDate(year: 2026, month: 4, day: 1, timeZoneID: "Europe/Helsinki") }
+            nowProvider: { Self.makeDate(year: 2_026, month: 4, day: 1, timeZoneID: "Europe/Helsinki") }
         )
 
         let snapshot = try await provider.info(
@@ -111,7 +111,7 @@ struct LocalInfoProviderLiveTests {
                 return (200, """
                 [{"date":"2027-01-01","localName":"Uudenvuodenpäivä","name":"New Year's Day","counties":null}]
                 """)
-            case ("/Subdivisions", let query) where query.contains("countryIsoCode=FI"):
+            case let ("/Subdivisions", query) where query.contains("countryIsoCode=FI"):
                 return (200, "[]")
             default:
                 Issue.record("Unexpected request: \(url.absoluteString)")
@@ -122,7 +122,7 @@ struct LocalInfoProviderLiveTests {
         let provider = LiveLocalInfoProvider(
             session: session,
             localPriceLevelProvider: FixedPriceRowsProvider(),
-            nowProvider: { Self.makeDate(year: 2026, month: 12, day: 31, timeZoneID: "Europe/Helsinki") }
+            nowProvider: { Self.makeDate(year: 2_026, month: 12, day: 31, timeZoneID: "Europe/Helsinki") }
         )
 
         let request = LocalInfoRequest(
@@ -152,7 +152,7 @@ struct LocalInfoProviderLiveTests {
                 return (200, """
                 [{"date":"2026-07-04","localName":"Independence Day","name":"Independence Day","counties":null}]
                 """)
-            case ("/Subdivisions", let query) where query.contains("countryIsoCode=US"):
+            case let ("/Subdivisions", query) where query.contains("countryIsoCode=US"):
                 return (200, "[]")
             default:
                 Issue.record("Unexpected request: \(url.absoluteString)")
@@ -163,7 +163,7 @@ struct LocalInfoProviderLiveTests {
         let provider = LiveLocalInfoProvider(
             session: session,
             localPriceLevelProvider: FixedPriceRowsProviderWithNote(),
-            nowProvider: { Self.makeDate(year: 2026, month: 4, day: 1, timeZoneID: "America/New_York") }
+            nowProvider: { Self.makeDate(year: 2_026, month: 4, day: 1, timeZoneID: "America/New_York") }
         )
 
         let snapshot = try await provider.info(
@@ -292,8 +292,8 @@ private final class MockLocalInfoURLProtocol: URLProtocol, @unchecked Sendable {
         Task {
             do {
                 let (statusCode, body) = try await handler(request)
-                let response = HTTPURLResponse(
-                    url: try #require(request.url),
+                let response = try HTTPURLResponse(
+                    url: #require(request.url),
                     statusCode: statusCode,
                     httpVersion: nil,
                     headerFields: ["Content-Type": "application/json"]

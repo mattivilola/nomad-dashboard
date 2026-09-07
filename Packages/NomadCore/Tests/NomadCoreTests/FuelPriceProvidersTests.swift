@@ -3,6 +3,7 @@ import Foundation
 @testable import NomadCore
 import Testing
 
+@Suite(.serialized)
 struct FuelPriceProvidersTests {
     @Test
     func providerDecodesSpainFeedAndChoosesCheapestStationsWithinRadius() async throws {
@@ -92,6 +93,54 @@ struct FuelPriceProvidersTests {
         #expect(snapshot.status == .unsupported)
         #expect(snapshot.detail == "Fuel prices are not supported in Finland yet.")
     }
+
+    @Test
+    func reusesPersistedSpainDatasetAcrossLocationsAndRevalidatesWithETag() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("nomad-fuel-cache-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let session = makeDatasetCacheSession()
+        DatasetCacheURLProtocol.reset()
+
+        let firstProvider = LiveEuropeanFuelPriceProvider(session: session, ttl: 0, sourceCacheDirectory: directory)
+        _ = try await firstProvider.prices(
+            for: FuelSearchRequest(coordinate: CLLocationCoordinate2D(latitude: 39.4699, longitude: -0.3763), countryCode: "ES", countryName: "Spain"),
+            forceRefresh: true
+        )
+        _ = try await firstProvider.prices(
+            for: FuelSearchRequest(coordinate: CLLocationCoordinate2D(latitude: 39.4709, longitude: -0.3773), countryCode: "ES", countryName: "Spain"),
+            forceRefresh: false
+        )
+        #expect(DatasetCacheURLProtocol.requestCount == 1)
+
+        DatasetCacheURLProtocol.respondNotModified = true
+        let reloadedProvider = LiveEuropeanFuelPriceProvider(session: session, ttl: 0, sourceCacheDirectory: directory)
+        let snapshot = try await reloadedProvider.prices(
+            for: FuelSearchRequest(coordinate: CLLocationCoordinate2D(latitude: 39.4719, longitude: -0.3783), countryCode: "ES", countryName: "Spain"),
+            forceRefresh: true
+        )
+
+        #expect(snapshot.status == .ready)
+        #expect(DatasetCacheURLProtocol.requestCount == 2)
+        #expect(DatasetCacheURLProtocol.lastIfNoneMatch == "dataset-v1")
+    }
+
+    @Test
+    func expiredDatasetFailureDoesNotExtendTheSourceTTL() async throws {
+        let session = makeDatasetCacheSession()
+        DatasetCacheURLProtocol.reset()
+        let provider = LiveEuropeanFuelPriceProvider(session: session, ttl: 0, sourceDatasetTTL: 0)
+        let request = FuelSearchRequest(coordinate: CLLocationCoordinate2D(latitude: 39.4699, longitude: -0.3763), countryCode: "ES", countryName: "Spain")
+        _ = try await provider.prices(for: request, forceRefresh: true)
+
+        DatasetCacheURLProtocol.respondWithFailure = true
+        await #expect(throws: FuelPriceProviderError.self) {
+            try await provider.prices(for: request, forceRefresh: false)
+        }
+        await #expect(throws: FuelPriceProviderError.self) {
+            try await provider.prices(for: request, forceRefresh: false)
+        }
+        #expect(DatasetCacheURLProtocol.requestCount == 3)
+    }
 }
 
 private func makeMockFuelSession() -> URLSession {
@@ -99,6 +148,62 @@ private func makeMockFuelSession() -> URLSession {
     configuration.protocolClasses = [MockFuelURLProtocol.self]
     MockFuelURLProtocol.handler = fuelResponse(for:)
     return URLSession(configuration: configuration)
+}
+
+private func makeDatasetCacheSession() -> URLSession {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [DatasetCacheURLProtocol.self]
+    return URLSession(configuration: configuration)
+}
+
+private final class DatasetCacheURLProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var requestCount = 0
+    nonisolated(unsafe) static var respondNotModified = false
+    nonisolated(unsafe) static var respondWithFailure = false
+    nonisolated(unsafe) static var lastIfNoneMatch: String?
+
+    static func reset() {
+        requestCount = 0
+        respondNotModified = false
+        respondWithFailure = false
+        lastIfNoneMatch = nil
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        Self.requestCount += 1
+        Self.lastIfNoneMatch = request.value(forHTTPHeaderField: "If-None-Match")
+        guard let url = request.url else {
+            client?.urlProtocol(self, didFailWithError: ProviderError.invalidResponse)
+            return
+        }
+        if Self.respondWithFailure {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+        if Self.respondNotModified {
+            let response = HTTPURLResponse(url: url, statusCode: 304, httpVersion: nil, headerFields: ["ETag": "dataset-v1"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocolDidFinishLoading(self)
+            return
+        }
+        let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: ["ETag": "dataset-v1", "Content-Type": "application/json"])!
+        let body = Data("""
+        {"ListaEESSPrecio":[{"IDEESS":"1","Rótulo":"Cached","Dirección":"Harbor 1","Municipio":"Valencia","Latitud":"39,4700","Longitud (WGS84)":"-0,3760","Precio Gasoleo A":"1,429","Precio Gasolina 95 E5":"1,559"}]}
+        """.utf8)
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: body)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }
 
 private func fuelResponse(for request: URLRequest) throws -> (Data, URLResponse) {

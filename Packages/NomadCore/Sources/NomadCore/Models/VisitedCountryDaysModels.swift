@@ -13,9 +13,9 @@ public struct VisitedCountryDayStamp: Codable, Equatable, Hashable, Sendable, Co
 
     public init(date: Date, calendar: Calendar) {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
-        self.year = components.year ?? 1970
-        self.month = components.month ?? 1
-        self.day = components.day ?? 1
+        year = components.year ?? 1_970
+        month = components.month ?? 1
+        day = components.day ?? 1
     }
 
     public var id: String {
@@ -59,23 +59,47 @@ public struct VisitedCountryDay: Codable, Equatable, Sendable, Identifiable {
     public let countryCode: String?
     public let source: VisitedPlaceSource
     public let isInferred: Bool
+    public let isManual: Bool
 
     public init(
         day: VisitedCountryDayStamp,
         country: String,
         countryCode: String?,
         source: VisitedPlaceSource,
-        isInferred: Bool
+        isInferred: Bool,
+        isManual: Bool = false
     ) {
         self.day = day
         self.country = country.trimmingCharacters(in: .whitespacesAndNewlines)
         self.countryCode = Self.normalizedCountryCode(countryCode)
         self.source = source
         self.isInferred = isInferred
+        self.isManual = isManual
     }
 
     public var id: String {
         day.id
+    }
+
+    public var origin: VisitedCountryDayOrigin {
+        if isManual {
+            return .manual
+        }
+        return isInferred ? .inferred : .observed
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case day, country, countryCode, source, isInferred, isManual
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        day = try container.decode(VisitedCountryDayStamp.self, forKey: .day)
+        country = try container.decode(String.self, forKey: .country).trimmingCharacters(in: .whitespacesAndNewlines)
+        countryCode = try Self.normalizedCountryCode(container.decodeIfPresent(String.self, forKey: .countryCode))
+        source = try container.decode(VisitedPlaceSource.self, forKey: .source)
+        isInferred = try container.decode(Bool.self, forKey: .isInferred)
+        isManual = try container.decodeIfPresent(Bool.self, forKey: .isManual) ?? false
     }
 
     func replacing(with input: VisitedCountryDayInput, isInferred: Bool = false) -> VisitedCountryDay {
@@ -110,6 +134,57 @@ public struct VisitedCountryDay: Codable, Equatable, Sendable, Identifiable {
         }
 
         return trimmedValue.uppercased()
+    }
+}
+
+public enum VisitedCountryDayOrigin: String, Codable, CaseIterable, Equatable, Hashable, Sendable {
+    case observed
+    case inferred
+    case manual
+
+    public var displayName: String {
+        switch self {
+        case .observed: "Observed"
+        case .inferred: "Estimated"
+        case .manual: "Manual"
+        }
+    }
+}
+
+public struct VisitedCountryDayOverride: Codable, Equatable, Sendable, Identifiable {
+    public let day: VisitedCountryDayStamp
+    public let country: String
+    public let countryCode: String?
+    public let source: VisitedCountryDayOrigin
+
+    public init(
+        day: VisitedCountryDayStamp,
+        country: String,
+        countryCode: String?,
+        source: VisitedCountryDayOrigin = .manual
+    ) {
+        self.day = day
+        self.country = country.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.countryCode = countryCode?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        self.source = source
+    }
+
+    public var id: String {
+        day.id
+    }
+}
+
+public enum VisitedCountryDayStoreError: LocalizedError, Equatable, Sendable {
+    case invalidDay(VisitedCountryDayStamp)
+    case missingCountry
+    case invalidCountryCode(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidDay: "Choose a valid calendar day."
+        case .missingCountry: "Choose a country before saving."
+        case let .invalidCountryCode(code): "\(code) is not a valid two-letter country code."
+        }
     }
 }
 
@@ -177,7 +252,7 @@ public struct VisitedCountryDayMonthSummary: Equatable, Sendable, Identifiable {
 
 public extension [VisitedCountryDay] {
     var availableYears: [Int] {
-        Set(map { $0.day.year }).sorted(by: >)
+        Set(map(\.day.year)).sorted(by: >)
     }
 
     func yearSummary(for year: Int) -> VisitedCountryDayYearSummary? {

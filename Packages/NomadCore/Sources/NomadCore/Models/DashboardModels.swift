@@ -164,7 +164,7 @@ public struct PublicIPSnapshot: Equatable, Sendable {
     }
 }
 
-public struct IPLocationSnapshot: Equatable, Sendable {
+public struct IPLocationSnapshot: Codable, Equatable, Sendable {
     public let city: String?
     public let region: String?
     public let country: String?
@@ -206,7 +206,7 @@ public struct IPLocationSnapshot: Equatable, Sendable {
     }
 }
 
-public struct WeatherDaySummary: Equatable, Sendable {
+public struct WeatherDaySummary: Codable, Equatable, Sendable {
     public let date: Date
     public let symbolName: String
     public let summary: String
@@ -231,7 +231,7 @@ public struct WeatherDaySummary: Equatable, Sendable {
     }
 }
 
-public struct WeatherHourlyForecastSlot: Equatable, Sendable, Identifiable {
+public struct WeatherHourlyForecastSlot: Codable, Equatable, Sendable, Identifiable {
     public let date: Date
     public let symbolName: String
     public let conditionDescription: String
@@ -263,7 +263,7 @@ public struct WeatherHourlyForecastSlot: Equatable, Sendable, Identifiable {
     }
 }
 
-public struct WeatherSnapshot: Equatable, Sendable {
+public struct WeatherSnapshot: Codable, Equatable, Sendable {
     public let currentTemperatureCelsius: Double?
     public let apparentTemperatureCelsius: Double?
     public let conditionDescription: String
@@ -319,7 +319,7 @@ public struct MarineSpot: Equatable, Sendable {
     }
 }
 
-public struct MarineForecastSlot: Equatable, Sendable, Identifiable {
+public struct MarineForecastSlot: Codable, Equatable, Sendable, Identifiable {
     public let date: Date
     public let waveHeightMeters: Double?
     public let swellHeightMeters: Double?
@@ -345,7 +345,7 @@ public struct MarineForecastSlot: Equatable, Sendable, Identifiable {
     }
 }
 
-public struct MarineSnapshot: Equatable, Sendable {
+public struct MarineSnapshot: Codable, Equatable, Sendable {
     public let spotName: String
     public let coordinate: CLLocationCoordinate2D
     public let sourceName: String
@@ -409,6 +409,54 @@ public struct MarineSnapshot: Equatable, Sendable {
             && lhs.seaSurfaceTemperatureCelsius == rhs.seaSurfaceTemperatureCelsius
             && lhs.forecastSlots == rhs.forecastSlots
             && lhs.fetchedAt == rhs.fetchedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case spotName, latitude, longitude, sourceName, waveHeightMeters, wavePeriodSeconds
+        case swellHeightMeters, swellPeriodSeconds, swellDirectionDegrees, windSpeedKph, windGustKph
+        case windDirectionDegrees, seaSurfaceTemperatureCelsius, forecastSlots, fetchedAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            spotName: container.decode(String.self, forKey: .spotName),
+            coordinate: CLLocationCoordinate2D(
+                latitude: container.decode(Double.self, forKey: .latitude),
+                longitude: container.decode(Double.self, forKey: .longitude)
+            ),
+            sourceName: container.decode(String.self, forKey: .sourceName),
+            waveHeightMeters: container.decodeIfPresent(Double.self, forKey: .waveHeightMeters),
+            wavePeriodSeconds: container.decodeIfPresent(Double.self, forKey: .wavePeriodSeconds),
+            swellHeightMeters: container.decodeIfPresent(Double.self, forKey: .swellHeightMeters),
+            swellPeriodSeconds: container.decodeIfPresent(Double.self, forKey: .swellPeriodSeconds),
+            swellDirectionDegrees: container.decodeIfPresent(Double.self, forKey: .swellDirectionDegrees),
+            windSpeedKph: container.decodeIfPresent(Double.self, forKey: .windSpeedKph),
+            windGustKph: container.decodeIfPresent(Double.self, forKey: .windGustKph),
+            windDirectionDegrees: container.decodeIfPresent(Double.self, forKey: .windDirectionDegrees),
+            seaSurfaceTemperatureCelsius: container.decodeIfPresent(Double.self, forKey: .seaSurfaceTemperatureCelsius),
+            forecastSlots: container.decode([MarineForecastSlot].self, forKey: .forecastSlots),
+            fetchedAt: container.decode(Date.self, forKey: .fetchedAt)
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(spotName, forKey: .spotName)
+        try container.encode(coordinate.latitude, forKey: .latitude)
+        try container.encode(coordinate.longitude, forKey: .longitude)
+        try container.encode(sourceName, forKey: .sourceName)
+        try container.encodeIfPresent(waveHeightMeters, forKey: .waveHeightMeters)
+        try container.encodeIfPresent(wavePeriodSeconds, forKey: .wavePeriodSeconds)
+        try container.encodeIfPresent(swellHeightMeters, forKey: .swellHeightMeters)
+        try container.encodeIfPresent(swellPeriodSeconds, forKey: .swellPeriodSeconds)
+        try container.encodeIfPresent(swellDirectionDegrees, forKey: .swellDirectionDegrees)
+        try container.encodeIfPresent(windSpeedKph, forKey: .windSpeedKph)
+        try container.encodeIfPresent(windGustKph, forKey: .windGustKph)
+        try container.encodeIfPresent(windDirectionDegrees, forKey: .windDirectionDegrees)
+        try container.encodeIfPresent(seaSurfaceTemperatureCelsius, forKey: .seaSurfaceTemperatureCelsius)
+        try container.encode(forecastSlots, forKey: .forecastSlots)
+        try container.encode(fetchedAt, forKey: .fetchedAt)
     }
 }
 

@@ -77,7 +77,7 @@ final class CurrentLocationStore: NSObject, ObservableObject {
 
     override init() {
         let manager = CLLocationManager()
-        let initialLocation = manager.location
+        let initialLocation = manager.location.flatMap { Date().timeIntervalSince($0.timestamp) < 900 ? $0 : nil }
         self.manager = manager
         authorizationStatus = manager.authorizationStatus
         currentLocation = initialLocation
@@ -129,7 +129,6 @@ final class CurrentLocationStore: NSObject, ObservableObject {
         }
 
         beginLocationRequest()
-        NSApp.activate(ignoringOtherApps: true)
         manager.requestLocation()
     }
 

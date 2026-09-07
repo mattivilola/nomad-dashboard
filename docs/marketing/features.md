@@ -285,6 +285,7 @@ Users can monitor one chosen surf location directly from the dashboard without m
 - Includes a local travel log that groups city-level movement by year
 - Builds a country-by-day local diary with yearly and monthly breakdowns
 - Can export the selected year summary, including monthly totals, as plain text via the clipboard
+- Supports adding, editing, and restoring locally saved country-day entries
 
 ### Who it helps
 
@@ -307,6 +308,34 @@ Users can build a simple local travel history over time, revisit where they have
 - data stays local to the Mac unless the user moves it themselves
 - this is not a multi-device synced travel journal
 - country-day gaps are estimated from the surrounding known countries when the app has missing days between captures
+
+## Nomad Life Diary And Work Readiness
+
+### What it does
+
+- Can automatically collect stationary workplace visits when the user enables it and grants device-location access
+- Groups authorized device-location samples locally and can suggest a nearby coworking or café venue through Apple MapKit
+- Keeps suggested venues separate from user-confirmed venue names
+- Stores a local diary with connection and work-readiness context
+- Shows current and chosen home time zones side by side
+- Offers optional quiet alerts for sustained connection, VPN, and charging changes, with cooldowns and user-set quiet hours
+
+### Who it helps
+
+- remote workers building a lightweight record of where and how reliably they worked
+- travelers who want current and home-time context without a separate diary app
+
+### Dependencies or setup
+
+- automatic workplace collection and quiet alerts are off until enabled in Settings
+- workplace collection uses authorized device location only; IP address and VPN state do not identify a venue
+- venue suggestions depend on Apple MapKit availability
+
+### Limitations
+
+- diary data stays local to the Mac
+- a suggested venue remains a suggestion until the user confirms or edits it
+- Google Maps opens only when the user explicitly chooses an external map link
 
 ## Project Time Tracking
 
@@ -355,6 +384,7 @@ Users can capture and assign work time with less friction by using the dashboard
 - Supports appearance settings
 - Supports configurable refresh cadence and history retention
 - Slows hidden menu-bar background refreshes automatically to reduce battery impact
+- Retains a bounded local cache of selected remote dashboard content for a more useful offline or temporarily disconnected view
 - Supports dashboard card reordering
 - Supports dashboard card width customization
 - Supports settings for weather, travel modules, analytics, and location-aware features

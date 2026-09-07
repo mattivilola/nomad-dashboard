@@ -13,6 +13,9 @@ struct VisitedMapWindowView: View {
     @State private var selectedTravelYear: Int?
     @State private var expandedMonthIDs = Set<String>()
     @State private var exportStatusMessage: String?
+    @State private var editingCountryDay: VisitedCountryDay?
+    @State private var isPresentingCountryDayEditor = false
+    @State private var countryDayActionError: String?
 
     var body: some View {
         ZStack {
@@ -49,6 +52,26 @@ struct VisitedMapWindowView: View {
         }
         .onChange(of: resolvedSelectedCountryDaysYear) { _, _ in
             exportStatusMessage = nil
+        }
+        .sheet(isPresented: $isPresentingCountryDayEditor) {
+            CountryDayEditorSheet(
+                initialDay: editingCountryDay,
+                onSave: { override in
+                    try await snapshotStore.setCountryDayOverride(override)
+                }
+            )
+        }
+        .alert("Couldn’t update country days", isPresented: Binding(
+            get: { countryDayActionError != nil },
+            set: {
+                if $0 == false {
+                    countryDayActionError = nil
+                }
+            }
+        )) {
+            Button("OK", role: .cancel) { countryDayActionError = nil }
+        } message: {
+            Text(countryDayActionError ?? "Please try again.")
         }
     }
 
@@ -150,13 +173,17 @@ struct VisitedMapWindowView: View {
                     .fixedSize(horizontal: true, vertical: false)
                 }
 
-                VisitedWorldMapView(places: places, travelStops: mapMode == .travelPath ? selectedTravelStops : [])
-                    .frame(minHeight: 520)
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
-                    )
+                VisitedWorldMapView(
+                    places: places,
+                    travelStops: mapMode == .travelPath ? selectedTravelStops : [],
+                    visitedCountryCodes: visitedCountryCodes
+                )
+                .frame(minHeight: 520)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+                )
             }
         }
     }
@@ -264,6 +291,18 @@ struct VisitedMapWindowView: View {
                     Spacer()
 
                     HStack(spacing: 10) {
+                        Button {
+                            editingCountryDay = nil
+                            isPresentingCountryDayEditor = true
+                        } label: {
+                            Label("Add Days", systemImage: "plus.calendar")
+                                .font(.callout.weight(.semibold))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 9)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(NomadTheme.teal)
+
                         if availableCountryDayYears.isEmpty == false {
                             Picker("Year", selection: selectedYearBinding) {
                                 ForEach(availableCountryDayYears, id: \.self) { year in
@@ -279,6 +318,17 @@ struct VisitedMapWindowView: View {
                                 copySelectedYearSummaryToClipboard()
                             } label: {
                                 Label("Copy Summary", systemImage: "doc.on.doc")
+                                    .font(.callout.weight(.semibold))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 9)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(NomadTheme.teal)
+
+                            Button {
+                                copySelectedYearCSVToClipboard()
+                            } label: {
+                                Label("Copy CSV", systemImage: "tablecells")
                                     .font(.callout.weight(.semibold))
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 9)
@@ -374,10 +424,23 @@ struct VisitedMapWindowView: View {
 
                                                     Spacer(minLength: 24)
 
-                                                    if day.isInferred {
-                                                        Text("Estimated")
-                                                            .font(.caption.weight(.semibold))
-                                                            .foregroundStyle(NomadTheme.tertiaryText)
+                                                    Text(day.origin.displayName)
+                                                        .font(.caption.weight(.semibold))
+                                                        .foregroundStyle(day.isManual ? NomadTheme.teal : NomadTheme.tertiaryText)
+
+                                                    Button("Edit") {
+                                                        editingCountryDay = day
+                                                        isPresentingCountryDayEditor = true
+                                                    }
+                                                    .buttonStyle(.link)
+                                                    .accessibilityLabel("Edit \(dayLabel(for: day)) in \(day.country)")
+
+                                                    if day.isManual {
+                                                        Button("Restore") {
+                                                            restoreCountryDay(day)
+                                                        }
+                                                        .buttonStyle(.link)
+                                                        .accessibilityLabel("Restore original observation for \(dayLabel(for: day))")
                                                     }
                                                 }
                                             }
@@ -459,6 +522,15 @@ struct VisitedMapWindowView: View {
                             Task {
                                 await snapshotStore.refresh(manual: true)
                             }
+                        }
+                    )
+
+                    actionButton(
+                        title: "Add Country Days",
+                        systemImage: "plus.calendar",
+                        action: {
+                            editingCountryDay = nil
+                            isPresentingCountryDayEditor = true
                         }
                     )
                 }
@@ -549,6 +621,7 @@ struct VisitedMapWindowView: View {
 
     private var visitedCountryCodes: Set<String> {
         Set(places.compactMap { $0.countryCode?.uppercased() })
+            .union(countryDays.compactMap { $0.countryCode?.uppercased() })
     }
 
     private var headerSubtitle: String {
@@ -729,9 +802,9 @@ struct VisitedMapWindowView: View {
         let labels = sources.map { source in
             switch source {
             case .deviceLocation:
-                return "Device"
+                "Device"
             case .publicIPGeolocation:
-                return "IP"
+                "IP"
             }
         }
 
@@ -748,6 +821,24 @@ struct VisitedMapWindowView: View {
         pasteboard.clearContents()
         pasteboard.setString(exportText, forType: .string)
         exportStatusMessage = "Copied \(selectedYear) summary to the clipboard."
+    }
+
+    private func copySelectedYearCSVToClipboard() {
+        guard let year = resolvedSelectedCountryDaysYear else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(VisitedCountryDaysCSVExporter.export(countryDays, year: year), forType: .string)
+        exportStatusMessage = "Copied (year) country-day CSV to the clipboard."
+    }
+
+    private func restoreCountryDay(_ day: VisitedCountryDay) {
+        Task {
+            do {
+                try await snapshotStore.restoreCountryDay(day.day)
+            } catch {
+                countryDayActionError = error.localizedDescription
+            }
+        }
     }
 
     private func exportText(for year: Int) -> String {
@@ -793,18 +884,18 @@ private enum VisitedMapMode: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .footprint:
-            return "World Footprint"
+            "World Footprint"
         case .travelPath:
-            return "Travel Path"
+            "Travel Path"
         }
     }
 
     var description: String {
         switch self {
         case .footprint:
-            return "Drag, zoom, and inspect the saved cities. Countries with at least one saved place are tinted."
+            "Drag, zoom, and inspect the saved cities. Countries with at least one saved place are tinted."
         case .travelPath:
-            return "Follow your chronological city-level path for the selected year."
+            "Follow your chronological city-level path for the selected year."
         }
     }
 }

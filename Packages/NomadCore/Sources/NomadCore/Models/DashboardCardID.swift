@@ -30,9 +30,7 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
         return deduplicated + missing
     }
 
-    public static let defaultWidthModes: [DashboardCardID: DashboardCardWidthMode] = {
-        Dictionary(uniqueKeysWithValues: defaultOrder.map { ($0, .wide) })
-    }()
+    public static let defaultWidthModes: [DashboardCardID: DashboardCardWidthMode] = Dictionary(uniqueKeysWithValues: defaultOrder.map { ($0, .wide) })
 
     public static func sanitizedWidthModes(
         _ widthModes: [DashboardCardID: DashboardCardWidthMode]

@@ -67,7 +67,7 @@ public enum LocalPricePrecision: String, Codable, Equatable, Sendable {
     }
 }
 
-public struct LocalPriceSourceAttribution: Equatable, Sendable, Hashable {
+public struct LocalPriceSourceAttribution: Codable, Equatable, Sendable, Hashable {
     public let name: String
     public let url: URL?
 
@@ -77,7 +77,7 @@ public struct LocalPriceSourceAttribution: Equatable, Sendable, Hashable {
     }
 }
 
-public struct LocalPriceIndicatorRow: Equatable, Sendable, Identifiable {
+public struct LocalPriceIndicatorRow: Codable, Equatable, Sendable, Identifiable {
     public let kind: LocalPriceIndicatorKind
     public let value: String
     public let detail: String
@@ -130,7 +130,7 @@ public struct LocalPriceSearchRequest: Equatable, Sendable {
     }
 }
 
-public struct LocalPriceLevelSnapshot: Equatable, Sendable {
+public struct LocalPriceLevelSnapshot: Codable, Equatable, Sendable {
     public let status: LocalPriceLevelStatus
     public let summaryBand: LocalPriceSummaryBand?
     public let countryCode: String?

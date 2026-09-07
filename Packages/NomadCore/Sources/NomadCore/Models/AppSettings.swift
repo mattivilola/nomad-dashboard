@@ -10,6 +10,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public static let maximumSlowRefreshIntervalSeconds: TimeInterval = 1_800
 
     public var appearanceMode: AppAppearanceMode
+    public var dataUsageMode: DataUsageMode
     public var dashboardCardOrder: [DashboardCardID]
     public var dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode]
     public var refreshIntervalSeconds: TimeInterval
@@ -39,6 +40,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     public init(
         appearanceMode: AppAppearanceMode = .system,
+        dataUsageMode: DataUsageMode = .automatic,
         dashboardCardOrder: [DashboardCardID] = DashboardCardID.defaultOrder,
         dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode] = DashboardCardID.defaultWidthModes,
         refreshIntervalSeconds: TimeInterval = Self.defaultRefreshIntervalSeconds,
@@ -67,6 +69,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         latencyHosts: [String] = ["1.1.1.1:443", "8.8.8.8:443"]
     ) {
         self.appearanceMode = appearanceMode
+        self.dataUsageMode = dataUsageMode
         self.dashboardCardOrder = DashboardCardID.sanitizedOrder(dashboardCardOrder)
         self.dashboardCardWidthModes = DashboardCardID.sanitizedWidthModes(dashboardCardWidthModes)
         self.refreshIntervalSeconds = Self.sanitizedRefreshInterval(refreshIntervalSeconds)
@@ -97,6 +100,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case appearanceMode
+        case dataUsageMode
         case dashboardCardOrder
         case dashboardCardWidthModes
         case refreshIntervalSeconds
@@ -148,6 +152,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         dashboardCardWidthModes = DashboardCardID.sanitizedWidthModes(
             persistedCardWidthModes ?? DashboardCardID.defaultWidthModes
         )
+        dataUsageMode = (try? container.decodeIfPresent(DataUsageMode.self, forKey: .dataUsageMode)) ?? .automatic
         let decodedRefreshIntervalSeconds = try container.decode(TimeInterval.self, forKey: .refreshIntervalSeconds)
         refreshIntervalSeconds = Self.sanitizedRefreshInterval(decodedRefreshIntervalSeconds)
         let decodedSlowRefreshIntervalSeconds = try container.decode(TimeInterval.self, forKey: .slowRefreshIntervalSeconds)
@@ -184,6 +189,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(appearanceMode, forKey: .appearanceMode)
+        try container.encode(dataUsageMode, forKey: .dataUsageMode)
         try container.encode(dashboardCardOrder.map(\.rawValue), forKey: .dashboardCardOrder)
         try container.encode(
             dashboardCardWidthModes.reduce(into: [String: String]()) { result, entry in

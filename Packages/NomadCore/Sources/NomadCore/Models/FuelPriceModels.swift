@@ -262,7 +262,7 @@ public struct FuelSearchRequest: Equatable, Sendable {
     }
 }
 
-public struct FuelStationPrice: Equatable, Sendable {
+public struct FuelStationPrice: Codable, Equatable, Sendable {
     public let fuelType: FuelType
     public let stationName: String
     public let address: String?
@@ -384,7 +384,7 @@ public struct FuelStationMapDestination: Identifiable, Equatable, Sendable {
     }
 }
 
-public struct FuelPriceSnapshot: Equatable, Sendable {
+public struct FuelPriceSnapshot: Codable, Equatable, Sendable {
     public let status: FuelPriceStatus
     public let sourceName: String
     public let sourceURL: URL?

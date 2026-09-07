@@ -11,16 +11,16 @@ struct ProjectTimeTrackingControllerTests {
         let store = FileTimeTrackingLedgerStore(fileURL: fileURL)
         let projectID = UUID()
         let entry = TimeTrackingEntry(
-            startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
-            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
+            startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0),
+            endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 0),
             bucket: .project(projectID)
         )
         let ledger = TimeTrackingLedger(
             entries: [entry],
             interruptions: [
-                TimeTrackingInterruption(reportedAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 15))
+                TimeTrackingInterruption(reportedAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 15))
             ],
-            runtimeState: TimeTrackingRuntimeState(activityState: .paused, openEntryID: nil, lastHeartbeatAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0))
+            runtimeState: TimeTrackingRuntimeState(activityState: .paused, openEntryID: nil, lastHeartbeatAt: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 0))
         )
 
         try await store.save(ledger)
@@ -33,7 +33,7 @@ struct ProjectTimeTrackingControllerTests {
     func enablingTrackingStartsOpenUnallocatedEntry() async throws {
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0)
         )
 
         await harness.controller.waitUntilLoaded()
@@ -48,22 +48,22 @@ struct ProjectTimeTrackingControllerTests {
     func pauseResumeAllocateAndStopPreservePendingTime() async throws {
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0)
         )
         await harness.controller.waitUntilLoaded()
 
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30)
         await harness.controller.synchronize()
         await harness.controller.pause()
 
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 45)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 45)
         await harness.controller.resume()
 
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 15)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 15)
         await harness.controller.synchronize()
         await harness.controller.allocateCurrentDayPending(to: .other)
 
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 30)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 30)
         await harness.controller.synchronize()
         await harness.controller.stop()
 
@@ -79,22 +79,49 @@ struct ProjectTimeTrackingControllerTests {
         let project = TimeTrackingProject(id: UUID(), name: "Client A")
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0)
         )
         await harness.controller.waitUntilLoaded()
 
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30)
         await harness.controller.synchronize()
         await harness.controller.allocateCurrentDayPending(to: .project(project.id))
 
         #expect(harness.controller.runtimeState.activityState == .running)
         #expect(harness.controller.entries.count == 2)
         #expect(harness.controller.entries[0].bucket == .project(project.id))
-        #expect(harness.controller.entries[0].endAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30))
+        #expect(harness.controller.entries[0].endAt == makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30))
         #expect(harness.controller.entries[1].bucket == .unallocated)
-        #expect(harness.controller.entries[1].startAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30))
+        #expect(harness.controller.entries[1].startAt == makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30))
         #expect(harness.controller.entries[1].isOpen == true)
         #expect(harness.controller.dashboardState.todaySummary.unallocatedDuration == 0)
+    }
+
+    @Test
+    func cachedTickerSplitsOpenEntryAcrossMidnightWhenInterfaceBecomesActive() async throws {
+        let harness = try makeHarness(
+            settings: AppSettings(projectTimeTrackingEnabled: true),
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 23, minute: 59)
+        )
+        await harness.controller.waitUntilLoaded()
+
+        harness.controller.setInterfaceActive(false)
+        harness.clock.current = makeDate(year: 2_026, month: 4, day: 1, hour: 0, minute: 1)
+        harness.controller.setInterfaceActive(true)
+
+        for _ in 0..<20 {
+            if harness.controller.runtimeState.openEntryID != harness.controller.entries.first?.id,
+               harness.controller.entries.last?.startAt == makeDate(year: 2_026, month: 4, day: 1, hour: 0, minute: 0)
+            {
+                break
+            }
+            await Task.yield()
+        }
+
+        #expect(harness.controller.entries.count == 2)
+        #expect(harness.controller.entries[0].endAt == makeDate(year: 2_026, month: 4, day: 1, hour: 0, minute: 0))
+        #expect(harness.controller.entries[1].startAt == makeDate(year: 2_026, month: 4, day: 1, hour: 0, minute: 0))
+        #expect(harness.controller.dashboardState.todaySummary.unallocatedDuration == TimeInterval(60))
     }
 
     @Test
@@ -102,12 +129,12 @@ struct ProjectTimeTrackingControllerTests {
         let project = TimeTrackingProject(id: UUID(), name: "Client A")
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0)
         )
         await harness.controller.waitUntilLoaded()
 
         let openEntryID = try #require(harness.controller.entries.first?.id)
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30)
         await harness.controller.synchronize()
         await harness.controller.quickAllocateEntry(id: openEntryID, to: .project(project.id))
 
@@ -115,10 +142,10 @@ struct ProjectTimeTrackingControllerTests {
         #expect(harness.controller.entries.count == 2)
         #expect(harness.controller.entries[0].id == openEntryID)
         #expect(harness.controller.entries[0].bucket == .project(project.id))
-        #expect(harness.controller.entries[0].startAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0))
-        #expect(harness.controller.entries[0].endAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30))
+        #expect(harness.controller.entries[0].startAt == makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0))
+        #expect(harness.controller.entries[0].endAt == makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30))
         #expect(harness.controller.entries[1].bucket == .unallocated)
-        #expect(harness.controller.entries[1].startAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30))
+        #expect(harness.controller.entries[1].startAt == makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30))
         #expect(harness.controller.entries[1].isOpen == true)
         #expect(harness.controller.runtimeState.openEntryID == harness.controller.entries[1].id)
         #expect(harness.controller.dashboardState.todaySummary.unallocatedDuration == 0)
@@ -129,13 +156,13 @@ struct ProjectTimeTrackingControllerTests {
         let project = TimeTrackingProject(id: UUID(), name: "Client A")
         let overnightEntry = TimeTrackingEntry(
             id: UUID(),
-            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
-            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 8, minute: 7),
+            startAt: makeDate(year: 2_026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 8, minute: 7),
             bucket: .unallocated
         )
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0),
             initialLedger: TimeTrackingLedger(
                 entries: [overnightEntry],
                 runtimeState: TimeTrackingRuntimeState(activityState: .paused)
@@ -148,7 +175,7 @@ struct ProjectTimeTrackingControllerTests {
         await harness.controller.allocateCurrentDayPending(to: .project(project.id))
 
         let previousDaySummary = harness.controller.daySummary(
-            for: makeDate(year: 2026, month: 3, day: 30, hour: 12, minute: 0)
+            for: makeDate(year: 2_026, month: 3, day: 30, hour: 12, minute: 0)
         )
         let currentDaySummary = harness.controller.daySummary(for: harness.clock.current)
 
@@ -165,13 +192,13 @@ struct ProjectTimeTrackingControllerTests {
     func entriesForDayIncludesEntriesThatStartedBeforeMidnight() async throws {
         let overnightEntry = TimeTrackingEntry(
             id: UUID(),
-            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
-            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 8, minute: 7),
+            startAt: makeDate(year: 2_026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 8, minute: 7),
             bucket: .unallocated
         )
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0),
             initialLedger: TimeTrackingLedger(
                 entries: [overnightEntry],
                 runtimeState: TimeTrackingRuntimeState(activityState: .paused)
@@ -188,13 +215,13 @@ struct ProjectTimeTrackingControllerTests {
     func entriesForDayExcludesEntriesThatOnlyTouchMidnightBoundary() async throws {
         let previousDayEntry = TimeTrackingEntry(
             id: UUID(),
-            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
-            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 0, minute: 0),
+            startAt: makeDate(year: 2_026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 0, minute: 0),
             bucket: .unallocated
         )
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0),
             initialLedger: TimeTrackingLedger(
                 entries: [previousDayEntry],
                 runtimeState: TimeTrackingRuntimeState(activityState: .paused)
@@ -212,11 +239,11 @@ struct ProjectTimeTrackingControllerTests {
         let project = TimeTrackingProject(id: UUID(), name: "Client A")
         let overnightEntry = TimeTrackingEntry(
             id: UUID(),
-            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
-            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 8, minute: 7),
+            startAt: makeDate(year: 2_026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 8, minute: 7),
             bucket: .unallocated
         )
-        let selectedDay = makeDate(year: 2026, month: 3, day: 31, hour: 12, minute: 0)
+        let selectedDay = makeDate(year: 2_026, month: 3, day: 31, hour: 12, minute: 0)
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
             now: selectedDay,
@@ -227,13 +254,13 @@ struct ProjectTimeTrackingControllerTests {
         )
         await harness.controller.waitUntilLoaded()
 
-        await harness.controller.reassignEntry(
+        try await harness.controller.reassignEntry(
             id: overnightEntry.id,
             to: .project(project.id),
-            within: try dayInterval(containing: selectedDay)
+            within: dayInterval(containing: selectedDay)
         )
 
-        let previousDaySummary = harness.controller.daySummary(for: makeDate(year: 2026, month: 3, day: 30, hour: 12, minute: 0))
+        let previousDaySummary = harness.controller.daySummary(for: makeDate(year: 2_026, month: 3, day: 30, hour: 12, minute: 0))
         let selectedDaySummary = harness.controller.daySummary(for: selectedDay)
 
         #expect(previousDaySummary.unallocatedDuration == TimeInterval(30 * 60))
@@ -250,11 +277,11 @@ struct ProjectTimeTrackingControllerTests {
         let project = TimeTrackingProject(id: UUID(), name: "Client A")
         let overnightEntry = TimeTrackingEntry(
             id: UUID(),
-            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
-            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 8, minute: 7),
+            startAt: makeDate(year: 2_026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 8, minute: 7),
             bucket: .unallocated
         )
-        let selectedDay = makeDate(year: 2026, month: 3, day: 31, hour: 12, minute: 0)
+        let selectedDay = makeDate(year: 2_026, month: 3, day: 31, hour: 12, minute: 0)
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
             now: selectedDay,
@@ -265,13 +292,13 @@ struct ProjectTimeTrackingControllerTests {
         )
         await harness.controller.waitUntilLoaded()
 
-        await harness.controller.quickAllocateEntry(
+        try await harness.controller.quickAllocateEntry(
             id: overnightEntry.id,
             to: .project(project.id),
-            within: try dayInterval(containing: selectedDay)
+            within: dayInterval(containing: selectedDay)
         )
 
-        let previousDaySummary = harness.controller.daySummary(for: makeDate(year: 2026, month: 3, day: 30, hour: 12, minute: 0))
+        let previousDaySummary = harness.controller.daySummary(for: makeDate(year: 2_026, month: 3, day: 30, hour: 12, minute: 0))
         let selectedDaySummary = harness.controller.daySummary(for: selectedDay)
 
         #expect(previousDaySummary.unallocatedDuration == TimeInterval(30 * 60))
@@ -288,11 +315,11 @@ struct ProjectTimeTrackingControllerTests {
         let project = TimeTrackingProject(id: UUID(), name: "Client A")
         let overnightEntry = TimeTrackingEntry(
             id: UUID(),
-            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
-            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 8, minute: 0),
+            startAt: makeDate(year: 2_026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 8, minute: 0),
             bucket: .project(project.id)
         )
-        let selectedDay = makeDate(year: 2026, month: 3, day: 31, hour: 12, minute: 0)
+        let selectedDay = makeDate(year: 2_026, month: 3, day: 31, hour: 12, minute: 0)
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
             now: selectedDay,
@@ -303,14 +330,14 @@ struct ProjectTimeTrackingControllerTests {
         )
         await harness.controller.waitUntilLoaded()
 
-        await harness.controller.updateEntry(
+        try await harness.controller.updateEntry(
             id: overnightEntry.id,
-            startAt: makeDate(year: 2026, month: 3, day: 31, hour: 1, minute: 0),
-            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 7, minute: 0),
-            within: try dayInterval(containing: selectedDay)
+            startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 1, minute: 0),
+            endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 7, minute: 0),
+            within: dayInterval(containing: selectedDay)
         )
 
-        let previousDaySummary = harness.controller.daySummary(for: makeDate(year: 2026, month: 3, day: 30, hour: 12, minute: 0))
+        let previousDaySummary = harness.controller.daySummary(for: makeDate(year: 2_026, month: 3, day: 30, hour: 12, minute: 0))
         let selectedDaySummary = harness.controller.daySummary(for: selectedDay)
 
         #expect(previousDaySummary.bucketDurations.first(where: { $0.bucket == .project(project.id) })?.duration == TimeInterval(30 * 60))
@@ -323,11 +350,11 @@ struct ProjectTimeTrackingControllerTests {
         let project = TimeTrackingProject(id: UUID(), name: "Client A")
         let overnightEntry = TimeTrackingEntry(
             id: UUID(),
-            startAt: makeDate(year: 2026, month: 3, day: 30, hour: 23, minute: 30),
-            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 8, minute: 0),
+            startAt: makeDate(year: 2_026, month: 3, day: 30, hour: 23, minute: 30),
+            endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 8, minute: 0),
             bucket: .unallocated
         )
-        let selectedDay = makeDate(year: 2026, month: 3, day: 31, hour: 12, minute: 0)
+        let selectedDay = makeDate(year: 2_026, month: 3, day: 31, hour: 12, minute: 0)
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
             now: selectedDay,
@@ -338,14 +365,14 @@ struct ProjectTimeTrackingControllerTests {
         )
         await harness.controller.waitUntilLoaded()
 
-        await harness.controller.splitEntry(
+        try await harness.controller.splitEntry(
             id: overnightEntry.id,
-            within: try dayInterval(containing: selectedDay),
-            at: makeDate(year: 2026, month: 3, day: 31, hour: 4, minute: 0),
+            within: dayInterval(containing: selectedDay),
+            at: makeDate(year: 2_026, month: 3, day: 31, hour: 4, minute: 0),
             secondBucket: .project(project.id)
         )
 
-        let previousDaySummary = harness.controller.daySummary(for: makeDate(year: 2026, month: 3, day: 30, hour: 12, minute: 0))
+        let previousDaySummary = harness.controller.daySummary(for: makeDate(year: 2_026, month: 3, day: 30, hour: 12, minute: 0))
         let selectedDaySummary = harness.controller.daySummary(for: selectedDay)
 
         #expect(previousDaySummary.unallocatedDuration == TimeInterval(30 * 60))
@@ -362,15 +389,15 @@ struct ProjectTimeTrackingControllerTests {
         let project = TimeTrackingProject(id: UUID(), name: "Client A")
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0)
         )
         await harness.controller.waitUntilLoaded()
 
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 10)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 10)
         await harness.controller.synchronize()
         await harness.controller.reportInterruption()
 
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30)
         await harness.controller.synchronize()
         await harness.controller.allocateCurrentDayPending(to: .project(project.id))
 
@@ -384,18 +411,18 @@ struct ProjectTimeTrackingControllerTests {
         #expect(projectBucket.interruptionCount == 1)
         #expect(projectBucket.focusAdjustedDuration == TimeInterval(7 * 60))
         #expect(harness.controller.dashboardState.todaySummary.interruptionCount == 1)
-        #expect(harness.controller.dashboardState.todaySummary.lastInterruptionAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 10))
+        #expect(harness.controller.dashboardState.todaySummary.lastInterruptionAt == makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 10))
     }
 
     @Test
     func pausedAllocationClearsPendingWithoutRestartingTimer() async throws {
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0)
         )
         await harness.controller.waitUntilLoaded()
 
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 20)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 20)
         await harness.controller.synchronize()
         await harness.controller.pause()
         await harness.controller.allocateCurrentDayPending(to: .other)
@@ -410,10 +437,10 @@ struct ProjectTimeTrackingControllerTests {
     func stoppedAllocationClearsPendingWithoutRestartingTimer() async throws {
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0)
         )
         await harness.controller.waitUntilLoaded()
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 25)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 25)
         await harness.controller.synchronize()
         await harness.controller.stop()
         await harness.controller.allocateCurrentDayPending(to: .other)
@@ -432,28 +459,28 @@ struct ProjectTimeTrackingControllerTests {
         let projectC = TimeTrackingProject(id: UUID(), name: "Charlie")
         let ledger = TimeTrackingLedger(entries: [
             TimeTrackingEntry(
-                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
-                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30),
+                startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0),
+                endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30),
                 bucket: .project(projectA.id)
             ),
             TimeTrackingEntry(
-                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30),
-                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
+                startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30),
+                endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 0),
                 bucket: .other
             ),
             TimeTrackingEntry(
-                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
-                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 30),
+                startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 0),
+                endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 30),
                 bucket: .project(projectB.id)
             ),
             TimeTrackingEntry(
-                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 30),
-                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 0),
+                startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 30),
+                endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 11, minute: 0),
                 bucket: .project(projectA.id)
             ),
             TimeTrackingEntry(
-                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 0),
-                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 30),
+                startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 11, minute: 0),
+                endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 11, minute: 30),
                 bucket: .project(projectC.id)
             )
         ])
@@ -462,7 +489,7 @@ struct ProjectTimeTrackingControllerTests {
                 projectTimeTrackingEnabled: true,
                 timeTrackingProjects: [projectA, projectB, projectC]
             ),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 12, minute: 0),
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 12, minute: 0),
             initialLedger: ledger
         )
         await harness.controller.waitUntilLoaded()
@@ -476,23 +503,23 @@ struct ProjectTimeTrackingControllerTests {
         let archivedProject = TimeTrackingProject(id: UUID(), name: "Archived", isArchived: true)
         let ledger = TimeTrackingLedger(entries: [
             TimeTrackingEntry(
-                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
-                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30),
+                startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0),
+                endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30),
                 bucket: .project(activeProject.id)
             ),
             TimeTrackingEntry(
-                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30),
-                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
+                startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30),
+                endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 0),
                 bucket: .unallocated
             ),
             TimeTrackingEntry(
-                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
-                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 30),
+                startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 0),
+                endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 30),
                 bucket: .project(archivedProject.id)
             ),
             TimeTrackingEntry(
-                startAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 30),
-                endAt: makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 0),
+                startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 30),
+                endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 11, minute: 0),
                 bucket: .other
             )
         ])
@@ -501,7 +528,7 @@ struct ProjectTimeTrackingControllerTests {
                 projectTimeTrackingEnabled: true,
                 timeTrackingProjects: [activeProject, archivedProject]
             ),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 0),
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 11, minute: 0),
             initialLedger: ledger
         )
         await harness.controller.waitUntilLoaded()
@@ -513,18 +540,18 @@ struct ProjectTimeTrackingControllerTests {
     func sleepAndWakeExcludeSleepGapFromTrackedTime() async throws {
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0)
         )
         await harness.controller.waitUntilLoaded()
 
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 20)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 20)
         await harness.controller.synchronize()
         await harness.controller.handleSystemWillSleep()
 
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 0)
         await harness.controller.handleSystemDidWake()
 
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 30)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 30)
         await harness.controller.synchronize()
 
         let summary = harness.controller.daySummary(for: harness.clock.current)
@@ -536,7 +563,7 @@ struct ProjectTimeTrackingControllerTests {
     func relaunchReconcilesStaleOpenEntryAtLastHeartbeat() async throws {
         let openEntry = TimeTrackingEntry(
             id: UUID(),
-            startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
+            startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0),
             endAt: nil,
             bucket: .unallocated
         )
@@ -545,22 +572,22 @@ struct ProjectTimeTrackingControllerTests {
             runtimeState: TimeTrackingRuntimeState(
                 activityState: .running,
                 openEntryID: openEntry.id,
-                lastHeartbeatAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 20)
+                lastHeartbeatAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 20)
             )
         )
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 0),
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 11, minute: 0),
             initialLedger: ledger
         )
         await harness.controller.waitUntilLoaded()
 
         #expect(harness.controller.entries.count == 2)
-        #expect(harness.controller.entries[0].endAt == makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 0))
-        #expect(harness.controller.entries[1].startAt == makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 0))
+        #expect(harness.controller.entries[0].endAt == makeDate(year: 2_026, month: 3, day: 31, hour: 11, minute: 0))
+        #expect(harness.controller.entries[1].startAt == makeDate(year: 2_026, month: 3, day: 31, hour: 11, minute: 0))
         #expect(harness.controller.entries[1].isOpen == true)
 
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 11, minute: 30)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 11, minute: 30)
         await harness.controller.synchronize()
 
         let summary = harness.controller.daySummary(for: harness.clock.current)
@@ -571,28 +598,28 @@ struct ProjectTimeTrackingControllerTests {
     func cleanTerminationRelaunchDoesNotBackfillOfflineGap() async throws {
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0)
         )
         await harness.controller.waitUntilLoaded()
 
-        harness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 20)
+        harness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 20)
         await harness.controller.synchronize()
         await harness.controller.handleApplicationWillTerminate()
 
         let persistedLedger = await harness.store.currentLedger()
         let relaunchedHarness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 0),
             initialLedger: persistedLedger
         )
         await relaunchedHarness.controller.waitUntilLoaded()
 
         #expect(relaunchedHarness.controller.entries.count == 2)
-        #expect(relaunchedHarness.controller.entries[0].endAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 20))
-        #expect(relaunchedHarness.controller.entries[1].startAt == makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0))
+        #expect(relaunchedHarness.controller.entries[0].endAt == makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 20))
+        #expect(relaunchedHarness.controller.entries[1].startAt == makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 0))
         #expect(relaunchedHarness.controller.entries[1].isOpen == true)
 
-        relaunchedHarness.clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 30)
+        relaunchedHarness.clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 30)
         await relaunchedHarness.controller.synchronize()
 
         let summary = relaunchedHarness.controller.daySummary(for: relaunchedHarness.clock.current)
@@ -605,8 +632,8 @@ struct ProjectTimeTrackingControllerTests {
         let projectB = TimeTrackingProject(id: UUID(), name: "Client B")
         let entry = TimeTrackingEntry(
             id: UUID(),
-            startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
-            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
+            startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0),
+            endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 0),
             bucket: .project(projectA.id)
         )
         let harness = try makeHarness(
@@ -614,7 +641,7 @@ struct ProjectTimeTrackingControllerTests {
                 projectTimeTrackingEnabled: true,
                 timeTrackingProjects: [projectA, projectB]
             ),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 0),
             initialLedger: TimeTrackingLedger(entries: [entry])
         )
         await harness.controller.waitUntilLoaded()
@@ -622,12 +649,12 @@ struct ProjectTimeTrackingControllerTests {
         await harness.controller.reassignEntry(id: entry.id, to: .other)
         await harness.controller.updateEntry(
             id: entry.id,
-            startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 15),
-            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 45)
+            startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 15),
+            endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 45)
         )
         await harness.controller.splitEntry(
             id: entry.id,
-            at: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30),
+            at: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30),
             secondBucket: .project(projectB.id)
         )
 
@@ -644,8 +671,8 @@ struct ProjectTimeTrackingControllerTests {
         let projectB = TimeTrackingProject(id: UUID(), name: "Client B")
         let historicalEntry = TimeTrackingEntry(
             id: UUID(),
-            startAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0),
-            endAt: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30),
+            startAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0),
+            endAt: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30),
             bucket: .project(projectA.id)
         )
         let harness = try makeHarness(
@@ -653,7 +680,7 @@ struct ProjectTimeTrackingControllerTests {
                 projectTimeTrackingEnabled: true,
                 timeTrackingProjects: [projectA, projectB]
             ),
-            now: makeDate(year: 2026, month: 3, day: 31, hour: 10, minute: 0),
+            now: makeDate(year: 2_026, month: 3, day: 31, hour: 10, minute: 0),
             initialLedger: TimeTrackingLedger(entries: [historicalEntry])
         )
         await harness.controller.waitUntilLoaded()
@@ -666,7 +693,7 @@ struct ProjectTimeTrackingControllerTests {
         #expect(harness.controller.entries.count == 2)
         #expect(harness.controller.entries[0].id == historicalEntry.id)
         #expect(harness.controller.entries[0].bucket == .project(projectB.id))
-        #expect(harness.controller.entries[0].endAt == makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 30))
+        #expect(harness.controller.entries[0].endAt == makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 30))
         #expect(harness.controller.entries[1].bucket == .unallocated)
         #expect(harness.controller.entries[1].isOpen == true)
         #expect(harness.controller.entries[1].startAt == openEntryStartBefore)
@@ -677,9 +704,9 @@ struct ProjectTimeTrackingControllerTests {
     @Test
     func loadFailureFallsBackToFreshRunningSessionAndReportsRecovery() async throws {
         let store = FailingLoadTimeTrackingLedgerStore()
-        let settingsStore = AppSettingsStore(defaults: try #require(UserDefaults(suiteName: UUID().uuidString)))
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings = AppSettings(projectTimeTrackingEnabled: true)
-        let currentNow = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0)
+        let currentNow = makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0)
         let controller = ProjectTimeTrackingController(
             settingsStore: settingsStore,
             ledgerStore: store,
@@ -698,15 +725,15 @@ struct ProjectTimeTrackingControllerTests {
         #expect(controller.entries.first?.isOpen == true)
         #expect(controller.entries.first?.startAt == currentNow)
         #expect(controller.lastErrorMessage?.contains("Recovered unreadable time tracking data") == true)
-        #expect((await store.savedLedger())?.entries.count == 1)
+        #expect(await (store.savedLedger())?.entries.count == 1)
     }
 
     @Test
     func saveFailureRetainsRunningStateAndClearsErrorAfterRetry() async throws {
         let store = FlakySaveTimeTrackingLedgerStore(failSaveCount: 1)
-        let settingsStore = AppSettingsStore(defaults: try #require(UserDefaults(suiteName: UUID().uuidString)))
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings = AppSettings(projectTimeTrackingEnabled: true)
-        let clock = TestClock(current: makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 0))
+        let clock = TestClock(current: makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 0))
         let controller = ProjectTimeTrackingController(
             settingsStore: settingsStore,
             ledgerStore: store,
@@ -725,39 +752,39 @@ struct ProjectTimeTrackingControllerTests {
         #expect(controller.entries.first?.isOpen == true)
         #expect(controller.lastErrorMessage?.contains("Failed to save time tracking data") == true)
 
-        clock.current = makeDate(year: 2026, month: 3, day: 31, hour: 9, minute: 10)
+        clock.current = makeDate(year: 2_026, month: 3, day: 31, hour: 9, minute: 10)
         await controller.synchronize()
 
         #expect(controller.runtimeState.activityState == .running)
         #expect(controller.entries.count == 1)
         #expect(controller.entries.first?.isOpen == true)
         #expect(controller.lastErrorMessage == nil)
-        #expect((await store.savedLedger())?.runtimeState.lastPersistedAt == clock.current)
+        #expect(await (store.savedLedger())?.runtimeState.lastPersistedAt == clock.current)
     }
 
     @Test
     func weekSummaryUsesMondayWeekBoundariesAndMonthExportIncludesBreakdowns() async throws {
         let project = TimeTrackingProject(id: UUID(), name: "Client A")
-        let projectDay = makeDate(year: 2026, month: 4, day: 1, hour: 9, minute: 0)
-        let sunday = makeDate(year: 2026, month: 4, day: 5, hour: 14, minute: 0)
+        let projectDay = makeDate(year: 2_026, month: 4, day: 1, hour: 9, minute: 0)
+        let sunday = makeDate(year: 2_026, month: 4, day: 5, hour: 14, minute: 0)
         let harness = try makeHarness(
             settings: AppSettings(projectTimeTrackingEnabled: true, timeTrackingProjects: [project]),
-            now: makeDate(year: 2026, month: 4, day: 5, hour: 18, minute: 0),
+            now: makeDate(year: 2_026, month: 4, day: 5, hour: 18, minute: 0),
             initialLedger: TimeTrackingLedger(
                 entries: [
                     TimeTrackingEntry(
                         startAt: projectDay,
-                        endAt: makeDate(year: 2026, month: 4, day: 1, hour: 11, minute: 0),
+                        endAt: makeDate(year: 2_026, month: 4, day: 1, hour: 11, minute: 0),
                         bucket: .project(project.id)
                     ),
                     TimeTrackingEntry(
                         startAt: sunday,
-                        endAt: makeDate(year: 2026, month: 4, day: 5, hour: 15, minute: 0),
+                        endAt: makeDate(year: 2_026, month: 4, day: 5, hour: 15, minute: 0),
                         bucket: .other
                     )
                 ],
                 interruptions: [
-                    TimeTrackingInterruption(reportedAt: makeDate(year: 2026, month: 4, day: 1, hour: 9, minute: 30))
+                    TimeTrackingInterruption(reportedAt: makeDate(year: 2_026, month: 4, day: 1, hour: 9, minute: 30))
                 ]
             )
         )

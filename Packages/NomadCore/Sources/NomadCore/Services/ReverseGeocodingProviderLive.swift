@@ -18,7 +18,6 @@ public struct ReverseGeocodedLocation: Equatable, Sendable {
 }
 
 public actor CachedReverseGeocodingProvider: ReverseGeocodingProvider {
-    private let geocoder = CLGeocoder()
     private let ttl: TimeInterval
     private var cache: [String: CachedReverseGeocodedLocation] = [:]
 
@@ -32,7 +31,7 @@ public actor CachedReverseGeocodingProvider: ReverseGeocodingProvider {
             return cached.location
         }
 
-        let placemarks = try await geocoder.reverseGeocodeLocation(location)
+        let placemarks = try await CLGeocoder().reverseGeocodeLocation(location)
         guard let placemark = placemarks.first else {
             throw ProviderError.invalidResponse
         }

@@ -5,7 +5,14 @@ import WebKit
 actor WebKitSmartravellerBrowserFetcher: SmartravellerBrowserFetcher {
     func destinationsHTML() async throws -> String {
         let loader = await MainActor.run { SmartravellerWebViewLoader() }
-        return try await loader.load()
+        return try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await loader.load()
+        } onCancel: {
+            Task { @MainActor in
+                loader.cancel()
+            }
+        }
     }
 }
 
@@ -47,6 +54,10 @@ private final class SmartravellerWebViewLoader: NSObject, WKNavigationDelegate {
             )
             webView.load(request)
         }
+    }
+
+    func cancel() {
+        finish(.failure(CancellationError()))
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

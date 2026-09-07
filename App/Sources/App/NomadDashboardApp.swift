@@ -11,6 +11,8 @@ struct NomadDashboardApp: App {
     @StateObject private var launchAtLoginController: LaunchAtLoginController
     @StateObject private var timeTrackingController: ProjectTimeTrackingController
     @StateObject private var settingsNavigationController: SettingsNavigationController
+    @StateObject private var lifeController: NomadLifeController
+    @StateObject private var runtimeCoordinator: NomadRuntimeCoordinator
     private let analytics: AppAnalytics
 
     init() {
@@ -66,9 +68,20 @@ struct NomadDashboardApp: App {
             settingsStore.settings.launchAtLoginEnabled = launchAtLoginController.isEnabled
         }
 
+        let snapshotStore = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies, analytics: analytics)
+        let locationStore = CurrentLocationStore()
+        let lifeController = NomadLifeController(storageURL: applicationSupportDirectory.appendingPathComponent("workplace-diary.json"), preferencesKey: "\(storageNamespace.settingsKey).NomadLife")
         _settingsStore = StateObject(wrappedValue: settingsStore)
-        _snapshotStore = StateObject(wrappedValue: DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies, analytics: analytics))
-        _locationStore = StateObject(wrappedValue: CurrentLocationStore())
+        _snapshotStore = StateObject(wrappedValue: snapshotStore)
+        _locationStore = StateObject(wrappedValue: locationStore)
+        _lifeController = StateObject(wrappedValue: lifeController)
+        _runtimeCoordinator = StateObject(wrappedValue: NomadRuntimeCoordinator(
+            snapshotStore: snapshotStore,
+            locationStore: locationStore,
+            settingsStore: settingsStore,
+            timeTracking: timeTrackingController,
+            life: lifeController
+        ))
         _launchAtLoginController = StateObject(wrappedValue: launchAtLoginController)
         _timeTrackingController = StateObject(wrappedValue: timeTrackingController)
         _settingsNavigationController = StateObject(wrappedValue: SettingsNavigationController())
@@ -79,6 +92,8 @@ struct NomadDashboardApp: App {
     var body: some Scene {
         MenuBarExtra {
             DashboardRootView(
+                lifeController: lifeController,
+                runtimeCoordinator: runtimeCoordinator,
                 snapshotStore: snapshotStore,
                 settingsStore: settingsStore,
                 locationStore: locationStore,
@@ -94,6 +109,10 @@ struct NomadDashboardApp: App {
         }
         .menuBarExtraStyle(.window)
         .commands {
+            CommandGroup(replacing: .appTermination) {
+                Button("Quit \(AppRuntimeInfo.appName)") { runtimeCoordinator.quitApplication() }
+                    .keyboardShortcut("q", modifiers: [.command])
+            }
             if AppRuntimeInfo.isDebugBuild {
                 CommandGroup(replacing: .saveItem) {
                     Button("Save Screenshot") {
@@ -133,11 +152,26 @@ struct NomadDashboardApp: App {
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
 
+        Window("Workplace Diary", id: "workplace-diary") {
+            WorkplaceDiaryWindow(controller: lifeController, locationStore: locationStore)
+                .frame(minWidth: 620, minHeight: 470)
+                .modifier(SceneAppearanceSync(settingsStore: settingsStore))
+        }
+        .defaultSize(width: 740, height: 600)
+
+        Window("Nomad Preferences", id: "nomad-preferences") {
+            NomadLifeSettingsWindow(controller: lifeController, notifications: runtimeCoordinator.notifications)
+                .modifier(SceneAppearanceSync(settingsStore: settingsStore))
+        }
+        .defaultSize(width: 600, height: 640)
+
         Window("Time Tracking", id: "time-tracking") {
             TimeTrackingWindowView(
                 settingsStore: settingsStore,
                 controller: timeTrackingController
             )
+            .onAppear { runtimeCoordinator.setVisible(true, surface: "time-tracking") }
+            .onDisappear { runtimeCoordinator.setVisible(false, surface: "time-tracking") }
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
     }

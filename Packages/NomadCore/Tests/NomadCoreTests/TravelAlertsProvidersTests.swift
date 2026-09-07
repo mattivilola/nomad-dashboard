@@ -96,7 +96,7 @@ struct TravelAlertsProvidersTests {
                 """.utf8
             ),
             stage: "live destinations",
-            baseURL: URL(string: "https://www.smartraveller.gov.au/destinations")!
+            baseURL: #require(URL(string: "https://www.smartraveller.gov.au/destinations"))
         )
 
         #expect(destinations.count == 1)
@@ -108,11 +108,11 @@ struct TravelAlertsProvidersTests {
     @Test
     func advisoryProviderFallsBackFromLiveDestinationsToExport() async throws {
         let session = makeMockSession()
-        let provider = SmartravellerAdvisoryProvider(
+        let provider = try SmartravellerAdvisoryProvider(
             session: session,
             ttl: 0,
-            liveDestinationsURL: URL(string: "https://example.com/destinations")!,
-            exportURL: URL(string: "https://example.com/destinations-export")!,
+            liveDestinationsURL: #require(URL(string: "https://example.com/destinations")),
+            exportURL: #require(URL(string: "https://example.com/destinations-export")),
             requestTimeout: 1
         )
 
@@ -145,11 +145,11 @@ struct TravelAlertsProvidersTests {
     @Test
     func advisoryProviderFallsBackToBrowserHTMLAfterDirectFailures() async throws {
         let session = makeMockSession()
-        let provider = SmartravellerAdvisoryProvider(
+        let provider = try SmartravellerAdvisoryProvider(
             session: session,
             ttl: 0,
-            liveDestinationsURL: URL(string: "https://example.com/destinations")!,
-            exportURL: URL(string: "https://example.com/destinations-export")!,
+            liveDestinationsURL: #require(URL(string: "https://example.com/destinations")),
+            exportURL: #require(URL(string: "https://example.com/destinations-export")),
             browserFetcher: StubBrowserFetcher(
                 result: .success(
                     """
@@ -186,11 +186,11 @@ struct TravelAlertsProvidersTests {
     @Test
     func advisoryProviderFetchesOptionalDestinationDetailWithoutAffectingSeveritySource() async throws {
         let session = makeMockSession()
-        let provider = SmartravellerAdvisoryProvider(
+        let provider = try SmartravellerAdvisoryProvider(
             session: session,
             ttl: 0,
-            liveDestinationsURL: URL(string: "https://example.com/destinations")!,
-            exportURL: URL(string: "https://example.com/destinations-export")!,
+            liveDestinationsURL: #require(URL(string: "https://example.com/destinations")),
+            exportURL: #require(URL(string: "https://example.com/destinations-export")),
             requestTimeout: 1
         )
 
@@ -228,11 +228,11 @@ struct TravelAlertsProvidersTests {
     @Test
     func advisoryProviderIgnoresDestinationDetailFetchFailure() async throws {
         let session = makeMockSession()
-        let provider = SmartravellerAdvisoryProvider(
+        let provider = try SmartravellerAdvisoryProvider(
             session: session,
             ttl: 0,
-            liveDestinationsURL: URL(string: "https://example.com/destinations")!,
-            exportURL: URL(string: "https://example.com/destinations-export")!,
+            liveDestinationsURL: #require(URL(string: "https://example.com/destinations")),
+            exportURL: #require(URL(string: "https://example.com/destinations-export")),
             requestTimeout: 1
         )
 
@@ -301,16 +301,16 @@ struct TravelAlertsProvidersTests {
     @Test
     func advisoryProviderMergesStageFailuresWhenAllFallbacksFail() async throws {
         let session = makeMockSession()
-        let provider = SmartravellerAdvisoryProvider(
+        let provider = try SmartravellerAdvisoryProvider(
             session: session,
             ttl: 0,
-            liveDestinationsURL: URL(string: "https://example.com/destinations")!,
-            exportURL: URL(string: "https://example.com/destinations-export")!,
+            liveDestinationsURL: #require(URL(string: "https://example.com/destinations")),
+            exportURL: #require(URL(string: "https://example.com/destinations-export")),
             browserFetcher: StubBrowserFetcher(result: .failure(StubBrowserFetcherError(message: "Navigation failed"))),
             requestTimeout: 1
         )
 
-        MockTravelAlertsURLProtocol.handler = { request in
+        MockTravelAlertsURLProtocol.handler = { _ in
             throw URLError(.timedOut)
         }
 

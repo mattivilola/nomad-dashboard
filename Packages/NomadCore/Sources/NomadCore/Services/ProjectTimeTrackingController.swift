@@ -28,6 +28,12 @@ public final class ProjectTimeTrackingController: ObservableObject {
     private var ledger = TimeTrackingLedger.empty
     private var appliedSettings: AppSettings
     private var isMachineAwake = true
+    private var isInterfaceActive = true
+    private var cachedDashboardSummary: (summary: TimeTrackingDaySummary, generatedAt: Date)?
+    private var cachedActiveProjects: [TimeTrackingProject] = []
+    private var cachedRecentProjects: [TimeTrackingProject] = []
+    private var cachedOpenEntryIndex: Int?
+    private var cachedOpenUnallocatedEntryStartAt: Date?
 
     public init(
         settingsStore: AppSettingsStore,
@@ -72,6 +78,19 @@ public final class ProjectTimeTrackingController: ObservableObject {
     public func waitUntilLoaded() async {
         while isLoaded == false {
             await Task.yield()
+        }
+    }
+
+    /// Stops the display-only one-second ticker while the dashboard has no visible interface.
+    /// Heartbeats continue so crash recovery stays bounded by the heartbeat interval.
+    public func setInterfaceActive(_ isActive: Bool) {
+        guard isInterfaceActive != isActive else { return }
+        isInterfaceActive = isActive
+        updateBackgroundTasks(isEnabled: settingsStore.settings.projectTimeTrackingEnabled)
+        if isActive, isLoaded {
+            Task { @MainActor [weak self] in
+                await self?.handleTicker()
+            }
         }
     }
 
@@ -468,12 +487,12 @@ public final class ProjectTimeTrackingController: ObservableObject {
     public func title(for bucket: TimeTrackingBucket) -> String {
         switch bucket {
         case let .project(id):
-            return settingsStore.settings.timeTrackingProjects.first(where: { $0.id == id })?.trimmedName.nilIfEmpty
+            settingsStore.settings.timeTrackingProjects.first(where: { $0.id == id })?.trimmedName.nilIfEmpty
                 ?? "Archived Project"
         case .other:
-            return "Other"
+            "Other"
         case .unallocated:
-            return "Unallocated"
+            "Unallocated"
         }
     }
 
@@ -744,7 +763,12 @@ public final class ProjectTimeTrackingController: ObservableObject {
         }
 
         if isEnabled {
-            startTickerTask()
+            if isInterfaceActive {
+                startTickerTask()
+            } else {
+                tickerTask?.cancel()
+                tickerTask = nil
+            }
             startHeartbeatTask()
         } else {
             tickerTask?.cancel()
@@ -761,12 +785,12 @@ public final class ProjectTimeTrackingController: ObservableObject {
 
         let currentNow = now()
         do {
-            let didChange = try normalizeLedgerForCurrentTime(currentNow)
+            let didChange = try normalizeLedgerForCurrentTime(currentNow, useCachedOpenEntry: true)
             if didChange {
                 try await persistLedger()
                 clearLastErrorMessage()
             }
-            refreshPublishedState(now: currentNow)
+            refreshPublishedState(now: currentNow, rebuildDashboardSummary: didChange)
         } catch {
             lastErrorMessage = error.localizedDescription
         }
@@ -779,17 +803,26 @@ public final class ProjectTimeTrackingController: ObservableObject {
 
         let currentNow = now()
         do {
-            let didChange = try normalizeLedgerForCurrentTime(currentNow)
-            if runtimeState.activityState == .running, openEntryIndex() != nil {
+            let didChange = try normalizeLedgerForCurrentTime(currentNow, useCachedOpenEntry: true)
+            let openEntryID = cachedOpenEntryIndex.map { ledger.entries[$0].id }
+            if runtimeState.activityState == .running, let openEntryID {
                 runtimeState.lastHeartbeatAt = currentNow
                 runtimeState.lastShutdownKind = .none
-            }
-
-            if didChange || runtimeState.activityState == .running {
+                if didChange {
+                    try await persistLedger()
+                } else if let heartbeatStore = ledgerStore as? any TimeTrackingHeartbeatStore {
+                    try await heartbeatStore.saveHeartbeat(
+                        TimeTrackingHeartbeat(openEntryID: openEntryID, recordedAt: currentNow)
+                    )
+                } else {
+                    try await persistLedger()
+                }
+                clearLastErrorMessage()
+            } else if didChange {
                 try await persistLedger()
                 clearLastErrorMessage()
             }
-            refreshPublishedState(now: currentNow)
+            refreshPublishedState(now: currentNow, rebuildDashboardSummary: didChange)
         } catch {
             lastErrorMessage = error.localizedDescription
         }
@@ -1021,8 +1054,11 @@ public final class ProjectTimeTrackingController: ObservableObject {
     }
 
     @discardableResult
-    private func normalizeLedgerForCurrentTime(_ currentNow: Date) throws -> Bool {
-        splitOpenEntryAtMidnightIfNeeded(at: currentNow)
+    private func normalizeLedgerForCurrentTime(
+        _ currentNow: Date,
+        useCachedOpenEntry: Bool = false
+    ) throws -> Bool {
+        splitOpenEntryAtMidnightIfNeeded(at: currentNow, useCachedOpenEntry: useCachedOpenEntry)
     }
 
     private func reconcileLoadedLedger(at currentNow: Date) throws {
@@ -1073,8 +1109,8 @@ public final class ProjectTimeTrackingController: ObservableObject {
     }
 
     @discardableResult
-    private func splitOpenEntryAtMidnightIfNeeded(at currentNow: Date) -> Bool {
-        guard let index = openEntryIndex() else {
+    private func splitOpenEntryAtMidnightIfNeeded(at currentNow: Date, useCachedOpenEntry: Bool = false) -> Bool {
+        guard let index = useCachedOpenEntry ? cachedOpenEntryIndex : openEntryIndex() else {
             return false
         }
 
@@ -1128,16 +1164,15 @@ public final class ProjectTimeTrackingController: ObservableObject {
         ledger.entries = mergeAdjacentEntries(ledger.entries)
     }
 
-    private func refreshPublishedState(now currentNow: Date) {
-        let nextEntries = TimeTrackingLedger.normalizedEntries(ledger.entries)
-        if entries != nextEntries {
-            entries = nextEntries
+    private func refreshPublishedState(now currentNow: Date, rebuildDashboardSummary: Bool = true) {
+        if rebuildDashboardSummary {
+            let nextEntries = ledger.entries
+            if entries != nextEntries {
+                entries = nextEntries
+            }
+            rebuildPresentationCache()
         }
-
-        let nextRuntimeState = ledger.runtimeState
-        if runtimeState != nextRuntimeState {
-            runtimeState = nextRuntimeState
-        }
+        ledger.runtimeState = runtimeState
 
         if settingsStore.settings.projectTimeTrackingEnabled == false {
             if dashboardState != .disabled {
@@ -1146,17 +1181,73 @@ public final class ProjectTimeTrackingController: ObservableObject {
             return
         }
 
+        let todaySummary: TimeTrackingDaySummary
+        if rebuildDashboardSummary || cachedDashboardSummary == nil {
+            todaySummary = makeDaySummary(for: currentNow, now: currentNow)
+            cachedDashboardSummary = (todaySummary, currentNow)
+        } else {
+            todaySummary = dashboardSummaryAtCurrentTime(currentNow)
+        }
+
         let nextDashboardState = TimeTrackingDashboardState(
             isEnabled: true,
-            activityState: nextRuntimeState.activityState,
-            activeProjects: activeProjects,
-            recentProjects: recentDashboardProjects(),
-            todaySummary: makeDaySummary(for: currentNow, now: currentNow),
-            openUnallocatedEntryStartAt: openEntry()?.bucket == .unallocated ? openEntry()?.startAt : nil
+            activityState: runtimeState.activityState,
+            activeProjects: cachedActiveProjects,
+            recentProjects: cachedRecentProjects,
+            todaySummary: todaySummary,
+            openUnallocatedEntryStartAt: cachedOpenUnallocatedEntryStartAt
         )
         if dashboardState != nextDashboardState {
             dashboardState = nextDashboardState
         }
+    }
+
+    private func dashboardSummaryAtCurrentTime(_ currentNow: Date) -> TimeTrackingDaySummary {
+        guard let cachedDashboardSummary else {
+            return makeDaySummary(for: currentNow, now: currentNow)
+        }
+        guard let openEntryStartAt = cachedOpenUnallocatedEntryStartAt,
+              calendar.startOfDay(for: openEntryStartAt) == calendar.startOfDay(for: currentNow)
+        else {
+            return cachedDashboardSummary.summary
+        }
+
+        let elapsed = max(currentNow.timeIntervalSince(cachedDashboardSummary.generatedAt), 0)
+        guard elapsed > 0 else { return cachedDashboardSummary.summary }
+        let base = cachedDashboardSummary.summary
+        var bucketDurations = base.bucketDurations
+        if let index = bucketDurations.firstIndex(where: { $0.bucket == .unallocated }) {
+            let current = bucketDurations[index]
+            bucketDurations[index] = TimeTrackingBucketDuration(
+                bucket: .unallocated,
+                duration: current.duration + elapsed,
+                interruptionCount: current.interruptionCount
+            )
+        } else {
+            bucketDurations.append(TimeTrackingBucketDuration(bucket: .unallocated, duration: elapsed))
+        }
+        bucketDurations.sort { lhs, rhs in
+            if lhs.duration == rhs.duration {
+                return lhs.bucket.stableID < rhs.bucket.stableID
+            }
+            return lhs.duration > rhs.duration
+        }
+        let tracked = base.totalTrackedDuration + elapsed
+        let unallocated = base.unallocatedDuration + elapsed
+        return TimeTrackingDaySummary(
+            dayStart: base.dayStart,
+            bucketDurations: bucketDurations,
+            totalTrackedDuration: tracked,
+            totalAllocatedDuration: tracked - unallocated,
+            unallocatedDuration: unallocated,
+            interruptionCount: base.interruptionCount,
+            estimatedFocusLossDuration: base.estimatedFocusLossDuration,
+            focusAdjustedDuration: TimeTrackingFocusMetrics.focusAdjustedDuration(
+                trackedDuration: tracked,
+                interruptionCount: base.interruptionCount
+            ),
+            lastInterruptionAt: base.lastInterruptionAt
+        )
     }
 
     private func recentDashboardProjects() -> [TimeTrackingProject] {
@@ -1179,6 +1270,15 @@ public final class ProjectTimeTrackingController: ObservableObject {
         }
 
         return orderedProjects
+    }
+
+    private func rebuildPresentationCache() {
+        cachedActiveProjects = activeProjects
+        cachedRecentProjects = recentDashboardProjects()
+        cachedOpenEntryIndex = ledger.entries.firstIndex(where: { $0.id == runtimeState.openEntryID && $0.isOpen })
+        cachedOpenUnallocatedEntryStartAt = cachedOpenEntryIndex.flatMap { index in
+            ledger.entries[index].bucket == .unallocated ? ledger.entries[index].startAt : nil
+        }
     }
 
     private func persistLedger() async throws {
@@ -1645,8 +1745,8 @@ private enum TimeTrackingControllerError: LocalizedError {
 
 private extension DateInterval {
     func intersection(with other: DateInterval) -> DateInterval? {
-        let start = max(self.start, other.start)
-        let end = min(self.end, other.end)
+        let start = max(start, other.start)
+        let end = min(end, other.end)
         guard start < end else {
             return nil
         }

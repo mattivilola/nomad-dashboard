@@ -521,27 +521,27 @@ func selectEmergencyHospitals(
         searchResults,
         onDiscardedResult: onDiscardedResult
     )
-        .compactMap { result -> EmergencyHospital? in
-            let coordinate = CLLocationCoordinate2D(latitude: result.latitude, longitude: result.longitude)
-            guard CLLocationCoordinate2DIsValid(coordinate) else {
-                return nil
-            }
+    .compactMap { result -> EmergencyHospital? in
+        let coordinate = CLLocationCoordinate2D(latitude: result.latitude, longitude: result.longitude)
+        guard CLLocationCoordinate2DIsValid(coordinate) else {
+            return nil
+        }
 
-            let ownership = classifyHospitalOwnership(name: result.name, ownershipHint: result.ownershipHint)
-            let distanceKilometers = originLocation.distance(from: CLLocation(latitude: result.latitude, longitude: result.longitude)) / 1_000
-            return EmergencyHospital(
-                name: result.name,
-                address: result.address,
-                locality: result.locality,
-                distanceKilometers: distanceKilometers,
-                latitude: result.latitude,
-                longitude: result.longitude,
-                ownership: ownership
-            )
-        }
-        .sorted { lhs, rhs in
-            lhs.distanceKilometers < rhs.distanceKilometers
-        }
+        let ownership = classifyHospitalOwnership(name: result.name, ownershipHint: result.ownershipHint)
+        let distanceKilometers = originLocation.distance(from: CLLocation(latitude: result.latitude, longitude: result.longitude)) / 1_000
+        return EmergencyHospital(
+            name: result.name,
+            address: result.address,
+            locality: result.locality,
+            distanceKilometers: distanceKilometers,
+            latitude: result.latitude,
+            longitude: result.longitude,
+            ownership: ownership
+        )
+    }
+    .sorted { lhs, rhs in
+        lhs.distanceKilometers < rhs.distanceKilometers
+    }
 
     guard maximumResults > 0 else {
         return []

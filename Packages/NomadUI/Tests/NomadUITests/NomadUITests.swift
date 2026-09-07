@@ -443,7 +443,7 @@ struct NomadUITests {
     }
 
     @Test
-    func timeTrackingQuickActionsPresentationKeepsCompactThreeProjectVariantsAheadOfTwoProjectVariants() {
+    func timeTrackingQuickActionsPresentationKeepsCompactThreeProjectVariantsAheadOfTwoProjectVariants() throws {
         let alpha = TimeTrackingProject(name: "Alpha")
         let bravo = TimeTrackingProject(name: "Bravo")
         let charlie = TimeTrackingProject(name: "Charlie")
@@ -467,11 +467,11 @@ struct NomadUITests {
 
         #expect(threeProjectCompactIndex != nil)
         #expect(twoProjectFullIndex != nil)
-        #expect(threeProjectCompactIndex! < twoProjectFullIndex!)
+        #expect(try #require(threeProjectCompactIndex) < twoProjectFullIndex!)
     }
 
     @Test
-    func timeTrackingHeaderRowLayoutKeepsThreeProjectCompactVariantWhenItFitsAvailableWidth() throws {
+    func timeTrackingHeaderRowLayoutKeepsThreeProjectCompactVariantWhenItFitsAvailableWidth() {
         let alpha = TimeTrackingProject(name: "Alpha")
         let bravo = TimeTrackingProject(name: "Bravo")
         let charlie = TimeTrackingProject(name: "Charlie")
@@ -1814,7 +1814,7 @@ private func fixedTravelAlertDate(day: Int) -> Date {
     var components = DateComponents()
     components.calendar = Calendar(identifier: .gregorian)
     components.timeZone = TimeZone(secondsFromGMT: 0)
-    components.year = 2026
+    components.year = 2_026
     components.month = 4
     components.day = day
     return components.date ?? .now
