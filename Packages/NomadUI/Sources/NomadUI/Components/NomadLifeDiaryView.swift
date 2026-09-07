@@ -16,6 +16,8 @@ public struct NomadLifeDiaryView: View {
             Section("Connection diary") {
                 if controller.isLoadingDiary {
                     ProgressView("Loading your local diary…")
+                } else if let error = controller.diaryLoadError {
+                    ContentUnavailableView("Diary couldn't be opened", systemImage: "exclamationmark.triangle", description: Text(error))
                 } else if controller.entries.isEmpty {
                     ContentUnavailableView("No workplace visits yet", systemImage: "briefcase", description: Text("When collection is enabled and Nomad sees you stationary, it saves a local connection summary."))
                 } else if filteredEntries.isEmpty {

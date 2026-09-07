@@ -6,9 +6,9 @@ actor NomadLifeDiaryStore {
         self.url = url
     }
 
-    func load() -> [NomadLifeConnectionDiaryEntry] {
-        guard let data = try? Data(contentsOf: url), let entries = try? JSONDecoder().decode([NomadLifeConnectionDiaryEntry].self, from: data) else { return [] }
-        return entries
+    func load() throws -> [NomadLifeConnectionDiaryEntry] {
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        return try JSONDecoder().decode([NomadLifeConnectionDiaryEntry].self, from: Data(contentsOf: url))
     }
 
     func save(_ entries: [NomadLifeConnectionDiaryEntry]) throws {

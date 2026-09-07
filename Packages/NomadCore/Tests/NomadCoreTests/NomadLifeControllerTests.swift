@@ -5,6 +5,18 @@ import Testing
 @Suite("Nomad Life")
 @MainActor
 struct NomadLifeControllerTests {
+    @Test func unreadableDiaryIsPreservedWhenFlushed() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let url = directory.appendingPathComponent("nomad-life.json")
+        let original = Data("unreadable diary content".utf8)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try original.write(to: url)
+        let controller = try NomadLifeController(storageURL: url, preferencesKey: UUID().uuidString, defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        await controller.flush()
+        #expect(controller.diaryLoadError != nil)
+        #expect(try Data(contentsOf: url) == original)
+    }
+
     @Test func samplingDeduplicatesPartialSnapshotsAndCachedLatency() {
         var state = NomadLifeSamplingState()
         let connectivity = Date(timeIntervalSince1970: 10)

@@ -25,6 +25,8 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Preserve an unreadable workplace diary and pause collection until it can be reopened.
+
 - Keep venue lookup and notification permissions compatible with older supported macOS SDKs.
 
 - Cancel obsolete refreshes and prevent late provider results from replacing newer location data.

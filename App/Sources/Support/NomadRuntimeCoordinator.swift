@@ -96,9 +96,9 @@ final class NomadRuntimeCoordinator: ObservableObject {
 
     private func prepareForSleepOrQuit() async {
         locationRefreshTask?.cancel()
+        snapshotStore.stop()
         await snapshotStore.flushPersistence()
         await life.flush()
-        snapshotStore.stop()
     }
 
     private func refreshLocationIfAuthorized() {

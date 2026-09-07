@@ -36,3 +36,5 @@
 - Analytics payloads include only app name, version, build number, distribution channel, and app type.
 - Analytics do not include usernames, emails, locations, IP addresses, file names, or document titles.
 - Release and update infrastructure should avoid embedding secrets in the repo.
+
+If the workplace diary cannot be decoded or read, Nomad preserves the original file and pauses collection rather than replacing it with an empty diary.

@@ -7,6 +7,7 @@ import MapKit
 public final class NomadLifeController: ObservableObject {
     @Published public private(set) var entries: [NomadLifeConnectionDiaryEntry] = []
     @Published public private(set) var isLoadingDiary = true
+    @Published public private(set) var diaryLoadError: String?
     @Published public var preferences: NomadLifePreferences {
         didSet { savePreferences() }
     }
@@ -41,13 +42,16 @@ public final class NomadLifeController: ObservableObject {
         entries = []
         timeZones = NomadLifeTimeZonePresentation(homeTimeZoneIdentifier: loadedPreferences.homeTimeZoneIdentifier, currentTimeZoneIdentifier: TimeZone.current.identifier)
         diaryLoadTask = Task { [weak self, diaryStore] in
-            let loaded = await diaryStore.load()
-            guard let self else { return }
-            guard entries.isEmpty else { isLoadingDiary = false
-                return
+            do {
+                let loaded = try await diaryStore.load()
+                guard let self else { return }
+                entries = loaded.sorted { $0.endedAt > $1.endedAt }
+                isLoadingDiary = false
+            } catch {
+                guard let self else { return }
+                diaryLoadError = "Your saved diary couldn't be opened. Collection is paused and the original file is preserved. Reopen Nomad to try again."
+                isLoadingDiary = false
             }
-            entries = loaded.sorted { $0.endedAt > $1.endedAt }
-            isLoadingDiary = false
         }
     }
 
@@ -55,7 +59,7 @@ public final class NomadLifeController: ObservableObject {
         let now = Date.now
         timeZones = NomadLifeTimeZonePresentation(homeTimeZoneIdentifier: preferences.homeTimeZoneIdentifier, currentTimeZoneIdentifier: snapshot.travelContext.timeZoneIdentifier, date: now)
         evaluateAlerts(snapshot: snapshot, now: now)
-        guard !isLoadingDiary else { return }
+        guard !isLoadingDiary, diaryLoadError == nil else { return }
         guard preferences.isAutomaticCollectionEnabled else { activeCluster = nil
             venueSearchTask?.cancel()
             return
@@ -216,6 +220,7 @@ public final class NomadLifeController: ObservableObject {
     }
 
     private func persistEntries() {
+        guard diaryLoadError == nil else { return }
         persistTask?.cancel()
         let entries = entries
         let store = diaryStore
@@ -231,7 +236,7 @@ public final class NomadLifeController: ObservableObject {
         if isLoadingDiary {
             await diaryLoadTask?.value
         }
-        guard !isLoadingDiary else { return }
+        guard !isLoadingDiary, diaryLoadError == nil else { return }
         persistTask?.cancel()
         persistTask = nil
         try? await diaryStore.save(entries)
