@@ -9,6 +9,21 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- _Nothing yet_
+
+### Changed
+
+- _Nothing yet_
+
+### Fixed
+
+- _Nothing yet_
+
+
+## [0.14.1] - 2026-09-07
+
+### Added
+
 - See connection readiness, VPN, battery, and home/current clocks together at the top of the dashboard.
 - Automatically retain enabled travel cards for offline use, with saved timestamps and an offline indicator.
 - Choose Auto, Normal, or Low Data mode to control background network work.
@@ -22,15 +37,14 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - Reuse fresh data when opening the menu and cache national fuel datasets across nearby searches.
 - Buffer metric history writes, save compact time-tracking recovery heartbeats, and pause hidden time-tracking display ticks.
 - Reuse unchanged visited-map content and reduce decorative animation under resource pressure.
+- Keep MapKit responses within their callback context
 
 ### Fixed
 
 - Support venue lookup on the older macOS SDK used by CI.
-
 - Cancel obsolete refreshes and prevent late provider results from replacing newer location data.
 - Bound provider waits and retry frequency so unavailable sources do not hold up the dashboard.
 - Flush pending local diary and metric data before quitting.
-
 
 ## [0.14.0] - 2026-09-07
 
