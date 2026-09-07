@@ -9,6 +9,21 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- _Nothing yet_
+
+### Changed
+
+- _Nothing yet_
+
+### Fixed
+
+- _Nothing yet_
+
+
+## [0.14.0] - 2026-09-07
+
+### Added
+
 - See connection readiness, VPN, battery, and home/current clocks together at the top of the dashboard.
 - Automatically retain enabled travel cards for offline use, with saved timestamps and an offline indicator.
 - Choose Auto, Normal, or Low Data mode to control background network work.
@@ -22,6 +37,10 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - Reuse fresh data when opening the menu and cache national fuel datasets across nearby searches.
 - Buffer metric history writes, save compact time-tracking recovery heartbeats, and pause hidden time-tracking display ticks.
 - Reuse unchanged visited-map content and reduce decorative animation under resource pressure.
+- Merge branch 'staging'
+- Instantiate `CLGeocoder` locally for each reverse geocoding request
+- Improve dashboard responsiveness and add offline nomad tools
+- Merge validated nomad tools from staging
 
 ### Fixed
 
