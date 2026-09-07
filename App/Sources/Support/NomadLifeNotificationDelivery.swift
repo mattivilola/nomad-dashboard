@@ -31,7 +31,11 @@ final class UserNotificationCenterNomadLifeDelivery: ObservableObject, NomadLife
             guard let self else { return }
             authorizationStatus = await readAuthorizationStatus()
             guard authorizationStatus == .notDetermined else { return }
-            _ = try? await center.requestAuthorization(options: [.alert])
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                center.requestAuthorization(options: [.alert]) { _, _ in
+                    continuation.resume()
+                }
+            }
             authorizationStatus = await readAuthorizationStatus()
         }
     }
@@ -48,15 +52,13 @@ final class UserNotificationCenterNomadLifeDelivery: ObservableObject, NomadLife
 
     func deliver(_ alerts: [NomadLifeQuietAlert]) {
         guard !alerts.isEmpty else { return }
-        Task {
-            guard authorizationStatus == .authorized || authorizationStatus == .provisional else { return }
-            for alert in alerts {
-                let content = UNMutableNotificationContent()
-                content.title = alert.title
-                content.body = alert.body
-                let request = UNNotificationRequest(identifier: "nomad-life-\(alert.kind.rawValue)", content: content, trigger: nil)
-                try? await center.add(request)
-            }
+        guard authorizationStatus == .authorized || authorizationStatus == .provisional else { return }
+        for alert in alerts {
+            let content = UNMutableNotificationContent()
+            content.title = alert.title
+            content.body = alert.body
+            let request = UNNotificationRequest(identifier: "nomad-life-\(alert.kind.rawValue)", content: content, trigger: nil)
+            center.add(request, withCompletionHandler: nil)
         }
     }
 }
