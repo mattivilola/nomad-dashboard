@@ -140,9 +140,16 @@ public final class NomadLifeController: ObservableObject {
             let request = MKLocalSearch.Request()
             request.naturalLanguageQuery = "coworking cafe"
             request.region = MKCoordinateRegion(center: coordinate, latitudinalMeters: 500, longitudinalMeters: 500)
-            guard let item = try? await MKLocalSearch(request: request).start().mapItems.first,
+            // Transfer only the Sendable name across the callback boundary. Older SDKs
+            // correctly reject moving MKLocalSearch.Response between actor contexts.
+            let suggestedName: String? = await withCheckedContinuation { continuation in
+                MKLocalSearch(request: request).start { response, _ in
+                    continuation.resume(returning: response?.mapItems.first?.name)
+                }
+            }
+            guard let name = suggestedName,
                   !Task.isCancelled,
-                  let name = item.name, !name.isEmpty,
+                  !name.isEmpty,
                   let self, preferences.isAutomaticCollectionEnabled, let index = entries.firstIndex(where: { $0.startedAt == startedAt }), entries[index].confidence == .suggested
             else { return }
             entries[index].suggestedName = "Near \(name)"
