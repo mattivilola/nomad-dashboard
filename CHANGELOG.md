@@ -9,6 +9,21 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- _Nothing yet_
+
+### Changed
+
+- _Nothing yet_
+
+### Fixed
+
+- _Nothing yet_
+
+
+## [0.14.2] - 2026-09-07
+
+### Added
+
 - See connection readiness, VPN, battery, and home/current clocks together at the top of the dashboard.
 - Automatically retain enabled travel cards for offline use, with saved timestamps and an offline indicator.
 - Choose Auto, Normal, or Low Data mode to control background network work.
@@ -22,17 +37,19 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - Reuse fresh data when opening the menu and cache national fuel datasets across nearby searches.
 - Buffer metric history writes, save compact time-tracking recovery heartbeats, and pause hidden time-tracking display ticks.
 - Reuse unchanged visited-map content and reduce decorative animation under resource pressure.
+- Make asynchronous URL protocol test capture explicit
+- Read notification authorization through a Sendable value
+- Await diary loading and finalize release validation notes
+- Keep all notification center operations on their owning actor
+- Preserve unreadable workplace diaries during shutdown
 
 ### Fixed
 
 - Preserve an unreadable workplace diary and pause collection until it can be reopened.
-
 - Keep venue lookup and notification permissions compatible with older supported macOS SDKs.
-
 - Cancel obsolete refreshes and prevent late provider results from replacing newer location data.
 - Bound provider waits and retry frequency so unavailable sources do not hold up the dashboard.
 - Flush pending local diary and metric data before quitting.
-
 
 ## [0.14.1] - 2026-09-07
 
