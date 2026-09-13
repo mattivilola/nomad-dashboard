@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.15.0] - 2026-09-13
+
+### Changed
+
+- Add city exploration and current city matching
+
 ## [0.14.2] - 2026-09-07
 
 ### Added
