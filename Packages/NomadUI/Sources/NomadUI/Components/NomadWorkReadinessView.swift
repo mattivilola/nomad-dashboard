@@ -11,6 +11,7 @@ public struct NomadWorkReadinessView: View {
     let openDiary: () -> Void
     let openPreferences: () -> Void
     let openOfflineEssentials: () -> Void
+    let openExploreCities: () -> Void
 
     public init(
         snapshot: DashboardSnapshot,
@@ -20,7 +21,8 @@ public struct NomadWorkReadinessView: View {
         changeDataUsage: @escaping (DataUsageMode) -> Void,
         openDiary: @escaping () -> Void,
         openPreferences: @escaping () -> Void,
-        openOfflineEssentials: @escaping () -> Void
+        openOfflineEssentials: @escaping () -> Void,
+        openExploreCities: @escaping () -> Void = {}
     ) {
         self.snapshot = snapshot
         self.policy = policy
@@ -30,6 +32,7 @@ public struct NomadWorkReadinessView: View {
         self.openDiary = openDiary
         self.openPreferences = openPreferences
         self.openOfflineEssentials = openOfflineEssentials
+        self.openExploreCities = openExploreCities
     }
 
     public var body: some View {
@@ -90,10 +93,13 @@ public struct NomadWorkReadinessView: View {
                 }
             }
 
-            HStack(spacing: 14) {
-                Button(action: openDiary) { Label("Workplaces", systemImage: "mappin.and.ellipse") }
-                Button(action: openOfflineEssentials) { Label(isOffline ? "Offline essentials" : "Saved essentials", systemImage: "tray.and.arrow.down") }
-                Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 14) {
+                    Button(action: openDiary) { Label("Workplaces", systemImage: "mappin.and.ellipse") }
+                    Button(action: openOfflineEssentials) { Label(isOffline ? "Offline essentials" : "Saved essentials", systemImage: "tray.and.arrow.down") }
+                    Spacer(minLength: 0)
+                }
+                Button(action: openExploreCities) { Label("Explore cities", systemImage: "globe.europe.africa") }
             }
             .buttonStyle(.plain).font(.caption.weight(.medium)).foregroundStyle(NomadTheme.teal)
         }

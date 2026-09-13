@@ -7,6 +7,7 @@ import SwiftUI
 
 struct DashboardRootView: View {
     @ObservedObject var lifeController: NomadLifeController
+    @ObservedObject var nomadsCurrentCity: NomadsCurrentCityController
     let runtimeCoordinator: NomadRuntimeCoordinator
     @State private var showsOfflineEssentials = false
     @ObservedObject var snapshotStore: DashboardSnapshotStore
@@ -29,16 +30,22 @@ struct DashboardRootView: View {
     var body: some View {
         DashboardPanelView(
             snapshot: snapshotStore.snapshot,
-            overviewContent: AnyView(NomadWorkReadinessView(
-                snapshot: snapshotStore.snapshot,
-                policy: snapshotStore.resourcePolicy,
-                homeTimeZoneIdentifier: lifeController.preferences.homeTimeZoneIdentifier,
-                dataUsageMode: settingsStore.settings.dataUsageMode,
-                changeDataUsage: { settingsStore.settings.dataUsageMode = $0 },
-                openDiary: { openDashboardWindow(.workplaceDiary) },
-                openPreferences: { openDashboardWindow(.nomadPreferences) },
-                openOfflineEssentials: { showsOfflineEssentials = true }
-            )),
+            overviewContent: AnyView(VStack(spacing: 10) {
+                NomadWorkReadinessView(
+                    snapshot: snapshotStore.snapshot,
+                    policy: snapshotStore.resourcePolicy,
+                    homeTimeZoneIdentifier: lifeController.preferences.homeTimeZoneIdentifier,
+                    dataUsageMode: settingsStore.settings.dataUsageMode,
+                    changeDataUsage: { settingsStore.settings.dataUsageMode = $0 },
+                    openDiary: { openDashboardWindow(.workplaceDiary) },
+                    openPreferences: { openDashboardWindow(.nomadPreferences) },
+                    openOfflineEssentials: { showsOfflineEssentials = true },
+                    openExploreCities: { openDashboardWindow(.exploreCities) }
+                )
+                NomadsCurrentCitySummaryView(controller: nomadsCurrentCity) {
+                    openDashboardWindow(.exploreCities)
+                }
+            }),
             sectionActivity: snapshotStore.sectionActivity,
             resourcePolicy: snapshotStore.resourcePolicy,
             retrySection: { section in Task { await snapshotStore.refresh(section: section) } },

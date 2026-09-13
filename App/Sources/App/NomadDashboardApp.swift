@@ -13,7 +13,9 @@ struct NomadDashboardApp: App {
     @StateObject private var settingsNavigationController: SettingsNavigationController
     @StateObject private var lifeController: NomadLifeController
     @StateObject private var runtimeCoordinator: NomadRuntimeCoordinator
+    @StateObject private var nomadsCurrentCity: NomadsCurrentCityController
     private let analytics: AppAnalytics
+    private let nomadsCityProvider: NomadsCityProvider
 
     init() {
         let storageNamespace = AppRuntimeInfo.storageNamespace
@@ -69,6 +71,14 @@ struct NomadDashboardApp: App {
         }
 
         let snapshotStore = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies, analytics: analytics)
+        let nomadsCityProvider = NomadsCityProvider()
+        self.nomadsCityProvider = nomadsCityProvider
+        let nomadsCurrentCity = NomadsCurrentCityController(
+            provider: nomadsCityProvider,
+            storageURL: applicationSupportDirectory.appendingPathComponent("nomads-current-city.json"),
+            preferencesKey: "\(storageNamespace.settingsKey).NomadsCurrentCity"
+        )
+        _nomadsCurrentCity = StateObject(wrappedValue: nomadsCurrentCity)
         let locationStore = CurrentLocationStore()
         let lifeController = NomadLifeController(storageURL: applicationSupportDirectory.appendingPathComponent("workplace-diary.json"), preferencesKey: "\(storageNamespace.settingsKey).NomadLife")
         _settingsStore = StateObject(wrappedValue: settingsStore)
@@ -80,7 +90,8 @@ struct NomadDashboardApp: App {
             locationStore: locationStore,
             settingsStore: settingsStore,
             timeTracking: timeTrackingController,
-            life: lifeController
+            life: lifeController,
+            nomadsCurrentCity: nomadsCurrentCity
         ))
         _launchAtLoginController = StateObject(wrappedValue: launchAtLoginController)
         _timeTrackingController = StateObject(wrappedValue: timeTrackingController)
@@ -93,6 +104,7 @@ struct NomadDashboardApp: App {
         MenuBarExtra {
             DashboardRootView(
                 lifeController: lifeController,
+                nomadsCurrentCity: nomadsCurrentCity,
                 runtimeCoordinator: runtimeCoordinator,
                 snapshotStore: snapshotStore,
                 settingsStore: settingsStore,
@@ -164,6 +176,12 @@ struct NomadDashboardApp: App {
                 .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
         .defaultSize(width: 600, height: 640)
+
+        Window("Explore Cities", id: "explore-cities") {
+            NomadsCityExplorerView(provider: nomadsCityProvider, currentCity: nomadsCurrentCity)
+                .modifier(SceneAppearanceSync(settingsStore: settingsStore))
+        }
+        .defaultSize(width: 1_100, height: 760)
 
         Window("Time Tracking", id: "time-tracking") {
             TimeTrackingWindowView(

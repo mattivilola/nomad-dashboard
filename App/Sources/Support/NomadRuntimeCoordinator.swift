@@ -11,6 +11,7 @@ final class NomadRuntimeCoordinator: ObservableObject {
     private let locationStore: CurrentLocationStore
     private let settingsStore: AppSettingsStore
     private let timeTracking: ProjectTimeTrackingController
+    private let nomadsCurrentCity: NomadsCurrentCityController
     private var observations: Set<AnyCancellable> = []
     private var visibleSurfaces: Set<String> = []
     private var locationTask: Task<Void, Never>?
@@ -21,19 +22,22 @@ final class NomadRuntimeCoordinator: ObservableObject {
         locationStore: CurrentLocationStore,
         settingsStore: AppSettingsStore,
         timeTracking: ProjectTimeTrackingController,
-        life: NomadLifeController
+        life: NomadLifeController,
+        nomadsCurrentCity: NomadsCurrentCityController
     ) {
         self.snapshotStore = snapshotStore
         self.locationStore = locationStore
         self.settingsStore = settingsStore
         self.timeTracking = timeTracking
         self.life = life
+        self.nomadsCurrentCity = nomadsCurrentCity
         notifications = UserNotificationCenterNomadLifeDelivery()
         timeTracking.setInterfaceActive(false)
         snapshotStore.setDashboardInterfaceActive(false)
         snapshotStore.setAutomaticPlaceCollectionEnabled(life.preferences.isAutomaticCollectionEnabled)
         snapshotStore.$snapshot.sink { [weak self] snapshot in
             guard let self else { return }
+            nomadsCurrentCity.ingest(location: snapshot.travelContext.deviceLocation ?? snapshot.travelContext.location)
             life.ingest(snapshot: snapshot, allowsVenueLookup: !snapshotStore.resourcePolicy.reducesBackgroundWork && !snapshotStore.resourcePolicy.isOffline)
             notifications.deliver(life.consumeAlerts())
         }.store(in: &observations)

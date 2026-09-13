@@ -192,6 +192,30 @@ Users can get a quick sense of local holiday timing, place context, and price pr
 - US v1 currently focuses on the HUD 1-bedroom rent benchmark rather than a full meal-and-groceries set
 - countries outside Europe and the United States are not supported in v1
 
+## Explore Cities
+
+### What it does
+
+- Shows an automatic current-city summary in the dashboard, with a clear nearby label and distance when the exact city is not listed
+- Opens a native destination explorer with `Around me` and `Discover` views, destination photo cards, color-coded work signals, and source-linked details from the dashboard's `Explore cities` action
+- Fits city photos and detail cards to the resizable pane, with vertical scrolling for longer content
+- Searches up to 20 cities in Nomads.com's ranking order, optionally filtered by country, maximum monthly nomad budget in USD, and minimum city internet speed
+- Shows monthly nomad lifestyle, central 1-bedroom rent, and coworking estimates alongside overall, safety, walkability, and English-speaking ratings
+- Loads a selected city's next meetup when available, with a source link for event details and joining requirements
+- Keeps source attribution and retrieval time visible
+
+### Dependencies and limits
+
+- Uses the public Nomads.com API without an account or API key; manual searches remain explicit user actions
+- `Follow my city` is on by default and uses existing dashboard location context. Turn it off in the explorer to stop automatic lookups
+- Matches an exact city first, then a listed destination within 50 km in the same country using local coordinate comparison; IP location can be approximate
+- Saves the last automatic result, including no-match results, across restarts; does not check again until a different city or an explicit Retry
+- No trip synchronization or periodic polling; stored estimates can age while the user remains in the same city
+- Reuses bounded in-memory results for six hours and respects a conservative local request budget and upstream rate-limit cooldowns; Nomads.com limits requests per public IP, so shared networks can reach the limit sooner
+- Estimates and community ratings may be incomplete or out of date. City internet is not a measurement of a particular venue or the user's connection, and safety ratings do not replace official advisories
+- Cost categories are reference estimates, not an itemized budget or guaranteed prices
+- The current-city result and directory are retained locally; manual search results use a session cache. Photos and external links may still need a connection
+
 ## Nearby Fuel Prices
 
 ### What it does

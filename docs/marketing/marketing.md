@@ -87,6 +87,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Checking local holiday timing, city context, and whether local prices feel cheap, medium, or expensive before settling in
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
 - Tracking visited places locally on the Mac, with yearly travel paths, chronological stop logs, and country-day summaries by year and month
+- Automatically seeing the current or nearest listed city, then browsing visual destination cards by country, monthly budget, and city internet estimates, with attributed Nomads.com ratings and meetup links
 - Tracking awake work time locally on the Mac, then assigning it from the dashboard with quick project chips, interruption counts, and focus-adjusted day, week, and month summaries
 - Optionally collecting stationary workplace visits from authorized device location, reviewing a local work diary, and comparing current and home time
 - Keeping all of the above in a compact menu bar workflow instead of a full-size monitoring dashboard, with hidden background refreshes slowed to protect battery life
@@ -150,6 +151,8 @@ Marketing copy can safely say:
 - Some features use device location only when enabled
 - External IP location display can be turned off
 - Several travel modules are optional
+- Explore Cities can follow the current city using existing dashboard context; matching happens locally and only a matched city slug is sent for details. It saves found and no-match results and waits for a different city before checking again. The feature can be turned off; coordinates and local travel history are not shared
+- Destination photos use Nomads.com's supplied image service while the explorer is open
 - Local price level uses official public datasets and can stay limited to country fallback data where exact local sources are not available
 - Project time tracking stays local to the Mac and can be turned off entirely
 - The optional work diary uses authorized device location only, keeps entries local, and never uses IP address or VPN state to identify a venue
