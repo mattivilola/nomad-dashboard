@@ -23,6 +23,7 @@ public struct NomadsCityExplorerView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+            sourceBanner
             Divider().opacity(0.5)
             if mode == .search {
                 searchControls
@@ -101,6 +102,20 @@ public struct NomadsCityExplorerView: View {
         .padding(.horizontal, 24).padding(.vertical, 16)
     }
 
+    private var sourceBanner: some View {
+        HStack(spacing: 16) {
+            NomadsSourceCredit(includesPhotos: true, prominent: true)
+            Spacer(minLength: 8)
+            Link("Join Nomads.com", destination: NomadsSourceCredit.joinURL)
+                .font(.subheadline.weight(.semibold))
+                .buttonStyle(.bordered)
+                .help("Save cities, meet other nomads, and join meetups on Nomads.com")
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
+        .background(NomadTheme.teal.opacity(0.08))
+    }
+
     @ViewBuilder
     private var destinationBrowser: some View {
         if mode == .current {
@@ -133,6 +148,7 @@ public struct NomadsCityExplorerView: View {
                     }
                     NomadsCityResultCard(city: city, directoryCity: match.directoryCity, isSelected: true, action: {})
                         .allowsHitTesting(false)
+                    NomadsSourceCredit(cityURL: city.cityURL, includesPhotos: true)
                     if match.isNearby, let distance = match.distanceKilometers {
                         Label("\(distance.formatted(.number.precision(.fractionLength(0)))) km from your dashboard location", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
                             .font(.subheadline).foregroundStyle(NomadTheme.teal)
@@ -181,11 +197,15 @@ public struct NomadsCityExplorerView: View {
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 195), spacing: 14)], spacing: 16) {
                             ForEach(result.cities) { city in
-                                NomadsCityResultCard(
-                                    city: city,
-                                    directoryCity: directoryCity(for: city.slug),
-                                    isSelected: selectedSlug == city.slug
-                                ) { selectedSlug = city.slug }
+                                VStack(alignment: .leading, spacing: 8) {
+                                    NomadsCityResultCard(
+                                        city: city,
+                                        directoryCity: directoryCity(for: city.slug),
+                                        isSelected: selectedSlug == city.slug
+                                    ) { selectedSlug = city.slug }
+                                    NomadsSourceCredit(cityURL: city.cityURL, includesPhotos: true)
+                                        .padding(.horizontal, 4)
+                                }
                             }
                         }.padding(.horizontal, 18).padding(.bottom, 20)
                     }
@@ -225,7 +245,8 @@ public struct NomadsCityExplorerView: View {
 
     private var footer: some View {
         HStack(spacing: 12) {
-            Link("Data & photos from Nomads.com", destination: URL(string: "https://nomads.com")!)
+            Text("Independent app · Not affiliated with Nomads.com")
+                .foregroundStyle(.secondary)
             Spacer()
             if let date = mode == .current ? currentCity.checkedAt : result?.fetchedAt {
                 Text("\(mode == .current ? "City checked" : "Search retrieved") \(date.formatted(date: .abbreviated, time: .shortened))")

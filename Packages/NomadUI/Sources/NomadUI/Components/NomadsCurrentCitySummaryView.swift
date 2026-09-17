@@ -14,6 +14,7 @@ public struct NomadsCurrentCitySummaryView: View {
     public var body: some View {
         if controller.enabled, controller.currentLocationName != nil, controller.state != .waitingForLocation {
             VStack(alignment: .leading, spacing: 8) {
+                NomadsSourceCredit(cityURL: controller.matchedCity?.cityURL)
                 Button(action: openExplorer) {
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "location.circle.fill")
@@ -31,12 +32,12 @@ public struct NomadsCurrentCitySummaryView: View {
                             }
                         }
                         Spacer(minLength: 4)
-                        Image(systemName: "arrow.up.right").font(.caption.weight(.semibold)).foregroundStyle(NomadTheme.teal)
+                        Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(NomadTheme.teal)
                     }
                     .contentShape(Rectangle())
                 }.buttonStyle(.plain)
                 HStack {
-                    Link("Nomads.com estimates", destination: URL(string: "https://nomads.com")!)
+                    Text("Destination estimates")
                     Spacer()
                     if let match = controller.match, match.isNearby, let distance = match.distanceKilometers {
                         Text("\(distance.formatted(.number.precision(.fractionLength(0)))) km nearby")

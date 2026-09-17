@@ -202,7 +202,7 @@ Users can get a quick sense of local holiday timing, place context, and price pr
 - Searches up to 20 cities in Nomads.com's ranking order, optionally filtered by country, maximum monthly nomad budget in USD, and minimum city internet speed
 - Shows monthly nomad lifestyle, central 1-bedroom rent, and coworking estimates alongside overall, safety, walkability, and English-speaking ratings
 - Loads a selected city's next meetup when available, with a source link for event details and joining requirements
-- Keeps source attribution and retrieval time visible
+- Keeps a prominent linked Nomads.com credit above the explorer, source links beside every city card and dashboard estimate, a Join Nomads.com action, and retrieval times visible
 
 ### Dependencies and limits
 

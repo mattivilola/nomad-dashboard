@@ -152,7 +152,7 @@ Marketing copy can safely say:
 - External IP location display can be turned off
 - Several travel modules are optional
 - Explore Cities can follow the current city using existing dashboard context; matching happens locally and only a matched city slug is sent for details. It saves found and no-match results and waits for a different city before checking again. The feature can be turned off; coordinates and local travel history are not shared
-- Destination photos use Nomads.com's supplied image service while the explorer is open
+- Destination photos use Nomads.com's supplied image service while the explorer is open; prominent source credits link directly to Nomads.com and its city pages, alongside a Join Nomads.com action. This is an independent app, not an affiliated Nomads.com product
 - Local price level uses official public datasets and can stay limited to country fallback data where exact local sources are not available
 - Project time tracking stays local to the Mac and can be turned off entirely
 - The optional work diary uses authorized device location only, keeps entries local, and never uses IP address or VPN state to identify a venue

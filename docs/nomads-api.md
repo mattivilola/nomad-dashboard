@@ -38,3 +38,15 @@ Only explicit search filters or matched/selected city slugs leave the Mac. Coord
 ## Validation
 
 Current-city tests cover exact/nearby matching, identity deduplication, saved positive/negative results, and location-change races. Mocked provider tests cover the response contract, optional data, URL validation, query encoding, caching, request sharing, and errors. UI formatting tests distinguish unavailable estimates from valid zero ratings. Run the repository's `make test`, `make build` after `make generate`, and `make lint` checks when changing this integration.
+
+## Attribution review — 2026-09-17
+
+Following the owner's feedback about insufficient visible credit, the UI now keeps a prominent, clickable “Data & photos from Nomads.com” banner above both explorer panes. Each city card and city detail has a separate source link to the API-provided city URL (or the homepage when absent). The dashboard puts its clickable “Data from Nomads.com” credit above the estimates. These links open the source directly, rather than just navigating inside this app. A persistent “Join Nomads.com” action uses the documented `https://nomads.com/?join=nomads` destination. The explorer identifies this as an independent app, with no claimed affiliation.
+
+The previous implementation already had a linked explorer footer, city-page link, and dashboard source link. They were easy to miss in a scaled screenshot. This revision addresses prominence instead of treating the existence of a footer link as proof of owner acceptance.
+
+Rechecked the official API index, LLM guide (last updated 2026-09-15), live search/city responses, and terms. The terms require a web or in-app hyperlink on the page or screen displaying the data. The API index and LLM guide do not specify typography, placement, a required logo, or an exact badge design. Live search/city responses include `attribution`, `join`, and `sponsor` strings. The UI uses the source attribution and join destination; no mandatory sponsor-ad display rule was found in the reviewed instructions. Do not describe these observations as an explicit commercial redistribution or photo license, or as the owner's approval.
+
+Requests remain limited to the documented city directory, curated search (20 results), and selected city endpoints. The full directory is a local matching cache, with no dataset export or exhaustive city-detail crawl. The directory is documented “for maps”; confirmation that this local nearest-city use is acceptable remains appropriate if the owner objects beyond attribution. Caching and rate limits are unchanged.
+
+The older FAQ still conflicts with the active API documentation. The current API also documents member trip writes, but this integration does not use them. Show the revised interface to the owner before claiming acceptance; if the owner rejects this use, remove or disable the integration instead of treating endpoint availability as permission.

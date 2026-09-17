@@ -44,6 +44,7 @@ struct NomadsCityDetailView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         Color.clear.frame(height: 0).id("city-detail-top")
                         cityHero
+                        NomadsSourceCredit(cityURL: displayedCity.cityURL ?? city.cityURL, includesPhotos: true)
                         remoteWorkSignals
                         costEstimates
                         meetupSection
@@ -106,9 +107,9 @@ struct NomadsCityDetailView: View {
                     .lineLimit(2)
                 Text(city.country)
                     .font(.title3.weight(.medium))
-                if let url = city.cityURL {
+                if let url = displayedCity.cityURL ?? city.cityURL {
                     Link(destination: url) {
-                        Label("Open on Nomads.com", systemImage: "arrow.up.right.square")
+                        Label("View \(city.name) on Nomads.com", systemImage: "arrow.up.right.square")
                     }
                     .font(.subheadline.weight(.semibold))
                 }
@@ -219,7 +220,7 @@ struct NomadsCityDetailView: View {
                 .font(.subheadline)
                 .foregroundStyle(NomadTheme.secondaryText)
                 if let url = meetup.meetupURL {
-                    Link("View meetup details", destination: url)
+                    Link("View meetup on Nomads.com", destination: url)
                         .font(.subheadline.weight(.semibold))
                 }
             } else {
