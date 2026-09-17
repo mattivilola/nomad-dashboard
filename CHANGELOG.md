@@ -13,12 +13,23 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- _Nothing yet_
+
+### Fixed
+
+- _Nothing yet_
+
+
+## [0.15.1] - 2026-09-17
+
+### Changed
+
 - Make Nomads.com attribution prominent throughout Explore Cities and the dashboard, with direct source links beside city data and a Join Nomads.com action.
+- Make Nomads.com attribution prominent and link to source cities
 
 ### Fixed
 
 - Use the city-page link returned by refreshed Nomads.com details when it is missing from search results.
-
 
 ## [0.15.0] - 2026-09-13
 
