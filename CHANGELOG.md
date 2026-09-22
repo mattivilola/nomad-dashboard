@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.16.0] - 2026-09-22
+
+### Changed
+
+- Add Data Guard for metered network usage tracking with caps
+
 ## [0.15.1] - 2026-09-17
 
 ### Changed
