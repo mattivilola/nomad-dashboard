@@ -53,6 +53,8 @@ public final class DashboardSnapshotStore: ObservableObject {
     @Published public private(set) var offlineSavedAt: Date?
     @Published public private(set) var offlineCacheError: String?
     private var dashboardInterfaceActive = true
+    private var meteredMonitoringActive = false
+    private var locationAuthorizedForSSID = false
 
     public init(
         settingsStore: AppSettingsStore,
@@ -117,6 +119,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         if let flushable = dependencies.historyStore as? any MetricHistoryFlushable {
             try? await flushable.flush()
         }
+        await dependencies.meteredDataController.flush()
         await saveOfflineContent()
     }
 
@@ -282,7 +285,11 @@ public final class DashboardSnapshotStore: ObservableObject {
             conditions.pathAvailable = false
         }
         let previous = resourcePolicy
-        let next = DashboardResourcePolicy(mode: settingsStore.settings.dataUsageMode, conditions: conditions)
+        let next = DashboardResourcePolicy(
+            mode: settingsStore.settings.dataUsageMode,
+            conditions: conditions,
+            isMeteredCapReached: snapshot.meteredData.isCapReached && snapshot.meteredData.isMonitoringActive
+        )
         if previous != next {
             resourcePolicy = next
         }
@@ -433,6 +440,71 @@ public final class DashboardSnapshotStore: ObservableObject {
             draft.power = PowerSectionSnapshot(snapshot: draft.power.snapshot, chargeHistory: history[.batteryChargePercent] ?? [], dischargeHistory: history[.batteryDischargeWatts] ?? [])
             draft.appState = AppStatusSnapshot(lastRefresh: now, updateState: update, issues: draft.appState.issues)
         }
+        await refreshMeteredData(now: now)
+    }
+
+    public func setLocationAuthorizedForSSID(_ authorized: Bool) {
+        locationAuthorizedForSSID = authorized
+    }
+
+    public func setManualMeteredSessionEnabled(_ enabled: Bool) {
+        settingsStore.settings.manualMeteredSessionEnabled = enabled
+    }
+
+    public func markCurrentNetworkAsMetered() {
+        let wifi = snapshot.travelContext.wifi
+        let conditions = dependencies.resourceConditions.currentConditions()
+        let identity = MeteredNetworkKeyResolver.resolve(
+            ssid: wifi?.ssid,
+            interfaceName: wifi?.interfaceName,
+            isExpensive: conditions.isExpensive,
+            isConstrained: conditions.isConstrained
+        )
+        if identity.isWiFiNetwork {
+            settingsStore.settings.markNetworkAsMetered(networkKey: identity.key, displayName: identity.displayName)
+            return
+        }
+        guard let networkKey = snapshot.meteredData.networkKey,
+              let displayName = snapshot.meteredData.networkDisplayName
+        else { return }
+        settingsStore.settings.markNetworkAsMetered(networkKey: networkKey, displayName: displayName)
+    }
+
+    public func forgetCurrentMeteredNetwork() {
+        guard let networkKey = snapshot.meteredData.networkKey else { return }
+        settingsStore.settings.forgetMeteredNetwork(networkKey: networkKey)
+    }
+
+    public func resetMeteredUsagePeriod() async {
+        try? await dependencies.meteredDataController.resetPeriod()
+        await refreshMeteredData(now: .now)
+    }
+
+    public func refreshMeteredDataAfterLocationGrant() {
+        Task { await refreshMeteredData(now: .now) }
+    }
+
+    private func refreshMeteredData(now: Date) async {
+        let conditions = dependencies.resourceConditions.currentConditions()
+        let wifi = snapshot.travelContext.wifi
+        let isWiFiConnected = wifi?.interfaceName != nil
+        let locationAuthorized = settingsStore.settings.useLocationForWiFiNames && locationAuthorizedForSSID
+        let input = MeteredDataTickInput(
+            settings: settingsStore.settings,
+            wifiSSID: wifi?.ssid,
+            wifiInterfaceName: wifi?.interfaceName,
+            isExpensive: conditions.isExpensive,
+            isConstrained: conditions.isConstrained,
+            isWiFiConnected: isWiFiConnected,
+            isLocationAuthorizedForSSID: locationAuthorized,
+            now: now
+        )
+        let meteredSnapshot = await dependencies.meteredDataController.tick(input: input)
+        meteredMonitoringActive = meteredSnapshot.isMonitoringActive
+        mutateSnapshot { draft in
+            draft.meteredData = meteredSnapshot
+        }
+        updateResourcePolicy()
     }
 
     private func scheduleExternalRefresh(force: Bool, startup: Bool = false, only: DashboardDataSection? = nil) -> Task<Void, Never>? {
@@ -860,6 +932,10 @@ public final class DashboardSnapshotStore: ObservableObject {
         let interval = max(AppSettings.sanitizedRefreshInterval(settings.refreshIntervalSeconds), resourcePolicy.reducesBackgroundWork ? 30 : 0)
         guard dashboardInterfaceActive == false else {
             return interval
+        }
+
+        if meteredMonitoringActive, settings.meteredDataEnabled {
+            return max(interval, 20)
         }
 
         return max(interval, Self.minimumBackgroundRefreshIntervalSeconds)

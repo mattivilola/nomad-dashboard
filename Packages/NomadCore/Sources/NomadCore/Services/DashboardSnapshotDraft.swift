@@ -13,6 +13,7 @@ struct DashboardSnapshotDraft {
     var emergencyCare: EmergencyCareSnapshot?
     var marine: MarineSnapshot?
     var appState: AppStatusSnapshot
+    var meteredData: MeteredUsageSnapshot
 
     init(_ snapshot: DashboardSnapshot) {
         network = snapshot.network
@@ -26,6 +27,7 @@ struct DashboardSnapshotDraft {
         emergencyCare = snapshot.emergencyCare
         marine = snapshot.marine
         appState = snapshot.appState
+        meteredData = snapshot.meteredData
     }
 
     var snapshot: DashboardSnapshot {
@@ -40,7 +42,8 @@ struct DashboardSnapshotDraft {
             fuelDiagnostics: fuelDiagnostics,
             emergencyCare: emergencyCare,
             marine: marine,
-            appState: appState
+            appState: appState,
+            meteredData: meteredData
         )
     }
 }

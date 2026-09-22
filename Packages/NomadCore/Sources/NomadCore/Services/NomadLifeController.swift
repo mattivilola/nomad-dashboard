@@ -185,6 +185,7 @@ public final class NomadLifeController: ObservableObject {
             }
             previousVPNState = vpn
         }
+        evaluateMeteredDataAlerts(snapshot: snapshot, now: now)
         if let power = snapshot.power.snapshot, power.state == .charging, (power.adapterWatts ?? .infinity) < 12, (power.chargePercent ?? 1) < 0.20 {
             weakChargingSince = weakChargingSince ?? now
             if let since = weakChargingSince, now.timeIntervalSince(since) >= 300 {
@@ -196,14 +197,57 @@ public final class NomadLifeController: ObservableObject {
         previousInternetState = state
     }
 
+    private func evaluateMeteredDataAlerts(snapshot: DashboardSnapshot, now: Date) {
+        let metered = snapshot.meteredData
+        guard metered.isFeatureEnabled, metered.isMonitoringActive else { return }
+        switch metered.capAlertSignal {
+        case .warning(let percent):
+            enqueue(.dataCapWarning, now: now, title: "Data cap \(percent)% used", body: meteredCapAlertBody(for: metered))
+        case .reached:
+            enqueue(.dataCapReached, now: now, title: "Data cap reached", body: meteredCapAlertBody(for: metered))
+        case nil:
+            break
+        }
+    }
+
+    private func meteredCapAlertBody(for metered: MeteredUsageSnapshot) -> String {
+        if let capBytes = metered.capBytes {
+            let used = metered.billingPeriod == .session ? metered.sessionTotalBytes : metered.periodTotalBytes
+            return "You've used \(MeteredUsageFormatting.byteCount(used)) of \(MeteredUsageFormatting.byteCount(capBytes)) on \(metered.networkDisplayName ?? "this connection"). Nomad pauses large downloads; other apps are unaffected."
+        }
+        return "Your metered data limit was reached on \(metered.networkDisplayName ?? "this connection")."
+    }
+
     private func enqueue(_ kind: NomadLifeQuietAlertKind, now: Date) {
+        enqueue(kind, now: now, title: defaultTitle(for: kind), body: defaultBody(for: kind))
+    }
+
+    private func enqueue(_ kind: NomadLifeQuietAlertKind, now: Date, title: String, body: String) {
         guard preferences.areQuietAlertsEnabled, !inQuietHours(now), now.timeIntervalSince(alertDates[kind] ?? .distantPast) > 1_800 else { return }
         alertDates[kind] = now
-        let text = switch kind { case .disconnected: ("Connection interrupted", "Nomad will keep your dashboard ready when service returns.")
-        case .recovered: ("Connection restored", "Your dashboard is online again.")
-        case .vpnChanged: ("VPN connection changed", "Your network privacy connection changed.")
-        case .weakCharging: ("Charging may be weak", "Battery remains low while the connected charger reports limited power.") }
-        pendingAlerts.append(NomadLifeQuietAlert(kind: kind, title: text.0, body: text.1))
+        pendingAlerts.append(NomadLifeQuietAlert(kind: kind, title: title, body: body))
+    }
+
+    private func defaultTitle(for kind: NomadLifeQuietAlertKind) -> String {
+        switch kind {
+        case .disconnected: "Connection interrupted"
+        case .recovered: "Connection restored"
+        case .vpnChanged: "VPN connection changed"
+        case .weakCharging: "Charging may be weak"
+        case .dataCapWarning: "Data cap warning"
+        case .dataCapReached: "Data cap reached"
+        }
+    }
+
+    private func defaultBody(for kind: NomadLifeQuietAlertKind) -> String {
+        switch kind {
+        case .disconnected: "Nomad will keep your dashboard ready when service returns."
+        case .recovered: "Your dashboard is online again."
+        case .vpnChanged: "Your network privacy connection changed."
+        case .weakCharging: "Battery remains low while the connected charger reports limited power."
+        case .dataCapWarning: "You're approaching your metered data cap."
+        case .dataCapReached: "Nomad pauses large downloads until you reset or leave this network."
+        }
     }
 
     private func inQuietHours(_ date: Date) -> Bool {

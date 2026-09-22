@@ -170,7 +170,7 @@ struct AppSettingsStoreTests {
         store.settings.dashboardCardOrder = reordered
 
         let reloaded = AppSettingsStore(defaults: defaults)
-        #expect(reloaded.settings.dashboardCardOrder == reordered)
+        #expect(reloaded.settings.dashboardCardOrder == reordered + [.meteredData])
     }
 
     @Test
@@ -477,6 +477,7 @@ struct AppSettingsStoreTests {
             .weather,
             .power,
             .connectivity,
+            .meteredData,
             .timeTracking,
             .travelContext,
             .localInfo,

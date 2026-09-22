@@ -573,6 +573,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
     public let emergencyCare: EmergencyCareSnapshot?
     public let marine: MarineSnapshot?
     public let appState: AppStatusSnapshot
+    public let meteredData: MeteredUsageSnapshot
     public let healthSummary: DashboardHealthSummary
 
     public init(
@@ -587,6 +588,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         emergencyCare: EmergencyCareSnapshot? = nil,
         marine: MarineSnapshot? = nil,
         appState: AppStatusSnapshot,
+        meteredData: MeteredUsageSnapshot = .disabled,
         healthSummary: DashboardHealthSummary? = nil
     ) {
         self.network = network
@@ -600,6 +602,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         self.emergencyCare = emergencyCare
         self.marine = marine
         self.appState = appState
+        self.meteredData = meteredData
         self.healthSummary = healthSummary ?? DashboardHealthEvaluator.makeSummary(
             network: network,
             power: power,
@@ -1110,7 +1113,8 @@ public extension DashboardSnapshot {
             lastRefresh: .now,
             updateState: UpdateStateSnapshot(kind: .idle, detail: "Up to date", lastCheckedAt: .now),
             issues: []
-        )
+        ),
+        meteredData: .disabled
     )
 
     func replacingTravelAlerts(_ travelAlerts: TravelAlertsSnapshot?) -> DashboardSnapshot {
@@ -1126,6 +1130,7 @@ public extension DashboardSnapshot {
             emergencyCare: emergencyCare,
             marine: marine,
             appState: appState,
+            meteredData: meteredData,
             healthSummary: healthSummary
         )
     }

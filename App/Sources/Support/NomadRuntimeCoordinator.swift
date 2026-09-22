@@ -35,6 +35,17 @@ final class NomadRuntimeCoordinator: ObservableObject {
         timeTracking.setInterfaceActive(false)
         snapshotStore.setDashboardInterfaceActive(false)
         snapshotStore.setAutomaticPlaceCollectionEnabled(life.preferences.isAutomaticCollectionEnabled)
+        snapshotStore.setLocationAuthorizedForSSID(locationStore.authorizationStatus.isNomadWeatherAuthorized)
+        locationStore.$authorizationStatus
+            .map(\.isNomadWeatherAuthorized)
+            .removeDuplicates()
+            .sink { [weak snapshotStore] authorized in
+                snapshotStore?.setLocationAuthorizedForSSID(authorized)
+                if authorized {
+                    snapshotStore?.refreshMeteredDataAfterLocationGrant()
+                }
+            }
+            .store(in: &observations)
         snapshotStore.$snapshot.sink { [weak self] snapshot in
             guard let self else { return }
             nomadsCurrentCity.ingest(location: snapshot.travelContext.deviceLocation ?? snapshot.travelContext.location)
@@ -106,8 +117,16 @@ final class NomadRuntimeCoordinator: ObservableObject {
     }
 
     private func refreshLocationIfAuthorized() {
-        guard settingsStore.settings.usesDeviceLocation || life.preferences.isAutomaticCollectionEnabled,
-              locationStore.authorizationStatus.isNomadWeatherAuthorized,
+        let needsLocationForWeather = settingsStore.settings.usesDeviceLocation || life.preferences.isAutomaticCollectionEnabled
+        let needsLocationForDataGuard = settingsStore.settings.meteredDataEnabled && settingsStore.settings.useLocationForWiFiNames
+        guard needsLocationForWeather || needsLocationForDataGuard else { return }
+
+        if needsLocationForDataGuard, locationStore.authorizationStatus == .notDetermined {
+            locationStore.requestAuthorization()
+            return
+        }
+
+        guard locationStore.authorizationStatus.isNomadWeatherAuthorized,
               !locationStore.isRequestInProgress else { return }
         locationStore.refreshLocation()
     }

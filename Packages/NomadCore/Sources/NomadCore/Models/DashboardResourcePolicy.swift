@@ -53,12 +53,16 @@ public struct DashboardResourcePolicy: Equatable, Sendable {
     public let reducesBackgroundWork: Bool
     public let reason: String?
 
-    public init(mode: DataUsageMode, conditions: ResourceConditions) {
+    public init(mode: DataUsageMode, conditions: ResourceConditions, isMeteredCapReached: Bool = false) {
         isOffline = conditions.pathAvailable == false
-        isLowData = mode == .lowData || (mode == .automatic && (conditions.isExpensive || conditions.isConstrained))
+        isLowData = mode == .lowData
+            || (mode == .automatic && (conditions.isExpensive || conditions.isConstrained))
+            || isMeteredCapReached
         reducesBackgroundWork = isLowData || conditions.isLowPowerModeEnabled || conditions.isThermallyLimited
         if isOffline {
             reason = "Offline — saved information is available"
+        } else if isMeteredCapReached {
+            reason = "Data cap reached — large background downloads are paused"
         } else if isLowData {
             reason = "Low Data — large background downloads are paused"
         } else if conditions.isThermallyLimited {

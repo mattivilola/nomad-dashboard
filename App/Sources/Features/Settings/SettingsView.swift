@@ -122,6 +122,37 @@ struct SettingsView: View {
                     } header: { Text("Network & Nomad Life") }
 
                     Section {
+                        Toggle("Data Guard (metered tracking)", isOn: binding(\.meteredDataEnabled))
+                        Toggle("Auto-monitor expensive connections", isOn: binding(\.autoEnableOnExpensivePath))
+                        Toggle("Auto-monitor remembered Wi‑Fi hotspots", isOn: binding(\.autoMonitorRememberedWiFiHotspots))
+                        Toggle("Use location to read Wi‑Fi names (SSIDs)", isOn: binding(\.useLocationForWiFiNames))
+                        Toggle("Show usage in menu bar when monitoring", isOn: binding(\.showMeteredUsageInMenuBar))
+                        Picker("Default billing period", selection: binding(\.defaultMeteredBillingPeriod)) {
+                            ForEach(MeteredBillingPeriod.allCases, id: \.self) { period in
+                                Text(period.title).tag(period)
+                            }
+                        }
+                        Stepper(
+                            value: defaultMeteredCapGigabytesBinding,
+                            in: 1...200,
+                            step: 1
+                        ) {
+                            Text("Default cap: \(defaultMeteredCapGigabytesBinding.wrappedValue) GB")
+                        }
+                        if !settingsStore.settings.knownMeteredProfiles.isEmpty {
+                            ForEach(settingsStore.settings.knownMeteredProfiles) { profile in
+                                LabeledContent(profile.displayName, value: profile.capBytes.map { MeteredUsageFormatting.byteCount($0) } ?? "No cap")
+                            }
+                        }
+                        Button("Reset Data Guard counters") {
+                            Task { await snapshotStore.resetMeteredUsagePeriod() }
+                        }
+                        Text("Data Guard measures traffic on your Mac's default-route interface. It warns before caps and pauses Nomad's large downloads at the limit. It does not block other apps or system updates.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } header: { Text("Data Guard") }
+
+                    Section {
                         Toggle("Use current location for weather", isOn: weatherLocationBinding)
                         Toggle("Show local info", isOn: localInfoBinding)
                         TextField("HUD USER API token (US rent in Local Info)", text: binding(\.hudUserAPIToken))
@@ -469,6 +500,18 @@ struct SettingsView: View {
         )
     }
 
+    private var defaultMeteredCapGigabytesBinding: Binding<Int> {
+        Binding(
+            get: {
+                let bytes = settingsStore.settings.defaultMeteredCapBytes ?? (5 * 1_024 * 1_024 * 1_024)
+                return max(1, Int(bytes / (1_024 * 1_024 * 1_024)))
+            },
+            set: { newValue in
+                settingsStore.settings.defaultMeteredCapBytes = UInt64(max(1, newValue)) * 1_024 * 1_024 * 1_024
+            }
+        )
+    }
+
     private var launchAtLoginBinding: Binding<Bool> {
         Binding(
             get: { launchAtLoginController.isEnabled },
@@ -672,11 +715,7 @@ struct SettingsView: View {
     }
 
     private func openLocationSettings() {
-        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices") else {
-            return
-        }
-
-        openURL(url)
+        CurrentLocationStore.openLocationPrivacySettings()
     }
 
     private var surfSpotNameBinding: Binding<String> {

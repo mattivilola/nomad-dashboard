@@ -80,6 +80,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 ## Top Use Cases
 
 - Checking whether the current network is good enough for a call, upload, or coding session
+- Tracking capped hotspot usage with Data Guard and getting warned before you blow through a mobile data allowance
 - Seeing whether the laptop is charging normally or draining too fast
 - Confirming public IP, device location, network-detected location, time zone, Wi-Fi context, and VPN state
 - Reviewing current weather, wind, and the upcoming unified forecast before moving between locations

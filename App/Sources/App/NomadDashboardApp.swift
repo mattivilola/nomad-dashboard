@@ -117,7 +117,10 @@ struct NomadDashboardApp: App {
             )
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         } label: {
-            MenuBarStatusLabel(snapshot: snapshotStore.snapshot)
+            MenuBarStatusLabel(
+                snapshot: snapshotStore.snapshot,
+                showMeteredUsageInMenuBar: settingsStore.settings.showMeteredUsageInMenuBar
+            )
         }
         .menuBarExtraStyle(.window)
         .commands {

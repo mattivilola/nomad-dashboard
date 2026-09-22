@@ -1408,7 +1408,10 @@ private func makeDependencies(
         visitedPlaceEventsStore: visitedPlaceEventsStore,
         visitedCountryDaysStore: visitedCountryDaysStore,
         historyStore: historyStore,
-        updateCoordinator: updateCoordinator
+        updateCoordinator: updateCoordinator,
+        meteredDataController: MeteredDataController(
+            store: MeteredUsageStore(url: FileManager.default.temporaryDirectory.appendingPathComponent("metered-usage-test-\(UUID().uuidString).json"))
+        )
     )
 }
 

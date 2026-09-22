@@ -48,7 +48,8 @@ public struct OfflineDashboardContent: Codable, Equatable, Sendable {
             fuelDiagnostics: snapshot.fuelDiagnostics,
             emergencyCare: emergencyCare,
             marine: marine,
-            appState: snapshot.appState
+            appState: snapshot.appState,
+            meteredData: snapshot.meteredData
         )
     }
 

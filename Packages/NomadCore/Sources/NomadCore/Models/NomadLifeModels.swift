@@ -94,7 +94,14 @@ public struct NomadLifeTimeZonePresentation: Equatable, Sendable {
     }
 }
 
-public enum NomadLifeQuietAlertKind: String, Codable, Equatable, Sendable { case disconnected, recovered, vpnChanged, weakCharging }
+public enum NomadLifeQuietAlertKind: String, Codable, Equatable, Sendable {
+    case disconnected
+    case recovered
+    case vpnChanged
+    case weakCharging
+    case dataCapWarning
+    case dataCapReached
+}
 
 public struct NomadLifeQuietAlert: Equatable, Sendable, Identifiable {
     public let id = UUID()

@@ -2,6 +2,7 @@ import Foundation
 
 public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable, Sendable {
     case connectivity
+    case meteredData
     case power
     case timeTracking
     case travelContext
@@ -13,6 +14,7 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
 
     public static let defaultOrder: [DashboardCardID] = [
         .connectivity,
+        .meteredData,
         .power,
         .timeTracking,
         .travelContext,

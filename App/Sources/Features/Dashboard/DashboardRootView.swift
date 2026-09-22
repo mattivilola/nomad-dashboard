@@ -89,7 +89,13 @@ struct DashboardRootView: View {
             quitAction: quitApplication,
             onCardOrderChange: persistDashboardCardOrder,
             onCardWidthModesChange: persistDashboardCardWidthModes,
-            onWeatherForecastExpandedChange: persistWeatherForecastExpanded
+            onWeatherForecastExpandedChange: persistWeatherForecastExpanded,
+            setManualMeteredSessionEnabled: { snapshotStore.setManualMeteredSessionEnabled($0) },
+            markCurrentNetworkAsMetered: { snapshotStore.markCurrentNetworkAsMetered() },
+            forgetCurrentMeteredNetwork: { snapshotStore.forgetCurrentMeteredNetwork() },
+            resetMeteredUsagePeriod: { Task { await snapshotStore.resetMeteredUsagePeriod() } },
+            requestLocationForWiFiNamesAction: handleWiFiSSIDLocationAccess,
+            wifiSSIDLocationButtonTitle: wifiSSIDLocationButtonTitle
         )
         .task {
             if settingsStore.settings.usesDeviceLocation || lifeController.preferences.isAutomaticCollectionEnabled {
@@ -146,6 +152,27 @@ struct DashboardRootView: View {
         }
 
         NSWorkspace.shared.open(url)
+    }
+
+    private func handleWiFiSSIDLocationAccess() {
+        locationStore.requestWiFiSSIDAccess()
+        Task { await snapshotStore.refresh() }
+    }
+
+    private var wifiSSIDLocationButtonTitle: String {
+        if locationStore.diagnostics.isLocationServicesEnabled == false {
+            return "Open Location Services…"
+        }
+        return switch locationStore.authorizationStatus {
+        case .notDetermined:
+            "Allow location for Wi‑Fi names…"
+        case .denied, .restricted:
+            "Open Location Settings…"
+        case .authorizedAlways, .authorizedWhenInUse:
+            "Refresh location for Wi‑Fi names…"
+        @unknown default:
+            "Open Location Settings…"
+        }
     }
 
     private func openSettings() {
@@ -425,9 +452,10 @@ private struct EmergencyHospitalPreviewSheet: View {
 
 struct MenuBarStatusLabel: View {
     let snapshot: DashboardSnapshot
+    let showMeteredUsageInMenuBar: Bool
 
     var body: some View {
-        let presentation = snapshot.menuBarStatusPresentation
+        let presentation = snapshot.menuBarStatusPresentation(showMeteredUsage: showMeteredUsageInMenuBar)
 
         HStack(spacing: 6) {
             statusIcon(for: presentation)

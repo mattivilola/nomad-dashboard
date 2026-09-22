@@ -26,6 +26,7 @@ public struct DashboardDependencies: Sendable {
     public let updateCoordinator: any UpdateCoordinator
     public let resourceConditions: any ResourceConditionsReading
     public let offlineCache: OfflineDashboardCache?
+    public let meteredDataController: MeteredDataController
 
     public init(
         throughputMonitor: any ThroughputMonitor,
@@ -52,7 +53,8 @@ public struct DashboardDependencies: Sendable {
         historyStore: any MetricHistoryStore,
         updateCoordinator: any UpdateCoordinator,
         resourceConditions: any ResourceConditionsReading = DefaultResourceConditionsReader(),
-        offlineCache: OfflineDashboardCache? = nil
+        offlineCache: OfflineDashboardCache? = nil,
+        meteredDataController: MeteredDataController
     ) {
         self.throughputMonitor = throughputMonitor
         self.connectivityMonitor = connectivityMonitor
@@ -79,6 +81,7 @@ public struct DashboardDependencies: Sendable {
         self.updateCoordinator = updateCoordinator
         self.resourceConditions = resourceConditions
         self.offlineCache = offlineCache
+        self.meteredDataController = meteredDataController
     }
 
     public static func live(
@@ -144,7 +147,12 @@ public struct DashboardDependencies: Sendable {
             ),
             updateCoordinator: updateCoordinator,
             resourceConditions: pathReader,
-            offlineCache: OfflineDashboardCache(fileURL: applicationSupportDirectory.appendingPathComponent("offline-essentials.json"))
+            offlineCache: OfflineDashboardCache(fileURL: applicationSupportDirectory.appendingPathComponent("offline-essentials.json")),
+            meteredDataController: MeteredDataController(
+                store: MeteredUsageStore(
+                    url: applicationSupportDirectory.appendingPathComponent("metered-usage.json")
+                )
+            )
         )
     }
 }

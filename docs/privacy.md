@@ -20,7 +20,8 @@
 - Nomad Life may ask Apple MapKit for a nearby coworking or café suggestion. Suggested venue names remain unconfirmed until the user confirms or edits them.
 - Nomad Life diary entries and preferences, including the chosen home time zone and local work-readiness context, are stored locally on the Mac.
 - Opening Google Maps for a diary entry is an explicit user action and sends the selected map request to Google Maps.
-- Quiet connection alerts are opt-in. They use connection, VPN, and charging state changes with cooldowns and configured quiet hours; alert text does not include location or IP address.
+- Quiet connection alerts are opt-in. They use connection, VPN, charging state changes, and Data Guard cap warnings with cooldowns and configured quiet hours; alert text does not include location or IP address.
+- Data Guard stores Wi-Fi network names (SSIDs), remembered metered network preferences, and cumulative byte totals locally on the Mac. This data is not uploaded.
 - Travel advisory uses Smartraveller and is enabled by default.
 - Smartraveller advisory fetches use direct HTTPS requests first and may retry through a hidden WebKit-backed page load when the direct transport path stalls.
 - After a destination is matched, Smartraveller may also fetch that destination page directly to extract a short advisory reason sentence and keep a source link for `More details`.

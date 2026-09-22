@@ -37,6 +37,15 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var surfSpotLatitude: Double?
     public var surfSpotLongitude: Double?
     public var latencyHosts: [String]
+    public var meteredDataEnabled: Bool
+    public var defaultMeteredCapBytes: UInt64?
+    public var defaultMeteredBillingPeriod: MeteredBillingPeriod
+    public var autoEnableOnExpensivePath: Bool
+    public var manualMeteredSessionEnabled: Bool
+    public var knownMeteredProfiles: [MeteredNetworkProfile]
+    public var showMeteredUsageInMenuBar: Bool
+    public var autoMonitorRememberedWiFiHotspots: Bool
+    public var useLocationForWiFiNames: Bool
 
     public init(
         appearanceMode: AppAppearanceMode = .system,
@@ -66,7 +75,16 @@ public struct AppSettings: Codable, Equatable, Sendable {
         surfSpotName: String = "",
         surfSpotLatitude: Double? = nil,
         surfSpotLongitude: Double? = nil,
-        latencyHosts: [String] = ["1.1.1.1:443", "8.8.8.8:443"]
+        latencyHosts: [String] = ["1.1.1.1:443", "8.8.8.8:443"],
+        meteredDataEnabled: Bool = true,
+        defaultMeteredCapBytes: UInt64? = 5 * 1_024 * 1_024 * 1_024,
+        defaultMeteredBillingPeriod: MeteredBillingPeriod = .session,
+        autoEnableOnExpensivePath: Bool = true,
+        manualMeteredSessionEnabled: Bool = false,
+        knownMeteredProfiles: [MeteredNetworkProfile] = [],
+        showMeteredUsageInMenuBar: Bool = true,
+        autoMonitorRememberedWiFiHotspots: Bool = true,
+        useLocationForWiFiNames: Bool = true
     ) {
         self.appearanceMode = appearanceMode
         self.dataUsageMode = dataUsageMode
@@ -96,6 +114,15 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.surfSpotLatitude = surfSpotLatitude
         self.surfSpotLongitude = surfSpotLongitude
         self.latencyHosts = latencyHosts
+        self.meteredDataEnabled = meteredDataEnabled
+        self.defaultMeteredCapBytes = defaultMeteredCapBytes
+        self.defaultMeteredBillingPeriod = defaultMeteredBillingPeriod
+        self.autoEnableOnExpensivePath = autoEnableOnExpensivePath
+        self.manualMeteredSessionEnabled = manualMeteredSessionEnabled
+        self.knownMeteredProfiles = knownMeteredProfiles
+        self.showMeteredUsageInMenuBar = showMeteredUsageInMenuBar
+        self.autoMonitorRememberedWiFiHotspots = autoMonitorRememberedWiFiHotspots
+        self.useLocationForWiFiNames = useLocationForWiFiNames
     }
 
     enum CodingKeys: String, CodingKey {
@@ -130,6 +157,15 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case surfSpotLatitude
         case surfSpotLongitude
         case latencyHosts
+        case meteredDataEnabled
+        case defaultMeteredCapBytes
+        case defaultMeteredBillingPeriod
+        case autoEnableOnExpensivePath
+        case manualMeteredSessionEnabled
+        case knownMeteredProfiles
+        case showMeteredUsageInMenuBar
+        case autoMonitorRememberedWiFiHotspots
+        case useLocationForWiFiNames
     }
 
     public init(from decoder: any Decoder) throws {
@@ -184,6 +220,15 @@ public struct AppSettings: Codable, Equatable, Sendable {
         surfSpotLatitude = try container.decodeIfPresent(Double.self, forKey: .surfSpotLatitude)
         surfSpotLongitude = try container.decodeIfPresent(Double.self, forKey: .surfSpotLongitude)
         latencyHosts = try container.decode([String].self, forKey: .latencyHosts)
+        meteredDataEnabled = try container.decodeIfPresent(Bool.self, forKey: .meteredDataEnabled) ?? true
+        defaultMeteredCapBytes = try container.decodeIfPresent(UInt64.self, forKey: .defaultMeteredCapBytes)
+        defaultMeteredBillingPeriod = try container.decodeIfPresent(MeteredBillingPeriod.self, forKey: .defaultMeteredBillingPeriod) ?? .session
+        autoEnableOnExpensivePath = try container.decodeIfPresent(Bool.self, forKey: .autoEnableOnExpensivePath) ?? true
+        manualMeteredSessionEnabled = try container.decodeIfPresent(Bool.self, forKey: .manualMeteredSessionEnabled) ?? false
+        knownMeteredProfiles = try container.decodeIfPresent([MeteredNetworkProfile].self, forKey: .knownMeteredProfiles) ?? []
+        showMeteredUsageInMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showMeteredUsageInMenuBar) ?? true
+        autoMonitorRememberedWiFiHotspots = try container.decodeIfPresent(Bool.self, forKey: .autoMonitorRememberedWiFiHotspots) ?? true
+        useLocationForWiFiNames = try container.decodeIfPresent(Bool.self, forKey: .useLocationForWiFiNames) ?? true
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -221,6 +266,15 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encodeIfPresent(surfSpotLatitude, forKey: .surfSpotLatitude)
         try container.encodeIfPresent(surfSpotLongitude, forKey: .surfSpotLongitude)
         try container.encode(latencyHosts, forKey: .latencyHosts)
+        try container.encode(meteredDataEnabled, forKey: .meteredDataEnabled)
+        try container.encodeIfPresent(defaultMeteredCapBytes, forKey: .defaultMeteredCapBytes)
+        try container.encode(defaultMeteredBillingPeriod, forKey: .defaultMeteredBillingPeriod)
+        try container.encode(autoEnableOnExpensivePath, forKey: .autoEnableOnExpensivePath)
+        try container.encode(manualMeteredSessionEnabled, forKey: .manualMeteredSessionEnabled)
+        try container.encode(knownMeteredProfiles, forKey: .knownMeteredProfiles)
+        try container.encode(showMeteredUsageInMenuBar, forKey: .showMeteredUsageInMenuBar)
+        try container.encode(autoMonitorRememberedWiFiHotspots, forKey: .autoMonitorRememberedWiFiHotspots)
+        try container.encode(useLocationForWiFiNames, forKey: .useLocationForWiFiNames)
     }
 
     public static func sanitizedRefreshInterval(_ value: TimeInterval) -> TimeInterval {

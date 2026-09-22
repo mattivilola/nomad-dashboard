@@ -46,6 +46,12 @@ public struct DashboardPanelView: View {
     private let onCardOrderChange: ([DashboardCardID]) -> Void
     private let onCardWidthModesChange: ([DashboardCardID: DashboardCardWidthMode]) -> Void
     private let onWeatherForecastExpandedChange: (Bool) -> Void
+    private let setManualMeteredSessionEnabled: (Bool) -> Void
+    private let markCurrentNetworkAsMetered: () -> Void
+    private let forgetCurrentMeteredNetwork: () -> Void
+    private let resetMeteredUsagePeriod: () -> Void
+    private let requestLocationForWiFiNamesAction: () -> Void
+    private let wifiSSIDLocationButtonTitle: String
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var resolvedCardOrder: [DashboardCardID]
@@ -94,7 +100,13 @@ public struct DashboardPanelView: View {
         quitAction: @escaping () -> Void,
         onCardOrderChange: @escaping ([DashboardCardID]) -> Void = { _ in },
         onCardWidthModesChange: @escaping ([DashboardCardID: DashboardCardWidthMode]) -> Void = { _ in },
-        onWeatherForecastExpandedChange: @escaping (Bool) -> Void = { _ in }
+        onWeatherForecastExpandedChange: @escaping (Bool) -> Void = { _ in },
+        setManualMeteredSessionEnabled: @escaping (Bool) -> Void = { _ in },
+        markCurrentNetworkAsMetered: @escaping () -> Void = {},
+        forgetCurrentMeteredNetwork: @escaping () -> Void = {},
+        resetMeteredUsagePeriod: @escaping () -> Void = {},
+        requestLocationForWiFiNamesAction: @escaping () -> Void = {},
+        wifiSSIDLocationButtonTitle: String = "Allow location for Wi‑Fi names…"
     ) {
         self.snapshot = snapshot
         self.overviewContent = overviewContent
@@ -138,6 +150,12 @@ public struct DashboardPanelView: View {
         self.onCardOrderChange = onCardOrderChange
         self.onCardWidthModesChange = onCardWidthModesChange
         self.onWeatherForecastExpandedChange = onWeatherForecastExpandedChange
+        self.setManualMeteredSessionEnabled = setManualMeteredSessionEnabled
+        self.markCurrentNetworkAsMetered = markCurrentNetworkAsMetered
+        self.forgetCurrentMeteredNetwork = forgetCurrentMeteredNetwork
+        self.resetMeteredUsagePeriod = resetMeteredUsagePeriod
+        self.requestLocationForWiFiNamesAction = requestLocationForWiFiNamesAction
+        self.wifiSSIDLocationButtonTitle = wifiSSIDLocationButtonTitle
         _resolvedCardOrder = State(initialValue: DashboardCardID.sanitizedOrder(dashboardCardOrder))
         _resolvedCardWidthModes = State(initialValue: DashboardCardID.sanitizedWidthModes(dashboardCardWidthModes))
     }
@@ -395,6 +413,8 @@ public struct DashboardPanelView: View {
         switch cardID {
         case .connectivity:
             connectivitySection(widthMode: widthMode)
+        case .meteredData:
+            meteredDataSection(widthMode: widthMode)
         case .power:
             powerSection(widthMode: widthMode)
         case .timeTracking:
@@ -492,6 +512,98 @@ public struct DashboardPanelView: View {
         let clampedIndex = min(max(adjustedIndex, 0), reordered.count)
         reordered.insert(cardID, at: clampedIndex)
         return DashboardCardID.sanitizedOrder(reordered)
+    }
+
+    private func meteredDataSection(widthMode: DashboardCardWidthMode) -> some View {
+        let metered = snapshot.meteredData
+        let usedBytes = metered.billingPeriod == .session ? metered.sessionTotalBytes : metered.periodTotalBytes
+        let receivedBytes = metered.billingPeriod == .session ? metered.sessionBytesReceived : metered.periodBytesReceived
+        let sentBytes = metered.billingPeriod == .session ? metered.sessionBytesSent : metered.periodBytesSent
+
+        let networkSubtitle: String = {
+            guard let name = metered.networkDisplayName else { return "No network" }
+            if metered.networkNameSource == .cachedSSID {
+                return "\(name) (last known)"
+            }
+            return name
+        }()
+
+        return DashboardCard(
+            title: "Data Guard",
+            subtitle: networkSubtitle,
+            badge: metered.isMonitoringActive
+                ? PillBadge(
+                    title: metered.isCapReached ? "Cap reached" : "Monitoring",
+                    symbolName: metered.isCapReached ? "exclamationmark.triangle.fill" : "arrow.up.arrow.down.circle.fill",
+                    tint: metered.isCapReached ? NomadTheme.coral : NomadTheme.teal
+                )
+                : nil,
+            accessory: cardControls(for: .meteredData, title: "Data Guard"),
+            isCompact: widthMode == .narrow
+        ) {
+            if !metered.isFeatureEnabled {
+                Text("Turn on Data Guard in Settings to track capped hotspot usage.")
+                    .font(.caption)
+                    .foregroundStyle(NomadTheme.secondaryText)
+                Button("Open Settings") { openSettingsAction() }
+                    .buttonStyle(.link)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    if let fraction = metered.usageFraction, let capBytes = metered.capBytes {
+                        ProgressView(value: min(fraction, 1))
+                            .tint(metered.isCapReached ? NomadTheme.coral : NomadTheme.teal)
+                        Text("\(MeteredUsageFormatting.byteCount(usedBytes)) of \(MeteredUsageFormatting.byteCount(capBytes))")
+                            .font(.caption)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                    } else {
+                        Text("Used \(MeteredUsageFormatting.byteCount(usedBytes))")
+                            .font(.caption)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                    }
+
+                    HStack(spacing: 12) {
+                        MetricBlock(title: "Down", value: MeteredUsageFormatting.byteCount(receivedBytes), typography: widthMode == .narrow ? .compact : .standard)
+                        MetricBlock(title: "Up", value: MeteredUsageFormatting.byteCount(sentBytes), typography: widthMode == .narrow ? .compact : .standard)
+                    }
+
+                    if let interface = metered.meteredInterfaceName {
+                        Text("Measured on \(interface) (default route). VPNs may shift this.")
+                            .font(.caption2)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                    }
+
+                    if let statusMessage = metered.statusMessage {
+                        Text(statusMessage)
+                            .font(.caption2)
+                            .foregroundStyle(metered.isCapReached ? NomadTheme.coral : NomadTheme.secondaryText)
+                    }
+
+                    if metered.needsLocationForWiFiNames {
+                        Button(wifiSSIDLocationButtonTitle) {
+                            requestLocationForWiFiNamesAction()
+                        }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                    }
+
+                    Toggle("Monitor this connection", isOn: Binding(
+                        get: { metered.manualSessionEnabled },
+                        set: { setManualMeteredSessionEnabled($0) }
+                    ))
+
+                    HStack {
+                        Button("Remember as metered") { markCurrentNetworkAsMetered() }
+                            .disabled(metered.networkKey == nil)
+                        if metered.isKnownMeteredNetwork {
+                            Button("Forget network") { forgetCurrentMeteredNetwork() }
+                        }
+                        Button("Reset counters") { resetMeteredUsagePeriod() }
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption)
+                }
+            }
+        }
     }
 
     private func connectivitySection(widthMode: DashboardCardWidthMode) -> some View {

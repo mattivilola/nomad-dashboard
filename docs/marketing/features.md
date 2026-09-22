@@ -38,6 +38,37 @@ Users can quickly judge whether their current connection is workable without ope
 - this is a compact operational view, not a full packet-analysis or deep diagnostics tool
 - captive portal and flaky network heuristics are roadmap items, not current core claims
 
+## Data Guard (Metered Hotspot Tracking)
+
+### What it does
+
+- Tracks cumulative download and upload on the Mac's default-route network interface during metered sessions
+- Remembers Wi-Fi networks you mark as metered and can auto-start monitoring on expensive or constrained paths
+- Supports default and per-network data caps with quiet alerts at 80%, 95%, and 100%
+- Pauses Nomad's own large background downloads when a cap is reached
+- Can show compact used/cap usage in the menu bar while monitoring
+
+### Who it helps
+
+- travelers on iPhone hotspots, travel routers, or capped mobile data plans
+- anyone who wants warning before Nomad or the system burns through a limited allowance
+
+### Practical benefit
+
+You see how much data this connection has used, get warned before overage, and Nomad stops adding optional download load at the limit.
+
+### Dependencies or setup
+
+- enable Data Guard in Settings (on by default for new installs)
+- optional: mark a Wi-Fi network as metered or toggle **Monitor this connection** on the Data Guard card
+- allow location access when prompted so macOS can expose the Wi‑Fi name (SSID) for each hotspot separately
+
+### Limitations
+
+- measures system traffic on the default-route interface, not per-app breakdown
+- VPNs may shift which interface is measured
+- does not block iCloud, OS updates, or other apps (unlike dedicated firewall tools)
+
 ## Power And Battery Context
 
 ### What it does

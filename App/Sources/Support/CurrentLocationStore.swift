@@ -3,6 +3,7 @@ import Combine
 import CoreLocation
 import Foundation
 import NomadCore
+import OSLog
 
 struct LocationDiagnosticsSnapshot: Equatable {
     let authorizationStatus: CLAuthorizationStatus
@@ -65,6 +66,8 @@ struct LocationDiagnosticsSnapshot: Equatable {
 
 @MainActor
 final class CurrentLocationStore: NSObject, ObservableObject {
+    private static let logger = Logger(subsystem: "com.iloapps.NomadDashboard", category: "CurrentLocationStore")
+
     @Published private(set) var authorizationStatus: CLAuthorizationStatus
     @Published private(set) var currentLocation: CLLocation?
     @Published private(set) var currentCoordinate: CLLocationCoordinate2D?
@@ -112,10 +115,49 @@ final class CurrentLocationStore: NSObject, ObservableObject {
     }
 
     func requestAuthorization() {
-        beginLocationRequest()
+        Self.logger.info("requestAuthorization: begin status=\(self.authorizationStatus.rawValue, privacy: .public)")
+        requestLocationAccess(openSettingsIfNeeded: Self.openLocationPrivacySettings)
+    }
+
+    /// Data Guard and Wi‑Fi SSID reads need location permission on modern macOS.
+    func requestWiFiSSIDAccess() {
+        Self.logger.info("requestWiFiSSIDAccess: begin status=\(self.authorizationStatus.rawValue, privacy: .public)")
+        requestLocationAccess(openSettingsIfNeeded: Self.openLocationPrivacySettings)
+    }
+
+    static func openLocationPrivacySettings() {
+        Self.logger.info("openLocationPrivacySettings: opening System Settings")
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+
+    private func requestLocationAccess(openSettingsIfNeeded: () -> Void) {
+        guard CLLocationManager.locationServicesEnabled() else {
+            Self.logger.warning("requestLocationAccess: Location Services disabled system-wide")
+            failRequest(with: "Location Services are disabled in macOS Settings.")
+            openSettingsIfNeeded()
+            return
+        }
+
         NSApp.activate(ignoringOtherApps: true)
-        manager.requestWhenInUseAuthorization()
-        requestCurrentLocation()
+        if let window = NSApp.windows.first(where: { $0.isVisible }) {
+            window.makeKeyAndOrderFront(nil)
+        }
+
+        switch authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .denied, .restricted:
+            Self.logger.info("requestLocationAccess: permission denied or restricted, opening Settings")
+            failRequest(with: "Location access is denied. Allow Nomad Dashboard in Location Services.")
+            openSettingsIfNeeded()
+        case .authorizedAlways, .authorizedWhenInUse:
+            requestCurrentLocation()
+        @unknown default:
+            openSettingsIfNeeded()
+        }
     }
 
     func refreshLocation() {

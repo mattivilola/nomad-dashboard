@@ -25,9 +25,9 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSLocationUsageDescription</key>
-	<string>Nomad Dashboard uses your location to show local weather and travel context.</string>
+	<string>Nomad Dashboard uses your location for local weather, travel context, and reading the name of your current Wi‑Fi network for Data Guard hotspot metering.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Nomad Dashboard uses your location to show local weather and travel context.</string>
+	<string>Nomad Dashboard uses your location for local weather, travel context, and reading the name of your current Wi‑Fi network for Data Guard hotspot metering.</string>
 	<key>ReliefWebAppName</key>
 	<string>$(RELIEFWEB_APPNAME)</string>
 	<key>SUEnableAutomaticChecks</key>

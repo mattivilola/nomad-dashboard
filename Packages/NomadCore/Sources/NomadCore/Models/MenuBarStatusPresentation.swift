@@ -30,7 +30,30 @@ public struct MenuBarStatusPresentation: Equatable, Sendable {
 }
 
 public extension DashboardSnapshot {
+    func menuBarStatusPresentation(showMeteredUsage: Bool) -> MenuBarStatusPresentation {
+        if showMeteredUsage,
+           meteredData.isFeatureEnabled,
+           meteredData.isMonitoringActive,
+           let capBytes = meteredData.capBytes,
+           capBytes > 0
+        {
+            let used = meteredData.billingPeriod == .session ? meteredData.sessionTotalBytes : meteredData.periodTotalBytes
+            return MenuBarStatusPresentation(
+                text: MeteredUsageFormatting.compactUsage(used: used, cap: capBytes),
+                symbolName: meteredData.isCapReached ? "antenna.radiowaves.left.and.right.slash" : "arrow.up.arrow.down.circle",
+                branch: meteredData.isCapReached ? .latencyAttention : .latencyFallback,
+                tone: meteredData.isCapReached ? .attention : .standard
+            )
+        }
+
+        return defaultMenuBarStatusPresentation
+    }
+
     var menuBarStatusPresentation: MenuBarStatusPresentation {
+        defaultMenuBarStatusPresentation
+    }
+
+    private var defaultMenuBarStatusPresentation: MenuBarStatusPresentation {
         if let chargePercent = power.snapshot?.chargePercent, chargePercent <= 0.5 {
             return MenuBarStatusPresentation(
                 text: Self.formatBatteryPercentage(chargePercent),

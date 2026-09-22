@@ -11,8 +11,10 @@
 
 ## Milestone 2
 
+- Data Guard v1: metered-network byte tracking, caps, and alerts (shipped)
 - Better Wi-Fi quality heuristics
 - Captive portal and flaky network detection
+- Optional per-app blocking via Network Extension (future, not planned for v1)
 - More refined power diagnostics
 - Screenshot assets and public demo polish
 
