@@ -9,6 +9,21 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- _Nothing yet_
+
+### Changed
+
+- _Nothing yet_
+
+### Fixed
+
+- _Nothing yet_
+
+
+## [0.17.1] - 2026-10-12
+
+### Added
+
 - Add travel profiles (Nomad, Road trip & RV) in Settings and the dashboard header menu: a profile sets the recommended card order and ranks the glance heads-up items for road trips; a customized card order is kept, and Settings offers `Use recommended order`.
 - Add `Show the top heads-up in the menu bar` (off by default): caution and attention items replace the temperature in the menu bar.
 - Show the local emergency numbers at the top of Offline essentials.
@@ -24,11 +39,11 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - Offline essentials format temperatures and fuel prices like the dashboard cards.
 - Existing dashboards get the Your Embassy card right after Emergency Care (or after the nearest earlier default card present in a customized order), and a card order you never customized stays the recommended order.
 - Fix the General settings note that still described the appearance toggle as a dashboard header button; it now lives in the header menu.
-
-### Fixed
-
-- _Nothing yet_
-
+- Add travel profiles with road-trip ranking and a menu bar heads-up
+- Reorganize Settings into sidebar pages grouped for travellers
+- Add bundled diplomatic mission and consular contact directories
+- Merge branch 'feature/settings-reorg' into feature/embassies
+- Add the Your Embassy card with citizenship settings
 
 ## [0.17.0] - 2026-10-12
 
