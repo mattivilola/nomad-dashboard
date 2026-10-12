@@ -13,7 +13,12 @@ enum IntentAnswers {
         _ = await IntentSnapshotReader.snapshot(from: snapshotStore) { $0.hasLiveReadings }
         // Latency is only probed while the dashboard is open; without a reading the verdict would say "Waiting".
         await snapshotStore.probeLatencyIfStale()
-        return QuickAnswers.dashboardStatus(snapshot: snapshotStore.snapshot, settings: settingsStore.settings, now: .now).sentence
+        return QuickAnswers.dashboardStatus(
+            snapshot: snapshotStore.snapshot,
+            settings: settingsStore.settings,
+            visitedCountryDays: snapshotStore.visitedCountryDays,
+            now: .now
+        ).sentence
     }
 
     static func nearestEmbassy(snapshotStore: DashboardSnapshotStore, settingsStore: AppSettingsStore) async -> String {

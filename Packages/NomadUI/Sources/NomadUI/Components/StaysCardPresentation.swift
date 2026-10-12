@@ -131,7 +131,7 @@ struct StaysCardPresentation {
         let todayText = { (date: Date) in calendar.isDate(date, inSameDayAs: now) }
 
         let stay = code.flatMap { calculator.currentStay(in: $0) }
-        let countryName = code.map { CitizenshipSettingsPresentation.countryName(for: $0, locale: locale) }
+        let countryName = code.map { CountryNames.displayName(forCode: $0, locale: locale) }
 
         currentStay = stay.flatMap { stay in
             countryName.map { name in
@@ -302,7 +302,7 @@ struct StaysCardPresentation {
         let countries = days.countries.prefix(taxCountryLimit).map { entry in
             CountryDays(
                 id: entry.id,
-                name: entry.countryCode.map { CitizenshipSettingsPresentation.countryName(for: $0, locale: locale) }
+                name: entry.countryCode.map { CountryNames.displayName(forCode: $0, locale: locale) }
                     ?? entry.country,
                 daysText: dayCount(entry.days),
                 progress: Double(entry.days) / Double(max(threshold, 1)),

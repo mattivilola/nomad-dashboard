@@ -9,13 +9,15 @@ struct WidgetSnapshotTests {
     private func make(
         _ snapshot: DashboardSnapshot,
         settings: AppSettings = AppSettings(),
+        visitedCountryDays: [VisitedCountryDay] = [],
         at date: Date? = nil
     ) -> WidgetSnapshot {
         WidgetSnapshot(
             snapshot: snapshot,
             settings: settings,
+            visitedCountryDays: visitedCountryDays,
             now: date ?? now,
-            calendar: Calendar(identifier: .gregorian),
+            calendar: QuickAnswersFixtures.calendar,
             locale: locale,
             index: QuickAnswersFixtures.missionIndex
         )
@@ -83,6 +85,26 @@ struct WidgetSnapshotTests {
             savedAt: now
         )
         #expect(many.headsUp.map(\.title) == ["Item 0", "Item 1"])
+    }
+
+    @Test
+    func stayAndSchengenItemsReachTheWidgetHeadsUps() {
+        let calendar = QuickAnswersFixtures.calendar
+        let widget = make(
+            QuickAnswersFixtures.morocco(),
+            settings: AppSettings(citizenshipCountryCodes: ["US"], stayAllowances: ["MA": 90]),
+            visitedCountryDays: QuickAnswersFixtures.consecutiveDays(85, endingOn: now, in: "MA", calendar: calendar)
+        )
+
+        #expect(widget.headsUp.map(\.title) == ["Morocco: 5 days left"])
+        #expect(widget.headsUp.first?.severity == .caution)
+    }
+
+    @Test
+    func withoutRecordedDaysTheWidgetHasNoStayHeadsUps() {
+        let widget = make(QuickAnswersFixtures.morocco(), settings: AppSettings(stayAllowances: ["MA": 90]))
+
+        #expect(widget.headsUp.isEmpty)
     }
 
     @Test
@@ -166,6 +188,31 @@ struct WidgetSnapshotTests {
         #expect(json.contains("Embassy of Finland in Rabat"))
     }
 
+    @Test
+    func stayHeadsUpsAddNoCountryCodesOrCitizenshipToTheStoredJSON() throws {
+        let snapshot = QuickAnswersFixtures.snapshot(
+            device: QuickAnswersFixtures.location(city: "Lisbon", country: "Portugal", countryCode: "PT", latitude: 38.7223, longitude: -9.1393)
+        )
+        let widget = make(
+            snapshot,
+            settings: AppSettings(citizenshipCountryCodes: ["US"], stayAllowances: ["PT": 90]),
+            visitedCountryDays: QuickAnswersFixtures.consecutiveDays(85, endingOn: now, in: "PT", calendar: QuickAnswersFixtures.calendar)
+        )
+        #expect(widget.headsUp.isEmpty == false)
+
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("widget-stays-privacy-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = WidgetSnapshotStore(directory: directory)
+        try store.save(widget)
+        let json = try String(contentsOf: directory.appendingPathComponent(WidgetSnapshotStore.fileName), encoding: .utf8)
+
+        #expect(json.contains("\"US\"") == false)
+        #expect(json.contains("\"PT\"") == false)
+        #expect(json.contains("citizenship") == false)
+        #expect(json.contains("38.7223") == false)
+        #expect(json.contains("latitude") == false)
+    }
+
     // MARK: - Freshness
 
     @Test
@@ -213,6 +260,12 @@ struct WidgetSnapshotTimelineTests {
         WidgetSnapshot(verdict: .init(title: "Ready", level: .ready), daylight: daylight, savedAt: now.addingTimeInterval(-savedAgo))
     }
 
+    /// Every 5 minutes up to the last hour before sunset (now + 2 h), then every minute until sunset.
+    private var countdownMoments: [Date] {
+        (Array(stride(from: 300.0, through: 3_600, by: 300)) + Array(stride(from: 3_660.0, through: 7_140, by: 60)))
+            .map { now.addingTimeInterval($0) }
+    }
+
     @Test
     func withoutASnapshotThereIsOnlyNow() {
         #expect(WidgetSnapshot.renderingMoments(of: nil, now: now, includesDaylightTransitions: true) == [now])
@@ -241,7 +294,35 @@ struct WidgetSnapshotTimelineTests {
         // The sunrise before `now` is skipped; the rest come in time order.
         let nextSunrise = try #require(daylight.nextSunrise)
         #expect(WidgetSnapshot.renderingMoments(of: fresh, now: now, includesDaylightTransitions: true)
-            == [now, sunset, fresh.staleDate, nextSunrise])
+            == [now] + countdownMoments + [sunset, fresh.staleDate, nextSunrise])
+    }
+
+    @Test
+    func theDaylightLeftIsRefreshedEveryFiveMinutesAndEveryMinuteInTheLastHour() {
+        // Sunset is 2 h ahead: every 5 minutes for the first hour, then every minute until sunset.
+        let fresh = snapshot(savedAgo: 3_600, daylight: daylight)
+        let sunset = now.addingTimeInterval(7_200)
+        let moments = WidgetSnapshot.renderingMoments(of: fresh, now: now, includesDaylightTransitions: true).filter { $0 > now && $0 < sunset }
+
+        #expect(moments.count == 12 + 59)
+        #expect(moments.first == now.addingTimeInterval(300))
+        #expect(moments[11] == now.addingTimeInterval(3_600))
+        #expect(moments[12] == now.addingTimeInterval(3_660))
+        #expect(moments.last == now.addingTimeInterval(7_140))
+    }
+
+    @Test
+    func theCountdownNeedsDaylightAheadAndOnlyCountsForTheDaylightWidget() {
+        let night = DaylightOutlook(
+            sunrise: now.addingTimeInterval(-40_000), sunset: now.addingTimeInterval(-3_600), nextSunrise: now.addingTimeInterval(20_000),
+            isPolarDay: false, isPolarNight: false, timeZoneIdentifier: "UTC"
+        )
+        let afterSunset = snapshot(savedAgo: 0, daylight: night)
+        let moments = WidgetSnapshot.renderingMoments(of: afterSunset, now: now, includesDaylightTransitions: true)
+        #expect(moments == [now, now.addingTimeInterval(20_000), afterSunset.staleDate].sorted())
+
+        let fresh = snapshot(savedAgo: 3_600, daylight: daylight)
+        #expect(WidgetSnapshot.renderingMoments(of: fresh, now: now, includesDaylightTransitions: false) == [now, fresh.staleDate])
     }
 
     @Test

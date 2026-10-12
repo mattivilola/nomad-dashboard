@@ -536,14 +536,6 @@ struct CitizenshipSettingsPresentationTests {
     private let locale = Locale(identifier: "en_US")
 
     @Test
-    func countryNamesAreLocalizedAndFallBackToTheCode() {
-        #expect(CitizenshipSettingsPresentation.countryName(for: "FI", locale: locale) == "Finland")
-        #expect(CitizenshipSettingsPresentation.countryName(for: " ma ", locale: locale) == "Morocco")
-        #expect(CitizenshipSettingsPresentation.countryName(for: "ZZ", locale: locale) == "ZZ")
-        #expect(CitizenshipSettingsPresentation.countryName(for: "FI", locale: Locale(identifier: "fi_FI")) == "Suomi")
-    }
-
-    @Test
     func countryListJoinsNamesNaturally() {
         #expect(CitizenshipSettingsPresentation.countryList(["FI"], locale: locale) == "Finland")
         #expect(CitizenshipSettingsPresentation.countryList(["FI", "SE"], locale: locale) == "Finland and Sweden")

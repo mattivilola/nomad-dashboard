@@ -39,6 +39,22 @@ extension String {
     }
 }
 
+/// The footer text under a Settings group. Grouped forms centre or trail footers by default, so every footer
+/// goes through here to read leading-aligned, like the group's own rows.
+struct SettingsFooter: View {
+    private let text: Text
+
+    init(_ text: String) {
+        self.text = Text(text)
+    }
+
+    var body: some View {
+        text
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 /// Form for one Settings page. It scrolls to a requested group and reports the request as handled.
 struct SettingsPageForm<Content: View>: View {
     let page: SettingsPage

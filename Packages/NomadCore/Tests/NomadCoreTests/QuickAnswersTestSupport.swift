@@ -65,6 +65,28 @@ enum QuickAnswersFixtures {
         )
     }
 
+    /// Gregorian, UTC and English, so day boundaries and country names do not depend on the machine.
+    static var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        calendar.locale = locale
+        return calendar
+    }
+
+    /// One recorded day in `code` for each of the `count` days up to and including `date`.
+    static func consecutiveDays(_ count: Int, endingOn date: Date, in code: String, calendar: Calendar) -> [VisitedCountryDay] {
+        (0..<count).map { offset in
+            let day = calendar.date(byAdding: .day, value: -offset, to: date)!
+            return VisitedCountryDay(
+                day: VisitedCountryDayStamp(date: day, calendar: calendar),
+                country: code,
+                countryCode: code,
+                source: .deviceLocation,
+                isInferred: false
+            )
+        }
+    }
+
     static func morocco() -> DashboardSnapshot {
         snapshot(device: location(city: "Rabat", country: "Morocco", countryCode: "MA", latitude: 34.02, longitude: -6.84, timeZone: "Africa/Casablanca"))
     }

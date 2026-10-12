@@ -44,7 +44,7 @@ struct AdvancedSettingsPage: View {
         } header: {
             Text("Refresh & history")
         } footer: {
-            Text("Fast refresh controls lightweight polling while the dashboard is open. Hidden background refreshes are automatically slowed to reduce battery use. Slow refresh covers heavier network, power, location, and weather lookups.")
+            SettingsFooter("Fast refresh controls lightweight polling while the dashboard is open. Hidden background refreshes are automatically slowed to reduce battery use. Slow refresh covers heavier network, power, location, and weather lookups.")
         }
     }
 

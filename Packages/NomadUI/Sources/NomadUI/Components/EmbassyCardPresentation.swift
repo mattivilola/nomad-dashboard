@@ -121,7 +121,7 @@ struct EmbassyCardPresentation {
 
         let hotlines = Self.hotlines(for: codes, locale: locale)
         self.hotlines = hotlines
-        let hostName = CitizenshipSettingsPresentation.countryName(for: host, locale: locale)
+        let hostName = CountryNames.displayName(forCode: host, locale: locale)
 
         if host.isEmpty {
             state = .locationNeeded
@@ -224,7 +224,7 @@ struct EmbassyCardPresentation {
             }
 
             let shortName = shortMinistryName(contacts.ministryName)
-            let countryName = CitizenshipSettingsPresentation.countryName(for: code, locale: locale)
+            let countryName = CountryNames.displayName(forCode: code, locale: locale)
             let note = contacts.emergencyPhoneNote
             return Hotline(
                 id: code,
@@ -281,7 +281,7 @@ struct EmbassyCardPresentation {
         let place = mission.city?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         let isFallback = lookup != nil
         let locationText = if isFallback {
-            [CitizenshipSettingsPresentation.countryName(for: mission.sendingCountry, locale: locale), place]
+            [CountryNames.displayName(forCode: mission.sendingCountry, locale: locale), place]
                 .compactMap(\.self)
                 .joined(separator: " · ")
         } else {
@@ -369,7 +369,7 @@ struct EmbassyCardPresentation {
 
             return LinkGroup(
                 id: code,
-                countryName: CitizenshipSettingsPresentation.countryName(for: code, locale: locale),
+                countryName: CountryNames.displayName(forCode: code, locale: locale),
                 registration: registration,
                 missionsDirectory: directory
             )

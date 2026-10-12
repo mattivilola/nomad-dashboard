@@ -125,6 +125,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     public init(
         snapshot: DashboardSnapshot,
         settings: AppSettings,
+        visitedCountryDays: [VisitedCountryDay],
         now: Date,
         calendar: Calendar = .current,
         locale: Locale = .current,
@@ -139,7 +140,12 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             now: now,
             calendar: calendar,
             limit: Self.maximumHeadsUps + 1,
-            profile: settings.travelProfile
+            profile: settings.travelProfile,
+            stays: StayInsightInput(
+                countryDays: visitedCountryDays,
+                settings: settings,
+                currentCountryCode: snapshot.currentCountryCode
+            )
         )
         .filter { $0.kind != .daylight }
         .map { HeadsUp(title: $0.title, symbolName: $0.symbolName, severity: Severity($0.severity)) }
@@ -183,6 +189,31 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     /// How far ahead a widget timeline plans.
     public static let timelineLookAhead: TimeInterval = 24 * 3_600
 
+    /// The Daylight widget writes the daylight left as text ("3 h 11 min"), which a widget cannot keep counting
+    /// by itself, so it renders again every 5 minutes while the sun is up and every minute in its last hour.
+    static let daylightCountdownStep: TimeInterval = 5 * 60
+    static let daylightCountdownFineStep: TimeInterval = 60
+    static let daylightCountdownFineInterval: TimeInterval = 3_600
+
+    private static func daylightCountdownMoments(of daylight: DaylightOutlook?, after now: Date) -> [Date] {
+        guard let daylight, case let .daylight(sunset)? = daylight.phase(at: now) else {
+            return []
+        }
+
+        let horizon = now.addingTimeInterval(timelineLookAhead)
+        var moments: [Date] = []
+        var moment = now
+        while moments.count < 1_000 {
+            let step = sunset.timeIntervalSince(moment) <= daylightCountdownFineInterval ? daylightCountdownFineStep : daylightCountdownStep
+            moment = moment.addingTimeInterval(step)
+            guard moment < sunset, moment <= horizon else {
+                break
+            }
+            moments.append(moment)
+        }
+        return moments
+    }
+
     /// `now` first, then every later moment within a day at which a widget has to render again without
     /// the app's help: when the content turns out of date and, for the Daylight widget, sunrise and sunset.
     public static func renderingMoments(of snapshot: WidgetSnapshot?, now: Date, includesDaylightTransitions: Bool) -> [Date] {
@@ -193,6 +224,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         var later = [snapshot.staleDate]
         if includesDaylightTransitions {
             later += snapshot.daylight?.transitions ?? []
+            later += daylightCountdownMoments(of: snapshot.daylight, after: now)
         }
 
         let horizon = now.addingTimeInterval(timelineLookAhead)

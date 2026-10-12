@@ -48,9 +48,7 @@ struct DaylightWidgetView: View {
                     symbol: "sunset.fill",
                     tint: remaining <= Self.cautionInterval ? HealthLevel.caution.tint : NomadTheme.secondaryText,
                     title: "Sunset \(outlook.clockTime(sunset))",
-                    detail: AnyView(
-                        Text(sunset, style: .relative) + Text(" of daylight left")
-                    )
+                    detail: AnyView(Text("\(DurationText.hoursAndMinutes(remaining)) of daylight left"))
                 )
             case let .dark(sunrise?):
                 card(

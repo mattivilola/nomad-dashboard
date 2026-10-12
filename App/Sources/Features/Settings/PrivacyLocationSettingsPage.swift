@@ -41,7 +41,7 @@ struct PrivacyLocationSettingsPage: View {
         } header: {
             Text("Location")
         } footer: {
-            Text("Weather, nearby fuel prices, nearby emergency hospitals, and local weather alerts use device location only when you opt in.")
+            SettingsFooter("Weather, nearby fuel prices, nearby emergency hospitals, and local weather alerts use device location only when you opt in.")
         }
     }
 
@@ -51,7 +51,7 @@ struct PrivacyLocationSettingsPage: View {
         } header: {
             Text("External IP location")
         } footer: {
-            Text("External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs.")
+            SettingsFooter("External IP lookups use a third-party geolocation service to show city and country, and that display is on by default for new installs.")
         }
     }
 
@@ -61,7 +61,7 @@ struct PrivacyLocationSettingsPage: View {
         } header: {
             Text("Wi‑Fi names")
         } footer: {
-            Text("Data Guard reads the name of your current Wi‑Fi network to recognize remembered hotspots and apply their data caps. macOS only shares Wi‑Fi names with apps that may use your location.")
+            SettingsFooter("Data Guard reads the name of your current Wi‑Fi network to recognize remembered hotspots and apply their data caps. macOS only shares Wi‑Fi names with apps that may use your location.")
         }
     }
 
@@ -79,7 +79,7 @@ struct PrivacyLocationSettingsPage: View {
         } header: {
             Text("Visited places")
         } footer: {
-            Text("Visited places and country-day history stay on this Mac until you clear them.")
+            SettingsFooter("Visited places and country-day history stay on this Mac until you clear them.")
         }
     }
 
@@ -89,7 +89,7 @@ struct PrivacyLocationSettingsPage: View {
         } header: {
             Text("Analytics")
         } footer: {
-            Text("Anonymous install, launch, and daily background activity counts are always sent so app reach can be estimated; turn analytics off here to stop UI-based daily activity and window-open events.")
+            SettingsFooter("Anonymous install, launch, and daily background activity counts are always sent so app reach can be estimated; turn analytics off here to stop UI-based daily activity and window-open events.")
         }
     }
 

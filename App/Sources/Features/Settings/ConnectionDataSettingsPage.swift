@@ -68,7 +68,7 @@ struct ConnectionDataSettingsPage: View {
         } header: {
             Text("Data Guard")
         } footer: {
-            Text("Data Guard measures traffic on your Mac's default-route interface. It warns before caps and pauses Nomad's large downloads at the limit. It does not block other apps or system updates. Showing usage in the menu bar is in General, and reading Wi‑Fi names is in Privacy & Location.")
+            SettingsFooter("Data Guard measures traffic on your Mac's default-route interface. It warns before caps and pauses Nomad's large downloads at the limit. It does not block other apps or system updates. Showing usage in the menu bar is in General, and reading Wi‑Fi names is in Privacy & Location.")
         }
     }
 
@@ -86,7 +86,7 @@ struct ConnectionDataSettingsPage: View {
         } header: {
             Text("Quiet connection alerts")
         } footer: {
-            Text("Alerts use sustained state changes, cooldowns, and quiet hours. They never include a location or IP address.")
+            SettingsFooter("Alerts use sustained state changes, cooldowns, and quiet hours. They never include a location or IP address.")
         }
     }
 

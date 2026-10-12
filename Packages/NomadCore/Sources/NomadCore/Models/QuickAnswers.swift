@@ -96,10 +96,12 @@ public enum QuickAnswers {
         public let sentence: String
     }
 
-    /// The overall verdict plus the top heads-up item.
+    /// The overall verdict plus the top heads-up item, including stay, Schengen and tax-residence items
+    /// when `visitedCountryDays` has the recorded days.
     public static func dashboardStatus(
         snapshot: DashboardSnapshot,
         settings: AppSettings,
+        visitedCountryDays: [VisitedCountryDay],
         now: Date,
         calendar: Calendar = .current
     ) -> DashboardStatusAnswer {
@@ -109,7 +111,12 @@ public enum QuickAnswers {
             now: now,
             calendar: calendar,
             limit: 1,
-            profile: settings.travelProfile
+            profile: settings.travelProfile,
+            stays: StayInsightInput(
+                countryDays: visitedCountryDays,
+                settings: settings,
+                currentCountryCode: snapshot.currentCountryCode
+            )
         ).first
 
         var sentence = "\(overall.label). \(spoken(overall.reason))."
@@ -366,7 +373,7 @@ public enum QuickAnswers {
             let left = max(sunset.timeIntervalSince(now), 0)
             remaining = left
             sentence = "Sunset is at \(outlook.clockTime(sunset, locale: locale)). "
-                + "You have \(spokenDuration(left, locale: locale)) of daylight left."
+                + "You have \(DurationText.hoursAndMinutes(left)) of daylight left."
         case let .dark(sunrise?):
             let time = outlook.clockTime(sunrise, locale: locale)
             if outlook.isSameDay(sunrise, as: now) {
@@ -408,9 +415,7 @@ public enum QuickAnswers {
     /// The system's name for a region in the user's language, else the name the snapshot's providers
     /// gave, else the code itself.
     public static func countryName(forCode code: String, snapshot: DashboardSnapshot?, locale: Locale = .current) -> String {
-        let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        let placeholder = locale.localizedString(forRegionCode: "ZZ")
-        if let name = locale.localizedString(forRegionCode: normalized), name != placeholder {
+        if let name = CountryNames.localizedName(forCode: code, locale: locale) {
             return name
         }
 
@@ -419,7 +424,7 @@ public enum QuickAnswers {
             snapshot?.travelContext.location?.country,
             snapshot?.localInfo?.countryName
         ]
-        return reported.lazy.compactMap { $0?.trimmedNonEmpty }.first ?? normalized
+        return reported.lazy.compactMap { $0?.trimmedNonEmpty }.first ?? CountryNames.displayName(forCode: code, locale: locale)
     }
 
     /// English country names that read naturally only with an article: "in the United States".
@@ -450,19 +455,6 @@ public enum QuickAnswers {
 
     private static func capitalizingFirstLetter(_ text: String) -> String {
         text.prefix(1).uppercased() + text.dropFirst()
-    }
-
-    /// "2 hours, 10 minutes" or "45 minutes", rounded to the nearest minute (at least one).
-    private static func spokenDuration(_ interval: TimeInterval, locale: Locale) -> String {
-        let minutes = max(Int((interval / 60).rounded()), 1)
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = locale
-        let formatter = DateComponentsFormatter()
-        formatter.calendar = calendar
-        formatter.unitsStyle = .full
-        formatter.allowedUnits = [.hour, .minute]
-        formatter.maximumUnitCount = 2
-        return formatter.string(from: DateComponents(hour: minutes / 60, minute: minutes % 60)) ?? "\(minutes) minutes"
     }
 }
 

@@ -67,7 +67,7 @@ public enum StaySettingsPresentation {
         allowances
             .map { AllowanceRow(
                 countryCode: $0.key,
-                countryName: CitizenshipSettingsPresentation.countryName(for: $0.key, locale: locale),
+                countryName: CountryNames.displayName(forCode: $0.key, locale: locale),
                 days: $0.value
             ) }
             .sorted { $0.countryName.localizedStandardCompare($1.countryName) == .orderedAscending }

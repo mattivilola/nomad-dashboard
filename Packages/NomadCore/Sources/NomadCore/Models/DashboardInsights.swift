@@ -234,7 +234,7 @@ public enum DashboardInsightEngine {
            let status = calculator.allowanceStatus(country: currentCode, allowanceDays: allowanceDays),
            status.remainingDays <= StayWarningThresholds.cautionDays
         {
-            let countryName = locale.localizedString(forRegionCode: currentCode) ?? currentCode
+            let countryName = CountryNames.displayName(forCode: currentCode, locale: locale)
             let leaveBy = status.lastPermittedDay.formatted(dayStyle)
             let phrase: (title: String, menuBar: String) = if status.overstayDays > 0 {
                 ("\(dayCount(status.overstayDays)) over", "\(dayCount(status.overstayDays)) over")
@@ -281,7 +281,7 @@ public enum DashboardInsightEngine {
             let threshold = settings.taxResidenceThresholdDays
             let days = calculator.taxYearDays(year: calendar.component(.year, from: now)).days(inCountry: currentCode)
             if days > 0, days >= threshold - StayWarningThresholds.taxResidenceInfoLeadDays {
-                let countryName = locale.localizedString(forRegionCode: currentCode) ?? currentCode
+                let countryName = CountryNames.displayName(forCode: currentCode, locale: locale)
                 insights.append(DashboardInsight(
                     kind: .taxResidenceDays,
                     severity: days >= threshold - StayWarningThresholds.taxResidenceCautionLeadDays ? .caution : .info,
@@ -898,7 +898,7 @@ public enum DashboardInsightEngine {
                 kind: .daylight,
                 severity: remaining <= daylightCautionInterval ? .caution : .info,
                 symbolName: "sunset",
-                title: "Sunset \(sunsetText) · \(durationText(remaining)) of daylight",
+                title: "Sunset \(sunsetText) · \(DurationText.hoursAndMinutes(remaining)) of daylight",
                 menuBarText: "Sunset \(sunsetText)",
                 detail: today.civilDusk.map { "Dusk (civil twilight) ends \(reference.clockTime($0, locale: locale))" },
                 relatedCard: .weather
@@ -932,18 +932,6 @@ public enum DashboardInsightEngine {
             detail: "Sunrise \(day) \(sunriseText)",
             relatedCard: .weather
         )
-    }
-
-    /// "45 min", "1 h" or "1 h 50 min", rounded to the nearest minute (at least one).
-    private static func durationText(_ interval: TimeInterval) -> String {
-        let minutes = max(Int((interval / 60).rounded()), 1)
-        let hours = minutes / 60
-        let remainder = minutes % 60
-        switch (hours, remainder) {
-        case (0, _): return "\(remainder) min"
-        case (_, 0): return "\(hours) h"
-        default: return "\(hours) h \(remainder) min"
-        }
     }
 
     // MARK: - Formatting

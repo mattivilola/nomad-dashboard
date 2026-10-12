@@ -39,15 +39,9 @@ public enum CitizenshipSettingsPresentation {
         "You can add up to \(AppSettings.maximumCitizenships) countries."
     }
 
-    /// Localized country name for an ISO code, or the code itself when the system has no name for it.
-    public static func countryName(for code: String, locale: Locale = .current) -> String {
-        let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        return knownName(for: normalized, locale: locale) ?? normalized
-    }
-
     /// "Finland", "Finland and Sweden", "Finland, Sweden and Norway" in the user's language.
     public static func countryList(_ codes: [String], locale: Locale = .current) -> String {
-        let names = codes.map { countryName(for: $0, locale: locale) }
+        let names = codes.map { CountryNames.displayName(forCode: $0, locale: locale) }
         let formatter = ListFormatter()
         formatter.locale = locale
         return formatter.string(from: names) ?? names.joined(separator: ", ")
@@ -60,7 +54,7 @@ public enum CitizenshipSettingsPresentation {
             .map(\.identifier)
             .filter(isTwoLetterCode)
             .compactMap { code in
-                knownName(for: code, locale: locale).map { CitizenshipCountry(code: code, name: $0) }
+                CountryNames.localizedName(forCode: code, locale: locale).map { CitizenshipCountry(code: code, name: $0) }
             }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
@@ -106,17 +100,6 @@ public enum CitizenshipSettingsPresentation {
         default:
             return "\(countries) · verified consular line for \(countryList(withLine, locale: locale))"
         }
-    }
-
-    /// The system's name for a region, nil when it only has the generic "Unknown Region" placeholder.
-    private static func knownName(for code: String, locale: Locale) -> String? {
-        guard let name = locale.localizedString(forRegionCode: code),
-              name != locale.localizedString(forRegionCode: "ZZ")
-        else {
-            return nil
-        }
-
-        return name
     }
 
     private static func isTwoLetterCode(_ identifier: String) -> Bool {

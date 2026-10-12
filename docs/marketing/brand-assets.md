@@ -2,7 +2,7 @@
 
 This document links the existing brand source of truth and translates it into website-facing guidance.
 
-The landing page should be brand-led. The repository currently includes brand exports and app icons, but it does not include a committed library of real product screenshots for a screenshot-led homepage.
+The landing page should be brand-led. The repository includes brand exports and app icons, and a committed library of real product screenshots in [screenshots/](screenshots/). See [screenshots/README.md](screenshots/README.md) for what each image shows, its pixel size and its light and dark variants. The screenshots are rendered from the app's real UI with built-in demo data (Valencia and Morocco sample values), not live personal data.
 
 ## Source Of Truth
 
@@ -69,8 +69,8 @@ The website should not feel:
 - Mirror the app’s warm sand, teal, and coral direction instead of inventing a separate color system.
 - Keep the visual language compact and precise, not card-spam-heavy.
 - Favor gradients, atmospheric backgrounds, and instrument-like composition over generic software marketing blocks.
-- If product UI visuals are needed, use restrained brand-led compositions or clearly stylized mockups rather than fake “official screenshots”.
-- Reserve room for real screenshots later, but do not make the first version depend on them.
+- If product UI visuals are needed, prefer the real screenshots in [screenshots/](screenshots/), shown at their native 2x size with the matching light or dark version. Say or imply nothing about them being live user data: they use demo values.
+- Do not fake or restyle product UI. Use brand-led compositions where a screenshot does not fit.
 
 ## Messaging Alignment Rules
 
@@ -89,7 +89,7 @@ Lead with the logo or symbol mark, strong typographic messaging, and a brand-led
 
 ### Support Visuals
 
-Use abstracted dashboard-inspired shapes, status motifs, map/travel references, or subtle telemetry cues instead of pretending there is a screenshot library in the repo.
+Combine the real screenshots in [screenshots/](screenshots/) with abstracted dashboard-inspired shapes, status motifs, map/travel references, or subtle telemetry cues where a full screenshot would be too much.
 
 ### CTA Area
 
@@ -106,4 +106,5 @@ Keep `Download for macOS` and `View on GitHub` equally visible, with short trust
 - Link to or reuse the existing brand exports from `Branding/Exports/`.
 - Treat `Branding/Source/NomadBrandRenderer.swift` as the brand source of truth.
 - Do not duplicate or move master brand files into the marketing docs folder.
+- Do not hand-edit the screenshots in `screenshots/`; if the UI changes, re-render them from the app.
 - Do not hand-edit generated brand exports without also updating the renderer-based source workflow.

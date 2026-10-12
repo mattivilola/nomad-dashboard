@@ -64,7 +64,7 @@ struct WeatherLocalSettingsPage: View {
         } header: {
             Text(StaySettingsPresentation.airQualityTitle)
         } footer: {
-            Text(StaySettingsPresentation.airQualityFooter)
+            SettingsFooter(StaySettingsPresentation.airQualityFooter)
         }
     }
 
@@ -106,7 +106,7 @@ struct WeatherLocalSettingsPage: View {
         } header: {
             Text("Surf spot")
         } footer: {
-            Text("Add one surf spot for wave, swell, wind, and sea-surface context. Surf data uses Open-Meteo; local weather and alerts continue to use WeatherKit.")
+            SettingsFooter("Add one surf spot for wave, swell, wind, and sea-surface context. Surf data uses Open-Meteo; local weather and alerts continue to use WeatherKit.")
         }
     }
 
@@ -133,7 +133,7 @@ struct WeatherLocalSettingsPage: View {
         } header: {
             Text("Local Info")
         } footer: {
-            Text("Local Info combines location context, public holiday data, best-effort school holiday data, and local price signals. Price signals use official public datasets: Eurostat for country-level European price context and, when configured, HUD USER plus the US Census Geocoder for the US 1-bedroom rent benchmark.")
+            SettingsFooter("Local Info combines location context, public holiday data, best-effort school holiday data, and local price signals. Price signals use official public datasets: Eurostat for country-level European price context and, when configured, HUD USER plus the US Census Geocoder for the US 1-bedroom rent benchmark.")
         }
     }
 
@@ -160,7 +160,7 @@ struct WeatherLocalSettingsPage: View {
         } header: {
             Text("Fuel prices")
         } footer: {
-            Text("Fuel price support is country-dependent and currently best in Spain, France, Italy, and Germany. Germany requires your own Tankerkönig API key, while Spain, France, and Italy work without one.")
+            SettingsFooter("Fuel price support is country-dependent and currently best in Spain, France, Italy, and Germany. Germany requires your own Tankerkönig API key, while Spain, France, and Italy work without one.")
         }
     }
 

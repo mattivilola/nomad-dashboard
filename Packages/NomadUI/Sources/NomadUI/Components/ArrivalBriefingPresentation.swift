@@ -43,7 +43,7 @@ struct ArrivalBriefingPresentation {
     ) {
         title = briefing.title
         subtitle = previousCountryCode
-            .map { CitizenshipSettingsPresentation.countryName(for: $0, locale: locale) }
+            .map { CountryNames.displayName(forCode: $0, locale: locale) }
             .flatMap { $0 == briefing.countryName ? nil : "Arrived from \($0)" }
 
         var rows: [Row] = []

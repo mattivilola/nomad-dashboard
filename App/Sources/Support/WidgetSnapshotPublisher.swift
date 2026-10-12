@@ -38,18 +38,18 @@ final class WidgetSnapshotPublisher {
         }
 
         lastWritten = store.load()
-        subscription = Publishers.CombineLatest(snapshotStore.$snapshot, settingsStore.$settings)
+        subscription = Publishers.CombineLatest3(snapshotStore.$snapshot, settingsStore.$settings, snapshotStore.$visitedCountryDays)
             .throttle(for: Self.evaluationInterval, scheduler: DispatchQueue.main, latest: true)
-            .sink { [weak self] snapshot, settings in
-                self?.publish(snapshot: snapshot, settings: settings, now: .now)
+            .sink { [weak self] snapshot, settings, visitedCountryDays in
+                self?.publish(snapshot: snapshot, settings: settings, visitedCountryDays: visitedCountryDays, now: .now)
             }
     }
 
-    func publish(snapshot: DashboardSnapshot, settings: AppSettings, now: Date) {
+    func publish(snapshot: DashboardSnapshot, settings: AppSettings, visitedCountryDays: [VisitedCountryDay], now: Date) {
         // Until the first local readings arrive the snapshot is a placeholder, not something to show.
         guard let store, snapshot.hasLiveReadings else { return }
 
-        let candidate = WidgetSnapshot(snapshot: snapshot, settings: settings, now: now)
+        let candidate = WidgetSnapshot(snapshot: snapshot, settings: settings, visitedCountryDays: visitedCountryDays, now: now)
         guard WidgetSnapshotPublishPolicy.shouldPublish(candidate, previous: lastWritten) else { return }
 
         do {

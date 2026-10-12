@@ -30,7 +30,7 @@ struct SafetySettingsPage: View {
         } header: {
             Text("Travel alerts")
         } footer: {
-            Text("Travel advisory uses Smartraveller by default and starts enabled. Regional security uses ReliefWeb, and weather alerts use WeatherKit. Advisory and security check your current country plus bordering countries; weather alerts use your current location when available.")
+            SettingsFooter("Travel advisory uses Smartraveller by default and starts enabled. Regional security uses ReliefWeb, and weather alerts use WeatherKit. Advisory and security check your current country plus bordering countries; weather alerts use your current location when available.")
         }
     }
 
@@ -44,7 +44,7 @@ struct SafetySettingsPage: View {
         } header: {
             Text("Emergency care")
         } footer: {
-            Text("Emergency numbers are bundled with the app and shown offline. Nearby hospitals use Apple Maps hospital points of interest and open selected hospitals in maps.")
+            SettingsFooter("Emergency numbers are bundled with the app and shown offline. Nearby hospitals use Apple Maps hospital points of interest and open selected hospitals in maps.")
         }
     }
 
@@ -59,7 +59,7 @@ struct SafetySettingsPage: View {
         } header: {
             Text("Your embassy")
         } footer: {
-            Text(CitizenshipSettingsPresentation.embassySectionFooter)
+            SettingsFooter(CitizenshipSettingsPresentation.embassySectionFooter)
         }
     }
 
@@ -73,7 +73,7 @@ struct SafetySettingsPage: View {
         } header: {
             Text(StaySettingsPresentation.arrivalBriefingTitle)
         } footer: {
-            Text(StaySettingsPresentation.arrivalBriefingFooter)
+            SettingsFooter(StaySettingsPresentation.arrivalBriefingFooter)
         }
     }
 }

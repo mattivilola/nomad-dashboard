@@ -136,6 +136,6 @@ private struct CountryChoice: Identifiable {
         .map(\.identifier)
         .sorted()
         .compactMap { code in
-            Locale.current.localizedString(forRegionCode: code).map { CountryChoice(code: code, name: $0) }
+            CountryNames.localizedName(forCode: code).map { CountryChoice(code: code, name: $0) }
         }
 }

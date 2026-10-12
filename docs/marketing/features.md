@@ -426,7 +426,7 @@ The right consular phone number and the nearest embassy are one glance away, in 
 - Shows an optional allowance per country (for example a 90-day visa or entry stamp): a progress bar and "67 of 90 days · leave by 3 Mar", sand with 14 days or fewer left and coral with 3 or fewer or after an overstay
 - Counts the Schengen 90/180 rule: "61 of 90 days used (rolling 180 days) · leave by 14 Mar" for non-EU citizens while in Schengen, "no limit for EU/EEA/Swiss citizens" for citizens of those countries, and the counts with a prompt to set your citizenship when none is set
 - Lists this year's top five countries with their days against the tax-residence threshold (183 days by default, 30 to 365), plus the unrecorded days this year and a Review days button that opens the Visited Map where days can be corrected
-- Adds heads-up items and optional menu bar text for a nearing allowance, the Schengen limit and a nearing tax-residence count
+- Adds heads-up items and optional menu bar text for a nearing allowance, the Schengen limit and a nearing tax-residence count; the same items reach the `Dashboard Status` Siri and Shortcuts answer and the Glance widget
 - Settings, Stays & Visas holds the Schengen counter switch, the stay allowances (country and days, 1 to 365), the tax-residence switch and threshold, and a pointer to the Visited Map and the visited places setting
 
 ### Who it helps
@@ -481,7 +481,7 @@ You see how many days are left before a limit, and the date to leave by, without
 - Adds five Siri and Shortcuts actions (App Intents) that need no window and do not bring the app to the front: `Emergency Number`, `Dashboard Status`, `Nearest Embassy`, `Daylight` and `Set Travel Profile`
 - Each action answers in a short natural sentence that Siri speaks, Shortcuts shows, and an automation can use as text
 - `Emergency Number` gives the emergency number for the country you are in, then the police, ambulance, fire and rural police numbers where the bundled table lists them, or says clearly that the country is not known or not verified yet
-- `Dashboard Status` gives the overall verdict (Ready, Caution, Attention) with its reason and your top heads-up for the selected travel profile
+- `Dashboard Status` gives the overall verdict (Ready, Caution, Attention) with its reason and your top heads-up for the selected travel profile, including a nearing stay allowance, the Schengen limit or a tax-residence count
 - `Nearest Embassy` gives your nearest embassy or consulate with distance and your foreign ministry's consular line, the EU or Nordic fallback when your country has no mission there, or "Set your citizenship in Nomad Dashboard settings" when no citizenship is chosen
 - `Daylight` gives sunset and the daylight left, or when it gets light again, with midnight sun and polar night handled
 - `Set Travel Profile` switches between Nomad and Road trip & RV; the card order follows only when it had not been customized
@@ -511,7 +511,7 @@ You see how many days are left before a limit, and the date to leave by, without
 ### What it does
 
 - Adds three widgets for the desktop and Notification Center (macOS 14 and later): `Glance` (small and medium), `Safety` (small) and `Daylight` (small)
-- `Glance` shows the overall verdict, the place you are in and your top heads-up (the medium size shows two)
+- `Glance` shows the overall verdict, the place you are in and your top heads-up (the medium size shows two), including a nearing stay allowance, the Schengen limit or a tax-residence count such as "Schengen: 8 of 90 days left"
 - `Safety` shows the emergency number for your current country and your foreign ministry's consular line when a citizenship is chosen
 - `Daylight` shows sunset and the daylight left, or "Dark until" sunrise, switching by itself at sunrise and sunset; the symbol turns to the caution colour in the last hour of daylight
 - Every widget shows when it was last updated ("Updated 12:40") and switches to an "Out of date" state when the app has not refreshed it for more than six hours
@@ -530,7 +530,7 @@ You see how many days are left before a limit, and the date to leave by, without
 ### Limitations
 
 - the widgets show what the app last saved, not live data; the verdict's network quality is only measured while the dashboard is open, so a widget can show Waiting or an older reading until you open it
-- a widget is visible to anyone who can see your screen, so the place, the emergency number and the consular line are on show
+- a widget is visible to anyone who can see your screen, so the place, the emergency number, the consular line and any stay or Schengen heads-up are on show
 - tapping a widget brings the app forward but does not yet open the dashboard panel
 - development and unsigned builds have no shared storage, so they cannot feed the widgets
 

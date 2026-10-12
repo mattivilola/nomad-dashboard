@@ -92,7 +92,7 @@ struct QuickAnswersDashboardStatusTests {
 
     @Test
     func aHealthyDashboardIsReadyWithNoHeadsUps() {
-        let answer = QuickAnswers.dashboardStatus(snapshot: QuickAnswersFixtures.snapshot(), settings: AppSettings(), now: now)
+        let answer = QuickAnswers.dashboardStatus(snapshot: QuickAnswersFixtures.snapshot(), settings: AppSettings(), visitedCountryDays: [], now: now)
 
         #expect(answer.level == .ready)
         #expect(answer.verdict == "Ready")
@@ -103,7 +103,7 @@ struct QuickAnswersDashboardStatusTests {
     @Test
     func theVerdictLeadsAndTheTopHeadsUpFollows() {
         let snapshot = QuickAnswersFixtures.snapshot(metered: QuickAnswersFixtures.capReachedMetered())
-        let answer = QuickAnswers.dashboardStatus(snapshot: snapshot, settings: AppSettings(), now: now)
+        let answer = QuickAnswers.dashboardStatus(snapshot: snapshot, settings: AppSettings(), visitedCountryDays: [], now: now)
 
         #expect(answer.headsUp?.title == "Data cap reached")
         #expect(answer.sentence == "Ready. Network and power look good. Top heads-up: Data cap reached.")
@@ -114,6 +114,7 @@ struct QuickAnswersDashboardStatusTests {
         let answer = QuickAnswers.dashboardStatus(
             snapshot: QuickAnswersFixtures.snapshot(offline: true),
             settings: AppSettings(),
+            visitedCountryDays: [],
             now: now
         )
 
@@ -132,12 +133,59 @@ struct QuickAnswersDashboardStatusTests {
         let answer = QuickAnswers.dashboardStatus(
             snapshot: helsinki,
             settings: AppSettings(travelProfile: .roadTrip),
+            visitedCountryDays: [],
             now: sunset.addingTimeInterval(-45 * 60)
         )
 
         #expect(answer.headsUp?.kind == .daylight)
         #expect(answer.sentence.contains(" \u{B7} ") == false)
         #expect(answer.sentence.contains(", 45 min of daylight"))
+    }
+
+    @Test
+    func aStayAllowanceRunningOutIsTheTopHeadsUp() {
+        let calendar = QuickAnswersFixtures.calendar
+        let snapshot = QuickAnswersFixtures.morocco()
+        let answer = QuickAnswers.dashboardStatus(
+            snapshot: snapshot,
+            settings: AppSettings(stayAllowances: ["MA": 90]),
+            visitedCountryDays: QuickAnswersFixtures.consecutiveDays(85, endingOn: now, in: "MA", calendar: calendar),
+            now: now,
+            calendar: calendar
+        )
+
+        #expect(answer.headsUp?.kind == .stayAllowance)
+        #expect(answer.sentence == "Ready. Network and power look good. Top heads-up: Morocco: 5 days left.")
+    }
+
+    @Test
+    func theSchengenLimitIsSpokenForAThirdCountryCitizen() {
+        let calendar = QuickAnswersFixtures.calendar
+        let snapshot = QuickAnswersFixtures.snapshot(device: QuickAnswersFixtures.location(city: "Lisbon", country: "Portugal", countryCode: "PT"))
+        let answer = QuickAnswers.dashboardStatus(
+            snapshot: snapshot,
+            settings: AppSettings(citizenshipCountryCodes: ["US"]),
+            visitedCountryDays: QuickAnswersFixtures.consecutiveDays(80, endingOn: now, in: "PT", calendar: calendar),
+            now: now,
+            calendar: calendar
+        )
+
+        #expect(answer.headsUp?.kind == .schengenLimit)
+        #expect(answer.sentence.contains("Top heads-up: Schengen: 10 of 90 days left."))
+    }
+
+    @Test
+    func withoutRecordedDaysThereAreNoStayHeadsUps() {
+        let calendar = QuickAnswersFixtures.calendar
+        let answer = QuickAnswers.dashboardStatus(
+            snapshot: QuickAnswersFixtures.morocco(),
+            settings: AppSettings(stayAllowances: ["MA": 90]),
+            visitedCountryDays: [],
+            now: now,
+            calendar: calendar
+        )
+
+        #expect(answer.headsUp == nil)
     }
 }
 
@@ -281,7 +329,7 @@ struct QuickAnswersDaylightTests {
 
         #expect(answer.phase == .daylight(sunset: sunset))
         #expect(abs((answer.remaining ?? 0) - (2 * 3_600 + 10 * 60)) < 0.001)
-        #expect(answer.sentence == "Sunset is at \(outlook.clockTime(sunset, locale: locale)). You have 2 hours, 10 minutes of daylight left.")
+        #expect(answer.sentence == "Sunset is at \(outlook.clockTime(sunset, locale: locale)). You have 2 h 10 min of daylight left.")
     }
 
     @Test
@@ -289,7 +337,7 @@ struct QuickAnswersDaylightTests {
         let sunset = try #require(try outlook(at: QuickAnswersFixtures.helsinkiMidday).sunset)
         let answer = QuickAnswers.daylight(snapshot: helsinki, now: sunset.addingTimeInterval(-10), locale: locale)
 
-        #expect(answer.sentence.hasSuffix("You have 1 minute of daylight left."))
+        #expect(answer.sentence.hasSuffix("You have 1 min of daylight left."))
     }
 
     @Test

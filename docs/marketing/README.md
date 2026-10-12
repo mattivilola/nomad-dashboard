@@ -9,6 +9,7 @@ It is written for humans and AI builders that need to create a landing page, dow
 - [marketing.md](marketing.md): positioning, homepage copy direction, audiences, benefits, use cases, CTAs, and trust messaging
 - [features.md](features.md): factual product inventory organized by feature area, including limitations and setup dependencies
 - [brand-assets.md](brand-assets.md): brand system, asset links, visual direction, and website-builder guidance
+- [screenshots/README.md](screenshots/README.md): the committed screenshot library (light and dark, rendered from the real UI with demo data)
 - [../../Branding/README.md](../../Branding/README.md): source of truth for brand asset generation and exports
 
 ## Working Rules

@@ -169,7 +169,7 @@ Marketing copy can safely say:
 - Project time tracking stays local to the Mac and can be turned off entirely
 - The optional work diary uses authorized device location only, keeps entries local, and never uses IP address or VPN state to identify a venue
 - Quiet connection alerts are opt-in, respect quiet hours and cooldowns, and do not include location or IP address
-- Siri and Shortcuts answers and the desktop widgets are built on the Mac from what the app already knows; the widgets read a small file kept on the Mac that holds no IP address or coordinates, and nothing is sent anywhere for them. A widget is visible on screen, so it shows your place, emergency number and consular line to anyone who can see your desktop
+- Siri and Shortcuts answers and the desktop widgets are built on the Mac from what the app already knows; the widgets read a small file kept on the Mac that holds no IP address or coordinates, and nothing is sent anywhere for them. A widget is visible on screen, so it shows your place, emergency number, consular line and any stay or Schengen heads-up to anyone who can see your desktop
 - Interruption tracking for project time tracking also stays local to the Mac and uses the same local ledger
 - Development builds keep separate local time-tracking storage from the live app
 - Anonymous analytics are privacy-conscious and configurable in-app, with some install and reach estimation events always collected

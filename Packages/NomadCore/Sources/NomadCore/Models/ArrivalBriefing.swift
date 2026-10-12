@@ -341,7 +341,7 @@ public extension ArrivalBriefing {
 
         return ArrivalBriefing(
             countryCode: code,
-            countryName: locale.localizedString(forRegionCode: code) ?? code,
+            countryName: CountryNames.displayName(forCode: code, locale: locale),
             time: timeSection(travelContext: travelContext, homeTimeZoneIdentifier: homeTimeZoneIdentifier, now: now),
             emergency: EmergencyNumberDirectory.numbers(forCountryCode: code),
             embassy: embassySection(

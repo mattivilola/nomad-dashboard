@@ -77,7 +77,7 @@ struct WorkSettingsPage: View {
         } header: {
             Text("Project time tracking")
         } footer: {
-            Text("Project time tracking stays local to this Mac. The app tracks awake time only while Nomad Dashboard is running, keeps exact timings, and lets you assign today’s pending time into projects or Other from the dashboard.")
+            SettingsFooter("Project time tracking stays local to this Mac. The app tracks awake time only while Nomad Dashboard is running, keeps exact timings, and lets you assign today’s pending time into projects or Other from the dashboard.")
         }
     }
 
@@ -92,7 +92,7 @@ struct WorkSettingsPage: View {
         } header: {
             Text("Workplace diary")
         } footer: {
-            Text("Uses authorized device location only. Nomad groups stationary samples locally and suggests “Near X” until you confirm a venue. It does not use IP address or VPN state to identify places.")
+            SettingsFooter("Uses authorized device location only. Nomad groups stationary samples locally and suggests “Near X” until you confirm a venue. It does not use IP address or VPN state to identify places.")
         }
     }
 

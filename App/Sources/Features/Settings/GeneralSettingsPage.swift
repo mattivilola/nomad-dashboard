@@ -71,7 +71,7 @@ struct GeneralSettingsPage: View {
         } header: {
             Text("Travel profile")
         } footer: {
-            Text(travelProfilePresentation.footer)
+            SettingsFooter(travelProfilePresentation.footer)
         }
     }
 
@@ -103,15 +103,15 @@ struct GeneralSettingsPage: View {
                     .id(SettingsFocusTarget.citizenship.rawValue)
             } else {
                 ForEach(Array(citizenshipCodes.enumerated()), id: \.element) { offset, code in
-                    LabeledContent(CitizenshipSettingsPresentation.countryName(for: code)) {
+                    LabeledContent(CountryNames.displayName(forCode: code)) {
                         Button {
                             removeCitizenship(code)
                         } label: {
                             Image(systemName: "minus.circle")
                         }
                         .buttonStyle(.borderless)
-                        .help("Remove \(CitizenshipSettingsPresentation.countryName(for: code))")
-                        .accessibilityLabel("Remove \(CitizenshipSettingsPresentation.countryName(for: code))")
+                        .help("Remove \(CountryNames.displayName(forCode: code))")
+                        .accessibilityLabel("Remove \(CountryNames.displayName(forCode: code))")
                     }
                     .id(offset == 0 ? SettingsFocusTarget.citizenship.rawValue : code)
                 }
@@ -130,7 +130,7 @@ struct GeneralSettingsPage: View {
         } header: {
             Text("Citizenship")
         } footer: {
-            Text(CitizenshipSettingsPresentation.sectionFooter)
+            SettingsFooter(CitizenshipSettingsPresentation.sectionFooter)
         }
     }
 
@@ -169,7 +169,7 @@ struct GeneralSettingsPage: View {
         } header: {
             Text("Appearance & startup")
         } footer: {
-            Text(updatesEnabled ? "System follows your macOS appearance. The dashboard header menu flips quickly between dark and light, and all preferences stay across relaunches." : "System follows your macOS appearance. The dashboard header menu flips quickly between dark and light, and all preferences stay across relaunches. In-app update checks only become available in signed release builds that include Sparkle metadata.")
+            SettingsFooter(updatesEnabled ? "System follows your macOS appearance. The dashboard header menu flips quickly between dark and light, and all preferences stay across relaunches." : "System follows your macOS appearance. The dashboard header menu flips quickly between dark and light, and all preferences stay across relaunches. In-app update checks only become available in signed release builds that include Sparkle metadata.")
         }
     }
 
@@ -184,7 +184,7 @@ struct GeneralSettingsPage: View {
         } header: {
             Text("Menu bar")
         } footer: {
-            Text("Usage appears in the menu bar while Data Guard is monitoring the connection.")
+            SettingsFooter("Usage appears in the menu bar while Data Guard is monitoring the connection.")
         }
     }
 

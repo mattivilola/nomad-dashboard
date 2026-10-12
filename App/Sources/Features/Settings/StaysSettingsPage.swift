@@ -34,7 +34,7 @@ struct StaysSettingsPage: View {
         } header: {
             Text("Schengen counter")
         } footer: {
-            Text(StaySettingsPresentation.schengenFooter)
+            SettingsFooter(StaySettingsPresentation.schengenFooter)
         }
     }
 
@@ -73,7 +73,7 @@ struct StaysSettingsPage: View {
         } header: {
             Text(StaySettingsPresentation.allowancesTitle)
         } footer: {
-            Text(StaySettingsPresentation.allowancesFooter)
+            SettingsFooter(StaySettingsPresentation.allowancesFooter)
         }
     }
 
@@ -94,7 +94,7 @@ struct StaysSettingsPage: View {
         } header: {
             Text("Tax residence days")
         } footer: {
-            Text(StaySettingsPresentation.taxFooter)
+            SettingsFooter(StaySettingsPresentation.taxFooter)
         }
     }
 
@@ -116,7 +116,7 @@ struct StaysSettingsPage: View {
         } header: {
             Text(StaySettingsPresentation.dataTitle)
         } footer: {
-            Text(StaySettingsPresentation.dataFooter)
+            SettingsFooter(StaySettingsPresentation.dataFooter)
         }
     }
 
