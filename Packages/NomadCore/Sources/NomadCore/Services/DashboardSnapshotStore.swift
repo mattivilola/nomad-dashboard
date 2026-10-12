@@ -1257,7 +1257,8 @@ public final class DashboardSnapshotStore: ObservableObject {
             countryName: resolvedCountryName,
             locality: locality,
             administrativeRegion: administrativeRegion,
-            timeZoneIdentifier: timeZoneIdentifier
+            timeZoneIdentifier: timeZoneIdentifier,
+            homeCountryCode: settingsStore.settings.effectiveHomeCountryCode
         )
 
         do {

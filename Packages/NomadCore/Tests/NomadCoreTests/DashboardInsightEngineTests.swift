@@ -132,9 +132,11 @@ struct DashboardInsightEngineTests {
             #expect(Array(order[(dataCap ?? 0) + 1...(dataCap ?? 0) + 3]) == [.stayAllowance, .schengenLimit, .taxResidenceDays])
         }
 
-        // The local-rhythm heads-up follows the public holiday in both profiles.
+        // The local-rhythm heads-up follows the public holiday, and the upcoming trip follows the local rhythm,
+        // in both profiles.
         for order in [DashboardInsightKind.tieBreakOrder(for: .nomad), roadTrip] {
             #expect(order.firstIndex(of: .localRhythm) == order.firstIndex(of: .publicHoliday).map { $0 + 1 })
+            #expect(order.firstIndex(of: .upcomingTrip) == order.firstIndex(of: .localRhythm).map { $0 + 1 })
         }
     }
 
@@ -157,13 +159,16 @@ struct DashboardInsightEngineTests {
             let stamp = VisitedCountryDayStamp(date: date, calendar: parisCalendar)
             return VisitedCountryDay(day: stamp, country: "France", countryCode: "FR", source: .deviceLocation, isInferred: false)
         }
-        let stayInput = StayInsightInput(
-            countryDays: stayDays,
-            settings: AppSettings(citizenshipCountryCodes: ["US"], stayAllowances: ["FR": 92], taxResidenceThresholdDays: 90),
-            currentCountryCode: "FR"
-        )
+        var staySettings = AppSettings(citizenshipCountryCodes: ["US"], stayAllowances: ["FR": 92], taxResidenceThresholdDays: 90)
+        staySettings.plannedTrips = [PlannedTrip(
+            countryCode: "GB",
+            startDate: parisCalendar.date(byAdding: .day, value: 12, to: now)!,
+            endDate: parisCalendar.date(byAdding: .day, value: 16, to: now)!
+        )]
+        let stayInput = StayInsightInput(countryDays: stayDays, settings: staySettings, currentCountryCode: "FR")
         let nomad = DashboardInsightEngine.insights(for: snapshot, now: now, calendar: parisCalendar, limit: 20, stays: stayInput)
         #expect(Set(nomad.map(\.kind)) == Set(DashboardInsightKind.allCases).subtracting([.daylight, .localRhythm]))
+        #expect(nomad.first { $0.kind == .upcomingTrip }?.menuBarText == "Trip in 12 d")
         // Same severity ranks by tie-break order: the data cap, then the stay insights, then the advisory.
         let cautionKinds = nomad.filter { $0.severity == .caution }.map(\.kind)
         #expect(cautionKinds.prefix(3) == [.dataCap, .stayAllowance, .schengenLimit])

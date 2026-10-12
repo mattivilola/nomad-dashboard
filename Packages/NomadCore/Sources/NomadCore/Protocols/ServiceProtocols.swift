@@ -67,6 +67,30 @@ public protocol LocalInfoProvider: Sendable {
     func info(for request: LocalInfoRequest, forceRefresh: Bool) async throws -> LocalInfoSnapshot
 }
 
+public protocol PublicHolidayProvider: Sendable {
+    /// The nationwide public holidays of a country in a year, as single-day periods in `timeZone`. Throws
+    /// `ProviderError.missingCountryCode` when the source does not cover the country.
+    func publicHolidays(
+        inCountry countryCode: String,
+        year: Int,
+        timeZone: TimeZone,
+        forceRefresh: Bool
+    ) async throws -> [HolidayPeriodSnapshot]
+}
+
+public protocol TripPreviewService: Sendable {
+    /// The network-backed parts of a trip preview. Only the trip's destination country code is sent; the
+    /// dates and the user's location never are. Nil when neither part is available. Offline, or in Low Data
+    /// mode, it answers from what is saved and never goes to the network.
+    func online(
+        for trip: PlannedTrip,
+        settings: AppSettings,
+        policy: DashboardResourcePolicy,
+        forceRefresh: Bool,
+        calendar: Calendar
+    ) async -> TripPreviewOnline?
+}
+
 public protocol FuelPriceProviderConfigurationUpdating: Sendable {
     func setTankerkonigAPIKey(_ apiKey: String?) async
 }

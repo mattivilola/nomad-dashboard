@@ -20,6 +20,7 @@ public struct DashboardDependencies: Sendable {
     public let travelAdvisoryProvider: any TravelAdvisoryProvider
     public let travelWeatherAlertsProvider: any TravelWeatherAlertsProvider
     public let regionalSecurityProvider: any RegionalSecurityProvider
+    public let tripPreviewService: any TripPreviewService
     public let visitedPlacesStore: any VisitedPlacesStore
     public let visitedPlaceEventsStore: any VisitedPlaceEventsStore
     public let visitedCountryDaysStore: any VisitedCountryDaysStore
@@ -49,6 +50,7 @@ public struct DashboardDependencies: Sendable {
         travelAdvisoryProvider: any TravelAdvisoryProvider,
         travelWeatherAlertsProvider: any TravelWeatherAlertsProvider,
         regionalSecurityProvider: any RegionalSecurityProvider,
+        tripPreviewService: any TripPreviewService,
         visitedPlacesStore: any VisitedPlacesStore,
         visitedPlaceEventsStore: any VisitedPlaceEventsStore,
         visitedCountryDaysStore: any VisitedCountryDaysStore,
@@ -77,6 +79,7 @@ public struct DashboardDependencies: Sendable {
         self.travelAdvisoryProvider = travelAdvisoryProvider
         self.travelWeatherAlertsProvider = travelWeatherAlertsProvider
         self.regionalSecurityProvider = regionalSecurityProvider
+        self.tripPreviewService = tripPreviewService
         self.visitedPlacesStore = visitedPlacesStore
         self.visitedPlaceEventsStore = visitedPlaceEventsStore
         self.visitedCountryDaysStore = visitedCountryDaysStore
@@ -108,6 +111,11 @@ public struct DashboardDependencies: Sendable {
         let connector = SharedLatencyConnector()
         let publicIPClient = CachedFreeIPAPIClient(session: session)
         let localPriceLevelProvider = LiveLocalPriceLevelProvider(session: session, hudUserAPIToken: hudUserAPIToken)
+        let localInfoProvider = LiveLocalInfoProvider(session: session, localPriceLevelProvider: localPriceLevelProvider)
+        let travelAdvisoryProvider = SmartravellerAdvisoryProvider(
+            session: session,
+            browserFetcher: smartravellerBrowserFetcher
+        )
 
         return DashboardDependencies(
             throughputMonitor: LiveThroughputMonitor(),
@@ -120,7 +128,7 @@ public struct DashboardDependencies: Sendable {
             publicIPLocationProvider: CachedIPLocationProvider(client: publicIPClient),
             reverseGeocodingProvider: CachedReverseGeocodingProvider(),
             weatherProvider: LiveWeatherProvider(),
-            localInfoProvider: LiveLocalInfoProvider(session: session, localPriceLevelProvider: localPriceLevelProvider),
+            localInfoProvider: localInfoProvider,
             fuelPriceProvider: LiveEuropeanFuelPriceProvider(
                 session: session,
                 tankerkonigAPIKey: tankerkonigAPIKey,
@@ -130,12 +138,13 @@ public struct DashboardDependencies: Sendable {
             marineProvider: LiveOpenMeteoMarineProvider(session: session),
             airQualityProvider: LiveOpenMeteoAirQualityProvider(session: session),
             neighborCountryResolver: BundledNeighborCountryResolver(),
-            travelAdvisoryProvider: SmartravellerAdvisoryProvider(
-                session: session,
-                browserFetcher: smartravellerBrowserFetcher
-            ),
+            travelAdvisoryProvider: travelAdvisoryProvider,
             travelWeatherAlertsProvider: WeatherKitAlertProvider(),
             regionalSecurityProvider: ReliefWebSecurityProvider(session: session, appName: reliefWebAppName),
+            tripPreviewService: LiveTripPreviewService(
+                holidayProvider: localInfoProvider,
+                advisoryProvider: travelAdvisoryProvider
+            ),
             visitedPlacesStore: FileVisitedPlacesStore(
                 fileURL: applicationSupportDirectory.appendingPathComponent("visited-places.json")
             ),

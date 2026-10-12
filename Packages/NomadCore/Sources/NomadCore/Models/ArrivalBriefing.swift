@@ -332,13 +332,6 @@ public extension ArrivalBriefing {
         let previous = event.previousCountryCode
         let travelContext = snapshot.travelContext
 
-        let side = TravelReferenceData.drivingSide(forCountryCode: code)
-        let previousSide = TravelReferenceData.drivingSide(forCountryCode: previous)
-        let electricity = TravelReferenceData.electricity(forCountryCode: code)
-        let previousElectricity = TravelReferenceData.electricity(forCountryCode: previous)
-        let currency = TravelReferenceData.currencyCode(forCountryCode: code)
-        let previousCurrency = TravelReferenceData.currencyCode(forCountryCode: previous)
-
         return ArrivalBriefing(
             countryCode: code,
             countryName: CountryNames.displayName(forCode: code, locale: locale),
@@ -349,22 +342,9 @@ public extension ArrivalBriefing {
                 citizenships: settings.citizenshipCountryCodes,
                 deviceLocation: travelContext.deviceLocation
             ),
-            road: side.map { side in
-                Road(side: side, changesFromPreviousCountry: previousSide.map { $0 != side } ?? false)
-            },
-            power: electricity.map { electricity in
-                Power(
-                    electricity: electricity,
-                    differsFromPreviousCountry: previousElectricity.map(electricity.differs(from:)) ?? false
-                )
-            },
-            money: currency.map { currency in
-                Money(
-                    currencyCode: currency,
-                    currencyName: locale.localizedString(forCurrencyCode: currency),
-                    changesFromPreviousCountry: previousCurrency.map { $0 != currency } ?? false
-                )
-            },
+            road: road(countryCode: code, comparedWith: previous),
+            power: power(countryCode: code, comparedWith: previous),
+            money: money(countryCode: code, comparedWith: previous, locale: locale),
             holiday: holidaySection(countryCode: code, localInfo: snapshot.localInfo, now: now, calendar: calendar),
             rhythm: LocalRhythmCalendar.periods(
                 forCountryCode: code,
@@ -378,6 +358,39 @@ public extension ArrivalBriefing {
                 ? dataGuardHintText
                 : nil
         )
+    }
+
+    /// Road, power and money facts for a country, each flagged when it differs from `otherCountryCode`
+    /// (the country the traveller comes from). Shared with `TripPreview`, where the other country is the
+    /// one the traveller is in now. Nil when the reference data does not cover the country.
+    internal static func road(countryCode: String, comparedWith otherCountryCode: String?) -> Road? {
+        TravelReferenceData.drivingSide(forCountryCode: countryCode).map { side in
+            Road(
+                side: side,
+                changesFromPreviousCountry: TravelReferenceData.drivingSide(forCountryCode: otherCountryCode).map { $0 != side } ?? false
+            )
+        }
+    }
+
+    internal static func power(countryCode: String, comparedWith otherCountryCode: String?) -> Power? {
+        TravelReferenceData.electricity(forCountryCode: countryCode).map { electricity in
+            Power(
+                electricity: electricity,
+                differsFromPreviousCountry: TravelReferenceData.electricity(forCountryCode: otherCountryCode)
+                    .map(electricity.differs(from:)) ?? false
+            )
+        }
+    }
+
+    internal static func money(countryCode: String, comparedWith otherCountryCode: String?, locale: Locale) -> Money? {
+        TravelReferenceData.currencyCode(forCountryCode: countryCode).map { currency in
+            Money(
+                currencyCode: currency,
+                currencyName: locale.localizedString(forCurrencyCode: currency),
+                changesFromPreviousCountry: TravelReferenceData.currencyCode(forCountryCode: otherCountryCode)
+                    .map { $0 != currency } ?? false
+            )
+        }
     }
 
     /// `settings` with the briefing for `countryCode` marked as seen, so it is not shown again until
@@ -410,7 +423,7 @@ public extension ArrivalBriefing {
             }
             return Time.Home(
                 timeZoneIdentifier: identifier,
-                cityName: cityName(fromTimeZoneIdentifier: identifier),
+                cityName: CountryTimeZones.cityName(fromTimeZoneIdentifier: identifier),
                 offsetFromLocalSeconds: homeZone.secondsFromGMT(for: now) - localOffset
             )
         }
@@ -430,10 +443,6 @@ public extension ArrivalBriefing {
             .first
     }
 
-    private static func cityName(fromTimeZoneIdentifier identifier: String) -> String {
-        identifier.split(separator: "/").last.map { $0.replacingOccurrences(of: "_", with: " ") } ?? identifier
-    }
-
     /// Nothing when the traveller is home (every citizenship is this country) or has no citizenship set.
     private static func embassySection(
         countryCode: String,
@@ -444,17 +453,8 @@ public extension ArrivalBriefing {
             location.latitude.flatMap { latitude in location.longitude.map { (latitude: latitude, longitude: $0) } }
         }
         let lookup = EmbassyLookup(citizenships: citizenships, hostCountry: countryCode, coordinate: coordinate)
-        let abroad = lookup.citizenships.filter { $0 != lookup.hostCountry }
-        guard abroad.isEmpty == false else {
-            return nil
-        }
-
         let nearest = lookup.ownMatches.first ?? lookup.fallbackMatches.first
-        let citizenship = lookup.ownMatches.first?.mission.sendingCountry
-            ?? abroad.first { ConsularContactsDirectory.contacts(forCitizenship: $0) != nil }
-            ?? abroad[0]
-        let contacts = ConsularContactsDirectory.contacts(forCitizenship: citizenship)
-        guard nearest != nil || contacts != nil else {
+        guard let (citizenship, contacts) = consularContext(for: lookup), nearest != nil || contacts != nil else {
             return nil
         }
 
@@ -464,6 +464,22 @@ public extension ArrivalBriefing {
             fallbackReason: lookup.ownMatches.isEmpty ? lookup.fallbackReason : nil,
             consularContacts: contacts
         )
+    }
+
+    /// The citizenship whose consular help applies in the lookup's host country, with its foreign-ministry
+    /// hotline: the passport of the nearest own mission, else the first passport that has a hotline in the
+    /// directory, else the first passport used abroad. Nil when every citizenship is the host country (the
+    /// traveller is at home for each passport) or there is none.
+    internal static func consularContext(for lookup: EmbassyLookup) -> (citizenship: String, contacts: ConsularContacts?)? {
+        let abroad = lookup.citizenships.filter { $0 != lookup.hostCountry }
+        guard abroad.isEmpty == false else {
+            return nil
+        }
+
+        let citizenship = lookup.ownMatches.first?.mission.sendingCountry
+            ?? abroad.first { ConsularContactsDirectory.contacts(forCitizenship: $0) != nil }
+            ?? abroad[0]
+        return (citizenship, ConsularContactsDirectory.contacts(forCitizenship: citizenship))
     }
 
     private static func holidaySection(

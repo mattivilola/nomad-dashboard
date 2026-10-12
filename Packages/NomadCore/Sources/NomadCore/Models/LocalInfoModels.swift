@@ -65,6 +65,8 @@ public struct LocalInfoRequest: Equatable, Sendable {
     public let locality: String?
     public let administrativeRegion: String?
     public let timeZoneIdentifier: String?
+    /// The user's home country, so the local price levels can be compared with it.
+    public let homeCountryCode: String?
 
     public init(
         coordinate: CLLocationCoordinate2D?,
@@ -72,7 +74,8 @@ public struct LocalInfoRequest: Equatable, Sendable {
         countryName: String?,
         locality: String?,
         administrativeRegion: String?,
-        timeZoneIdentifier: String?
+        timeZoneIdentifier: String?,
+        homeCountryCode: String? = nil
     ) {
         self.coordinate = coordinate
         self.countryCode = countryCode
@@ -80,6 +83,7 @@ public struct LocalInfoRequest: Equatable, Sendable {
         self.locality = locality
         self.administrativeRegion = administrativeRegion
         self.timeZoneIdentifier = timeZoneIdentifier
+        self.homeCountryCode = homeCountryCode
     }
 
     public static func == (lhs: LocalInfoRequest, rhs: LocalInfoRequest) -> Bool {
@@ -90,6 +94,7 @@ public struct LocalInfoRequest: Equatable, Sendable {
             && lhs.locality == rhs.locality
             && lhs.administrativeRegion == rhs.administrativeRegion
             && lhs.timeZoneIdentifier == rhs.timeZoneIdentifier
+            && lhs.homeCountryCode == rhs.homeCountryCode
     }
 }
 

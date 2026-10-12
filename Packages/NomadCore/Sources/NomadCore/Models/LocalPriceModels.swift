@@ -114,17 +114,22 @@ public struct LocalPriceSearchRequest: Equatable, Sendable {
     public let countryCode: String
     public let countryName: String?
     public let locality: String?
+    /// The user's home country (ISO 3166-1 alpha-2). When set, the provider also compares the current
+    /// country's price levels with it; only this code is ever sent for the extra lookup.
+    public let homeCountryCode: String?
 
     public init(
         coordinate: CLLocationCoordinate2D?,
         countryCode: String,
         countryName: String?,
-        locality: String?
+        locality: String?,
+        homeCountryCode: String? = nil
     ) {
         self.coordinate = coordinate
         self.countryCode = countryCode
         self.countryName = countryName
         self.locality = locality
+        self.homeCountryCode = homeCountryCode
     }
 
     public static func == (lhs: LocalPriceSearchRequest, rhs: LocalPriceSearchRequest) -> Bool {
@@ -133,6 +138,7 @@ public struct LocalPriceSearchRequest: Equatable, Sendable {
             && lhs.countryCode == rhs.countryCode
             && lhs.countryName == rhs.countryName
             && lhs.locality == rhs.locality
+            && lhs.homeCountryCode == rhs.homeCountryCode
     }
 }
 
@@ -146,6 +152,12 @@ public struct LocalPriceLevelSnapshot: Codable, Equatable, Sendable {
     public let fetchedAt: Date?
     public let detail: String?
     public let note: String?
+    /// How this country's price levels compare with the user's home country, per category. Nil when no
+    /// home country is set, it equals this country, or either side has no Eurostat data. Optional so
+    /// snapshots cached before this field existed still decode.
+    public let homeComparison: [PriceLevelDifference]?
+    /// The home country `homeComparison` was computed against.
+    public let homeCountryCode: String?
 
     public init(
         status: LocalPriceLevelStatus,
@@ -156,7 +168,9 @@ public struct LocalPriceLevelSnapshot: Codable, Equatable, Sendable {
         sources: [LocalPriceSourceAttribution],
         fetchedAt: Date?,
         detail: String?,
-        note: String?
+        note: String?,
+        homeComparison: [PriceLevelDifference]? = nil,
+        homeCountryCode: String? = nil
     ) {
         self.status = status
         self.summaryBand = summaryBand
@@ -167,5 +181,24 @@ public struct LocalPriceLevelSnapshot: Codable, Equatable, Sendable {
         self.fetchedAt = fetchedAt
         self.detail = detail
         self.note = note
+        self.homeComparison = homeComparison
+        self.homeCountryCode = homeCountryCode
+    }
+
+    /// This snapshot with the given home comparison attached.
+    public func withHomeComparison(_ comparison: [PriceLevelDifference], homeCountryCode: String) -> LocalPriceLevelSnapshot {
+        LocalPriceLevelSnapshot(
+            status: status,
+            summaryBand: summaryBand,
+            countryCode: countryCode,
+            countryName: countryName,
+            rows: rows,
+            sources: sources,
+            fetchedAt: fetchedAt,
+            detail: detail,
+            note: note,
+            homeComparison: comparison,
+            homeCountryCode: homeCountryCode
+        )
     }
 }

@@ -4,8 +4,13 @@ import Foundation
 public actor LiveLocalPriceLevelProvider: LocalPriceLevelProvider, LocalPriceLevelProviderConfigurationUpdating {
     private let session: URLSession
     private let ttl: TimeInterval
+    private let indexTTL: TimeInterval
     private var hudUserAPIToken: String?
     private var cache: [String: LocalPriceLevelSnapshot] = [:]
+    /// Eurostat observations per Eurostat geo code. Shared by the current-country snapshot, the home
+    /// country and any trip destination, so a country costs its three requests at most once per `indexTTL`.
+    private var indexCache: [String: CachedEurostatObservations] = [:]
+    private var indexRequests: [String: Task<[LocalPriceIndicatorKind: EurostatObservation], any Error>] = [:]
 
     private static let eurostatSource = LocalPriceSourceAttribution(
         name: "Eurostat",
@@ -19,18 +24,31 @@ public actor LiveLocalPriceLevelProvider: LocalPriceLevelProvider, LocalPriceLev
         name: "US Census Geocoder",
         url: URL(string: "https://geocoding.geo.census.gov/")
     )
+    /// Eurostat geo codes (not always ISO: Greece is EL, the United Kingdom UK) that publish the price-level
+    /// indices in `prc_ppp_ind_1`: the EU27 plus the candidate and EFTA countries with all three categories,
+    /// and the United Kingdom, which only has the overall index.
     private static let eurostatCountryCodes: Set<String> = [
         "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "EL", "ES", "FI", "FR", "HR", "HU",
-        "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO", "SE", "SI", "SK"
+        "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO", "SE", "SI", "SK",
+        "AL", "BA", "CH", "IS", "ME", "MK", "NO", "RS", "TR", "UK"
+    ]
+    private static let eurostatCategories: [(kind: LocalPriceIndicatorKind, code: String)] = [
+        (.mealOut, "A0111"),
+        (.groceries, "A0101"),
+        (.overall, "A01")
     ]
 
+    /// `indexTTL` defaults to a week: the indices are annual, so a longer-lived entry costs nothing in
+    /// accuracy and keeps the request budget flat however many countries are compared.
     public init(
         session: URLSession = .shared,
         ttl: TimeInterval = 21_600,
+        indexTTL: TimeInterval = 604_800,
         hudUserAPIToken: String? = nil
     ) {
         self.session = session
         self.ttl = ttl
+        self.indexTTL = indexTTL
         self.hudUserAPIToken = Self.trimmed(hudUserAPIToken)
     }
 
@@ -39,7 +57,25 @@ public actor LiveLocalPriceLevelProvider: LocalPriceLevelProvider, LocalPriceLev
         cache = cache.filter { $0.key.hasPrefix("US|") == false }
     }
 
+    /// Eurostat price-level indices (EU27 = 100) for any country, keyed by category. Empty, never an
+    /// error, for countries Eurostat does not cover. Served from a per-country cache that outlives the
+    /// snapshot cache because the data is annual. Only the country code leaves the device.
+    public func indices(forCountryCode countryCode: String) async throws -> [LocalPriceIndicatorKind: Double] {
+        let code = normalizedCountryCode(countryCode)
+        guard Self.eurostatCountryCodes.contains(code) else {
+            return [:]
+        }
+
+        return try await eurostatObservations(countryCode: code, forceRefresh: false).mapValues(\.value)
+    }
+
     public func prices(for request: LocalPriceSearchRequest, forceRefresh: Bool) async throws -> LocalPriceLevelSnapshot {
+        let snapshot = try await baseSnapshot(for: request, forceRefresh: forceRefresh)
+        return await attachingHomeComparison(to: snapshot, request: request)
+    }
+
+    /// The snapshot without any home comparison, so the cache entry does not depend on the home setting.
+    private func baseSnapshot(for request: LocalPriceSearchRequest, forceRefresh: Bool) async throws -> LocalPriceLevelSnapshot {
         let cacheKey = Self.cacheKey(for: request)
 
         if !forceRefresh,
@@ -53,7 +89,7 @@ public actor LiveLocalPriceLevelProvider: LocalPriceLevelProvider, LocalPriceLev
         case "US":
             try await usSnapshot(for: request)
         case let code where Self.eurostatCountryCodes.contains(code):
-            try await eurostatSnapshot(for: request, countryCode: code)
+            try await eurostatSnapshot(for: request, countryCode: code, forceRefresh: forceRefresh)
         default:
             LocalPriceLevelSnapshot(
                 status: .unsupported,
@@ -72,17 +108,84 @@ public actor LiveLocalPriceLevelProvider: LocalPriceLevelProvider, LocalPriceLev
         return snapshot
     }
 
+    /// Adds the destination-versus-home comparison when a home country is set, differs from this country
+    /// and both have Eurostat indices. Any failure of the extra lookup just leaves the comparison out.
+    private func attachingHomeComparison(
+        to snapshot: LocalPriceLevelSnapshot,
+        request: LocalPriceSearchRequest
+    ) async -> LocalPriceLevelSnapshot {
+        guard let homeCountryCode = Self.trimmed(request.homeCountryCode)?.uppercased(),
+              snapshot.rows.isEmpty == false
+        else {
+            return snapshot
+        }
+
+        let destinationCode = normalizedCountryCode(request.countryCode)
+        guard normalizedCountryCode(homeCountryCode) != destinationCode,
+              Self.eurostatCountryCodes.contains(destinationCode),
+              let destination = try? await indices(forCountryCode: destinationCode),
+              let home = try? await indices(forCountryCode: homeCountryCode)
+        else {
+            return snapshot
+        }
+
+        let differences = PriceLevelComparison.compare(destination: destination, home: home)
+        guard differences.isEmpty == false else {
+            return snapshot
+        }
+
+        return snapshot.withHomeComparison(differences, homeCountryCode: homeCountryCode)
+    }
+
+    private func eurostatObservations(
+        countryCode: String,
+        forceRefresh: Bool
+    ) async throws -> [LocalPriceIndicatorKind: EurostatObservation] {
+        if !forceRefresh,
+           let cached = indexCache[countryCode],
+           abs(cached.fetchedAt.timeIntervalSinceNow) < indexTTL
+        {
+            return cached.observations
+        }
+
+        if let inFlight = indexRequests[countryCode] {
+            return try await inFlight.value
+        }
+
+        let task = Task { try await self.fetchEurostatObservations(countryCode: countryCode) }
+        indexRequests[countryCode] = task
+        defer { indexRequests[countryCode] = nil }
+
+        let observations = try await task.value
+        indexCache[countryCode] = CachedEurostatObservations(observations: observations, fetchedAt: Date())
+        return observations
+    }
+
+    private func fetchEurostatObservations(countryCode: String) async throws -> [LocalPriceIndicatorKind: EurostatObservation] {
+        try await withThrowingTaskGroup(of: (LocalPriceIndicatorKind, EurostatObservation?).self) { group in
+            for category in Self.eurostatCategories {
+                group.addTask {
+                    try await (category.kind, self.eurostatObservation(countryCode: countryCode, category: category.code))
+                }
+            }
+
+            var observations: [LocalPriceIndicatorKind: EurostatObservation] = [:]
+            for try await (kind, observation) in group {
+                observations[kind] = observation
+            }
+            return observations
+        }
+    }
+
     private func eurostatSnapshot(
         for request: LocalPriceSearchRequest,
-        countryCode: String
+        countryCode: String,
+        forceRefresh: Bool
     ) async throws -> LocalPriceLevelSnapshot {
-        async let mealObservation = eurostatObservation(countryCode: countryCode, category: "A0111")
-        async let groceryObservation = eurostatObservation(countryCode: countryCode, category: "A0101")
-        async let overallObservation = eurostatObservation(countryCode: countryCode, category: "A01")
-
-        let meal = try await mealObservation
-        let groceries = try await groceryObservation
-        let overall = try await overallObservation
+        let observations = try await eurostatObservations(countryCode: countryCode, forceRefresh: forceRefresh)
+        let meal = observations[.mealOut]
+        let groceries = observations[.groceries]
+        let overall = observations[.overall]
 
         var rows: [LocalPriceIndicatorRow] = []
 
@@ -465,16 +568,26 @@ public actor LiveLocalPriceLevelProvider: LocalPriceLevelProvider, LocalPriceLev
         return formatter
     }
 
+    /// Upper-cased, with the ISO codes Eurostat spells differently (Greece, United Kingdom) mapped to its own.
     private func normalizedCountryCode(_ value: String) -> String {
         let uppercased = value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        return uppercased == "GR" ? "EL" : uppercased
+        return switch uppercased {
+        case "GR": "EL"
+        case "GB": "UK"
+        default: uppercased
+        }
     }
 }
 
-private struct EurostatObservation {
+private struct EurostatObservation: Sendable {
     let category: String
     let year: Int
     let value: Double
+}
+
+private struct CachedEurostatObservations {
+    let observations: [LocalPriceIndicatorKind: EurostatObservation]
+    let fetchedAt: Date
 }
 
 private struct HUDOneBedroomRent {

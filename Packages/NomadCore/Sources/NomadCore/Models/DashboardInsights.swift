@@ -25,6 +25,7 @@ public enum DashboardInsightKind: String, CaseIterable, Sendable {
     case airQuality
     case publicHoliday
     case localRhythm
+    case upcomingTrip
     case fuelNearby
     case daylight
 
@@ -34,7 +35,7 @@ public enum DashboardInsightKind: String, CaseIterable, Sendable {
         case .nomad:
             allCases
         case .roadTrip:
-            [.strongWind, .daylight, .uvIndex, .airQuality, .fuelNearby, .weatherAlert, .dataCap, .stayAllowance, .schengenLimit, .taxResidenceDays, .travelAdvisory, .regionalSecurity, .rainSoon, .publicHoliday, .localRhythm]
+            [.strongWind, .daylight, .uvIndex, .airQuality, .fuelNearby, .weatherAlert, .dataCap, .stayAllowance, .schengenLimit, .taxResidenceDays, .travelAdvisory, .regionalSecurity, .rainSoon, .publicHoliday, .localRhythm, .upcomingTrip]
         }
     }
 }
@@ -101,6 +102,8 @@ public enum DashboardInsightEngine {
     static let uvExtremeThreshold = 11
     static let holidayLookAheadDays = 3
     static let localRhythmLookAheadDays = 14
+    /// A planned trip becomes a heads-up this many days before it starts.
+    static let upcomingTripLookAheadDays = 14
     private static let menuBarTextCharacterLimit = 12
     static let daylightCautionInterval: TimeInterval = 60 * 60
     static let daylightInfoInterval: TimeInterval = 120 * 60
@@ -140,6 +143,9 @@ public enum DashboardInsightEngine {
         candidates.append(contentsOf: airQualityInsight(for: snapshot.airQuality, now: now, calendar: calendar, locale: locale))
         candidates.append(contentsOf: holidayInsight(for: snapshot.localInfo, now: now, calendar: calendar, locale: locale))
         candidates.append(contentsOf: localRhythmInsight(for: snapshot, now: now, calendar: calendar, locale: locale))
+        if let stays {
+            candidates.append(contentsOf: upcomingTripInsight(for: stays, now: now, calendar: calendar, locale: locale))
+        }
         candidates.append(contentsOf: fuelInsight(for: snapshot.fuelPrices, locale: locale))
         if profile == .roadTrip {
             candidates.append(contentsOf: daylightInsight(for: snapshot.travelContext, now: now, locale: locale))
@@ -795,6 +801,81 @@ public enum DashboardInsightEngine {
             menuBarText: menuBarName(for: period),
             detail: detail,
             relatedCard: .localInfo
+        )]
+    }
+
+    // MARK: - Upcoming trip
+
+    /// The next planned trip that starts within `upcomingTripLookAheadDays` days (today included), with the
+    /// one fact worth knowing first. In order of importance: a plan that breaks the Schengen 90/180 rule,
+    /// a local period during the trip, a change of driving side, the currency.
+    private static func upcomingTripInsight(
+        for input: StayInsightInput,
+        now: Date,
+        calendar: Calendar,
+        locale: Locale
+    ) -> [DashboardInsight] {
+        let settings = input.settings
+        let upcoming = settings.plannedTrips
+            .compactMap { trip -> (trip: PlannedTrip, startsIn: Int)? in
+                let startsIn = trip.daysUntilStart(now: now, calendar: calendar)
+                guard startsIn >= 0, startsIn <= upcomingTripLookAheadDays,
+                      AppSettings.normalizedCountryCode(trip.countryCode) != nil
+                else {
+                    return nil
+                }
+                return (trip, startsIn)
+            }
+            .min { lhs, rhs in
+                lhs.startsIn != rhs.startsIn ? lhs.startsIn < rhs.startsIn : PlannedTrip.isOrderedBefore(lhs.trip, rhs.trip)
+            }
+        guard let (trip, startsIn) = upcoming else {
+            return []
+        }
+
+        let preview = TripPreview.make(
+            trip: trip,
+            settings: settings,
+            countryDays: input.countryDays,
+            currentCountryCode: input.currentCountryCode,
+            homeTimeZoneIdentifier: nil,
+            now: now,
+            calendar: calendar,
+            locale: locale
+        )
+        let dayStyle = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
+            .day().month(.abbreviated)
+
+        let when = switch startsIn {
+        case 0: "today"
+        case 1: "tomorrow"
+        default: "in \(startsIn) days"
+        }
+        let breach: Date? = if case let .counting(window) = preview.visa.schengen { window.firstExceededOn } else { nil }
+        let rhythm = preview.rhythm.first { isFullShutdown($0.period.kind) } ?? preview.rhythm.first
+
+        let detail: String? = if let breach {
+            "Plan exceeds Schengen 90/180 on \(breach.formatted(dayStyle))"
+        } else if let rhythm {
+            "\(rhythm.period.shortName) \(rhythm.startsDuringTrip ? "starts mid-trip" : "is on during your trip")"
+        } else if let road = preview.road, road.changesFromPreviousCountry {
+            road.text
+        } else if let money = preview.money {
+            money.changesFromPreviousCountry
+                ? "Currency: \(money.currencyName ?? money.currencyCode) (\(money.currencyCode))"
+                : "Same currency (\(money.currencyCode))"
+        } else {
+            nil
+        }
+
+        return [DashboardInsight(
+            kind: .upcomingTrip,
+            severity: breach == nil ? .info : .caution,
+            symbolName: "airplane.departure",
+            title: "\(preview.countryName) \(when)",
+            menuBarText: startsIn == 0 ? "Trip today" : "Trip in \(startsIn) d",
+            detail: detail.map { truncated($0) },
+            relatedCard: .stays
         )]
     }
 

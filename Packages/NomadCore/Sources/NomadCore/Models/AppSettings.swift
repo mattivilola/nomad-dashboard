@@ -67,6 +67,14 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// arrive somewhere else.
     public var arrivalBriefingAcknowledgedCountryCode: String?
     public var arrivalBriefingAcknowledgedAt: Date?
+    /// The user's home country as an upper-case ISO 3166-1 alpha-2 code, for comparing prices and
+    /// time zones at a destination with home. Nil means home is the first citizenship (see
+    /// `effectiveHomeCountryCode`). Stored locally only, never sent anywhere.
+    public var homeCountryCode: String?
+    /// Trips the user plans: a destination country with start and end dates, at most
+    /// `maximumPlannedTrips`, sorted by start. Stored locally only; only the destination country code is
+    /// ever used to look up public data, never the dates or the user's location.
+    public var plannedTrips: [PlannedTrip]
 
     public init(
         appearanceMode: AppAppearanceMode = .system,
@@ -117,7 +125,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         taxResidenceThresholdDays: Int = AppSettings.defaultTaxResidenceThresholdDays,
         arrivalBriefingEnabled: Bool = true,
         arrivalBriefingAcknowledgedCountryCode: String? = nil,
-        arrivalBriefingAcknowledgedAt: Date? = nil
+        arrivalBriefingAcknowledgedAt: Date? = nil,
+        homeCountryCode: String? = nil,
+        plannedTrips: [PlannedTrip] = []
     ) {
         self.appearanceMode = appearanceMode
         self.dataUsageMode = dataUsageMode
@@ -168,6 +178,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.arrivalBriefingEnabled = arrivalBriefingEnabled
         self.arrivalBriefingAcknowledgedCountryCode = arrivalBriefingAcknowledgedCountryCode.flatMap(Self.normalizedCountryCode)
         self.arrivalBriefingAcknowledgedAt = arrivalBriefingAcknowledgedAt
+        self.homeCountryCode = homeCountryCode.flatMap(Self.normalizedCountryCode)
+        self.plannedTrips = Self.sanitizedPlannedTrips(plannedTrips)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -223,6 +235,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case arrivalBriefingEnabled
         case arrivalBriefingAcknowledgedCountryCode
         case arrivalBriefingAcknowledgedAt
+        case homeCountryCode
+        case plannedTrips
     }
 
     public init(from decoder: any Decoder) throws {
@@ -311,6 +325,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
             .decodeIfPresent(String.self, forKey: .arrivalBriefingAcknowledgedCountryCode)
             .flatMap(Self.normalizedCountryCode)
         arrivalBriefingAcknowledgedAt = try container.decodeIfPresent(Date.self, forKey: .arrivalBriefingAcknowledgedAt)
+        homeCountryCode = (try? container.decodeIfPresent(String.self, forKey: .homeCountryCode))
+            .flatMap(Self.normalizedCountryCode)
+        // A trip that no longer decodes is dropped on its own instead of discarding every setting.
+        plannedTrips = Self.sanitizedPlannedTrips(
+            (try? container.decodeIfPresent([LossyDecodable<PlannedTrip>].self, forKey: .plannedTrips))?
+                .compactMap(\.value) ?? []
+        )
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -369,6 +390,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encode(arrivalBriefingEnabled, forKey: .arrivalBriefingEnabled)
         try container.encodeIfPresent(arrivalBriefingAcknowledgedCountryCode, forKey: .arrivalBriefingAcknowledgedCountryCode)
         try container.encodeIfPresent(arrivalBriefingAcknowledgedAt, forKey: .arrivalBriefingAcknowledgedAt)
+        try container.encodeIfPresent(homeCountryCode, forKey: .homeCountryCode)
+        try container.encode(plannedTrips, forKey: .plannedTrips)
     }
 
     /// The most citizenships that can be stored; enough for the dual and triple nationals this is for.
@@ -392,6 +415,27 @@ public struct AppSettings: Codable, Equatable, Sendable {
         }
 
         return normalized
+    }
+
+    /// The most planned trips that can be stored.
+    public static let maximumPlannedTrips = 20
+
+    /// Trips ready to store: each with an upper-case two-letter country code, an end on or after its start
+    /// and at most `PlannedTrip.maximumDurationDays` long, an empty note turned into nil, duplicate ids
+    /// dropped, and sorted by start (then end). Trips that ended more than `PlannedTrip.retentionDays` days
+    /// before `now` are dropped, and at most `maximumPlannedTrips` of the earliest remain.
+    public static func sanitizedPlannedTrips(
+        _ trips: [PlannedTrip],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [PlannedTrip] {
+        var seenIDs = Set<UUID>()
+        let sanitized = trips
+            .compactMap { $0.sanitized(calendar: calendar) }
+            .filter { seenIDs.insert($0.id).inserted }
+            .filter { $0.daysSinceEnd(now: now, calendar: calendar) <= PlannedTrip.retentionDays }
+            .sorted(by: PlannedTrip.isOrderedBefore)
+        return Array(sanitized.prefix(maximumPlannedTrips))
     }
 
     public static let defaultTaxResidenceThresholdDays = 183
@@ -469,6 +513,11 @@ public struct SurfSpotConfiguration: Sendable, Equatable {
 }
 
 public extension AppSettings {
+    /// The country to compare destinations with: the chosen home country, else the first citizenship.
+    var effectiveHomeCountryCode: String? {
+        homeCountryCode ?? citizenshipCountryCodes.first
+    }
+
     /// Whether the card order still matches the recommendation for the current travel profile.
     var isUsingRecommendedOrder: Bool {
         dashboardCardOrder == DashboardCardID.defaultOrder(for: travelProfile)

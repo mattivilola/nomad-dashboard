@@ -163,14 +163,60 @@ public enum LocalRhythmCalendar {
         local.timeZone = calendar.timeZone
 
         let horizon = local.date(byAdding: .day, value: max(0, lookaheadDays), to: now) ?? now
-        let firstYear = local.component(.year, from: now) - 1
-        let lastYear = local.component(.year, from: horizon) + 1
+        return periods(inCountry: country, overlappingFrom: now, through: horizon, local: local)
+    }
+
+    /// Periods that overlap the days from `first` to `last` (both included), for one country, earliest first.
+    /// This is the planning counterpart of `periods(forCountryCode:around:lookaheadDays:calendar:)`: it
+    /// answers what a trip on those dates runs into, whether a period starts before the trip and is still on
+    /// at arrival, starts during it, or ends after it.
+    ///
+    /// Days are civil days in `calendar`'s time zone. A planned trip has no region, so Nyepi, which only
+    /// applies to Bali, is kept for Indonesia: the same permissive handling as an unknown region in
+    /// `periods(forCountryCode:travelContext:around:lookaheadDays:calendar:)`, and the period's name and
+    /// guidance say "Bali" themselves.
+    /// Returns an empty array for a missing or unknown country or when `last` is before `first`.
+    public static func periods(
+        forCountryCode countryCode: String?,
+        from first: Date,
+        to last: Date,
+        calendar: Calendar
+    ) -> [LocalRhythmPeriod] {
+        guard let country = countryCode?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+              !country.isEmpty
+        else {
+            return []
+        }
+
+        var local = Calendar(identifier: .gregorian)
+        local.timeZone = calendar.timeZone
+
+        let firstDay = local.startOfDay(for: first)
+        let lastDay = local.startOfDay(for: last)
+        guard lastDay >= firstDay,
+              let endOfLastDay = local.date(byAdding: .day, value: 1, to: lastDay)?.addingTimeInterval(-1)
+        else {
+            return []
+        }
+
+        return periods(inCountry: country, overlappingFrom: firstDay, through: endOfLastDay, local: local)
+    }
+
+    /// Periods whose last second is after `lower` and whose first day starts at or before `upper`.
+    private static func periods(
+        inCountry country: String,
+        overlappingFrom lower: Date,
+        through upper: Date,
+        local: Calendar
+    ) -> [LocalRhythmPeriod] {
+        let firstYear = local.component(.year, from: lower) - 1
+        let lastYear = local.component(.year, from: upper) + 1
 
         return RhythmRules.spans(forCountry: country, years: firstYear...lastYear)
             .compactMap { span -> LocalRhythmPeriod? in
                 guard let start = local.startOfDay(for: span.first),
                       let endExclusive = local.startOfDay(for: span.first.adding(days: span.dayCount)),
-                      endExclusive > now, start <= horizon
+                      endExclusive > lower, start <= upper
                 else {
                     return nil
                 }

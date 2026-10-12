@@ -180,7 +180,8 @@ public actor LiveLocalInfoProvider: LocalInfoProvider, LocalPriceLevelProviderCo
             coordinate: request.coordinate,
             countryCode: request.countryCode,
             countryName: request.countryName,
-            locality: request.locality
+            locality: request.locality,
+            homeCountryCode: request.homeCountryCode
         )
 
         do {
@@ -671,6 +672,24 @@ public actor LiveLocalInfoProvider: LocalInfoProvider, LocalPriceLevelProviderCo
         value.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
             .replacingOccurrences(of: "[^a-zA-Z0-9]+", with: "", options: .regularExpression)
             .lowercased()
+    }
+}
+
+extension LiveLocalInfoProvider: PublicHolidayProvider {
+    /// Shares the public holiday cache and source of the local info card.
+    public func publicHolidays(
+        inCountry countryCode: String,
+        year: Int,
+        timeZone: TimeZone,
+        forceRefresh: Bool
+    ) async throws -> [HolidayPeriodSnapshot] {
+        let code = countryCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard code.isEmpty == false else {
+            throw ProviderError.missingCountryCode
+        }
+
+        let holidays = try await publicHolidays(countryCode: code, year: year, forceRefresh: forceRefresh)
+        return makePublicHolidayPeriods(from: holidays, timeZone: timeZone, subdivisionCode: nil)
     }
 }
 

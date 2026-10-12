@@ -227,11 +227,12 @@ public struct StayCalculator: Sendable {
         let day: VisitedCountryDay
     }
 
-    private let now: Date
-    private let calendar: Calendar
+    let now: Date
+    let calendar: Calendar
     private let entries: [Entry]
-    /// Country codes recorded per day, keyed by days before today (0 is today).
-    private let presence: [Int: Set<String>]
+    /// Country codes recorded per day, keyed by days before today (0 is today). Read by the trip
+    /// projections in `StayProjection.swift`.
+    let presence: [Int: Set<String>]
     /// Days before today that have any record, including days without a country code.
     private let recordedOffsets: Set<Int>
 
@@ -467,7 +468,7 @@ public struct StayCalculator: Sendable {
     // MARK: Calendar helpers
 
     /// Start of the day `offset` days before today (a negative offset is in the future).
-    private func date(daysBeforeToday offset: Int) -> Date {
+    func date(daysBeforeToday offset: Int) -> Date {
         let shifted = calendar.date(byAdding: .day, value: -offset, to: now) ?? now
         return calendar.startOfDay(for: shifted)
     }
