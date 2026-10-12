@@ -41,7 +41,7 @@ The product should be positioned as:
 
 ### 1. Fast situational awareness
 
-See the essential signals for remote work and travel in one compact dashboard instead of jumping between system menus, websites, and maps.
+Open the panel and get an instant verdict (ready to work, workable, needs attention) with the place you are in, four vital tiles for internet, power, data allowance, and weather, and at most three heads-up items such as a nearing data cap, a travel advisory, or rain on the way. Tap a tile or heads-up item to jump to the full card. Layout controls stay out of the way until you choose Customize Layout.
 
 ### 2. Built for motion, not just desktops
 
@@ -89,7 +89,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
 - Tracking visited places locally on the Mac, with yearly travel paths, chronological stop logs, and country-day summaries by year and month
 - Automatically seeing the current or nearest listed city, then browsing visual destination cards by country, monthly budget, and city internet estimates, with attributed Nomads.com ratings and meetup links
-- Tracking awake work time locally on the Mac, then assigning it from the dashboard with quick project chips, interruption counts, and focus-adjusted day, week, and month summaries
+- Tracking awake work time locally on the Mac, then assigning it from the dashboard with a compact Allocate menu, interruption counts, and focus-adjusted day, week, and month summaries
 - Optionally collecting stationary workplace visits from authorized device location, reviewing a local work diary, and comparing current and home time
 - Keeping all of the above in a compact menu bar workflow instead of a full-size monitoring dashboard, with hidden background refreshes slowed to protect battery life
 

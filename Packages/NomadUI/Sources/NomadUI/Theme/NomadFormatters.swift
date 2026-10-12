@@ -49,10 +49,7 @@ public enum NomadFormatters {
 
     public static func compassDirection(_ value: Double?) -> String {
         guard let value else { return "n/a" }
-        let normalized = value.truncatingRemainder(dividingBy: 360)
-        let degrees = normalized >= 0 ? normalized : normalized + 360
-        let index = Int((degrees + 22.5) / 45.0) % 8
-        return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][index]
+        return TravelUnitFormatting.compassDirection(value)
     }
 
     public static func watts(_ value: Double?) -> String {
@@ -84,7 +81,7 @@ public enum NomadFormatters {
 
     public static func kilometers(_ value: Double?) -> String {
         guard let value else { return "n/a" }
-        return String(format: value >= 10 ? "%.0f km" : "%.1f km", value)
+        return TravelUnitFormatting.kilometers(value)
     }
 
     public static func relativeDate(_ value: Date?) -> String {

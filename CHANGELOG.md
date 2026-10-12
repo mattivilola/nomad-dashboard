@@ -9,15 +9,21 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- _Nothing yet_
+- Add a glance overview at the top of the dashboard: a verdict strip, a single line of Here and Home clocks, four tappable vital tiles (Internet, Power, Data Guard or VPN, Weather) that scroll to their cards, and up to three ranked heads-up items (data cap, travel advisory, weather alert, regional security, strong wind, rain within six hours, public holiday within three days, cheapest nearby fuel).
+- Add Customize Layout to the header menu; card width and drag controls now appear only while customizing.
 
 ### Changed
 
-- _Nothing yet_
+- Lead the dashboard header with the current place and show device region and country beside the IP location on one line, instead of the app title.
+- Move the appearance toggle into the header menu.
+- Replace the time-tracking chip row with a single compact row and an Allocate menu that lists project names in full.
+- Color metric values by status instead of by metric name, so healthy values no longer render in alarm colors.
+- The power card shows adapter wattage while on external power, time to full while charging, and no longer repeats its subtitle.
+- Show the device city for "Here" in the clocks instead of the time-zone city.
 
 ### Fixed
 
-- _Nothing yet_
+- Fix half-width card titles and subtitles truncating because of always-visible card controls.
 
 
 ## [0.16.0] - 2026-09-22

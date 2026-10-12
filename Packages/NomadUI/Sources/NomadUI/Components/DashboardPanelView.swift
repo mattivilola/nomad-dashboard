@@ -57,6 +57,7 @@ public struct DashboardPanelView: View {
     @State private var resolvedCardOrder: [DashboardCardID]
     @State private var resolvedCardWidthModes: [DashboardCardID: DashboardCardWidthMode]
     @State private var activeDropCardID: DashboardCardID?
+    @State private var isCustomizingLayout = false
 
     public init(
         snapshot: DashboardSnapshot,
@@ -167,21 +168,31 @@ public struct DashboardPanelView: View {
             ZStack {
                 NomadTheme.background.ignoresSafeArea()
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        header
-                        if let overviewContent {
-                            overviewContent
-                        } else {
-                            summaryStrip
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            header
+                            if let overviewContent {
+                                overviewContent
+                            } else {
+                                summaryStrip
+                            }
+                            orderedCardSections(viewportHeight: viewport.size.height)
+                            footer
                         }
-                        orderedCardSections(viewportHeight: viewport.size.height)
-                        footer
+                        .frame(width: contentWidth, alignment: .topLeading)
+                        .padding(18)
+                        .environment(
+                            \.dashboardScrollToCard,
+                            DashboardScrollToCardAction { cardID in
+                                withAnimation(.snappy) {
+                                    scrollProxy.scrollTo(cardID, anchor: .top)
+                                }
+                            }
+                        )
                     }
-                    .frame(width: contentWidth, alignment: .topLeading)
-                    .padding(18)
+                    .coordinateSpace(name: DashboardScrollCoordinateSpace.name)
                 }
-                .coordinateSpace(name: DashboardScrollCoordinateSpace.name)
             }
         }
         .frame(width: 430, height: 640)
@@ -209,90 +220,57 @@ public struct DashboardPanelView: View {
             lastRefresh: snapshot.appState.lastRefresh,
             refreshActivity: refreshActivity
         )
+        let location = DashboardHeaderPresentation(
+            deviceLocation: snapshot.travelContext.deviceLocation,
+            ipLocation: snapshot.travelContext.location
+        )
 
-        return VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 14) {
-                HStack(spacing: 8) {
-                    Text("Nomad Dashboard")
-                        .font(.system(size: 26, weight: .semibold, design: .rounded))
-                        .foregroundStyle(NomadTheme.primaryText)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 8) {
+                        Text(location.headline)
+                            .font(.system(size: 22, weight: .semibold, design: .rounded))
+                            .foregroundStyle(NomadTheme.primaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .layoutPriority(1)
 
-                    if let buildFlavorBadgeTitle {
-                        BadgeView(
-                            badge: PillBadge(
-                                title: buildFlavorBadgeTitle,
-                                symbolName: "hammer.fill",
-                                tint: NomadTheme.sand
+                        if let buildFlavorBadgeTitle {
+                            BadgeView(
+                                badge: PillBadge(
+                                    title: buildFlavorBadgeTitle,
+                                    symbolName: "hammer.fill",
+                                    tint: NomadTheme.sand
+                                )
                             )
-                        )
+                        }
                     }
+
+                    headerLocationDetail(location)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                HStack(spacing: 8) {
-                    HeaderIconButton(
-                        systemImage: "arrow.clockwise",
-                        title: refreshHeader.buttonTitle,
-                        isEnabled: refreshHeader.isButtonEnabled,
-                        activity: refreshActivity,
-                        action: refreshAction
-                    )
-                    HeaderIconButton(systemImage: appearanceToggleSystemImage, title: appearanceToggleTitle, action: toggleAppearanceAction)
+                VStack(alignment: .trailing, spacing: 4) {
+                    HStack(spacing: 8) {
+                        HeaderIconButton(
+                            systemImage: "arrow.clockwise",
+                            title: refreshHeader.buttonTitle,
+                            isEnabled: refreshHeader.isButtonEnabled,
+                            activity: refreshActivity,
+                            action: refreshAction
+                        )
 
-                    Menu {
-                        Button("Open Visited Map", systemImage: "globe.europe.africa.fill") {
-                            openVisitedMapAction()
-                        }
-
-                        Button("Open Time Tracking", systemImage: "clock.badge.checkmark") {
-                            openTimeTrackingAction()
-                        }
-
-                        Button("Open Network Settings", systemImage: "gearshape.2") {
-                            openNetworkSettingsAction()
-                        }
-
-                        Divider()
-
-                        Button("Settings", systemImage: "slider.horizontal.3") {
-                            openSettingsAction()
-                        }
-
-                        if let checkForUpdatesAction {
-                            Button("Check for Updates", systemImage: "sparkles") {
-                                checkForUpdatesAction()
-                            }
-                        }
-
-                        Button("About Nomad Dashboard", systemImage: "info.circle") {
-                            openAboutAction()
-                        }
-
-                        Divider()
-
-                        Button("Quit Nomad Dashboard", systemImage: "power") {
-                            quitAction()
-                        }
-                    } label: {
-                        HeaderActionIcon(systemImage: "ellipsis")
+                        headerMenu
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
+
+                    Text(refreshHeader.statusText)
+                        .font(.caption)
+                        .foregroundStyle(refreshStatusTint)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                 }
             }
-
-            HStack(alignment: .top, spacing: 12) {
-                headerLocationComparison
-
-                Spacer(minLength: 12)
-
-                Text(refreshHeader.statusText)
-                    .font(.caption)
-                    .foregroundStyle(refreshStatusTint)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
             if timeTrackingDashboardState.isEnabled {
                 timeTrackingHeaderPill
@@ -300,6 +278,99 @@ public struct DashboardPanelView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var headerMenu: some View {
+        Menu {
+            Button("Open Visited Map", systemImage: "globe.europe.africa.fill") {
+                openVisitedMapAction()
+            }
+
+            Button("Open Time Tracking", systemImage: "clock.badge.checkmark") {
+                openTimeTrackingAction()
+            }
+
+            Button("Open Network Settings", systemImage: "gearshape.2") {
+                openNetworkSettingsAction()
+            }
+
+            Divider()
+
+            Button(
+                isCustomizingLayout ? "Done Customizing" : "Customize Layout",
+                systemImage: isCustomizingLayout ? "checkmark.circle" : "rectangle.3.group"
+            ) {
+                isCustomizingLayout.toggle()
+            }
+
+            Button(appearanceToggleTitle, systemImage: appearanceToggleSystemImage) {
+                toggleAppearanceAction()
+            }
+
+            Divider()
+
+            Button("Settings", systemImage: "slider.horizontal.3") {
+                openSettingsAction()
+            }
+
+            if let checkForUpdatesAction {
+                Button("Check for Updates", systemImage: "sparkles") {
+                    checkForUpdatesAction()
+                }
+            }
+
+            Button("About Nomad Dashboard", systemImage: "info.circle") {
+                openAboutAction()
+            }
+
+            Divider()
+
+            Button("Quit Nomad Dashboard", systemImage: "power") {
+                quitAction()
+            }
+        } label: {
+            HeaderActionIcon(systemImage: "ellipsis")
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    /// Second header line: device region and country, then the IP location, so a
+    /// VPN or a stale geo-IP result is visible next to where the Mac actually is.
+    /// Shorter variants take over when the full line would not fit, so the IP part
+    /// is never the one that gets cut off.
+    @ViewBuilder
+    private func headerLocationDetail(_ location: DashboardHeaderPresentation) -> some View {
+        if let last = location.detailVariants.last {
+            let variants = location.detailVariants
+            ViewThatFits(in: .horizontal) {
+                headerLocationLine(variants[0]).fixedSize(horizontal: true, vertical: false)
+                headerLocationLine(variants[min(1, variants.count - 1)]).fixedSize(horizontal: true, vertical: false)
+                headerLocationLine(last)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .minimumScaleFactor(0.85)
+            }
+        }
+    }
+
+    private func headerLocationLine(_ variant: DashboardHeaderPresentation.DetailVariant) -> some View {
+        let device = variant.device.map {
+            Text("\(Text(Image(systemName: "location.fill")).foregroundStyle(NomadTheme.teal)) \($0)")
+        }
+        let ip = variant.ip.map {
+            Text("\(Text(Image(systemName: "globe")).foregroundStyle(NomadTheme.sand)) IP \($0)")
+        }
+        let line: Text = switch (device, ip) {
+        case let (device?, ip?): Text("\(device)  ·  \(ip)")
+        case let (device?, nil): device
+        case let (nil, ip?): ip
+        case (nil, nil): Text("")
+        }
+
+        return line
+            .font(.caption)
+            .foregroundStyle(NomadTheme.secondaryText)
     }
 
     private var summaryStrip: some View {
@@ -312,6 +383,10 @@ public struct DashboardPanelView: View {
 
     private func orderedCardSections(viewportHeight: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 12) {
+            if isCustomizingLayout {
+                customizeLayoutStrip
+            }
+
             ForEach(packedCardRows) { row in
                 if row.items.count == 2 {
                     HStack(alignment: .top, spacing: 12) {
@@ -325,6 +400,39 @@ public struct DashboardPanelView: View {
                 }
             }
         }
+    }
+
+    private var customizeLayoutStrip: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "rectangle.3.group")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(NomadTheme.teal)
+                .accessibilityHidden(true)
+
+            Text("Drag cards to reorder or change their width")
+                .font(.caption)
+                .foregroundStyle(NomadTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 8)
+
+            Button("Done") {
+                isCustomizingLayout = false
+            }
+            .buttonStyle(.plain)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(NomadTheme.teal)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(NomadTheme.teal.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(NomadTheme.teal.opacity(0.18))
+                )
+        )
     }
 
     private var packedCardRows: [DashboardCardRow] {
@@ -390,6 +498,7 @@ public struct DashboardPanelView: View {
                 }
             }
         }
+        .id(item.cardID)
     }
 
     private func dataSection(for card: DashboardCardID) -> DashboardDataSection? {
@@ -516,7 +625,7 @@ public struct DashboardPanelView: View {
 
     private func meteredDataSection(widthMode: DashboardCardWidthMode) -> some View {
         let metered = snapshot.meteredData
-        let usedBytes = metered.billingPeriod == .session ? metered.sessionTotalBytes : metered.periodTotalBytes
+        let usedBytes = metered.displayedUsedBytes
         let receivedBytes = metered.billingPeriod == .session ? metered.sessionBytesReceived : metered.periodBytesReceived
         let sentBytes = metered.billingPeriod == .session ? metered.sessionBytesSent : metered.periodBytesSent
 
@@ -529,7 +638,7 @@ public struct DashboardPanelView: View {
         }()
 
         return DashboardCard(
-            title: "Data Guard",
+            title: DashboardCardID.meteredData.displayTitle,
             subtitle: networkSubtitle,
             badge: metered.isMonitoringActive
                 ? PillBadge(
@@ -538,7 +647,7 @@ public struct DashboardPanelView: View {
                     tint: metered.isCapReached ? NomadTheme.coral : NomadTheme.teal
                 )
                 : nil,
-            accessory: cardControls(for: .meteredData, title: "Data Guard"),
+            accessory: cardControls(for: .meteredData),
             isCompact: widthMode == .narrow
         ) {
             if !metered.isFeatureEnabled {
@@ -551,7 +660,7 @@ public struct DashboardPanelView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     if let fraction = metered.usageFraction, let capBytes = metered.capBytes {
                         ProgressView(value: min(fraction, 1))
-                            .tint(metered.isCapReached ? NomadTheme.coral : NomadTheme.teal)
+                            .tint(metered.usageLevel.tint)
                         Text("\(MeteredUsageFormatting.byteCount(usedBytes)) of \(MeteredUsageFormatting.byteCount(capBytes))")
                             .font(.caption)
                             .foregroundStyle(NomadTheme.secondaryText)
@@ -608,7 +717,7 @@ public struct DashboardPanelView: View {
 
     private func connectivitySection(widthMode: DashboardCardWidthMode) -> some View {
         DashboardCard(
-            title: "Connectivity",
+            title: DashboardCardID.connectivity.displayTitle,
             subtitle: snapshot.network.throughput?.activeInterface ?? "Interface unavailable",
             subtitleAccessory: AnyView(
                 InternetStatusIndicator(
@@ -619,7 +728,7 @@ public struct DashboardPanelView: View {
                 )
             ),
             badge: badge(for: snapshot.healthSummary.network),
-            accessory: cardControls(for: .connectivity, title: "Connectivity"),
+            accessory: cardControls(for: .connectivity),
             isCompact: widthMode == .narrow
         ) {
             if widthMode == .narrow {
@@ -640,7 +749,8 @@ public struct DashboardPanelView: View {
                     MetricBlock(
                         title: "Latency",
                         value: metricValue(snapshot.network.latency?.milliseconds, formatter: NomadFormatters.latency, fallback: "Waiting"),
-                        typography: .compact
+                        typography: .compact,
+                        tone: snapshot.healthSummary.network.level.tint
                     )
 
                     MiniTrendChart(
@@ -674,7 +784,8 @@ public struct DashboardPanelView: View {
                         )
                         MetricBlock(
                             title: "Latency",
-                            value: metricValue(snapshot.network.latency?.milliseconds, formatter: NomadFormatters.latency, fallback: "Waiting")
+                            value: metricValue(snapshot.network.latency?.milliseconds, formatter: NomadFormatters.latency, fallback: "Waiting"),
+                            tone: snapshot.healthSummary.network.level.tint
                         )
                     }
 
@@ -701,10 +812,10 @@ public struct DashboardPanelView: View {
 
     private func powerSection(widthMode: DashboardCardWidthMode) -> some View {
         DashboardCard(
-            title: "Power",
+            title: DashboardCardID.power.displayTitle,
             subtitle: snapshot.power.snapshot.map(powerSubtitle) ?? "Power source unavailable",
             badge: badge(for: snapshot.healthSummary.power),
-            accessory: cardControls(for: .power, title: "Power"),
+            accessory: cardControls(for: .power),
             isCompact: widthMode == .narrow
         ) {
             let powerMetrics = PowerMetricsPresentation(snapshot: snapshot.power.snapshot)
@@ -715,12 +826,15 @@ public struct DashboardPanelView: View {
                         MetricBlock(
                             title: "Battery",
                             value: metricValue(snapshot.power.snapshot?.chargePercent.map { $0 * 100 }, formatter: NomadFormatters.percentage, fallback: "Estimating"),
-                            typography: .compact
+                            typography: .compact,
+                            tone: snapshot.healthSummary.power.level.tint
                         )
-                        MetricBlock(title: "Drain", value: powerMetrics.drainValue, typography: .compact)
+                        if let drainValue = powerMetrics.drainValue {
+                            MetricBlock(title: powerMetrics.drainTitle, value: drainValue, typography: .compact)
+                        }
                     }
 
-                    MetricBlock(title: "Time Left", value: powerMetrics.timeLeftValue, typography: .compact)
+                    MetricBlock(title: powerMetrics.timeLeftTitle, value: powerMetrics.timeLeftValue, typography: .compact)
 
                     MiniTrendChart(
                         points: snapshot.power.chargeHistory,
@@ -730,21 +844,26 @@ public struct DashboardPanelView: View {
                         isCompact: true
                     )
 
-                    Text(compactDrainSummary(powerMetrics))
-                        .font(.caption2)
-                        .foregroundStyle(NomadTheme.secondaryText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    if let drainSummary = compactDrainSummary(powerMetrics) {
+                        Text(drainSummary)
+                            .font(.caption2)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
                 }
             } else {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
                         MetricBlock(
                             title: "Battery",
-                            value: metricValue(snapshot.power.snapshot?.chargePercent.map { $0 * 100 }, formatter: NomadFormatters.percentage, fallback: "Estimating")
+                            value: metricValue(snapshot.power.snapshot?.chargePercent.map { $0 * 100 }, formatter: NomadFormatters.percentage, fallback: "Estimating"),
+                            tone: snapshot.healthSummary.power.level.tint
                         )
-                        MetricBlock(title: "Drain", value: powerMetrics.drainValue)
-                        MetricBlock(title: "Time Left", value: powerMetrics.timeLeftValue)
+                        if let drainValue = powerMetrics.drainValue {
+                            MetricBlock(title: powerMetrics.drainTitle, value: drainValue)
+                        }
+                        MetricBlock(title: powerMetrics.timeLeftTitle, value: powerMetrics.timeLeftValue)
                     }
 
                     HStack(spacing: 12) {
@@ -769,10 +888,10 @@ public struct DashboardPanelView: View {
 
     private func travelSection(widthMode: DashboardCardWidthMode) -> some View {
         DashboardCard(
-            title: "Travel Context",
+            title: DashboardCardID.travelContext.displayTitle,
             subtitle: travelSubtitle,
             badge: travelBadge,
-            accessory: cardControls(for: .travelContext, title: "Travel Context"),
+            accessory: cardControls(for: .travelContext),
             isCompact: widthMode == .narrow
         ) {
             VStack(alignment: .leading, spacing: 10) {
@@ -814,10 +933,10 @@ public struct DashboardPanelView: View {
         let quickProjects = timeTrackingQuickActionsPresentation.latestProjects(maxCount: isCompact ? 3 : 4)
 
         return DashboardCard(
-            title: "Time Tracking",
+            title: DashboardCardID.timeTracking.displayTitle,
             subtitle: timeTrackingSubtitle,
             badge: timeTrackingBadge,
-            accessory: cardControls(for: .timeTracking, title: "Time Tracking"),
+            accessory: cardControls(for: .timeTracking),
             isCompact: isCompact
         ) {
             if timeTrackingDashboardState.isEnabled == false {
@@ -938,10 +1057,10 @@ public struct DashboardPanelView: View {
         )
 
         return DashboardCard(
-            title: "Weather",
+            title: DashboardCardID.weather.displayTitle,
             subtitle: presentation.subtitle,
             badge: presentation.badge,
-            accessory: cardControls(for: .weather, title: "Weather"),
+            accessory: cardControls(for: .weather),
             isCompact: widthMode == .narrow
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -1018,7 +1137,7 @@ public struct DashboardPanelView: View {
 
                                     Spacer()
 
-                                    Text(temperatureRangeText(for: tomorrow))
+                                    Text(tomorrow.temperatureRangeText)
                                         .foregroundStyle(NomadTheme.secondaryText)
                                         .multilineTextAlignment(.trailing)
                                 }
@@ -1086,7 +1205,7 @@ public struct DashboardPanelView: View {
             presentation: fuelPricesSectionPresentation,
             widthMode: widthMode,
             viewportHeight: viewportHeight,
-            accessory: cardControls(for: .fuelPrices, title: "Fuel Prices"),
+            accessory: cardControls(for: .fuelPrices),
             openSettingsAction: openSettingsAction,
             previewMapAction: openFuelStationMapPreviewAction,
             openGoogleMapsAction: openFuelStationInGoogleMapsAction
@@ -1097,7 +1216,7 @@ public struct DashboardPanelView: View {
         LocalInfoSectionView(
             presentation: localInfoSectionPresentation,
             widthMode: widthMode,
-            accessory: cardControls(for: .localInfo, title: "Local Info"),
+            accessory: cardControls(for: .localInfo),
             openSettingsAction: openSettingsAction
         )
     }
@@ -1106,7 +1225,7 @@ public struct DashboardPanelView: View {
         EmergencyCareSectionView(
             presentation: emergencyCareSectionPresentation,
             widthMode: widthMode,
-            accessory: cardControls(for: .emergencyCare, title: "Emergency Care"),
+            accessory: cardControls(for: .emergencyCare),
             openSettingsAction: openSettingsAction,
             previewMapAction: openEmergencyHospitalMapPreviewAction,
             openGoogleMapsAction: openEmergencyHospitalInGoogleMapsAction
@@ -1115,10 +1234,10 @@ public struct DashboardPanelView: View {
 
     private func travelAlertsSection(widthMode: DashboardCardWidthMode) -> some View {
         DashboardCard(
-            title: "Travel Alerts",
+            title: DashboardCardID.travelAlerts.displayTitle,
             subtitle: travelAlertsSubtitle,
             badge: travelAlertsBadge,
-            accessory: cardControls(for: .travelAlerts, title: "Travel Alerts"),
+            accessory: cardControls(for: .travelAlerts),
             isCompact: widthMode == .narrow
         ) {
             if travelAlertPreferences.enabledKinds.isEmpty {
@@ -1474,49 +1593,8 @@ public struct DashboardPanelView: View {
         return "Throughput \(download) down · \(upload) up"
     }
 
-    @ViewBuilder
-    private var headerLocationComparison: some View {
-        if headerLocationRows.isEmpty {
-            Text(snapshot.travelContext.location.flatMap(formattedLocation) ?? "Travel-ready system telemetry")
-                .font(.subheadline)
-                .foregroundStyle(NomadTheme.secondaryText)
-                .lineLimit(1)
-                .truncationMode(.tail)
-        } else {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(headerLocationRows) { row in
-                    HeaderLocationComparisonRow(row: row)
-                }
-            }
-        }
-    }
-
-    private var headerLocationRows: [HeaderLocationComparisonPresentation] {
-        [
-            headerLocationComparisonRow(
-                kind: .device,
-                location: snapshot.travelContext.deviceLocation
-            ),
-            headerLocationComparisonRow(
-                kind: .ip,
-                location: snapshot.travelContext.location
-            )
-        ].compactMap(\.self)
-    }
-
-    private func headerLocationComparisonRow(
-        kind: HeaderLocationComparisonPresentation.Kind,
-        location: IPLocationSnapshot?
-    ) -> HeaderLocationComparisonPresentation? {
-        guard let location, let value = formattedLocation(location) else {
-            return nil
-        }
-
-        return HeaderLocationComparisonPresentation(kind: kind, value: value)
-    }
-
-    private func compactDrainSummary(_ metrics: PowerMetricsPresentation) -> String {
-        "Drain status: \(metrics.drainValue)"
+    private func compactDrainSummary(_ metrics: PowerMetricsPresentation) -> String? {
+        metrics.drainValue.map { "\(metrics.drainTitle): \($0)" }
     }
 
     private var timeTrackingHeaderPill: some View {
@@ -1533,17 +1611,22 @@ public struct DashboardPanelView: View {
         )
     }
 
-    private func cardControls(for cardID: DashboardCardID, title: String) -> AnyView {
-        AnyView(
+    /// Width toggle and drag handle, shown only while the layout is being customized.
+    private func cardControls(for cardID: DashboardCardID) -> AnyView? {
+        guard isCustomizingLayout else {
+            return nil
+        }
+
+        return AnyView(
             HStack(spacing: 6) {
                 DashboardCardWidthToggleButton(
                     widthMode: resolvedCardWidthModes[cardID] ?? .wide,
-                    title: title
+                    title: cardID.displayTitle
                 ) {
                     toggleWidthMode(for: cardID)
                 }
 
-                DashboardCardDragHandle(cardID: cardID, title: title)
+                DashboardCardDragHandle(cardID: cardID, title: cardID.displayTitle)
             }
         )
     }
@@ -1576,27 +1659,7 @@ public struct DashboardPanelView: View {
     }
 
     private func formattedLocation(_ location: IPLocationSnapshot) -> String? {
-        let parts = [location.city, location.country]
-            .compactMap { value -> String? in
-                guard let value else {
-                    return nil
-                }
-
-                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-                return trimmed.isEmpty ? nil : trimmed
-            }
-
-        guard parts.isEmpty == false else {
-            return nil
-        }
-
-        return parts.joined(separator: ", ")
-    }
-
-    private func temperatureRangeText(for summary: WeatherDaySummary) -> String {
-        let minimum = summary.temperatureMinCelsius.map { NomadFormatters.celsius($0) } ?? "Estimating"
-        let maximum = summary.temperatureMaxCelsius.map { NomadFormatters.celsius($0) } ?? "Estimating"
-        return "\(minimum) / \(maximum)"
+        location.cityCountryDescription
     }
 
     private func powerSubtitle(_ snapshot: PowerSnapshot) -> String {
@@ -1632,7 +1695,8 @@ public struct DashboardPanelView: View {
             activeProjects: timeTrackingDashboardState.activeProjects,
             recentProjects: timeTrackingDashboardState.recentProjects,
             pendingDurationText: formattedTrackingDuration(timeTrackingDashboardState.todaySummary.unallocatedDuration),
-            activityState: timeTrackingDashboardState.activityState
+            activityState: timeTrackingDashboardState.activityState,
+            openTitle: "Open Time Tracking"
         )
     }
 
@@ -1840,30 +1904,52 @@ private struct TimeTrackingDashboardActionButtonModifier: ViewModifier {
     }
 }
 
-struct PowerMetricsPresentation {
-    let drainValue: String
+struct PowerMetricsPresentation: Equatable {
+    /// Title of the second metric: "Drain" on battery, "Adapter" on external power.
+    let drainTitle: String
+    /// Discharge rate, or adapter wattage on external power. `nil` when there is nothing
+    /// useful to show (the metric is omitted instead of repeating the card subtitle).
+    let drainValue: String?
+    let timeLeftTitle: String
     let timeLeftValue: String
+    /// One-line summary for compact surfaces such as the glance power tile.
+    let summary: String
 
     init(snapshot: PowerSnapshot?) {
         guard let snapshot else {
+            drainTitle = "Drain"
             drainValue = "Estimating"
+            timeLeftTitle = "Time Left"
             timeLeftValue = "Estimating"
+            summary = "Estimating"
             return
         }
 
         switch snapshot.state {
         case .charging:
-            drainValue = "Charging"
-            timeLeftValue = snapshot.timeToFullChargeMinutes.map { NomadFormatters.minutes($0) } ?? "Plugged in"
+            drainTitle = "Adapter"
+            drainValue = snapshot.adapterWatts.map { NomadFormatters.watts($0) }
+            timeLeftTitle = "To Full"
+            timeLeftValue = snapshot.timeToFullChargeMinutes.map { NomadFormatters.minutes($0) } ?? "Estimating"
+            summary = snapshot.timeToFullChargeMinutes.map { "Charging · \(NomadFormatters.minutes($0)) to full" } ?? "Charging"
         case .charged:
-            drainValue = "Plugged in"
-            timeLeftValue = "Plugged in"
+            drainTitle = "Adapter"
+            drainValue = snapshot.adapterWatts.map { NomadFormatters.watts($0) }
+            timeLeftTitle = "Charge"
+            timeLeftValue = "Full"
+            summary = "Plugged in"
         case .battery:
+            drainTitle = "Drain"
             drainValue = snapshot.dischargeRateWatts.map { NomadFormatters.watts($0) } ?? "On battery"
+            timeLeftTitle = "Time Left"
             timeLeftValue = snapshot.timeRemainingMinutes.map { NomadFormatters.minutes($0) } ?? "Estimating"
+            summary = snapshot.timeRemainingMinutes.map { "\(NomadFormatters.minutes($0)) left" } ?? "On battery"
         case .unknown:
+            drainTitle = "Drain"
             drainValue = "Estimating"
+            timeLeftTitle = "Time Left"
             timeLeftValue = "Estimating"
+            summary = "Estimating"
         }
     }
 }
@@ -1914,8 +2000,9 @@ private struct DashboardCard<Content: View>: View {
                         Text(subtitle)
                             .font(isCompact ? .caption2 : .caption)
                             .foregroundStyle(NomadTheme.secondaryText)
-                            .lineLimit(1)
+                            .lineLimit(isCompact ? 2 : 1)
                             .minimumScaleFactor(0.8)
+                            .fixedSize(horizontal: false, vertical: isCompact)
 
                         if let subtitleAccessory {
                             subtitleAccessory
@@ -2493,69 +2580,6 @@ private struct SummaryTile: View {
     }
 }
 
-private struct HeaderLocationComparisonPresentation: Identifiable {
-    enum Kind: String {
-        case device
-        case ip
-
-        var label: String {
-            switch self {
-            case .device:
-                "Device"
-            case .ip:
-                "IP"
-            }
-        }
-
-        var symbolName: String {
-            switch self {
-            case .device:
-                "location.fill"
-            case .ip:
-                "globe"
-            }
-        }
-
-        var tint: Color {
-            switch self {
-            case .device:
-                NomadTheme.teal
-            case .ip:
-                NomadTheme.sand
-            }
-        }
-    }
-
-    let kind: Kind
-    let value: String
-
-    var id: Kind {
-        kind
-    }
-}
-
-private struct HeaderLocationComparisonRow: View {
-    let row: HeaderLocationComparisonPresentation
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: row.kind.symbolName)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(row.kind.tint)
-
-            (
-                Text("\(row.kind.label) ")
-                    .fontWeight(.semibold)
-                    + Text(row.value)
-            )
-            .font(.caption)
-            .foregroundStyle(NomadTheme.secondaryText)
-            .lineLimit(1)
-            .truncationMode(.tail)
-        }
-    }
-}
-
 private struct MetricBlock: View {
     enum Typography {
         case standard
@@ -2602,6 +2626,9 @@ private struct MetricBlock: View {
     let value: String
     var secondaryValue: String?
     var typography: Typography = .standard
+    /// Value color. Defaults to primary text; pass a status tint only when the value
+    /// carries a good/caution/bad meaning (battery level, latency, data cap).
+    var tone: Color = NomadTheme.primaryText
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -2611,7 +2638,7 @@ private struct MetricBlock: View {
 
             Text(value)
                 .font(typography.font)
-                .foregroundStyle(metricTint)
+                .foregroundStyle(tone)
                 .lineLimit(typography.lineLimit)
                 .minimumScaleFactor(typography.minimumScaleFactor)
 
@@ -2624,17 +2651,6 @@ private struct MetricBlock: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var metricTint: Color {
-        switch title {
-        case "Down", "Time Left", "Current", "Wave":
-            NomadTheme.teal
-        case "Up", "Battery", "Feels Like", "Swell":
-            NomadTheme.sand
-        default:
-            NomadTheme.coral
-        }
     }
 }
 
@@ -3219,14 +3235,14 @@ func fuelBackdropAnimationState(
 private struct EmergencyCareSectionView: View {
     let presentation: EmergencyCareSectionPresentation
     let widthMode: DashboardCardWidthMode
-    let accessory: AnyView
+    let accessory: AnyView?
     let openSettingsAction: () -> Void
     let previewMapAction: (EmergencyHospitalMapDestination) -> Void
     let openGoogleMapsAction: (EmergencyHospitalMapDestination) -> Void
 
     var body: some View {
         DashboardCard(
-            title: "Emergency Care",
+            title: DashboardCardID.emergencyCare.displayTitle,
             subtitle: presentation.subtitle,
             badge: presentation.badge,
             accessory: accessory,
@@ -3259,12 +3275,12 @@ private struct EmergencyCareSectionView: View {
 private struct LocalInfoSectionView: View {
     let presentation: LocalInfoSectionPresentation
     let widthMode: DashboardCardWidthMode
-    let accessory: AnyView
+    let accessory: AnyView?
     let openSettingsAction: () -> Void
 
     var body: some View {
         DashboardCard(
-            title: "Local Info",
+            title: DashboardCardID.localInfo.displayTitle,
             subtitle: presentation.subtitle,
             badge: presentation.badge,
             accessory: accessory,
@@ -3339,7 +3355,7 @@ private struct FuelPricesSectionView: View {
     let presentation: FuelPricesSectionPresentation
     let widthMode: DashboardCardWidthMode
     let viewportHeight: CGFloat
-    let accessory: AnyView
+    let accessory: AnyView?
     let openSettingsAction: () -> Void
     let previewMapAction: (FuelStationMapDestination) -> Void
     let openGoogleMapsAction: (FuelStationMapDestination) -> Void
@@ -3357,7 +3373,7 @@ private struct FuelPricesSectionView: View {
         )
 
         DashboardCard(
-            title: "Fuel Prices",
+            title: DashboardCardID.fuelPrices.displayTitle,
             subtitle: presentation.subtitle,
             badge: presentation.badge,
             accessory: accessory,
@@ -3561,14 +3577,14 @@ private struct FuelAtmosphereLayer: View {
             ForEach(0..<3, id: \.self) { index in
                 let drift = visualMode == .staticScene ? 0 : sin(phase / (6.5 + Double(index)))
                 let xFractions: [CGFloat] = [0.18, 0.5, 0.82]
+                let capsuleWidth: CGFloat = max(22, metrics.width * (0.11 - CGFloat(index) * 0.018))
+                let offsetX: CGFloat = metrics.width * (xFractions[index] - 0.5) + CGFloat(drift) * metrics.width * 0.04
+                let offsetY: CGFloat = -metrics.height * 0.15 + CGFloat(index) * 10
                 Capsule(style: .continuous)
                     .fill(index == 1 ? NomadTheme.teal.opacity(0.06) : NomadTheme.fuelGlow.opacity(0.05))
-                    .frame(width: max(22, metrics.width * (0.11 - CGFloat(index) * 0.018)), height: 7)
+                    .frame(width: capsuleWidth, height: 7)
                     .rotationEffect(.degrees(Double(index * 6) - 7))
-                    .offset(
-                        x: metrics.width * (xFractions[index] - 0.5) + CGFloat(drift) * metrics.width * 0.04,
-                        y: -metrics.height * 0.15 + CGFloat(index) * 10
-                    )
+                    .offset(x: offsetX, y: offsetY)
                     .blur(radius: 1.2)
             }
         }
@@ -5453,7 +5469,7 @@ private func renderablePoints(_ points: [MetricPoint]) -> [MetricPoint]? {
     return points
 }
 
-private extension HealthLevel {
+extension HealthLevel {
     var tint: Color {
         switch self {
         case .ready:

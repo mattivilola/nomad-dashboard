@@ -40,39 +40,81 @@ struct NomadUITests {
     }
 
     @Test
-    func powerMetricsPresentationShowsChargingTimeToFull() {
+    func powerMetricsPresentationShowsChargingTimeToFullAndOmitsUnknownAdapter() {
         let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
             state: .charging,
             timeRemainingMinutes: nil,
             timeToFullChargeMinutes: 13
         ))
 
-        #expect(presentation.drainValue == "Charging")
+        #expect(presentation.drainValue == nil)
+        #expect(presentation.timeLeftTitle == "To Full")
         #expect(presentation.timeLeftValue == "13m")
+        #expect(presentation.summary == "Charging · 13m to full")
     }
 
     @Test
-    func powerMetricsPresentationFallsBackToPluggedInWhileChargingWithoutEstimate() {
+    func powerMetricsPresentationShowsAdapterWattageWhileCharging() {
+        let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
+            state: .charging,
+            timeRemainingMinutes: nil,
+            timeToFullChargeMinutes: 40,
+            adapterWatts: 96
+        ))
+
+        #expect(presentation.drainTitle == "Adapter")
+        #expect(presentation.drainValue == "96.0 W")
+    }
+
+    @Test
+    func powerMetricsPresentationEstimatesChargingWithoutTimeToFullInsteadOfRepeatingTheSubtitle() {
         let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
             state: .charging,
             timeRemainingMinutes: nil,
             timeToFullChargeMinutes: nil
         ))
 
-        #expect(presentation.drainValue == "Charging")
-        #expect(presentation.timeLeftValue == "Plugged in")
+        #expect(presentation.drainValue == nil)
+        #expect(presentation.timeLeftValue == "Estimating")
+        #expect(presentation.summary == "Charging")
     }
 
     @Test
-    func powerMetricsPresentationShowsPluggedInWhenCharged() {
+    func powerMetricsPresentationShowsFullWhenCharged() {
+        let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
+            state: .charged,
+            timeRemainingMinutes: nil,
+            timeToFullChargeMinutes: nil,
+            adapterWatts: 67
+        ))
+
+        #expect(presentation.drainTitle == "Adapter")
+        #expect(presentation.drainValue == "67.0 W")
+        #expect(presentation.timeLeftValue == "Full")
+        #expect(presentation.summary == "Plugged in")
+    }
+
+    @Test
+    func powerMetricsPresentationOmitsAdapterWhenChargedWithoutWattage() {
         let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
             state: .charged,
             timeRemainingMinutes: nil,
             timeToFullChargeMinutes: nil
         ))
 
-        #expect(presentation.drainValue == "Plugged in")
-        #expect(presentation.timeLeftValue == "Plugged in")
+        #expect(presentation.drainValue == nil)
+        #expect(presentation.timeLeftValue == "Full")
+    }
+
+    @Test
+    func powerMetricsPresentationSummarisesBatteryTimeLeft() {
+        let presentation = PowerMetricsPresentation(snapshot: makePowerSnapshot(
+            state: .battery,
+            timeRemainingMinutes: 150,
+            timeToFullChargeMinutes: nil
+        ))
+
+        #expect(presentation.summary == "2h 30m left")
     }
 
     @Test
@@ -295,31 +337,6 @@ struct NomadUITests {
     }
 
     @Test
-    func timeTrackingQuickActionsPresentationBuildsHeaderCompactConfigurations() {
-        let recentProjects = [
-            TimeTrackingProject(name: "Alpha"),
-            TimeTrackingProject(name: "Bravo"),
-            TimeTrackingProject(name: "Charlie")
-        ]
-        let presentation = TimeTrackingQuickActionsPresentation(
-            activeProjects: recentProjects,
-            recentProjects: recentProjects,
-            pendingDurationText: "14m",
-            activityState: .running
-        )
-
-        let configurations = presentation.headerCompactConfigurations(maxProjectCount: 2)
-        #expect(configurations.map { $0.chips.map(\.title) } == [
-            ["Alpha", "Bravo", "Other"],
-            ["Alpha", "Bravo"],
-            ["Alpha", "Other"],
-            ["Alpha"],
-            ["Other"],
-            []
-        ])
-    }
-
-    @Test
     func timeTrackingQuickActionsPresentationMapsVisibleHeaderControlsByState() {
         let running = TimeTrackingQuickActionsPresentation(
             activeProjects: [],
@@ -391,149 +408,6 @@ struct NomadUITests {
         )
 
         #expect(presentation.recommendedProjects(maxCount: 3).map(\.trimmedName) == ["Bravo", "Charlie", "Alpha"])
-    }
-
-    @Test
-    func timeTrackingQuickActionsPresentationBuildsTwoProjectHeaderVariantsWithoutRecents() {
-        let alpha = TimeTrackingProject(name: "Alpha")
-        let bravo = TimeTrackingProject(name: "Bravo")
-        let charlie = TimeTrackingProject(name: "Charlie")
-        let presentation = TimeTrackingQuickActionsPresentation(
-            activeProjects: [alpha, bravo, charlie],
-            recentProjects: [],
-            pendingDurationText: "1h 10m",
-            activityState: .paused
-        )
-
-        let configurations = presentation.headerCompactConfigurations(maxProjectCount: 2)
-        #expect(configurations.first?.chips.map(\.title) == ["Charlie", "Bravo", "Other"])
-        #expect(configurations.dropFirst().first?.chips.map(\.title) == ["Charlie", "Bravo"])
-    }
-
-    @Test
-    func timeTrackingQuickActionsPresentationCompactsHeaderChipTitlesToSevenVisibleCharacters() {
-        #expect(TimeTrackingQuickActionsPresentation.headerCompactChipTitle("DesignOps", visibleCharacterCount: 7) == "DesignO…")
-        #expect(TimeTrackingQuickActionsPresentation.headerCompactChipTitle("Short", visibleCharacterCount: 7) == "Short")
-    }
-
-    @Test
-    func timeTrackingQuickActionsPresentationKeepsThreeProjectVariantsAheadOfTwoProjectFallbacks() {
-        let alpha = TimeTrackingProject(name: "Alpha")
-        let bravo = TimeTrackingProject(name: "Bravo")
-        let charlie = TimeTrackingProject(name: "Charlie")
-        let delta = TimeTrackingProject(name: "Delta")
-        let presentation = TimeTrackingQuickActionsPresentation(
-            activeProjects: [alpha, bravo, charlie, delta],
-            recentProjects: [delta, charlie, bravo],
-            pendingDurationText: "1h 10m",
-            activityState: .running
-        )
-
-        let configurations = presentation.headerCompactConfigurations(maxProjectCount: 3)
-        #expect(configurations.map { $0.chips.map(\.title) } == [
-            ["Delta", "Charlie", "Bravo", "Other"],
-            ["Delta", "Charlie", "Bravo"],
-            ["Delta", "Charlie", "Other"],
-            ["Delta", "Charlie"],
-            ["Delta", "Other"],
-            ["Delta"],
-            ["Other"],
-            []
-        ])
-    }
-
-    @Test
-    func timeTrackingQuickActionsPresentationKeepsCompactThreeProjectVariantsAheadOfTwoProjectVariants() throws {
-        let alpha = TimeTrackingProject(name: "Alpha")
-        let bravo = TimeTrackingProject(name: "Bravo")
-        let charlie = TimeTrackingProject(name: "Charlie")
-        let delta = TimeTrackingProject(name: "Delta")
-        let presentation = TimeTrackingQuickActionsPresentation(
-            activeProjects: [alpha, bravo, charlie, delta],
-            recentProjects: [delta, charlie, bravo],
-            pendingDurationText: "1h 10m",
-            activityState: .paused
-        )
-
-        let variants = presentation.headerLayoutVariants(maxProjectCount: 3)
-        let threeProjectCompactIndex = variants.firstIndex {
-            $0.configuration.chips.map(\.title) == ["Delta", "Charlie", "Bravo"] &&
-                $0.chromeDensity == .compact
-        }
-        let twoProjectFullIndex = variants.firstIndex {
-            $0.configuration.chips.map(\.title) == ["Delta", "Charlie", "Other"] &&
-                $0.pendingLabelStyle == .full
-        }
-
-        #expect(threeProjectCompactIndex != nil)
-        #expect(twoProjectFullIndex != nil)
-        #expect(try #require(threeProjectCompactIndex) < twoProjectFullIndex!)
-    }
-
-    @Test
-    func timeTrackingHeaderRowLayoutKeepsThreeProjectCompactVariantWhenItFitsAvailableWidth() {
-        let alpha = TimeTrackingProject(name: "Alpha")
-        let bravo = TimeTrackingProject(name: "Bravo")
-        let charlie = TimeTrackingProject(name: "Charlie")
-        let delta = TimeTrackingProject(name: "Delta")
-        let presentation = TimeTrackingQuickActionsPresentation(
-            activeProjects: [alpha, bravo, charlie, delta],
-            recentProjects: [delta, charlie, bravo],
-            pendingDurationText: "1h 10m",
-            activityState: .paused
-        )
-        let variants = presentation.headerLayoutVariants(maxProjectCount: 3)
-        let rowLayout = TimeTrackingHeaderRowLayout(
-            pendingDurationText: presentation.pendingDurationText,
-            visibleControlsCount: presentation.visibleHeaderControls.count
-        )
-        let availableWidth = 330.0
-
-        let resolvedVariant = rowLayout.fittingVariant(for: availableWidth, variants: variants)
-        let resolvedProjectTitles = resolvedVariant?.configuration.chips.compactMap { chip -> String? in
-            if case .project = chip.bucket {
-                return chip.title
-            }
-
-            return nil
-        }
-
-        #expect(resolvedVariant?.chromeDensity == .compact)
-        #expect(resolvedProjectTitles == ["Delta", "Charlie", "Bravo"])
-    }
-
-    @Test
-    func timeTrackingHeaderRowLayoutDistributesChipWidthsAcrossAvailableLane() throws {
-        let alpha = TimeTrackingProject(name: "Alpha")
-        let bravo = TimeTrackingProject(name: "Bravo")
-        let charlie = TimeTrackingProject(name: "Charlie")
-        let delta = TimeTrackingProject(name: "Delta")
-        let presentation = TimeTrackingQuickActionsPresentation(
-            activeProjects: [alpha, bravo, charlie, delta],
-            recentProjects: [delta, charlie, bravo],
-            pendingDurationText: "1h 10m",
-            activityState: .running
-        )
-        let variant = try #require(
-            presentation.headerLayoutVariants(maxProjectCount: 3).first {
-                $0.configuration.chips.map(\.title) == ["Delta", "Charlie", "Bravo"] &&
-                    $0.pendingLabelStyle == .durationOnly &&
-                    $0.chromeDensity == .regular
-            }
-        )
-        let rowLayout = TimeTrackingHeaderRowLayout(
-            pendingDurationText: presentation.pendingDurationText,
-            visibleControlsCount: presentation.visibleHeaderControls.count
-        )
-        let availableWidth = 360.0
-
-        let chipLaneWidth = rowLayout.chipLaneWidth(for: variant, availableWidth: availableWidth)
-        let chipWidths = rowLayout.chipWidths(for: variant, availableWidth: availableWidth)
-        let occupiedChipLaneWidth = chipWidths.reduce(0, +) + variant.chipSpacing * CGFloat(max(chipWidths.count - 1, 0))
-
-        #expect(chipWidths.count == 3)
-        #expect(abs(occupiedChipLaneWidth - chipLaneWidth) < 0.5)
-        #expect(chipWidths.allSatisfy { $0 > 42 })
     }
 
     @Test
@@ -1751,7 +1625,8 @@ private func makePowerSnapshot(
     state: PowerSourceState,
     timeRemainingMinutes: Int?,
     timeToFullChargeMinutes: Int?,
-    dischargeRateWatts: Double? = 11.2
+    dischargeRateWatts: Double? = 11.2,
+    adapterWatts: Double? = nil
 ) -> PowerSnapshot {
     PowerSnapshot(
         chargePercent: 0.72,
@@ -1760,7 +1635,7 @@ private func makePowerSnapshot(
         timeToFullChargeMinutes: timeToFullChargeMinutes,
         isLowPowerModeEnabled: false,
         dischargeRateWatts: dischargeRateWatts,
-        adapterWatts: nil,
+        adapterWatts: adapterWatts,
         collectedAt: .now
     )
 }

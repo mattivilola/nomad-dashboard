@@ -1,24 +1,28 @@
 import NomadCore
 import SwiftUI
 
-/// The first glance stays small: a decision, essential local signals, and two useful clocks.
+/// The first glance: a verdict, two clocks, four vital tiles and at most three heads-up items.
 public struct NomadWorkReadinessView: View {
     let snapshot: DashboardSnapshot
     let policy: DashboardResourcePolicy
     let homeTimeZoneIdentifier: String
     let dataUsageMode: DataUsageMode
-    let changeDataUsage: (DataUsageMode) -> Void
+    let weatherAvailabilityExplanation: String?
+    let changeDataUsage: @Sendable (DataUsageMode) -> Void
     let openDiary: () -> Void
     let openPreferences: () -> Void
     let openOfflineEssentials: () -> Void
     let openExploreCities: () -> Void
+
+    @Environment(\.dashboardScrollToCard) private var scrollToCard
 
     public init(
         snapshot: DashboardSnapshot,
         policy: DashboardResourcePolicy,
         homeTimeZoneIdentifier: String,
         dataUsageMode: DataUsageMode,
-        changeDataUsage: @escaping (DataUsageMode) -> Void,
+        weatherAvailabilityExplanation: String? = nil,
+        changeDataUsage: @escaping @Sendable (DataUsageMode) -> Void,
         openDiary: @escaping () -> Void,
         openPreferences: @escaping () -> Void,
         openOfflineEssentials: @escaping () -> Void,
@@ -28,6 +32,7 @@ public struct NomadWorkReadinessView: View {
         self.policy = policy
         self.homeTimeZoneIdentifier = homeTimeZoneIdentifier
         self.dataUsageMode = dataUsageMode
+        self.weatherAvailabilityExplanation = weatherAvailabilityExplanation
         self.changeDataUsage = changeDataUsage
         self.openDiary = openDiary
         self.openPreferences = openPreferences
@@ -36,140 +41,362 @@ public struct NomadWorkReadinessView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: statusSymbol)
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(isOffline ? NomadTheme.sand : NomadTheme.teal)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(statusTitle).font(.headline)
-                    Text(statusDetail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-                Menu {
-                    Picker("Data usage", selection: Binding(get: { dataUsageMode }, set: changeDataUsage)) {
-                        ForEach(DataUsageMode.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                } label: {
-                    Label(policy.isLowData ? "Low Data" : dataUsageMode == .standard ? "Normal" : "Auto", systemImage: policy.isLowData ? "leaf" : "network")
-                        .font(.caption.weight(.medium))
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
-                .help(policy.reason ?? "Choose how Nomad uses your connection")
-                .accessibilityLabel("Data usage: \(dataUsageMode.title)")
-            }
-
-            HStack(spacing: 14) {
-                Label(latencyText, systemImage: "waveform.path.ecg")
-                Label(vpnText, systemImage: snapshot.travelContext.vpn?.isActive == true ? "lock.shield" : "shield")
-                if let charge = snapshot.power.snapshot?.chargePercent {
-                    Label("\(Int((charge * 100).rounded()))%", systemImage: snapshot.power.snapshot?.state == .charging ? "battery.100percent.bolt" : "battery.75percent")
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .accessibilityElement(children: .combine)
-
-            Divider()
-            TimelineView(.periodic(from: .now, by: 60)) { timeline in
-                let zones = NomadLifeTimeZonePresentation(
-                    homeTimeZoneIdentifier: homeTimeZoneIdentifier,
-                    currentTimeZoneIdentifier: snapshot.travelContext.timeZoneIdentifier,
-                    date: timeline.date
-                )
-                HStack(alignment: .top) {
-                    clock(title: "Here", identifier: snapshot.travelContext.timeZoneIdentifier, date: timeline.date)
-                    Spacer()
-                    clock(title: "Home", identifier: homeTimeZoneIdentifier, date: timeline.date)
-                    Button(action: openPreferences) { Image(systemName: "slider.horizontal.3") }
-                        .buttonStyle(.plain).foregroundStyle(.secondary)
-                        .help("Set your home time zone").accessibilityLabel("Set home time zone")
-                }
-                if !zones.relativeDayDescription.isEmpty {
-                    Text(zones.relativeDayDescription).font(.caption2).foregroundStyle(.secondary)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 14) {
-                    Button(action: openDiary) { Label("Workplaces", systemImage: "mappin.and.ellipse") }
-                    Button(action: openOfflineEssentials) { Label(isOffline ? "Offline essentials" : "Saved essentials", systemImage: "tray.and.arrow.down") }
-                    Spacer(minLength: 0)
-                }
-                Button(action: openExploreCities) { Label("Explore cities", systemImage: "globe.europe.africa") }
-            }
-            .buttonStyle(.plain).font(.caption.weight(.medium)).foregroundStyle(NomadTheme.teal)
+        VStack(alignment: .leading, spacing: 10) {
+            verdictRow
+            clocksLine
+            vitalTiles
+            headsUpList
+            linksRow
         }
-        .padding(14)
+        .padding(12)
         .background(NomadTheme.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(NomadTheme.teal.opacity(0.16)))
     }
 
     private var isOffline: Bool {
-        policy.isOffline || snapshot.network.connectivity.internetState == .offline
+        GlanceVerdictPresentation.isOffline(snapshot: snapshot, policy: policy)
     }
 
-    private var statusTitle: String {
-        if isOffline {
-            return "You're offline"
-        }
-        if snapshot.network.connectivity.internetState == .checking {
-            return "Checking your connection"
-        }
-        if let latency = snapshot.network.latency,
-           Date().timeIntervalSince(latency.collectedAt) < 180,
-           latency.milliseconds > 250
-        {
-            return "Connected, with some delay"
-        }
-        if let battery = snapshot.power.snapshot, battery.state == .battery, (battery.chargePercent ?? 1) < 0.15 {
-            return "Connected — battery is low"
-        }
-        return "Connected and ready"
-    }
+    // MARK: Verdict
 
-    private var statusSymbol: String {
-        if isOffline {
-            return "wifi.slash"
-        }
-        return snapshot.network.connectivity.internetState == .checking ? "network" : "checkmark.circle"
-    }
+    private var verdictRow: some View {
+        let verdict = GlanceVerdictPresentation(snapshot: snapshot, isOffline: isOffline)
+        let tint = verdict.level.tint
 
-    private var statusDetail: String {
-        if isOffline {
-            return "Your saved travel information and local tools are still available."
-        }
-        if let reason = policy.reason {
-            return reason
-        }
-        return "Your connection is responding. Check latency and power before settling in."
-    }
+        return HStack(alignment: .center, spacing: 10) {
+            Image(systemName: verdict.symbolName)
+                .font(.title3.weight(.medium))
+                .foregroundStyle(tint)
+                .frame(width: 24)
+                .accessibilityHidden(true)
 
-    private var latencyText: String {
-        guard !isOffline, let latency = snapshot.network.latency,
-              Date().timeIntervalSince(latency.collectedAt) < 180 else { return "Latency pending" }
-        return "\(Int(latency.milliseconds.rounded())) ms latency"
-    }
-
-    private var vpnText: String {
-        guard let vpn = snapshot.travelContext.vpn else { return "VPN checking" }
-        return vpn.isActive ? "VPN on" : "VPN off"
-    }
-
-    private func clock(title: String, identifier: String, date: Date) -> some View {
-        let zone = TimeZone(identifier: identifier) ?? .current
-        return VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 5) {
-                Text(title).font(.caption.weight(.medium))
-                Text(identifier.split(separator: "/").last.map(String.init)?.replacingOccurrences(of: "_", with: " ") ?? identifier)
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verdict.title)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(NomadTheme.primaryText)
+                    .lineLimit(1)
+                Text(verdict.detail)
+                    .font(.caption)
+                    .foregroundStyle(NomadTheme.secondaryText)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Text(date.formatted(Date.FormatStyle(date: .omitted, time: .shortened, timeZone: zone)))
-                .font(.system(.title3, design: .rounded).weight(.semibold)).monospacedDigit()
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            dataUsageMenu
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(tint.opacity(0.12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(tint.opacity(0.22))
+                )
+        )
+        .accessibilityElement(children: .contain)
+    }
+
+    private var dataUsageMenu: some View {
+        Menu {
+            Picker("Data usage", selection: Binding(get: { dataUsageMode }, set: changeDataUsage)) {
+                ForEach(DataUsageMode.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+        } label: {
+            Label(policy.isLowData ? "Low Data" : dataUsageMode == .standard ? "Normal" : "Auto", systemImage: policy.isLowData ? "leaf" : "network")
+                .font(.caption.weight(.medium))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(policy.reason ?? "Choose how Nomad uses your connection")
+        .accessibilityLabel("Data usage: \(dataUsageMode.title)")
+    }
+
+    // MARK: Clocks
+
+    private var clocksLine: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { timeline in
+            let zones = NomadLifeTimeZonePresentation(
+                homeTimeZoneIdentifier: homeTimeZoneIdentifier,
+                currentTimeZoneIdentifier: snapshot.travelContext.timeZoneIdentifier,
+                date: timeline.date
+            )
+            let here = clockText(
+                label: "Here",
+                city: GlanceClockPresentation.hereCity(
+                    deviceLocation: snapshot.travelContext.deviceLocation,
+                    timeZoneIdentifier: snapshot.travelContext.timeZoneIdentifier
+                ),
+                identifier: snapshot.travelContext.timeZoneIdentifier,
+                date: timeline.date
+            )
+            let home = clockText(
+                label: "Home",
+                city: GlanceClockPresentation.cityName(forTimeZoneIdentifier: homeTimeZoneIdentifier),
+                identifier: homeTimeZoneIdentifier,
+                date: timeline.date
+            )
+            let relativeDay = Text(zones.relativeDayDescription)
+                .font(.caption2)
+                .foregroundStyle(NomadTheme.secondaryText)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    here.fixedSize()
+                    separator
+                    home.fixedSize()
+                    Spacer(minLength: 0)
+                    relativeDay.fixedSize()
+                    preferencesButton
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        here.fixedSize()
+                        separator
+                        home.fixedSize()
+                        Spacer(minLength: 0)
+                        preferencesButton
+                    }
+                    relativeDay
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        here.lineLimit(1)
+                        Spacer(minLength: 0)
+                        preferencesButton
+                    }
+                    home.lineLimit(1)
+                    relativeDay
+                }
+            }
+        }
+    }
+
+    private var separator: some View {
+        Text("·")
+            .font(.caption)
+            .foregroundStyle(NomadTheme.tertiaryText)
+    }
+
+    private var preferencesButton: some View {
+        Button(action: openPreferences) { Image(systemName: "slider.horizontal.3") }
+            .buttonStyle(.plain)
+            .foregroundStyle(NomadTheme.secondaryText)
+            .help("Set your home time zone")
+            .accessibilityLabel("Set home time zone")
+    }
+
+    private func clockText(label: String, city: String, identifier: String, date: Date) -> Text {
+        let zone = TimeZone(identifier: identifier) ?? .current
+        let time = date.formatted(Date.FormatStyle(date: .omitted, time: .shortened, timeZone: zone))
+        let labelText = Text(label).fontWeight(.semibold).foregroundStyle(NomadTheme.primaryText)
+        let cityText = Text(city).foregroundStyle(NomadTheme.secondaryText)
+        let timeText = Text(time).fontWeight(.semibold).monospacedDigit().foregroundStyle(NomadTheme.primaryText)
+
+        return Text("\(labelText) \(cityText) \(timeText)").font(.caption)
+    }
+
+    // MARK: Vital tiles
+
+    private var vitalTiles: some View {
+        let tiles = GlanceVitalTilePresentation.tiles(
+            snapshot: snapshot,
+            isOffline: isOffline,
+            weatherAvailabilityExplanation: weatherAvailabilityExplanation
+        )
+
+        return LazyVGrid(
+            columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible())],
+            spacing: 10
+        ) {
+            ForEach(tiles) { tile in
+                GlanceVitalTile(tile: tile) {
+                    scrollToCard(tile.scrollTarget)
+                }
+            }
+        }
+    }
+
+    // MARK: Heads-up
+
+    private var headsUpList: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { timeline in
+            let rows = DashboardInsightEngine.insights(for: snapshot, now: timeline.date)
+                .map(GlanceHeadsUpRowPresentation.init(insight:))
+
+            if rows.isEmpty == false {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Heads-up")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NomadTheme.tertiaryText)
+
+                    VStack(spacing: 0) {
+                        ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                            if index > 0 {
+                                Divider().overlay(NomadTheme.cardBorder)
+                            }
+                            headsUpRow(row)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func headsUpRow(_ row: GlanceHeadsUpRowPresentation) -> some View {
+        Button {
+            scrollToCard(row.relatedCard)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: row.symbolName)
+                    .font(.system(size: 15))
+                    .foregroundStyle(row.level.tint)
+                    .frame(width: 20)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(row.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(NomadTheme.primaryText)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    if let detail = row.detail {
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(NomadTheme.secondaryText)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+
+                Spacer(minLength: 6)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(NomadTheme.tertiaryText)
+            }
+            .padding(.vertical, 6)
+            .frame(minHeight: 38)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(row.accessibilityHint)
+    }
+
+    // MARK: Links
+
+    private var linksRow: some View {
+        let workplaces = Button(action: openDiary) { Label("Workplaces", systemImage: "mappin.and.ellipse") }
+        let essentials = Button(action: openOfflineEssentials) {
+            Label(isOffline ? "Offline essentials" : "Saved essentials", systemImage: "tray.and.arrow.down")
+        }
+        let explore = Button(action: openExploreCities) { Label("Explore cities", systemImage: "globe.europe.africa") }
+
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 14) {
+                workplaces
+                essentials
+                explore
+                Spacer(minLength: 0)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 14) {
+                    workplaces
+                    essentials
+                    Spacer(minLength: 0)
+                }
+                explore
+            }
+        }
+        .buttonStyle(.plain)
+        .font(.caption.weight(.medium))
+        .foregroundStyle(NomadTheme.teal)
+        .lineLimit(1)
+    }
+}
+
+private struct GlanceVitalTile: View {
+    let tile: GlanceVitalTilePresentation
+    let action: () -> Void
+
+    var body: some View {
+        let tint = tile.level?.tint ?? NomadTheme.primaryText
+        let border = tile.level.map { $0.tint.opacity(0.18) } ?? NomadTheme.cardBorder
+
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Image(systemName: tile.symbolName)
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(tile.title)
+                        .fixedSize()
+                    if let titleDetail = tile.titleDetail {
+                        Text("· \(titleDetail)")
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(NomadTheme.tertiaryText)
+
+                HStack(spacing: 5) {
+                    Text(tile.value)
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundStyle(tint)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+
+                    if let valueSymbolName = tile.valueSymbolName {
+                        Image(systemName: valueSymbolName)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(NomadTheme.secondaryText)
+                    }
+                }
+
+                if let progress = tile.progress {
+                    Capsule()
+                        .fill(tint.opacity(0.18))
+                        .frame(height: 3)
+                        .overlay(alignment: .leading) {
+                            GeometryReader { geometry in
+                                Capsule()
+                                    .fill(tint)
+                                    .frame(width: geometry.size.width * progress)
+                            }
+                        }
+                        .padding(.vertical, 1)
+                }
+
+                Text(tile.secondary)
+                    .font(.caption2)
+                    .foregroundStyle(NomadTheme.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .topLeading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(NomadTheme.tileBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(border, lineWidth: 1)
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help("Show \(tile.scrollTarget.displayTitle)")
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(tile.accessibilityLabel)
+        .accessibilityHint("Shows the \(tile.scrollTarget.displayTitle) card")
     }
 }
 

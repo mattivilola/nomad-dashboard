@@ -36,6 +36,7 @@ struct DashboardRootView: View {
                     policy: snapshotStore.resourcePolicy,
                     homeTimeZoneIdentifier: lifeController.preferences.homeTimeZoneIdentifier,
                     dataUsageMode: settingsStore.settings.dataUsageMode,
+                    weatherAvailabilityExplanation: AppRuntimeInfo.weatherAvailabilityExplanation,
                     changeDataUsage: { settingsStore.settings.dataUsageMode = $0 },
                     openDiary: { openDashboardWindow(.workplaceDiary) },
                     openPreferences: { openDashboardWindow(.nomadPreferences) },

@@ -97,13 +97,36 @@ Users can see whether the MacBook is draining normally, charging properly, or li
 
 - some power readings depend on what the system can report at that moment
 
+## Glance Overview
+
+### What it does
+
+- Opens with one verdict strip (`Ready to work`, `Workable`, `Needs attention`, `Checking conditions`, or `You're offline`) driven by the same network and power health checks used elsewhere in the dashboard
+- Keeps the Auto, Normal, and Low Data control on the verdict strip
+- Shows four vital tiles: Internet (latency, throughput, network name), Power (charge and time left or time to full), Data Guard usage against its cap (or VPN status when Data Guard is off), and Weather (current temperature and condition with today's low and high; imminent rain and strong wind are reported by the heads-up items instead)
+- Colors tile values by status (teal good, sand caution, coral attention) instead of by metric type
+- Tapping a tile scrolls the dashboard to the related card
+- Lists at most three ranked heads-up items below the tiles when something needs attention: a data cap nearing or reaching its limit, a travel advisory, weather alert, or regional security signal, strong wind, rain within six hours, a public holiday within three days, and cheapest nearby fuel
+- Tapping a heads-up item jumps to the card that explains it; the list disappears when there is nothing to flag
+- Puts Workplaces, Saved essentials, and Explore cities in a single row of links
+
+### Who it helps
+
+- travelers who want to know in a second whether the connection, battery, data allowance, and weather are workable
+- remote workers who need the few things that changed, not a wall of metrics
+
+### Limitations
+
+- heads-up items are derived from data already shown in the cards; sources that are unavailable or stale are not reported
+- the tiles show what Nomad Dashboard can measure at that moment, and Data Guard figures only count while it is monitoring the connection
+
 ## Travel Context And IP/Location Awareness
 
 ### What it does
 
 - Shows public IP address
 - Can show IP-based city, region, country, and time zone context
-- Shows device and IP-based location side by side in the dashboard header when both are available
+- Leads the dashboard header with the current place (device city, falling back to the IP city) and shows device region and country next to the IP-based location on one line when both are available
 - Helps compare network-detected location with expected location
 - Uses current country context to support travel-oriented features where available
 
@@ -372,7 +395,7 @@ Users can build a simple local travel history over time, revisit where they have
 - Groups authorized device-location samples locally and can suggest a nearby coworking or café venue through Apple MapKit
 - Keeps suggested venues separate from user-confirmed venue names
 - Stores a local diary with connection and work-readiness context
-- Shows current and chosen home time zones side by side
+- Shows current and chosen home time zones side by side on one line, naming the device's actual city for "Here" rather than only the time-zone city
 - Offers optional quiet alerts for sustained connection, VPN, and charging changes, with cooldowns and user-set quiet hours
 
 ### Who it helps
@@ -398,9 +421,9 @@ Users can build a simple local travel history over time, revisit where they have
 
 - Can track awake working time locally while Nomad Dashboard is running
 - Lets the user define project buckets in Settings plus one built-in `Other` bucket
-- Shows live pending unallocated time directly in the dashboard header
+- Shows live pending unallocated time and a status dot directly in the dashboard header as a single compact row with play/pause, stop, and interruption controls
 - Lets the user report interruptions from the dashboard or the full time-tracking window with an interruption count that resets per day
-- Surfaces compact quick-action chips for recent or active projects plus `Other`
+- Offers an `Allocate` menu in the header listing recent or active projects plus `Other` (full project names, never truncated) and a shortcut to the time-tracking window
 - Supports quick one-click allocation of today’s pending time into a project or `Other` without opening the full time-tracking view
 - Includes a dedicated time-tracking window with day, week, and month views
 - Attributes interruption events to the project or bucket that covered that moment once the time is allocated
@@ -416,7 +439,7 @@ Users can build a simple local travel history over time, revisit where they have
 
 ### Practical benefit
 
-Users can capture and assign work time with less friction by using the dashboard’s quick chips for the common cases, then fix history later when needed and export a clean monthly text summary quickly.
+Users can capture and assign work time with less friction by using the dashboard’s Allocate menu for the common cases, then fix history later when needed and export a clean monthly text summary quickly.
 
 ### Dependencies or setup
 
@@ -442,6 +465,8 @@ Users can capture and assign work time with less friction by using the dashboard
 - Retains a bounded local cache of selected remote dashboard content for a more useful offline or temporarily disconnected view
 - Supports dashboard card reordering
 - Supports dashboard card width customization
+- Keeps the dashboard clean by default: the per-card width and drag controls only appear after choosing `Customize Layout` from the header menu, with an inline hint and a `Done` button while customizing
+- Moves the appearance toggle into the header menu
 - Supports settings for weather, travel modules, analytics, and location-aware features
 - Supports direct-distribution update plumbing with Sparkle in release builds
 

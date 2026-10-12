@@ -32,41 +32,6 @@ public struct TimeTrackingQuickControlIcon: Equatable, Sendable {
     }
 }
 
-public struct TimeTrackingHeaderCompactConfiguration: Equatable, Sendable {
-    public let chips: [TimeTrackingQuickBucketChip]
-
-    public init(chips: [TimeTrackingQuickBucketChip]) {
-        self.chips = chips
-    }
-}
-
-enum TimeTrackingHeaderPendingLabelStyle: Equatable, Sendable {
-    case full
-    case durationOnly
-}
-
-enum TimeTrackingHeaderChipDensity: Equatable, Sendable {
-    case regular
-    case compact
-}
-
-enum TimeTrackingHeaderChromeDensity: Equatable, Sendable {
-    case regular
-    case compact
-}
-
-struct TimeTrackingHeaderLayoutVariant: Equatable, Identifiable, Sendable {
-    let pendingLabelStyle: TimeTrackingHeaderPendingLabelStyle
-    let chipDensity: TimeTrackingHeaderChipDensity
-    let chromeDensity: TimeTrackingHeaderChromeDensity
-    let visibleChipTitleCharacterCount: Int
-    let configuration: TimeTrackingHeaderCompactConfiguration
-
-    var id: String {
-        "\(pendingLabelStyle)-\(chipDensity)-\(chromeDensity)-\(visibleChipTitleCharacterCount)-\(configuration.chips.map(\.id).joined(separator: ","))"
-    }
-}
-
 public struct TimeTrackingQuickActionsPresentation: Equatable {
     public let pendingDurationText: String
     public let activityTitle: String
@@ -199,89 +164,11 @@ public struct TimeTrackingQuickActionsPresentation: Equatable {
         return orderedProjects
     }
 
-    public func headerCompactConfigurations(maxProjectCount: Int) -> [TimeTrackingHeaderCompactConfiguration] {
-        let resolvedProjectCount = recommendedProjects(maxCount: maxProjectCount).count
-        var configurations: [TimeTrackingHeaderCompactConfiguration] = []
-
-        func appendConfiguration(projectCount: Int, includesOtherChip: Bool) {
-            let projectChips = recommendedProjects(maxCount: projectCount).map {
-                TimeTrackingQuickBucketChip(bucket: .project($0.id), title: $0.trimmedName)
-            }
-            let otherChip = includesOtherChip ? [TimeTrackingQuickBucketChip(bucket: .other, title: otherChipTitle)] : []
-            let configuration = TimeTrackingHeaderCompactConfiguration(chips: projectChips + otherChip)
-
-            if configurations.contains(configuration) == false {
-                configurations.append(configuration)
-            }
-        }
-
-        for projectCount in stride(from: resolvedProjectCount, through: 1, by: -1) {
-            appendConfiguration(projectCount: projectCount, includesOtherChip: true)
-            appendConfiguration(projectCount: projectCount, includesOtherChip: false)
-        }
-        appendConfiguration(projectCount: 0, includesOtherChip: true)
-        appendConfiguration(projectCount: 0, includesOtherChip: false)
-
-        return configurations
-    }
-
-    func headerLayoutVariants(maxProjectCount: Int) -> [TimeTrackingHeaderLayoutVariant] {
-        let configurations = headerCompactConfigurations(maxProjectCount: maxProjectCount)
-        var variants: [TimeTrackingHeaderLayoutVariant] = []
-
-        func appendVariants(for configuration: TimeTrackingHeaderCompactConfiguration) {
-            let projectChipCount = configuration.chips.filter {
-                if case .project = $0.bucket {
-                    return true
-                }
-
-                return false
-            }.count
-            let prefersMaximumProjects = projectChipCount == maxProjectCount
-
-            variants.append(
-                TimeTrackingHeaderLayoutVariant(
-                    pendingLabelStyle: .full,
-                    chipDensity: .regular,
-                    chromeDensity: .regular,
-                    visibleChipTitleCharacterCount: 7,
-                    configuration: configuration
-                )
-            )
-            variants.append(
-                TimeTrackingHeaderLayoutVariant(
-                    pendingLabelStyle: .durationOnly,
-                    chipDensity: .regular,
-                    chromeDensity: .regular,
-                    visibleChipTitleCharacterCount: 7,
-                    configuration: configuration
-                )
-            )
-            variants.append(
-                TimeTrackingHeaderLayoutVariant(
-                    pendingLabelStyle: .durationOnly,
-                    chipDensity: prefersMaximumProjects ? .compact : .regular,
-                    chromeDensity: .compact,
-                    visibleChipTitleCharacterCount: prefersMaximumProjects ? 6 : 7,
-                    configuration: configuration
-                )
-            )
-        }
-
-        for configuration in configurations {
-            appendVariants(for: configuration)
-        }
-
-        return variants
-    }
-
-    static func headerCompactChipTitle(_ title: String, visibleCharacterCount: Int) -> String {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmedTitle.count > visibleCharacterCount else {
-            return trimmedTitle
-        }
-
-        return String(trimmedTitle.prefix(visibleCharacterCount)) + "…"
+    /// Entries of the header "Allocate" menu: the recommended projects, then Other.
+    public func allocateMenuChips(maxProjectCount: Int) -> [TimeTrackingQuickBucketChip] {
+        recommendedProjects(maxCount: maxProjectCount).map {
+            TimeTrackingQuickBucketChip(bucket: .project($0.id), title: $0.trimmedName)
+        } + [TimeTrackingQuickBucketChip(bucket: .other, title: otherChipTitle)]
     }
 
     public func quickBucketChips(
