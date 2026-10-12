@@ -119,7 +119,9 @@ struct NomadDashboardApp: App {
         } label: {
             MenuBarStatusLabel(
                 snapshot: snapshotStore.snapshot,
-                showMeteredUsageInMenuBar: settingsStore.settings.showMeteredUsageInMenuBar
+                showMeteredUsageInMenuBar: settingsStore.settings.showMeteredUsageInMenuBar,
+                showsHeadsUp: settingsStore.settings.menuBarShowsHeadsUp,
+                travelProfile: settingsStore.settings.travelProfile
             )
         }
         .menuBarExtraStyle(.window)

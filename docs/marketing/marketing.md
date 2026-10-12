@@ -73,6 +73,10 @@ People whose work depends on stable calls, dependable internet, battery awarenes
 
 Engineers who care about connection quality, VPN state, latency, power draw, time zones, and practical travel overlays without opening multiple tools.
 
+### Road-trippers, van-lifers, and RV travelers
+
+People on the road in a car, camper, or RV who want weather, nearby fuel prices, emergency care and the local emergency number, battery and power, and mobile data allowance first. The Road trip & RV travel profile reorders the dashboard and its heads-up items for them, and can show the most important heads-up right in the menu bar.
+
 ### Frequent travelers and consultants
 
 People who spend long stretches on the road and want one lightweight place to glance at working conditions and nearby utility information.
@@ -87,6 +91,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Surfacing optional travel alerts and regional context while on the move
 - Checking local holiday timing, city context, and whether local prices feel cheap, medium, or expensive before settling in
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
+- Switching to the Road trip & RV profile for a weather, fuel, emergency-care, and power-first dashboard, and keeping the local emergency numbers available offline in Saved essentials
 - Tracking visited places locally on the Mac, with yearly travel paths, chronological stop logs, and country-day summaries by year and month
 - Automatically seeing the current or nearest listed city, then browsing visual destination cards by country, monthly budget, and city internet estimates, with attributed Nomads.com ratings and meetup links
 - Tracking awake work time locally on the Mac, then assigning it from the dashboard with a compact Allocate menu, interruption counts, and focus-adjusted day, week, and month summaries

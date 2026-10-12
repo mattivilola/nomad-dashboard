@@ -112,6 +112,8 @@ Users can see whether the MacBook is draining normally, charging properly, or li
 - Lists at most three ranked heads-up items below the tiles when something needs attention: a data cap nearing or reaching its limit, a travel advisory, weather alert, or regional security signal, strong wind, rain within six hours, a public holiday within three days, and cheapest nearby fuel
 - Tapping a heads-up item jumps to the card that explains it; the list disappears when there is nothing to flag
 - Puts Workplaces, Saved essentials, and Explore cities in a single row of links
+- Offline essentials (Saved essentials) lead with the local emergency numbers for the current country, bundled with the app so they are available without a connection, followed by the saved weather, fuel, hospital, and alert summaries
+- Offline essentials format temperatures and fuel prices the same way as the dashboard cards
 
 ### Who it helps
 
@@ -122,6 +124,31 @@ Users can see whether the MacBook is draining normally, charging properly, or li
 
 - heads-up items are derived from data already shown in the cards; sources that are unavailable or stale are not reported
 - the tiles show what Nomad Dashboard can measure at that moment, and Data Guard figures only count while it is monitoring the connection
+
+## Travel Profile
+
+### What it does
+
+- Offers two profiles in Settings (at the top of the form) and in the dashboard header menu under `Travel Profile`: **Nomad** and **Road trip & RV**
+- Nomad puts connection quality, work time, and city context first; Road trip & RV puts weather, fuel, emergency care, power, and the data allowance first
+- Switching profile reorders the dashboard cards to that profile's recommended order, but only if the card order has not been customized; a custom order is kept, and Settings offers `Use recommended order` to restore the profile's own order in one click
+- Ranks the glance overview's heads-up items by profile (for example fuel and weather ahead of work-related items on a road trip)
+- Can show the top heads-up item in the menu bar in place of the temperature (`Show the top heads-up in the menu bar`, off by default); only caution or attention items replace the temperature, and metered data usage, low battery (50% or less), and being offline keep their own menu bar text
+- `Reset Dashboard Layout` restores the order recommended for the selected profile
+
+### Who it helps
+
+- road-trippers, van-lifers, and RV travelers who care more about weather, fuel, power, emergency care, and mobile data than about coworking context
+- digital nomads who keep the default Nomad profile
+
+### Dependencies or setup
+
+- no setup; the Nomad profile is the default and matches earlier versions
+- the profile is stored locally with the other settings
+
+### Limitations
+
+- profiles change card order and heads-up ranking only; they do not turn cards or data sources on or off
 
 ## Travel Context And IP/Location Awareness
 
@@ -469,7 +496,8 @@ Users can capture and assign work time with less friction by using the dashboard
 ### What it does
 
 - Supports launch at login
-- Supports appearance settings
+- Supports appearance settings, with a quick dark/light flip in the dashboard header menu
+- Supports a travel profile (Nomad, Road trip & RV) that sets the recommended card order and heads-up ranking; see Travel Profile
 - Supports configurable refresh cadence and history retention
 - Slows hidden menu-bar background refreshes automatically to reduce battery impact
 - Retains a bounded local cache of selected remote dashboard content for a more useful offline or temporarily disconnected view

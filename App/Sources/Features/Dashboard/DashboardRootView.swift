@@ -36,6 +36,7 @@ struct DashboardRootView: View {
                     policy: snapshotStore.resourcePolicy,
                     homeTimeZoneIdentifier: lifeController.preferences.homeTimeZoneIdentifier,
                     dataUsageMode: settingsStore.settings.dataUsageMode,
+                    travelProfile: settingsStore.settings.travelProfile,
                     weatherAvailabilityExplanation: AppRuntimeInfo.weatherAvailabilityExplanation,
                     changeDataUsage: { settingsStore.settings.dataUsageMode = $0 },
                     openDiary: { openDashboardWindow(.workplaceDiary) },
@@ -55,6 +56,7 @@ struct DashboardRootView: View {
             dashboardCardOrder: settingsStore.settings.dashboardCardOrder,
             dashboardCardWidthModes: settingsStore.settings.dashboardCardWidthModes,
             dashboardCollapsedCards: settingsStore.settings.dashboardCollapsedCards,
+            travelProfile: settingsStore.settings.travelProfile,
             isPublicIPLocationEnabled: settingsStore.settings.publicIPGeolocationEnabled,
             travelAlertPreferences: settingsStore.settings.travelAlertPreferences,
             versionDescription: AppRuntimeInfo.versionDescription,
@@ -92,6 +94,7 @@ struct DashboardRootView: View {
             onCardOrderChange: persistDashboardCardOrder,
             onCardWidthModesChange: persistDashboardCardWidthModes,
             onCollapsedCardsChange: persistDashboardCollapsedCards,
+            onTravelProfileChange: { settingsStore.settings.applyTravelProfile($0) },
             onWeatherForecastExpandedChange: persistWeatherForecastExpanded,
             setManualMeteredSessionEnabled: { snapshotStore.setManualMeteredSessionEnabled($0) },
             markCurrentNetworkAsMetered: { snapshotStore.markCurrentNetworkAsMetered() },
@@ -464,11 +467,32 @@ private struct EmergencyHospitalPreviewSheet: View {
 struct MenuBarStatusLabel: View {
     let snapshot: DashboardSnapshot
     let showMeteredUsageInMenuBar: Bool
+    let showsHeadsUp: Bool
+    let travelProfile: TravelProfile
 
     var body: some View {
-        let presentation = snapshot.menuBarStatusPresentation(showMeteredUsage: showMeteredUsageInMenuBar)
+        if showsHeadsUp {
+            // Time-relative heads-up items (rain within the next hours, a holiday starting today) need a periodic re-evaluation.
+            TimelineView(.periodic(from: .now, by: 60)) { timeline in
+                label(headsUp: DashboardInsightEngine.insights(
+                    for: snapshot,
+                    now: timeline.date,
+                    limit: 1,
+                    profile: travelProfile
+                ).first)
+            }
+        } else {
+            label(headsUp: nil)
+        }
+    }
 
-        HStack(spacing: 6) {
+    private func label(headsUp: DashboardInsight?) -> some View {
+        let presentation = snapshot.menuBarStatusPresentation(
+            showMeteredUsage: showMeteredUsageInMenuBar,
+            headsUp: headsUp
+        )
+
+        return HStack(spacing: 6) {
             statusIcon(for: presentation)
             if let text = presentation.text {
                 Text(text)

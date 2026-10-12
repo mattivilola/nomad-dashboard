@@ -20,6 +20,16 @@ public enum DashboardInsightKind: String, CaseIterable, Sendable {
     case rainSoon
     case publicHoliday
     case fuelNearby
+
+    /// Kinds in tie-break priority within the same severity (earlier wins) for a travel profile.
+    public static func tieBreakOrder(for profile: TravelProfile) -> [DashboardInsightKind] {
+        switch profile {
+        case .nomad:
+            allCases
+        case .roadTrip:
+            [.strongWind, .fuelNearby, .weatherAlert, .dataCap, .travelAdvisory, .regionalSecurity, .rainSoon, .publicHoliday]
+        }
+    }
 }
 
 public struct DashboardInsight: Identifiable, Equatable, Sendable {
@@ -28,6 +38,8 @@ public struct DashboardInsight: Identifiable, Equatable, Sendable {
     public let severity: DashboardInsightSeverity
     public let symbolName: String
     public let title: String
+    /// Compact label (about 12 characters or fewer) for the menu bar.
+    public let menuBarText: String
     public let detail: String?
     public let relatedCard: DashboardCardID
 
@@ -36,6 +48,7 @@ public struct DashboardInsight: Identifiable, Equatable, Sendable {
         severity: DashboardInsightSeverity,
         symbolName: String,
         title: String,
+        menuBarText: String,
         detail: String?,
         relatedCard: DashboardCardID
     ) {
@@ -43,6 +56,7 @@ public struct DashboardInsight: Identifiable, Equatable, Sendable {
         self.severity = severity
         self.symbolName = symbolName
         self.title = title
+        self.menuBarText = menuBarText
         self.detail = detail
         self.relatedCard = relatedCard
     }
@@ -65,7 +79,8 @@ public enum DashboardInsightEngine {
         for snapshot: DashboardSnapshot,
         now: Date,
         calendar: Calendar = .current,
-        limit: Int = 3
+        limit: Int = 3,
+        profile: TravelProfile = .nomad
     ) -> [DashboardInsight] {
         guard limit > 0 else {
             return []
@@ -81,7 +96,7 @@ public enum DashboardInsightEngine {
         candidates.append(contentsOf: holidayInsight(for: snapshot.localInfo, now: now, calendar: calendar, locale: locale))
         candidates.append(contentsOf: fuelInsight(for: snapshot.fuelPrices, locale: locale))
 
-        let order = Dictionary(uniqueKeysWithValues: DashboardInsightKind.allCases.enumerated().map { ($1, $0) })
+        let order = Dictionary(uniqueKeysWithValues: DashboardInsightKind.tieBreakOrder(for: profile).enumerated().map { ($1, $0) })
         let sorted = candidates.sorted { lhs, rhs in
             if lhs.severity != rhs.severity {
                 return lhs.severity > rhs.severity
@@ -118,17 +133,20 @@ public enum DashboardInsightEngine {
                 severity: .attention,
                 symbolName: "antenna.radiowaves.left.and.right.slash",
                 title: "Data cap reached",
+                menuBarText: "Cap reached",
                 detail: "\(used) of \(cap) · downloads paused",
                 relatedCard: .meteredData
             )]
         }
 
         if fraction >= dataCapCautionFraction {
+            let percent = Int(fraction * 100)
             return [DashboardInsight(
                 kind: .dataCap,
                 severity: .caution,
                 symbolName: "arrow.up.arrow.down.circle",
-                title: "Data cap at \(Int(fraction * 100))%",
+                title: "Data cap at \(percent)%",
+                menuBarText: "Cap \(percent)%",
                 detail: "\(used) of \(cap) used",
                 relatedCard: .meteredData
             )]
@@ -161,6 +179,7 @@ public enum DashboardInsightEngine {
                     severity: severity,
                     symbolName: "exclamationmark.shield.fill",
                     title: signal.summary.trimmingCharacters(in: CharacterSet(charactersIn: ". ")),
+                    menuBarText: "Advisory",
                     detail: truncated(signal.detailSummary ?? "Source: \(signal.sourceName)"),
                     relatedCard: .travelAlerts
                 )
@@ -173,6 +192,7 @@ public enum DashboardInsightEngine {
                     title: alertCount > 1
                         ? "\(alertCount) weather alerts active"
                         : (severity == .attention ? "Severe weather alert" : "Weather alert active"),
+                    menuBarText: "Weather alert",
                     detail: truncated(signal.summary),
                     relatedCard: .travelAlerts
                 )
@@ -182,6 +202,7 @@ public enum DashboardInsightEngine {
                     severity: severity,
                     symbolName: "shield.lefthalf.filled.trianglebadge.exclamationmark",
                     title: severity == .attention ? "Regional security alert" : "Regional security watch",
+                    menuBarText: "Security",
                     detail: truncated(signal.summary),
                     relatedCard: .travelAlerts
                 )
@@ -240,11 +261,13 @@ public enum DashboardInsightEngine {
             detail = timeText.prefix(1).uppercased() + timeText.dropFirst()
         }
 
+        let speedText = String(format: "%.0f", peak.speed)
         return [DashboardInsight(
             kind: .strongWind,
             severity: peak.speed >= windAttentionKph ? .attention : .caution,
             symbolName: "wind",
-            title: "Wind up to \(String(format: "%.0f", peak.speed)) km/h",
+            title: "Wind up to \(speedText) km/h",
+            menuBarText: "Wind \(speedText)",
             detail: detail,
             relatedCard: .weather
         )]
@@ -261,11 +284,13 @@ public enum DashboardInsightEngine {
         }
 
         func insight(chance: Double, startsAt: Date?) -> DashboardInsight {
-            DashboardInsight(
+            let startText = startsAt.map { timeString($0, calendar: calendar, locale: locale) }
+            return DashboardInsight(
                 kind: .rainSoon,
                 severity: .info,
                 symbolName: "cloud.rain.fill",
-                title: startsAt.map { "Rain likely from \(timeString($0, calendar: calendar, locale: locale))" } ?? "Rain likely now",
+                title: startText.map { "Rain likely from \($0)" } ?? "Rain likely now",
+                menuBarText: startText.map { "Rain \($0)" } ?? "Rain now",
                 detail: "\(Int((chance * 100).rounded()))% chance",
                 relatedCard: .weather
             )
@@ -348,6 +373,7 @@ public enum DashboardInsightEngine {
                 severity: .caution,
                 symbolName: "calendar.badge.exclamationmark",
                 title: "Public holiday today",
+                menuBarText: "Holiday today",
                 detail: "\(name) · shops may close",
                 relatedCard: .localInfo
             )]
@@ -357,6 +383,7 @@ public enum DashboardInsightEngine {
                 severity: .info,
                 symbolName: "calendar",
                 title: "Public holiday tomorrow",
+                menuBarText: "Holiday",
                 detail: name,
                 relatedCard: .localInfo
             )]
@@ -369,6 +396,7 @@ public enum DashboardInsightEngine {
                 severity: .info,
                 symbolName: "calendar",
                 title: "Public holiday \(weekday)",
+                menuBarText: "Holiday",
                 detail: name,
                 relatedCard: .localInfo
             )]
@@ -393,6 +421,7 @@ public enum DashboardInsightEngine {
             severity: .info,
             symbolName: "fuelpump.fill",
             title: "\(station.fuelType.displayName) \(price) · \(distance)",
+            menuBarText: price,
             detail: "Cheapest within \(Int(fuelPrices.searchRadiusKilometers)) km",
             relatedCard: .fuelPrices
         )]

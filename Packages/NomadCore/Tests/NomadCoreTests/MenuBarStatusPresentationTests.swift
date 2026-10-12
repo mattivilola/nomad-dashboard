@@ -105,6 +105,102 @@ struct MenuBarStatusPresentationTests {
     }
 
     @Test
+    func cautionHeadsUpBeatsLatencyAndWeather() {
+        let presentation = makeSnapshot(chargePercent: 0.9, latency: 130, weather: makeWeather())
+            .menuBarStatusPresentation(showMeteredUsage: false, headsUp: makeHeadsUp(severity: .caution))
+
+        #expect(presentation.text == "Wind 45")
+        #expect(presentation.symbolName == "wind")
+        #expect(presentation.branch == .headsUp)
+        #expect(presentation.tone == .standard)
+    }
+
+    @Test
+    func attentionHeadsUpUsesAttentionTone() {
+        let presentation = makeSnapshot(chargePercent: 0.9, latency: 28, weather: makeWeather())
+            .menuBarStatusPresentation(showMeteredUsage: false, headsUp: makeHeadsUp(severity: .attention))
+
+        #expect(presentation.text == "Wind 45")
+        #expect(presentation.branch == .headsUp)
+        #expect(presentation.tone == .attention)
+    }
+
+    @Test
+    func infoHeadsUpIsIgnored() {
+        let snapshot = makeSnapshot(chargePercent: 0.49, latency: 28, weather: makeWeather())
+        let presentation = snapshot.menuBarStatusPresentation(showMeteredUsage: false, headsUp: makeHeadsUp(severity: .info))
+
+        #expect(presentation == snapshot.menuBarStatusPresentation)
+        #expect(presentation.branch == .battery)
+    }
+
+    @Test
+    func batteryAtOrBelowFiftyPercentBeatsHeadsUp() {
+        let presentation = makeSnapshot(chargePercent: 0.5, latency: 28, weather: makeWeather())
+            .menuBarStatusPresentation(showMeteredUsage: false, headsUp: makeHeadsUp(severity: .attention))
+
+        #expect(presentation.text == "50%")
+        #expect(presentation.branch == .battery)
+
+        let aboveFifty = makeSnapshot(chargePercent: 0.51, latency: 28, weather: makeWeather())
+            .menuBarStatusPresentation(showMeteredUsage: false, headsUp: makeHeadsUp(severity: .attention))
+        #expect(aboveFifty.branch == .headsUp)
+    }
+
+    @Test
+    func batteryStillBeatsOfflineWithHeadsUp() {
+        let presentation = makeSnapshot(
+            chargePercent: 0.49,
+            connectivity: ConnectivitySnapshot(pathAvailable: true, internetState: .offline, lastCheckedAt: .now),
+            latency: 28,
+            weather: makeWeather()
+        ).menuBarStatusPresentation(showMeteredUsage: false, headsUp: makeHeadsUp(severity: .attention))
+
+        #expect(presentation.branch == .battery)
+    }
+
+    @Test
+    func offlineBeatsHeadsUp() {
+        let presentation = makeSnapshot(
+            chargePercent: 0.9,
+            connectivity: ConnectivitySnapshot(pathAvailable: true, internetState: .offline, lastCheckedAt: .now),
+            latency: 28,
+            weather: makeWeather()
+        ).menuBarStatusPresentation(showMeteredUsage: false, headsUp: makeHeadsUp(severity: .attention))
+
+        #expect(presentation.text == nil)
+        #expect(presentation.symbolName == "wifi.slash")
+        #expect(presentation.branch == .offline)
+        #expect(presentation.tone == .attention)
+    }
+
+    @Test
+    func meteredUsageBeatsOfflineAndHeadsUp() {
+        let snapshot = makeSnapshot(
+            chargePercent: 0.2,
+            connectivity: ConnectivitySnapshot(pathAvailable: true, internetState: .offline, lastCheckedAt: .now),
+            latency: 28,
+            weather: makeWeather(),
+            meteredData: makeMetered()
+        )
+        let presentation = snapshot.menuBarStatusPresentation(showMeteredUsage: true, headsUp: makeHeadsUp(severity: .attention))
+
+        #expect(presentation.branch == .latencyFallback)
+        #expect(presentation.symbolName == "arrow.up.arrow.down.circle")
+
+        let hidden = snapshot.menuBarStatusPresentation(showMeteredUsage: false, headsUp: makeHeadsUp(severity: .attention))
+        #expect(hidden.branch == .battery)
+    }
+
+    @Test
+    func missingHeadsUpKeepsDefaultLadder() {
+        let snapshot = makeSnapshot(chargePercent: 0.49, latency: 28, weather: makeWeather())
+
+        #expect(snapshot.menuBarStatusPresentation(showMeteredUsage: false) == snapshot.menuBarStatusPresentation)
+        #expect(snapshot.menuBarStatusPresentation(showMeteredUsage: false, headsUp: nil).branch == .battery)
+    }
+
+    @Test
     func emptyStateUsesDefaultIconWithoutText() {
         let presentation = makeSnapshot(chargePercent: nil, latency: nil, weather: nil).menuBarStatusPresentation
 
@@ -120,7 +216,8 @@ private func makeSnapshot(
     latency: Double?,
     weather: WeatherSnapshot?,
     rssi: Int? = -56,
-    issues: [DashboardIssue] = []
+    issues: [DashboardIssue] = [],
+    meteredData: MeteredUsageSnapshot = .disabled
 ) -> DashboardSnapshot {
     DashboardSnapshot(
         network: NetworkSectionSnapshot(
@@ -161,7 +258,46 @@ private func makeSnapshot(
             location: nil
         ),
         weather: weather,
-        appState: AppStatusSnapshot(lastRefresh: .now, updateState: .idle, issues: issues)
+        appState: AppStatusSnapshot(lastRefresh: .now, updateState: .idle, issues: issues),
+        meteredData: meteredData
+    )
+}
+
+private func makeHeadsUp(severity: DashboardInsightSeverity) -> DashboardInsight {
+    DashboardInsight(
+        kind: .strongWind,
+        severity: severity,
+        symbolName: "wind",
+        title: "Wind up to 45 km/h",
+        menuBarText: "Wind 45",
+        detail: "From W now",
+        relatedCard: .weather
+    )
+}
+
+private func makeMetered() -> MeteredUsageSnapshot {
+    MeteredUsageSnapshot(
+        isFeatureEnabled: true,
+        isMonitoringActive: true,
+        networkKey: "wifi:Hotspot",
+        networkDisplayName: "Hotspot",
+        meteredInterfaceName: "en0",
+        sessionStartedAt: nil,
+        sessionBytesReceived: 500,
+        sessionBytesSent: 0,
+        periodBytesReceived: 500,
+        periodBytesSent: 0,
+        capBytes: 1_000,
+        usageFraction: nil,
+        isCapReached: false,
+        billingPeriod: .session,
+        manualSessionEnabled: false,
+        isKnownMeteredNetwork: true,
+        networkNameSource: .liveSSID,
+        isWiFiConnected: true,
+        needsLocationForWiFiNames: false,
+        statusMessage: nil,
+        capAlertSignal: nil
     )
 }
 

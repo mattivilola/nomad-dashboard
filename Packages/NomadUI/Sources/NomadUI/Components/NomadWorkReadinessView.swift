@@ -7,6 +7,7 @@ public struct NomadWorkReadinessView: View {
     let policy: DashboardResourcePolicy
     let homeTimeZoneIdentifier: String
     let dataUsageMode: DataUsageMode
+    let travelProfile: TravelProfile
     let weatherAvailabilityExplanation: String?
     let changeDataUsage: @Sendable (DataUsageMode) -> Void
     let openDiary: () -> Void
@@ -21,6 +22,7 @@ public struct NomadWorkReadinessView: View {
         policy: DashboardResourcePolicy,
         homeTimeZoneIdentifier: String,
         dataUsageMode: DataUsageMode,
+        travelProfile: TravelProfile = .nomad,
         weatherAvailabilityExplanation: String? = nil,
         changeDataUsage: @escaping @Sendable (DataUsageMode) -> Void,
         openDiary: @escaping () -> Void,
@@ -32,6 +34,7 @@ public struct NomadWorkReadinessView: View {
         self.policy = policy
         self.homeTimeZoneIdentifier = homeTimeZoneIdentifier
         self.dataUsageMode = dataUsageMode
+        self.travelProfile = travelProfile
         self.weatherAvailabilityExplanation = weatherAvailabilityExplanation
         self.changeDataUsage = changeDataUsage
         self.openDiary = openDiary
@@ -224,7 +227,7 @@ public struct NomadWorkReadinessView: View {
 
     private var headsUpList: some View {
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
-            let rows = DashboardInsightEngine.insights(for: snapshot, now: timeline.date)
+            let rows = DashboardInsightEngine.insights(for: snapshot, now: timeline.date, profile: travelProfile)
                 .map(GlanceHeadsUpRowPresentation.init(insight:))
 
             if rows.isEmpty == false {

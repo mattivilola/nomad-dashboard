@@ -9,11 +9,15 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- _Nothing yet_
+- Add travel profiles (Nomad, Road trip & RV) in Settings and the dashboard header menu: a profile sets the recommended card order and ranks the glance heads-up items for road trips; a customized card order is kept, and Settings offers `Use recommended order`.
+- Add `Show the top heads-up in the menu bar` (off by default): caution and attention items replace the temperature in the menu bar.
+- Show the local emergency numbers at the top of Offline essentials.
 
 ### Changed
 
-- _Nothing yet_
+- `Reset Dashboard Layout` restores the card order recommended for the selected travel profile.
+- Offline essentials format temperatures and fuel prices like the dashboard cards.
+- Fix the General settings note that still described the appearance toggle as a dashboard header button; it now lives in the header menu.
 
 ### Fixed
 

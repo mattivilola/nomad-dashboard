@@ -1,6 +1,6 @@
 import NomadCore
 
-extension EmergencyNumbers {
+public extension EmergencyNumbers {
     /// "Emergency 112": the number to call first, for card subtitles and summaries.
     var headline: String {
         "Emergency \(general)"

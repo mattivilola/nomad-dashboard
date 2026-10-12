@@ -4,6 +4,7 @@ public struct MenuBarStatusPresentation: Equatable, Sendable {
     public enum Branch: Equatable, Sendable {
         case battery
         case offline
+        case headsUp
         case latencyCaution
         case latencyAttention
         case weather
@@ -30,7 +31,12 @@ public struct MenuBarStatusPresentation: Equatable, Sendable {
 }
 
 public extension DashboardSnapshot {
-    func menuBarStatusPresentation(showMeteredUsage: Bool) -> MenuBarStatusPresentation {
+    /// Precedence: metered usage, battery at or below 50%, offline, a caution-or-worse heads-up,
+    /// then latency and weather. Info-level heads-ups never reach the menu bar.
+    func menuBarStatusPresentation(
+        showMeteredUsage: Bool,
+        headsUp: DashboardInsight? = nil
+    ) -> MenuBarStatusPresentation {
         if showMeteredUsage,
            meteredData.isFeatureEnabled,
            meteredData.isMonitoringActive,
@@ -45,14 +51,14 @@ public extension DashboardSnapshot {
             )
         }
 
-        return defaultMenuBarStatusPresentation
+        return defaultMenuBarStatusPresentation(headsUp: headsUp)
     }
 
     var menuBarStatusPresentation: MenuBarStatusPresentation {
-        defaultMenuBarStatusPresentation
+        defaultMenuBarStatusPresentation(headsUp: nil)
     }
 
-    private var defaultMenuBarStatusPresentation: MenuBarStatusPresentation {
+    private func defaultMenuBarStatusPresentation(headsUp: DashboardInsight?) -> MenuBarStatusPresentation {
         if let chargePercent = power.snapshot?.chargePercent, chargePercent <= 0.5 {
             return MenuBarStatusPresentation(
                 text: Self.formatBatteryPercentage(chargePercent),
@@ -62,11 +68,15 @@ public extension DashboardSnapshot {
         }
 
         if network.connectivity.internetState == .offline {
+            return Self.offlineMenuBarStatusPresentation
+        }
+
+        if let headsUp, headsUp.severity >= .caution {
             return MenuBarStatusPresentation(
-                text: nil,
-                symbolName: "wifi.slash",
-                branch: .offline,
-                tone: .attention
+                text: headsUp.menuBarText,
+                symbolName: headsUp.symbolName,
+                branch: .headsUp,
+                tone: headsUp.severity == .attention ? .attention : .standard
             )
         }
 
@@ -100,6 +110,13 @@ public extension DashboardSnapshot {
             branch: .empty
         )
     }
+
+    private static let offlineMenuBarStatusPresentation = MenuBarStatusPresentation(
+        text: nil,
+        symbolName: "wifi.slash",
+        branch: .offline,
+        tone: .attention
+    )
 
     private static func formatBatteryPercentage(_ value: Double) -> String {
         String(format: "%.0f%%", value * 100)

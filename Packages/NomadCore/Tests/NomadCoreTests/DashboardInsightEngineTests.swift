@@ -57,6 +57,80 @@ struct DashboardInsightEngineTests {
     }
 
     @Test
+    func roadTripProfileRanksTheSameInsightsDifferently() {
+        let snapshot = makeSnapshot(
+            metered: makeMetered(usedBytes: 850, capBytes: 1_000), // dataCap caution
+            alerts: makeAlerts([(.advisory, .caution), (.weather, .caution), (.security, .critical)]), // advisory + weather caution, security attention
+            weather: makeWeather(windKph: 45, slots: [slot(hours: 2, rain: 0.8)]), // wind caution, rain info
+            localInfo: makeLocalInfo(currentPeriod: holiday(dayOffset: 0)), // holiday caution
+            fuel: makeFuel(diesel: station(.diesel)) // fuel info
+        )
+
+        func kinds(_ profile: TravelProfile) -> [DashboardInsightKind] {
+            DashboardInsightEngine.insights(for: snapshot, now: now, calendar: parisCalendar, limit: 20, profile: profile).map(\.kind)
+        }
+
+        #expect(kinds(.nomad) == [
+            .regionalSecurity,
+            .dataCap,
+            .travelAdvisory,
+            .weatherAlert,
+            .strongWind,
+            .publicHoliday,
+            .rainSoon,
+            .fuelNearby
+        ])
+        #expect(kinds(.roadTrip) == [
+            .regionalSecurity,
+            .strongWind,
+            .weatherAlert,
+            .dataCap,
+            .travelAdvisory,
+            .publicHoliday,
+            .fuelNearby,
+            .rainSoon
+        ])
+        #expect(DashboardInsightEngine.insights(for: snapshot, now: now, calendar: parisCalendar, profile: .roadTrip).count == 3)
+    }
+
+    @Test
+    func severityStaysPrimaryForRoadTripProfile() {
+        let snapshot = makeSnapshot(
+            metered: makeMetered(usedBytes: 2_000, capBytes: 1_000), // dataCap attention
+            weather: makeWeather(windKph: 45), // wind caution
+            fuel: makeFuel(diesel: station(.diesel)) // fuel info
+        )
+
+        let kinds = DashboardInsightEngine.insights(for: snapshot, now: now, calendar: parisCalendar, limit: 20, profile: .roadTrip).map(\.kind)
+        #expect(kinds == [.dataCap, .strongWind, .fuelNearby])
+    }
+
+    @Test
+    func tieBreakOrderCoversEveryKindForEveryProfile() {
+        for profile in TravelProfile.allCases {
+            let order = DashboardInsightKind.tieBreakOrder(for: profile)
+            #expect(Set(order) == Set(DashboardInsightKind.allCases))
+            #expect(order.count == DashboardInsightKind.allCases.count)
+        }
+        #expect(DashboardInsightKind.tieBreakOrder(for: .nomad) == DashboardInsightKind.allCases)
+    }
+
+    @Test
+    func everyInsightCarriesCompactMenuBarText() {
+        let snapshot = makeSnapshot(
+            metered: makeMetered(usedBytes: 850, capBytes: 1_000),
+            alerts: makeAlerts([(.advisory, .caution), (.weather, .caution), (.security, .caution)]),
+            weather: makeWeather(windKph: 45, slots: [slot(hours: 2, rain: 0.8)]),
+            localInfo: makeLocalInfo(currentPeriod: holiday(dayOffset: 0)),
+            fuel: makeFuel(diesel: station(.diesel))
+        )
+
+        let all = insights(snapshot)
+        #expect(Set(all.map(\.kind)) == Set(DashboardInsightKind.allCases))
+        #expect(all.allSatisfy { $0.menuBarText.isEmpty == false && $0.menuBarText.count <= 13 })
+    }
+
+    @Test
     func severityIsComparable() {
         #expect(DashboardInsightSeverity.info < .caution)
         #expect(DashboardInsightSeverity.caution < .attention)
@@ -78,6 +152,7 @@ struct DashboardInsightEngineTests {
         #expect(insight.kind == .dataCap)
         #expect(insight.severity == .caution)
         #expect(insight.title == "Data cap at 85%")
+        #expect(insight.menuBarText == "Cap 85%")
         #expect(insight.detail == "\(MeteredUsageFormatting.byteCount(850_000_000)) of \(MeteredUsageFormatting.byteCount(1_000_000_000)) used")
         #expect(insight.relatedCard == .meteredData)
 
@@ -92,6 +167,7 @@ struct DashboardInsightEngineTests {
 
         #expect(insight.severity == .attention)
         #expect(insight.title == "Data cap reached")
+        #expect(insight.menuBarText == "Cap reached")
         #expect(insight.detail?.hasSuffix("· downloads paused") == true)
 
         let exact = makeSnapshot(metered: makeMetered(usedBytes: 1_000, capBytes: 1_000))
@@ -142,6 +218,7 @@ struct DashboardInsightEngineTests {
 
         #expect(insight.kind == .travelAdvisory)
         #expect(insight.title == "France: exercise a high degree of caution")
+        #expect(insight.menuBarText == "Advisory")
         #expect(insight.detail == "Source: Smartraveller")
         #expect(insight.relatedCard == .travelAlerts)
     }
@@ -154,11 +231,13 @@ struct DashboardInsightEngineTests {
         let weather = try #require(all.first { $0.kind == .weatherAlert })
         #expect(weather.severity == .attention)
         #expect(weather.title == "3 weather alerts active")
+        #expect(weather.menuBarText == "Weather alert")
         #expect((weather.detail?.count ?? 0) <= 44)
 
         let security = try #require(all.first { $0.kind == .regionalSecurity })
         #expect(security.severity == .caution)
         #expect(security.title == "Regional security watch")
+        #expect(security.menuBarText == "Security")
 
         let single = makeSnapshot(alerts: makeAlerts([(.weather, .caution)], weatherItemCount: 1))
         #expect(insights(single).first?.title == "Weather alert active")
@@ -204,6 +283,7 @@ struct DashboardInsightEngineTests {
 
         #expect(insight.kind == .strongWind)
         #expect(insight.title == "Wind up to 45 km/h")
+        #expect(insight.menuBarText == "Wind 45")
         #expect(insight.detail == "From W now")
         #expect(insight.relatedCard == .weather)
     }
@@ -303,6 +383,7 @@ struct DashboardInsightEngineTests {
         #expect(insight.kind == .rainSoon)
         #expect(insight.severity == .info)
         #expect(insight.title == "Rain likely now")
+        #expect(insight.menuBarText == "Rain now")
         #expect(insight.detail == "72% chance")
         #expect(insight.relatedCard == .weather)
     }
@@ -320,6 +401,7 @@ struct DashboardInsightEngineTests {
         let insight = try #require(insights(makeSnapshot(weather: weather)).first)
 
         #expect(insight.title == "Rain likely from 16:00")
+        #expect(insight.menuBarText == "Rain 16:00")
         #expect(insight.detail == "60% chance")
     }
 
@@ -363,6 +445,7 @@ struct DashboardInsightEngineTests {
         #expect(insight.kind == .publicHoliday)
         #expect(insight.severity == .caution)
         #expect(insight.title == "Public holiday today")
+        #expect(insight.menuBarText == "Holiday today")
         #expect(insight.detail == "Armistice · shops may close")
         #expect(insight.relatedCard == .localInfo)
     }
@@ -373,6 +456,7 @@ struct DashboardInsightEngineTests {
         let tomorrowInsight = try #require(insights(tomorrow).first)
         #expect(tomorrowInsight.severity == .info)
         #expect(tomorrowInsight.title == "Public holiday tomorrow")
+        #expect(tomorrowInsight.menuBarText == "Holiday")
         #expect(tomorrowInsight.detail == "Armistice")
 
         // 2026-10-12 is a Monday.
@@ -448,6 +532,7 @@ struct DashboardInsightEngineTests {
         #expect(insight.kind == .fuelNearby)
         #expect(insight.severity == .info)
         #expect(insight.title == "Diesel €1.689 · 2.4 km")
+        #expect(insight.menuBarText == "€1.689")
         #expect(insight.detail == "Cheapest within 50 km")
         #expect(insight.relatedCard == .fuelPrices)
         #expect(insight.symbolName == "fuelpump.fill")

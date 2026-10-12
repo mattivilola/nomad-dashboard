@@ -378,6 +378,7 @@ struct GlanceOverviewPresentationTests {
             severity: .caution,
             symbolName: "arrow.up.arrow.down.circle",
             title: "Data cap at 85%",
+            menuBarText: "Cap 85%",
             detail: "850 MB of 1 GB used",
             relatedCard: .meteredData
         )

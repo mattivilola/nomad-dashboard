@@ -11,6 +11,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     public var appearanceMode: AppAppearanceMode
     public var dataUsageMode: DataUsageMode
+    public var travelProfile: TravelProfile
     public var dashboardCardOrder: [DashboardCardID]
     public var dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode]
     public var dashboardCollapsedCards: Set<DashboardCardID>
@@ -45,12 +46,14 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var manualMeteredSessionEnabled: Bool
     public var knownMeteredProfiles: [MeteredNetworkProfile]
     public var showMeteredUsageInMenuBar: Bool
+    public var menuBarShowsHeadsUp: Bool
     public var autoMonitorRememberedWiFiHotspots: Bool
     public var useLocationForWiFiNames: Bool
 
     public init(
         appearanceMode: AppAppearanceMode = .system,
         dataUsageMode: DataUsageMode = .automatic,
+        travelProfile: TravelProfile = .nomad,
         dashboardCardOrder: [DashboardCardID] = DashboardCardID.defaultOrder,
         dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode] = DashboardCardID.defaultWidthModes,
         dashboardCollapsedCards: Set<DashboardCardID> = [],
@@ -85,11 +88,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
         manualMeteredSessionEnabled: Bool = false,
         knownMeteredProfiles: [MeteredNetworkProfile] = [],
         showMeteredUsageInMenuBar: Bool = true,
+        menuBarShowsHeadsUp: Bool = false,
         autoMonitorRememberedWiFiHotspots: Bool = true,
         useLocationForWiFiNames: Bool = true
     ) {
         self.appearanceMode = appearanceMode
         self.dataUsageMode = dataUsageMode
+        self.travelProfile = travelProfile
         self.dashboardCardOrder = DashboardCardID.sanitizedOrder(dashboardCardOrder)
         self.dashboardCardWidthModes = DashboardCardID.sanitizedWidthModes(dashboardCardWidthModes)
         self.dashboardCollapsedCards = dashboardCollapsedCards
@@ -124,6 +129,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.manualMeteredSessionEnabled = manualMeteredSessionEnabled
         self.knownMeteredProfiles = knownMeteredProfiles
         self.showMeteredUsageInMenuBar = showMeteredUsageInMenuBar
+        self.menuBarShowsHeadsUp = menuBarShowsHeadsUp
         self.autoMonitorRememberedWiFiHotspots = autoMonitorRememberedWiFiHotspots
         self.useLocationForWiFiNames = useLocationForWiFiNames
     }
@@ -131,6 +137,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case appearanceMode
         case dataUsageMode
+        case travelProfile
         case dashboardCardOrder
         case dashboardCardWidthModes
         case dashboardCollapsedCards
@@ -168,6 +175,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case manualMeteredSessionEnabled
         case knownMeteredProfiles
         case showMeteredUsageInMenuBar
+        case menuBarShowsHeadsUp
         case autoMonitorRememberedWiFiHotspots
         case useLocationForWiFiNames
     }
@@ -176,6 +184,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         appearanceMode = try container.decodeIfPresent(AppAppearanceMode.self, forKey: .appearanceMode) ?? .system
+        travelProfile = (try? container.decodeIfPresent(TravelProfile.self, forKey: .travelProfile)) ?? .nomad
         let persistedCardOrder = (try? container.decodeIfPresent([String].self, forKey: .dashboardCardOrder))?
             .compactMap(DashboardCardID.fromPersistedRawValue(_:))
         dashboardCardOrder = DashboardCardID.sanitizedOrder(persistedCardOrder ?? DashboardCardID.defaultOrder)
@@ -234,6 +243,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         manualMeteredSessionEnabled = try container.decodeIfPresent(Bool.self, forKey: .manualMeteredSessionEnabled) ?? false
         knownMeteredProfiles = try container.decodeIfPresent([MeteredNetworkProfile].self, forKey: .knownMeteredProfiles) ?? []
         showMeteredUsageInMenuBar = try container.decodeIfPresent(Bool.self, forKey: .showMeteredUsageInMenuBar) ?? true
+        menuBarShowsHeadsUp = try container.decodeIfPresent(Bool.self, forKey: .menuBarShowsHeadsUp) ?? false
         autoMonitorRememberedWiFiHotspots = try container.decodeIfPresent(Bool.self, forKey: .autoMonitorRememberedWiFiHotspots) ?? true
         useLocationForWiFiNames = try container.decodeIfPresent(Bool.self, forKey: .useLocationForWiFiNames) ?? true
     }
@@ -242,6 +252,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(appearanceMode, forKey: .appearanceMode)
         try container.encode(dataUsageMode, forKey: .dataUsageMode)
+        try container.encode(travelProfile, forKey: .travelProfile)
         try container.encode(dashboardCardOrder.map(\.rawValue), forKey: .dashboardCardOrder)
         try container.encode(
             dashboardCardWidthModes.reduce(into: [String: String]()) { result, entry in
@@ -281,6 +292,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encode(manualMeteredSessionEnabled, forKey: .manualMeteredSessionEnabled)
         try container.encode(knownMeteredProfiles, forKey: .knownMeteredProfiles)
         try container.encode(showMeteredUsageInMenuBar, forKey: .showMeteredUsageInMenuBar)
+        try container.encode(menuBarShowsHeadsUp, forKey: .menuBarShowsHeadsUp)
         try container.encode(autoMonitorRememberedWiFiHotspots, forKey: .autoMonitorRememberedWiFiHotspots)
         try container.encode(useLocationForWiFiNames, forKey: .useLocationForWiFiNames)
     }
@@ -338,6 +350,21 @@ public struct SurfSpotConfiguration: Sendable, Equatable {
 }
 
 public extension AppSettings {
+    /// Whether the card order still matches the recommendation for the current travel profile.
+    var isUsingRecommendedOrder: Bool {
+        dashboardCardOrder == DashboardCardID.defaultOrder(for: travelProfile)
+    }
+
+    /// Switches the travel profile. The card order follows the new profile's recommendation
+    /// only when the user had not customised it; a customised order is left alone.
+    mutating func applyTravelProfile(_ profile: TravelProfile) {
+        let followsRecommendation = isUsingRecommendedOrder
+        travelProfile = profile
+        if followsRecommendation {
+            dashboardCardOrder = DashboardCardID.defaultOrder(for: profile)
+        }
+    }
+
     var surfSpotConfiguration: SurfSpotConfiguration {
         let normalizedName = surfSpotName.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedName = normalizedName.isEmpty ? nil : normalizedName

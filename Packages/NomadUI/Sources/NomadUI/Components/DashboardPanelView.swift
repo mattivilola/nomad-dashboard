@@ -13,6 +13,7 @@ public struct DashboardPanelView: View {
     private let dashboardCardOrder: [DashboardCardID]
     private let dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode]
     private let dashboardCollapsedCards: Set<DashboardCardID>
+    private let travelProfile: TravelProfile
     private let isPublicIPLocationEnabled: Bool
     private let travelAlertPreferences: TravelAlertPreferences
     private let versionDescription: String
@@ -46,6 +47,7 @@ public struct DashboardPanelView: View {
     private let onCardOrderChange: ([DashboardCardID]) -> Void
     private let onCardWidthModesChange: ([DashboardCardID: DashboardCardWidthMode]) -> Void
     private let onCollapsedCardsChange: (Set<DashboardCardID>) -> Void
+    private let onTravelProfileChange: (TravelProfile) -> Void
     private let onWeatherForecastExpandedChange: (Bool) -> Void
     private let setManualMeteredSessionEnabled: (Bool) -> Void
     private let markCurrentNetworkAsMetered: () -> Void
@@ -72,6 +74,7 @@ public struct DashboardPanelView: View {
         dashboardCardOrder: [DashboardCardID],
         dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode],
         dashboardCollapsedCards: Set<DashboardCardID> = [],
+        travelProfile: TravelProfile = .nomad,
         isPublicIPLocationEnabled: Bool,
         travelAlertPreferences: TravelAlertPreferences,
         versionDescription: String = "",
@@ -105,6 +108,7 @@ public struct DashboardPanelView: View {
         onCardOrderChange: @escaping ([DashboardCardID]) -> Void = { _ in },
         onCardWidthModesChange: @escaping ([DashboardCardID: DashboardCardWidthMode]) -> Void = { _ in },
         onCollapsedCardsChange: @escaping (Set<DashboardCardID>) -> Void = { _ in },
+        onTravelProfileChange: @escaping (TravelProfile) -> Void = { _ in },
         onWeatherForecastExpandedChange: @escaping (Bool) -> Void = { _ in },
         setManualMeteredSessionEnabled: @escaping (Bool) -> Void = { _ in },
         markCurrentNetworkAsMetered: @escaping () -> Void = {},
@@ -123,6 +127,7 @@ public struct DashboardPanelView: View {
         self.dashboardCardOrder = DashboardCardID.sanitizedOrder(dashboardCardOrder)
         self.dashboardCardWidthModes = DashboardCardID.sanitizedWidthModes(dashboardCardWidthModes)
         self.dashboardCollapsedCards = dashboardCollapsedCards
+        self.travelProfile = travelProfile
         self.isPublicIPLocationEnabled = isPublicIPLocationEnabled
         self.travelAlertPreferences = travelAlertPreferences
         self.versionDescription = versionDescription
@@ -156,6 +161,7 @@ public struct DashboardPanelView: View {
         self.onCardOrderChange = onCardOrderChange
         self.onCardWidthModesChange = onCardWidthModesChange
         self.onCollapsedCardsChange = onCollapsedCardsChange
+        self.onTravelProfileChange = onTravelProfileChange
         self.onWeatherForecastExpandedChange = onWeatherForecastExpandedChange
         self.setManualMeteredSessionEnabled = setManualMeteredSessionEnabled
         self.markCurrentNetworkAsMetered = markCurrentNetworkAsMetered
@@ -302,6 +308,10 @@ public struct DashboardPanelView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var travelProfileSelection: Binding<TravelProfile> {
+        Binding(get: { travelProfile }, set: { onTravelProfileChange($0) })
+    }
+
     private var headerMenu: some View {
         Menu {
             Button("Open Visited Map", systemImage: "globe.europe.africa.fill") {
@@ -327,6 +337,16 @@ public struct DashboardPanelView: View {
 
             Button(appearanceToggleTitle, systemImage: appearanceToggleSystemImage) {
                 toggleAppearanceAction()
+            }
+
+            Menu("Travel Profile", systemImage: "suitcase") {
+                Picker("Travel Profile", selection: travelProfileSelection) {
+                    ForEach(TravelProfile.allCases, id: \.self) { profile in
+                        Text(profile.title).tag(profile)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
             }
 
             Divider()

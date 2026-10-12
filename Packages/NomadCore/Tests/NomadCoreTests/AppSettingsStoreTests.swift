@@ -13,6 +13,8 @@ struct AppSettingsStoreTests {
         let store = AppSettingsStore(defaults: defaults)
 
         #expect(store.settings.appearanceMode == .system)
+        #expect(store.settings.travelProfile == .nomad)
+        #expect(store.settings.menuBarShowsHeadsUp == false)
         #expect(store.settings.dashboardCardOrder == DashboardCardID.defaultOrder)
         #expect(store.settings.dashboardCardWidthModes == DashboardCardID.defaultWidthModes)
         #expect(store.settings.refreshIntervalSeconds == AppSettings.defaultRefreshIntervalSeconds)
@@ -418,6 +420,9 @@ struct AppSettingsStoreTests {
         let store = AppSettingsStore(defaults: defaults)
 
         #expect(store.settings.appearanceMode == .system)
+        #expect(store.settings.travelProfile == .nomad)
+        #expect(store.settings.menuBarShowsHeadsUp == false)
+        #expect(store.settings.isUsingRecommendedOrder)
         #expect(store.settings.dashboardCardOrder == DashboardCardID.defaultOrder)
         #expect(store.settings.dashboardCardWidthModes == DashboardCardID.defaultWidthModes)
         #expect(store.settings.refreshIntervalSeconds == 5)

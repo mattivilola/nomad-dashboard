@@ -1,6 +1,7 @@
 import AppKit
 import CoreLocation
 import NomadCore
+import NomadUI
 import SwiftUI
 
 struct SettingsView: View {
@@ -76,6 +77,31 @@ struct SettingsView: View {
             ScrollViewReader { proxy in
                 Form {
                     Section {
+                        Picker("Travel profile", selection: travelProfileBinding) {
+                            ForEach(TravelProfile.allCases, id: \.self) { profile in
+                                Text(profile.title)
+                                    .tag(profile)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        if travelProfilePresentation.offersRecommendedOrder {
+                            Button(TravelProfileSettingsPresentation.useRecommendedOrderTitle) {
+                                settingsStore.settings.dashboardCardOrder = travelProfilePresentation.recommendedOrder
+                            }
+                        }
+
+                        Toggle(TravelProfileSettingsPresentation.menuBarHeadsUpTitle, isOn: binding(\.menuBarShowsHeadsUp))
+                        Text(TravelProfileSettingsPresentation.menuBarHeadsUpFooter)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } header: {
+                        Text("Travel profile")
+                    } footer: {
+                        Text(travelProfilePresentation.footer)
+                    }
+
+                    Section {
                         Picker("Appearance", selection: binding(\.appearanceMode)) {
                             ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
                                 Text(mode.displayName)
@@ -96,14 +122,14 @@ struct SettingsView: View {
                         }
 
                         Button("Reset Dashboard Layout") {
-                            settingsStore.settings.dashboardCardOrder = DashboardCardID.defaultOrder
+                            settingsStore.settings.dashboardCardOrder = DashboardCardID.defaultOrder(for: settingsStore.settings.travelProfile)
                             settingsStore.settings.dashboardCardWidthModes = DashboardCardID.defaultWidthModes
                             settingsStore.settings.dashboardCollapsedCards = []
                         }
                     } header: {
                         Text("General")
                     } footer: {
-                        Text(updatesEnabled ? "System follows your macOS appearance. The dashboard header button flips quickly between dark and light, and all preferences stay across relaunches." : "System follows your macOS appearance. The dashboard header button flips quickly between dark and light, and all preferences stay across relaunches. In-app update checks only become available in signed release builds that include Sparkle metadata.")
+                        Text(updatesEnabled ? "System follows your macOS appearance. The dashboard header menu flips quickly between dark and light, and all preferences stay across relaunches." : "System follows your macOS appearance. The dashboard header menu flips quickly between dark and light, and all preferences stay across relaunches. In-app update checks only become available in signed release builds that include Sparkle metadata.")
                     }
 
                     Section {
@@ -498,6 +524,20 @@ struct SettingsView: View {
         Binding(
             get: { settingsStore.settings[keyPath: keyPath] },
             set: { settingsStore.settings[keyPath: keyPath] = $0 }
+        )
+    }
+
+    private var travelProfileBinding: Binding<TravelProfile> {
+        Binding(
+            get: { settingsStore.settings.travelProfile },
+            set: { settingsStore.settings.applyTravelProfile($0) }
+        )
+    }
+
+    private var travelProfilePresentation: TravelProfileSettingsPresentation {
+        TravelProfileSettingsPresentation(
+            profile: settingsStore.settings.travelProfile,
+            isUsingRecommendedOrder: settingsStore.settings.isUsingRecommendedOrder
         )
     }
 

@@ -25,6 +25,27 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
         .weather
     ]
 
+    /// The recommended card order for a travel profile. `.nomad` is the baseline `defaultOrder`.
+    public static func defaultOrder(for profile: TravelProfile) -> [DashboardCardID] {
+        switch profile {
+        case .nomad:
+            defaultOrder
+        case .roadTrip:
+            [
+                .weather,
+                .fuelPrices,
+                .emergencyCare,
+                .power,
+                .meteredData,
+                .travelAlerts,
+                .connectivity,
+                .localInfo,
+                .travelContext,
+                .timeTracking
+            ]
+        }
+    }
+
     public static func sanitizedOrder(_ order: [DashboardCardID]) -> [DashboardCardID] {
         var seen: Set<DashboardCardID> = []
         let deduplicated = order.filter { seen.insert($0).inserted }
