@@ -9,6 +9,21 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- _Nothing yet_
+
+### Changed
+
+- _Nothing yet_
+
+### Fixed
+
+- _Nothing yet_
+
+
+## [0.18.0] - 2026-10-12
+
+### Added
+
 - Add Siri and Shortcuts actions (App Intents) that run without opening a window: `Emergency Number`, `Dashboard Status`, `Nearest Embassy`, `Daylight` and `Set Travel Profile`, with phrases such as "What's the emergency number in Nomad Dashboard". Answers are short sentences built on the Mac from the dashboard, the bundled emergency numbers and embassy data, and your location, and the Status action measures network quality when you ask even while the dashboard is closed.
 - Add desktop and Notification Center widgets: `Glance` (small and medium: verdict, place and top heads-up), `Safety` (emergency number and your consular line) and `Daylight` (sunset and daylight left, or when it gets light again). Each shows when it was last updated and marks itself out of date after six hours; a tap brings the app forward. The app shares a small snapshot (no IP address, coordinates or citizenship codes) with the widgets through an App Group on your Mac.
 - Add the Stays & Visas card: the days of your current stay, an optional visa allowance per country with the date to leave by, the Schengen 90/180 counter (no limit shown for EU, EEA and Swiss citizens), and this year's days per country against a tax-residence threshold with a Review days button for the Visited Map. It is computed on the Mac from your saved visited days, turns sand and coral as limits near, and adds heads-up items and optional menu bar text. Settings, Stays & Visas sets the allowances, the threshold and the switches.
@@ -19,11 +34,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Show `Stays & Visas` as a new page in Settings after Safety, and add an `Arrival briefing` group under Safety and an `Air quality` switch under Weather & Local.
-
-### Fixed
-
-- _Nothing yet_
-
+- Add model layers for stays, arrival briefing, local rhythm, UV and air quality
+- Add Siri and Shortcuts actions and desktop widgets
+- Add Stays & Visas, arrival briefing, air quality and local rhythm UI
+- Merge branch 'feature/intents-widgets' into feature/stays-arrival
+- Feed stays into Siri and widgets, unify country names, add screenshot library
+- Merge branch 'main' into feature/stays-arrival
 
 ## [0.17.2] - 2026-10-12
 
