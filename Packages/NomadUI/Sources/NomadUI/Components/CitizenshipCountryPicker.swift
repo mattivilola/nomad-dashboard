@@ -3,6 +3,7 @@ import SwiftUI
 
 /// Searchable sheet for adding a citizenship. Picking a country reports its ISO code and closes the sheet.
 public struct CitizenshipCountryPicker: View {
+    private let title: String
     private let chosen: [String]
     private let onSelect: (String) -> Void
 
@@ -11,9 +12,15 @@ public struct CitizenshipCountryPicker: View {
     private let countries = CitizenshipSettingsPresentation.allCountries()
 
     /// - Parameters:
+    ///   - title: The sheet title; "Choose citizenship" unless the picker is used for something else.
     ///   - chosen: Citizenships already added; they are left out of the list.
     ///   - onSelect: Called with the upper-case ISO 3166-1 alpha-2 code of the picked country.
-    public init(chosen: [String], onSelect: @escaping (String) -> Void) {
+    public init(
+        title: String = CitizenshipSettingsPresentation.pickerTitle,
+        chosen: [String],
+        onSelect: @escaping (String) -> Void
+    ) {
+        self.title = title
         self.chosen = chosen
         self.onSelect = onSelect
     }
@@ -24,7 +31,7 @@ public struct CitizenshipCountryPicker: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            Text(CitizenshipSettingsPresentation.pickerTitle)
+            Text(title)
                 .font(.headline)
                 .padding()
 

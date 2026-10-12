@@ -11,7 +11,7 @@ public struct ArrivalEvent: Equatable, Sendable {
     public let countryCode: String
     /// Upper-case ISO 3166-1 alpha-2 code of the country of the most recent previously recorded day.
     public let previousCountryCode: String
-    /// The calendar day the arrival was noticed.
+    /// The first day of the stay in the new country.
     public let arrivedOn: VisitedCountryDayStamp
 
     public init(countryCode: String, previousCountryCode: String, arrivedOn: VisitedCountryDayStamp) {
@@ -22,20 +22,26 @@ public struct ArrivalEvent: Equatable, Sendable {
 }
 
 public enum ArrivalDetector {
-    /// A previous record older than this is stale history, not a border crossing: the app was simply
-    /// not running (or the traveller was away from the Mac) for too long to call it an arrival.
+    /// A previous record older than this (before the stay began) is stale history, not a border
+    /// crossing: the app was simply not running (or the traveller was away from the Mac) for too long
+    /// to call it an arrival.
     public static let maximumPreviousRecordAgeDays = 30
+
+    /// How many days after the first day in a country the briefing is still offered, so opening the
+    /// dashboard a couple of days after crossing the border still shows it until "Got it".
+    public static let arrivalWindowDays = 3
 
     /// The arrival that should be briefed now, or nil.
     ///
-    /// An arrival is the current country differing from the countries of the most recent recorded day
-    /// before today. A day can hold several countries (a border day): if the current country is one of
-    /// them the traveller was already there, so it is not an arrival; otherwise the last country
-    /// recorded that day is the previous one. Days without a usable country code are skipped.
+    /// An arrival is a stay in the current country (see `StayCalculator.currentStay`) that began at most
+    /// `arrivalWindowDays` days ago, whose most recent recorded day before it was in another country.
+    /// A day can hold several countries (a border day): the last country recorded that day is the
+    /// previous one, and a previous day that also holds the current country is not a crossing. Days
+    /// without a usable country code are skipped. `arrivedOn` is the first day of the stay.
     ///
     /// Nil as well when briefings are disabled, when the country was already acknowledged, when there
-    /// is no history (first run), or when the previous record is older than
-    /// `maximumPreviousRecordAgeDays`.
+    /// is no history (first run), or when the previous record is more than
+    /// `maximumPreviousRecordAgeDays` before the stay began.
     public static func arrival(
         countryDays: [VisitedCountryDay],
         currentCountryCode: String?,
@@ -50,9 +56,14 @@ public enum ArrivalDetector {
             return nil
         }
 
-        let today = VisitedCountryDayStamp(date: now, calendar: calendar)
+        let stay = StayCalculator(days: countryDays, now: now, calendar: calendar, liveCountryCode: current)
+            .currentStay(in: current)
+        guard let stay, stay.dayCount - 1 <= arrivalWindowDays else {
+            return nil
+        }
+
         let earlier = countryDays.compactMap { entry -> (day: VisitedCountryDayStamp, code: String)? in
-            guard entry.day < today, let code = entry.countryCode.flatMap(AppSettings.normalizedCountryCode) else {
+            guard entry.day < stay.startDay, let code = entry.countryCode.flatMap(AppSettings.normalizedCountryCode) else {
                 return nil
             }
             return (entry.day, code)
@@ -63,24 +74,24 @@ public enum ArrivalDetector {
 
         let latestCodes = earlier.filter { $0.day == latestDay }.map(\.code)
         guard latestCodes.contains(current) == false, let previous = latestCodes.last,
-              let age = ageInDays(of: latestDay, until: today, calendar: calendar),
+              let age = ageInDays(of: latestDay, until: stay.startDay, calendar: calendar),
               age <= maximumPreviousRecordAgeDays
         else {
             return nil
         }
 
-        return ArrivalEvent(countryCode: current, previousCountryCode: previous, arrivedOn: today)
+        return ArrivalEvent(countryCode: current, previousCountryCode: previous, arrivedOn: stay.startDay)
     }
 
     private static func ageInDays(
         of day: VisitedCountryDayStamp,
-        until today: VisitedCountryDayStamp,
+        until later: VisitedCountryDayStamp,
         calendar: Calendar
     ) -> Int? {
         func noon(_ stamp: VisitedCountryDayStamp) -> Date? {
             calendar.date(from: DateComponents(year: stamp.year, month: stamp.month, day: stamp.day, hour: 12))
         }
-        guard let start = noon(day), let end = noon(today) else {
+        guard let start = noon(day), let end = noon(later) else {
             return nil
         }
         return calendar.dateComponents([.day], from: start, to: end).day
@@ -100,6 +111,9 @@ public struct ArrivalBriefing: Equatable, Sendable {
     public let power: Power?
     public let money: Money?
     public let holiday: Holiday?
+    /// Cultural or religious periods (Ramadan, Lunar New Year, ...) that are on now or start within
+    /// `DashboardInsightEngine.localRhythmLookAheadDays` days, earliest first. Empty when there are none.
+    public let rhythm: [LocalRhythmPeriod]
     public let advisory: Advisory?
     /// Shown when Data Guard is enabled but not monitoring, as the traveller may have switched SIM.
     public let dataGuardHint: String?
@@ -120,6 +134,7 @@ public struct ArrivalBriefing: Equatable, Sendable {
         power: Power? = nil,
         money: Money? = nil,
         holiday: Holiday? = nil,
+        rhythm: [LocalRhythmPeriod] = [],
         advisory: Advisory? = nil,
         dataGuardHint: String? = nil
     ) {
@@ -132,6 +147,7 @@ public struct ArrivalBriefing: Equatable, Sendable {
         self.power = power
         self.money = money
         self.holiday = holiday
+        self.rhythm = rhythm
         self.advisory = advisory
         self.dataGuardHint = dataGuardHint
     }
@@ -301,7 +317,7 @@ public extension ArrivalBriefing {
     ///
     /// - Parameters:
     ///   - homeTimeZoneIdentifier: The traveller's home time zone, for the "home is 2 h ahead" line.
-    ///   - calendar: Decides what "today" and "tomorrow" mean for the holiday section.
+    ///   - calendar: Decides what "today" and "tomorrow" mean for the holiday and local-rhythm sections.
     ///   - locale: Used for the country and currency names.
     static func make(
         event: ArrivalEvent,
@@ -350,6 +366,13 @@ public extension ArrivalBriefing {
                 )
             },
             holiday: holidaySection(countryCode: code, localInfo: snapshot.localInfo, now: now, calendar: calendar),
+            rhythm: LocalRhythmCalendar.periods(
+                forCountryCode: code,
+                travelContext: travelContext,
+                around: now,
+                lookaheadDays: DashboardInsightEngine.localRhythmLookAheadDays,
+                calendar: calendar
+            ),
             advisory: advisorySection(countryCode: code, alerts: snapshot.travelAlerts),
             dataGuardHint: snapshot.meteredData.isFeatureEnabled && snapshot.meteredData.isMonitoringActive == false
                 ? dataGuardHintText

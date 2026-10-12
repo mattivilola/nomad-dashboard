@@ -453,6 +453,7 @@ extension DashboardCardID {
         case .power: "Power"
         case .timeTracking: "Time Tracking"
         case .travelContext: "Travel Context"
+        case .stays: "Stays & Visas"
         case .localInfo: "Local Info"
         case .fuelPrices: "Fuel Prices"
         case .emergencyCare: "Emergency Care"

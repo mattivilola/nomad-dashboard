@@ -72,6 +72,22 @@ struct LocalRhythmTests {
         #expect(period.end == Self.date(to.0, to.1, to.2, 23, 59, 59, in: calendar), sourceLocation: sourceLocation)
     }
 
+    // MARK: - Names
+
+    @Test
+    func shortNameDropsTheExplanatoryParenthetical() {
+        func shortName(_ country: String, _ year: Int, _ month: Int, _ day: Int, _ kind: LocalRhythmKind) -> String? {
+            Self.period(kind, in: Self.periods(country, year, month, day))?.shortName
+        }
+
+        #expect(shortName("VN", 2027, 2, 1, .lunarNewYear) == "Tết")
+        #expect(shortName("ID", 2027, 3, 8, .nyepi) == "Nyepi")
+        #expect(shortName("TH", 2027, 4, 14, .songkran) == "Songkran")
+        #expect(shortName("CN", 2027, 2, 1, .lunarNewYear) == "Spring Festival")
+        #expect(shortName("SG", 2027, 2, 1, .lunarNewYear) == "Lunar New Year")
+        #expect(shortName("SA", 2027, 2, 19, .ramadan) == "Ramadan")
+    }
+
     // MARK: - Ramadan and the Eids
 
     @Test

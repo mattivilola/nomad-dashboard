@@ -133,6 +133,14 @@ public struct LocalRhythmPeriod: Equatable, Sendable, Identifiable {
     }
 }
 
+public extension LocalRhythmPeriod {
+    /// `name` without its explanatory parenthetical, for example "Tết", "Nyepi" or "Lunar New Year".
+    var shortName: String {
+        name.split(separator: "(", maxSplits: 1).first
+            .map { $0.trimmingCharacters(in: .whitespaces) } ?? name
+    }
+}
+
 public enum LocalRhythmCalendar {
     /// Periods that are active on `now` or start within `lookaheadDays`, for one country, earliest first.
     ///
@@ -181,6 +189,54 @@ public enum LocalRhythmCalendar {
                 let order = LocalRhythmKind.allCases
                 return (order.firstIndex(of: lhs.kind) ?? 0) < (order.firstIndex(of: rhs.kind) ?? 0)
             }
+    }
+}
+
+extension LocalRhythmCalendar {
+    /// `periods(forCountryCode:around:lookaheadDays:calendar:)` for the traveller's own location.
+    ///
+    /// Nyepi only applies to Bali, not to the rest of Indonesia, so it is dropped when the device (or
+    /// else the IP) location names a region other than Bali. It is kept when the region is unknown, as
+    /// its title and guidance say "Bali" themselves. A location that belongs to another country than
+    /// `countryCode` (a refresh that lags behind a border crossing) says nothing about the region.
+    public static func periods(
+        forCountryCode countryCode: String?,
+        travelContext: TravelContextSnapshot,
+        around now: Date,
+        lookaheadDays: Int = 14,
+        calendar: Calendar
+    ) -> [LocalRhythmPeriod] {
+        let all = periods(forCountryCode: countryCode, around: now, lookaheadDays: lookaheadDays, calendar: calendar)
+        guard all.contains(where: { $0.kind == .nyepi }),
+              let region = travelContext.regionName(inCountry: countryCode),
+              region.isBali == false
+        else {
+            return all
+        }
+        return all.filter { $0.kind != .nyepi }
+    }
+}
+
+private extension TravelContextSnapshot {
+    /// The region (province or state) of the device location, else of the IP location.
+    func regionName(inCountry countryCode: String?) -> String? {
+        let country = countryCode?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        return [deviceLocation, location].lazy
+            .compactMap { $0 }
+            .filter { location in
+                let locationCountry = location.countryCode?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                return locationCountry.map { $0.isEmpty || $0 == country } ?? true
+            }
+            .compactMap { $0.region?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { $0.isEmpty == false }
+    }
+}
+
+private extension String {
+    /// Whether "Bali" is one of the words ("Bali", "Provinsi Bali"), but not part of another place such as Balikpapan.
+    var isBali: Bool {
+        split(whereSeparator: { !$0.isLetter })
+            .contains { $0.compare("bali", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }
     }
 }
 

@@ -97,6 +97,19 @@ public enum SchengenStatus: Equatable, Sendable {
     }
 }
 
+/// When a stay, Schengen or tax-residence count starts to warrant a warning. Shared by the heads-up items
+/// and the Stays & Visas card so both turn sand and coral together.
+public enum StayWarningThresholds {
+    /// Days left at or below which a visa allowance or the Schengen limit is a caution (sand).
+    public static let cautionDays = 14
+    /// Days left at or below which it is an attention (coral). Overstays are always attention.
+    public static let attentionDays = 3
+    /// A tax-residence count is informational from this many days before the threshold.
+    public static let taxResidenceInfoLeadDays = 30
+    /// A tax-residence count is a caution (sand) from this many days before the threshold.
+    public static let taxResidenceCautionLeadDays = 7
+}
+
 // MARK: - Result types
 
 public struct CurrentStay: Equatable, Sendable {

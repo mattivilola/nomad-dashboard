@@ -96,6 +96,72 @@ struct ArrivalBriefingTests {
         #expect(event.previousCountryCode == "ES")
     }
 
+    // MARK: - Arrival window
+
+    /// ES until `daysSinceCrossing + 1` days ago, then MA every day through today.
+    private func crossing(daysSinceCrossing: Int, previous: String = "ES") -> [VisitedCountryDay] {
+        [day(daysSinceCrossing + 1, previous)] + (0...daysSinceCrossing).map { day($0, "MA") }
+    }
+
+    @Test
+    func theBriefingIsOfferedOnTheCrossingDayAndForThreeDaysAfter() throws {
+        #expect(ArrivalDetector.arrivalWindowDays == 3)
+        for daysSince in 0...3 {
+            let event = try #require(detect(days: crossing(daysSinceCrossing: daysSince), current: "MA"))
+            #expect(event.countryCode == "MA")
+            #expect(event.previousCountryCode == "ES")
+            #expect(event.arrivedOn == stamp(daysSince))
+        }
+    }
+
+    @Test
+    func theBriefingIsGoneFourDaysAfterCrossing() {
+        #expect(detect(days: crossing(daysSinceCrossing: 4), current: "MA") == nil)
+        #expect(detect(days: crossing(daysSinceCrossing: 20), current: "MA") == nil)
+    }
+
+    @Test
+    func opening2DaysAfterCrossingStillShowsUntilAcknowledged() throws {
+        let days = crossing(daysSinceCrossing: 2)
+        #expect(detect(days: days, current: "MA") != nil)
+
+        let acknowledged = ArrivalBriefing.acknowledged(settings: AppSettings(), countryCode: "MA", now: now)
+        #expect(detect(days: days, current: "MA", settings: acknowledged) == nil)
+    }
+
+    @Test
+    func aMissingRecordInsideTheFirstDaysDoesNotHideTheArrival() throws {
+        // Crossed 3 days ago; the Mac was off the day after.
+        let days = [day(4, "ES"), day(3, "MA"), day(1, "MA"), day(0, "MA")]
+        let event = try #require(detect(days: days, current: "MA"))
+        #expect(event.arrivedOn == stamp(3))
+    }
+
+    @Test
+    func theStaleLimitCountsFromTheStartOfTheStayNotFromToday() throws {
+        // Previous record 30 days before the crossing, two days ago: still an arrival.
+        let ok = [day(32, "ES"), day(2, "MA"), day(1, "MA"), day(0, "MA")]
+        #expect(try #require(detect(days: ok, current: "MA")).previousCountryCode == "ES")
+
+        let stale = [day(33, "ES"), day(2, "MA"), day(1, "MA"), day(0, "MA")]
+        #expect(detect(days: stale, current: "MA") == nil)
+    }
+
+    @Test
+    func comingBackToACountryAfterATripElsewhereIsAnArrivalAgain() throws {
+        // Morocco, a week in Spain, back in Morocco today.
+        let days = (20...30).map { day($0, "MA") } + (1...19).map { day($0, "ES") }
+        let event = try #require(detect(days: days, current: "MA"))
+        #expect(event.previousCountryCode == "ES")
+        #expect(event.arrivedOn == stamp(0))
+    }
+
+    @Test
+    func aStayThatStartedAfterAGapInTheSameCountryIsNotAnArrival() {
+        // Morocco, nothing recorded for a week, Morocco again: no crossing happened.
+        #expect(detect(days: [day(9, "MA"), day(8, "MA"), day(0, "MA")], current: "MA") == nil)
+    }
+
     @Test
     func borderDayContainingTheCurrentCountryIsNotAnArrival() {
         // Crossed ES to MA yesterday: the traveller was already in Morocco.
@@ -187,6 +253,7 @@ struct ArrivalBriefingTests {
         #expect(money.currencyCode == "MAD")
         #expect(money.currencyName == "Moroccan Dirham")
         #expect(money.changesFromPreviousCountry)
+        #expect(briefing.rhythm.isEmpty)
     }
 
     @Test
@@ -436,6 +503,50 @@ struct ArrivalBriefingTests {
         #expect(daysFromToday(using: auckland) == 0)
     }
 
+    // MARK: - Local rhythm
+
+    // Reference (2027): Ramadan 8 Feb - 8 Mar, Eid al-Fitr 9-11 Mar, Nyepi 8 Mar.
+
+    @Test
+    func rhythmListsThePeriodsOnNowOrStartingWithinFourteenDays() throws {
+        let during = try #require(rhythmBriefing(country: "MA", on: 2027, 2, 19).rhythm.first)
+        #expect(during.kind == .ramadan)
+        #expect(during.countryCode == "MA")
+
+        #expect(rhythmKinds(country: "MA", on: 2027, 1, 25) == [.ramadan]) // starts in 14 days
+        #expect(rhythmKinds(country: "MA", on: 2027, 1, 24).isEmpty) // 15 days
+        #expect(rhythmKinds(country: "MA", on: 2026, 10, 12).isEmpty)
+        #expect(rhythmKinds(country: "ES", on: 2027, 2, 19).isEmpty)
+    }
+
+    @Test
+    func rhythmIsEarliestFirstAndFollowsTheArrivalCountryNotTheSnapshot() {
+        // The snapshot still describes Morocco while the traveller has just arrived in Saudi Arabia.
+        let lagging = rhythmBriefing(country: "SA", on: 2027, 3, 7, snapshot: moroccoSnapshot())
+        #expect(lagging.rhythm.map(\.kind) == [.ramadan, .eidAlFitr])
+        #expect(lagging.rhythm.allSatisfy { $0.countryCode == "SA" })
+    }
+
+    @Test
+    func nyepiIsOnlyListedForBaliOrAnUnknownRegion() {
+        func kinds(_ deviceLocation: IPLocationSnapshot?) -> [LocalRhythmKind] {
+            rhythmKinds(country: "ID", on: 2027, 3, 5, snapshot: makeSnapshot(
+                countryCode: "ID", timeZone: "Asia/Makassar", deviceLocation: deviceLocation
+            ))
+        }
+
+        #expect(kinds(location("ID", timeZone: nil, latitude: nil, longitude: nil, region: "Bali"))
+            == [.ramadan, .nyepi, .eidAlFitr])
+        #expect(kinds(location("ID", timeZone: nil, latitude: nil, longitude: nil, region: "Jakarta"))
+            == [.ramadan, .eidAlFitr])
+        // Unknown region: kept, as its name already says "Bali".
+        #expect(kinds(location("ID", timeZone: nil, latitude: nil, longitude: nil)) == [.ramadan, .nyepi, .eidAlFitr])
+        #expect(kinds(nil) == [.ramadan, .nyepi, .eidAlFitr])
+        // A region of the previous country (a refresh that lags behind the crossing) says nothing about Indonesia.
+        #expect(kinds(location("ES", timeZone: nil, latitude: nil, longitude: nil, region: "Andalusia"))
+            == [.ramadan, .nyepi, .eidAlFitr])
+    }
+
     // MARK: - Advisory
 
     @Test
@@ -553,11 +664,12 @@ struct ArrivalBriefingTests {
         _ countryCode: String,
         timeZone: String?,
         latitude: Double?,
-        longitude: Double?
+        longitude: Double?,
+        region: String? = nil
     ) -> IPLocationSnapshot {
         IPLocationSnapshot(
             city: nil,
-            region: nil,
+            region: region,
             country: nil,
             countryCode: countryCode,
             latitude: latitude,
@@ -566,6 +678,30 @@ struct ArrivalBriefingTests {
             provider: "test",
             fetchedAt: now
         )
+    }
+
+    private func rhythmBriefing(
+        country: String,
+        on year: Int, _ month: Int, _ day: Int,
+        snapshot: DashboardSnapshot? = nil
+    ) -> ArrivalBriefing {
+        ArrivalBriefing.make(
+            event: ArrivalEvent(countryCode: country, previousCountryCode: "FR", arrivedOn: stamp(0)),
+            snapshot: snapshot ?? makeSnapshot(countryCode: country, timeZone: "UTC"),
+            settings: AppSettings(),
+            homeTimeZoneIdentifier: nil,
+            now: calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!,
+            calendar: calendar,
+            locale: locale
+        )
+    }
+
+    private func rhythmKinds(
+        country: String,
+        on year: Int, _ month: Int, _ day: Int,
+        snapshot: DashboardSnapshot? = nil
+    ) -> [LocalRhythmKind] {
+        rhythmBriefing(country: country, on: year, month, day, snapshot: snapshot).rhythm.map(\.kind)
     }
 
     private func moroccoSnapshot(

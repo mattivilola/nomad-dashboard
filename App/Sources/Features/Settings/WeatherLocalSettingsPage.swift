@@ -24,6 +24,7 @@ struct WeatherLocalSettingsPage: View {
             onFocus: focusField(for:)
         ) {
             weatherSection
+            airQualitySection
             surfSpotSection
             localInfoSection
             fuelPricesSection
@@ -46,6 +47,24 @@ struct WeatherLocalSettingsPage: View {
                 .id(SettingsFocusTarget.weather.rawValue)
         } header: {
             Text("Weather")
+        }
+    }
+
+    /// Air quality is fetched for the weather location, so it follows the weather location setting.
+    private var airQualitySection: some View {
+        Section {
+            Toggle(StaySettingsPresentation.airQualityToggleTitle, isOn: settingsStore.binding(\.airQualityEnabled))
+                .disabled(settingsStore.settings.useCurrentLocationForWeather == false)
+
+            if settingsStore.settings.useCurrentLocationForWeather == false {
+                Text(StaySettingsPresentation.airQualityNeedsLocationExplanation)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text(StaySettingsPresentation.airQualityTitle)
+        } footer: {
+            Text(StaySettingsPresentation.airQualityFooter)
         }
     }
 

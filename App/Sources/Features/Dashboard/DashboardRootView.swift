@@ -26,6 +26,8 @@ struct DashboardRootView: View {
     @State private var locationRefreshTask: Task<Void, Never>?
     @State private var pendingLocationRefresh: CLLocation?
     @State private var lastLocationRefreshLocation: CLLocation?
+    /// An arrival briefing the user asked for from the header menu, kept until they dismiss it.
+    @State private var reopenedArrival: ArrivalEvent?
 
     var body: some View {
         DashboardPanelView(
@@ -38,11 +40,16 @@ struct DashboardRootView: View {
                     dataUsageMode: settingsStore.settings.dataUsageMode,
                     travelProfile: settingsStore.settings.travelProfile,
                     weatherAvailabilityExplanation: AppRuntimeInfo.weatherAvailabilityExplanation,
+                    settings: settingsStore.settings,
+                    visitedCountryDays: snapshotStore.visitedCountryDays,
+                    reopenedArrival: reopenedArrival,
                     changeDataUsage: { settingsStore.settings.dataUsageMode = $0 },
                     openDiary: { openDashboardWindow(.workplaceDiary) },
                     openPreferences: openHomeTimeZoneSettings,
                     openOfflineEssentials: { showsOfflineEssentials = true },
-                    openExploreCities: { openDashboardWindow(.exploreCities) }
+                    openExploreCities: { openDashboardWindow(.exploreCities) },
+                    acknowledgeArrival: acknowledgeArrivalBriefing,
+                    startDataGuardMonitoring: { snapshotStore.setManualMeteredSessionEnabled(true) }
                 )
                 NomadsCurrentCitySummaryView(controller: nomadsCurrentCity) {
                     openDashboardWindow(.exploreCities)
@@ -59,6 +66,7 @@ struct DashboardRootView: View {
             travelProfile: settingsStore.settings.travelProfile,
             isPublicIPLocationEnabled: settingsStore.settings.publicIPGeolocationEnabled,
             travelAlertPreferences: settingsStore.settings.travelAlertPreferences,
+            visitedCountryDays: snapshotStore.visitedCountryDays,
             versionDescription: AppRuntimeInfo.versionDescription,
             buildFlavorBadgeTitle: AppRuntimeInfo.headerFlavorBadgeTitle,
             weatherAvailabilityExplanation: AppRuntimeInfo.weatherAvailabilityExplanation,
@@ -80,6 +88,7 @@ struct DashboardRootView: View {
             openTimeTrackingAction: openTimeTracking,
             copyIPAddressAction: copyIPAddress,
             openVisitedMapAction: openVisitedMap,
+            showArrivalBriefingAction: showArrivalBriefing,
             openNetworkSettingsAction: openNetworkSettings,
             openFuelStationMapPreviewAction: openFuelStationMapPreview,
             openFuelStationInGoogleMapsAction: openFuelStationInGoogleMaps,
@@ -224,6 +233,25 @@ struct DashboardRootView: View {
     private func openHomeTimeZoneSettings() {
         settingsNavigationController.focus(.homeTimeZone)
         openDashboardWindow(.settings)
+    }
+
+    /// Re-opens the briefing for the current country, also after it was acknowledged.
+    private func showArrivalBriefing() {
+        reopenedArrival = ArrivalBriefingEvents.reopened(
+            countryDays: snapshotStore.visitedCountryDays,
+            currentCountryCode: snapshotStore.snapshot.currentCountryCode,
+            now: .now,
+            calendar: .current
+        )
+    }
+
+    private func acknowledgeArrivalBriefing(countryCode: String) {
+        reopenedArrival = nil
+        settingsStore.settings = ArrivalBriefing.acknowledged(
+            settings: settingsStore.settings,
+            countryCode: countryCode,
+            now: .now
+        )
     }
 
     private func openVisitedMap() {
@@ -501,6 +529,8 @@ struct MenuBarStatusLabel: View {
     let showMeteredUsageInMenuBar: Bool
     let showsHeadsUp: Bool
     let travelProfile: TravelProfile
+    /// What the stay heads-ups need: the visited days and the stay settings. Local only.
+    let stays: StayInsightInput?
 
     var body: some View {
         if showsHeadsUp {
@@ -510,7 +540,8 @@ struct MenuBarStatusLabel: View {
                     for: snapshot,
                     now: timeline.date,
                     limit: 1,
-                    profile: travelProfile
+                    profile: travelProfile,
+                    stays: stays
                 ).first)
             }
         } else {

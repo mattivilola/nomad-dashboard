@@ -24,6 +24,7 @@ public enum DashboardInsightKind: String, CaseIterable, Sendable {
     case uvIndex
     case airQuality
     case publicHoliday
+    case localRhythm
     case fuelNearby
     case daylight
 
@@ -33,7 +34,7 @@ public enum DashboardInsightKind: String, CaseIterable, Sendable {
         case .nomad:
             allCases
         case .roadTrip:
-            [.strongWind, .daylight, .uvIndex, .airQuality, .fuelNearby, .weatherAlert, .dataCap, .stayAllowance, .schengenLimit, .taxResidenceDays, .travelAdvisory, .regionalSecurity, .rainSoon, .publicHoliday]
+            [.strongWind, .daylight, .uvIndex, .airQuality, .fuelNearby, .weatherAlert, .dataCap, .stayAllowance, .schengenLimit, .taxResidenceDays, .travelAdvisory, .regionalSecurity, .rainSoon, .publicHoliday, .localRhythm]
         }
     }
 }
@@ -99,12 +100,10 @@ public enum DashboardInsightEngine {
     static let uvVeryHighThreshold = 8
     static let uvExtremeThreshold = 11
     static let holidayLookAheadDays = 3
+    static let localRhythmLookAheadDays = 14
+    private static let menuBarTextCharacterLimit = 12
     static let daylightCautionInterval: TimeInterval = 60 * 60
     static let daylightInfoInterval: TimeInterval = 120 * 60
-    static let stayCautionDays = 14
-    static let stayAttentionDays = 3
-    static let taxResidenceInfoLeadDays = 30
-    static let taxResidenceCautionLeadDays = 7
     /// The dark heads-up waits this long after civil dusk so it does not flicker while the light fades.
     static let darkGraceInterval: TimeInterval = 30 * 60
     private static let detailCharacterLimit = 44
@@ -140,6 +139,7 @@ public enum DashboardInsightEngine {
         ))
         candidates.append(contentsOf: airQualityInsight(for: snapshot.airQuality, now: now, calendar: calendar, locale: locale))
         candidates.append(contentsOf: holidayInsight(for: snapshot.localInfo, now: now, calendar: calendar, locale: locale))
+        candidates.append(contentsOf: localRhythmInsight(for: snapshot, now: now, calendar: calendar, locale: locale))
         candidates.append(contentsOf: fuelInsight(for: snapshot.fuelPrices, locale: locale))
         if profile == .roadTrip {
             candidates.append(contentsOf: daylightInsight(for: snapshot.travelContext, now: now, locale: locale))
@@ -232,7 +232,7 @@ public enum DashboardInsightEngine {
         if let currentCode,
            let allowanceDays = settings.stayAllowances[currentCode],
            let status = calculator.allowanceStatus(country: currentCode, allowanceDays: allowanceDays),
-           status.remainingDays <= stayCautionDays
+           status.remainingDays <= StayWarningThresholds.cautionDays
         {
             let countryName = locale.localizedString(forRegionCode: currentCode) ?? currentCode
             let leaveBy = status.lastPermittedDay.formatted(dayStyle)
@@ -245,7 +245,7 @@ public enum DashboardInsightEngine {
             }
             insights.append(DashboardInsight(
                 kind: .stayAllowance,
-                severity: status.remainingDays <= stayAttentionDays ? .attention : .caution,
+                severity: status.remainingDays <= StayWarningThresholds.attentionDays ? .attention : .caution,
                 symbolName: "calendar.badge.clock",
                 title: "\(countryName): \(phrase.title)",
                 menuBarText: phrase.menuBar,
@@ -260,13 +260,13 @@ public enum DashboardInsightEngine {
         if settings.schengenCounterEnabled,
            case let .counting(allowance) = calculator.schengenStatus(citizenships: settings.citizenshipCountryCodes),
            let mustLeaveBy = allowance.mustLeaveBy,
-           allowance.remainingDays <= stayCautionDays
+           allowance.remainingDays <= StayWarningThresholds.cautionDays
         {
             let limit = SchengenArea.maximumStayDays
             let overstay = allowance.usedDays - limit
             insights.append(DashboardInsight(
                 kind: .schengenLimit,
-                severity: allowance.remainingDays <= stayAttentionDays ? .attention : .caution,
+                severity: allowance.remainingDays <= StayWarningThresholds.attentionDays ? .attention : .caution,
                 symbolName: "globe.europe.africa",
                 title: "Schengen: \(allowance.remainingDays) of \(limit) days left",
                 menuBarText: "Schengen \(allowance.remainingDays)d",
@@ -280,11 +280,11 @@ public enum DashboardInsightEngine {
         if settings.taxResidenceDaysEnabled, let currentCode {
             let threshold = settings.taxResidenceThresholdDays
             let days = calculator.taxYearDays(year: calendar.component(.year, from: now)).days(inCountry: currentCode)
-            if days > 0, days >= threshold - taxResidenceInfoLeadDays {
+            if days > 0, days >= threshold - StayWarningThresholds.taxResidenceInfoLeadDays {
                 let countryName = locale.localizedString(forRegionCode: currentCode) ?? currentCode
                 insights.append(DashboardInsight(
                     kind: .taxResidenceDays,
-                    severity: days >= threshold - taxResidenceCautionLeadDays ? .caution : .info,
+                    severity: days >= threshold - StayWarningThresholds.taxResidenceCautionLeadDays ? .caution : .info,
                     symbolName: "building.columns",
                     title: "\(countryName): \(dayCount(days)) this year",
                     menuBarText: dayCount(days),
@@ -717,6 +717,115 @@ public enum DashboardInsightEngine {
                 relatedCard: .localInfo
             )]
         }
+    }
+
+    // MARK: - Local rhythm
+
+    /// One heads-up about the cultural or religious period that matters most in the current country: a full
+    /// shutdown (Yom Kippur, Nyepi) that is on or starts tomorrow, else an active period, else the soonest
+    /// one within `localRhythmLookAheadDays`.
+    private static func localRhythmInsight(
+        for snapshot: DashboardSnapshot,
+        now: Date,
+        calendar: Calendar,
+        locale: Locale
+    ) -> [DashboardInsight] {
+        guard let country = snapshot.currentCountryCode else {
+            return []
+        }
+
+        let today = calendar.startOfDay(for: now)
+        func days(from first: Date, to second: Date) -> Int? {
+            calendar.dateComponents([.day], from: calendar.startOfDay(for: first), to: calendar.startOfDay(for: second)).day
+        }
+
+        // Earliest first; the calendar only returns periods that are active or start within the window.
+        let candidates = LocalRhythmCalendar.periods(
+            forCountryCode: country,
+            travelContext: snapshot.travelContext,
+            around: now,
+            lookaheadDays: localRhythmLookAheadDays,
+            calendar: calendar
+        ).compactMap { period -> (period: LocalRhythmPeriod, startsIn: Int)? in
+            days(from: today, to: period.start).map { (period, $0) }
+        }
+
+        // The shutdown (a day with almost nothing open) outranks a month-long period that is still running.
+        guard let (period, startsIn) = candidates.first(where: { isFullShutdown($0.period.kind) && $0.startsIn <= 1 })
+            ?? candidates.first(where: { $0.startsIn <= 0 })
+            ?? candidates.first
+        else {
+            return []
+        }
+
+        let dayStyle = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
+            .day().month(.abbreviated)
+        let name = period.shortName
+        let isShutdownHeadsUp = isFullShutdown(period.kind) && startsIn <= 1
+
+        let title: String
+        if isShutdownHeadsUp {
+            title = "\(name) \(startsIn == 1 ? "tomorrow" : "today"): \(shutdownSummary(for: period.kind))"
+        } else if startsIn > 0 {
+            title = "\(name) starts \(startsIn == 1 ? "tomorrow" : "in \(startsIn) days")"
+        } else {
+            let length = (days(from: period.start, to: period.end) ?? 0) + 1
+            title = if length == 1 {
+                "\(name) today"
+            } else if length <= 3 {
+                "\(name) · until \(period.end.formatted(dayStyle))"
+            } else {
+                "\(name) · day \(1 - startsIn) of \(length)"
+            }
+        }
+
+        let detail: String
+        if startsIn > 0 {
+            let start = period.start.formatted(dayStyle)
+            detail = period.confidence == .expected ? "Expected \(start) · may shift a day" : "From \(start)"
+        } else {
+            detail = truncated(firstSentence(of: period.guidance))
+        }
+
+        return [DashboardInsight(
+            kind: .localRhythm,
+            severity: isShutdownHeadsUp ? .caution : .info,
+            symbolName: "calendar.badge.clock",
+            title: title,
+            menuBarText: menuBarName(for: period),
+            detail: detail,
+            relatedCard: .localInfo
+        )]
+    }
+
+    /// Periods when a whole country (or island) stops for a day, which a traveller must plan for the day before.
+    private static func isFullShutdown(_ kind: LocalRhythmKind) -> Bool {
+        kind == .yomKippur || kind == .nyepi
+    }
+
+    private static func shutdownSummary(for kind: LocalRhythmKind) -> String {
+        switch kind {
+        case .nyepi: "Bali shuts down for 24 h"
+        default: "country stops for 25 h"
+        }
+    }
+
+    /// The short name when it fits the menu bar, else a compact stand-in.
+    private static func menuBarName(for period: LocalRhythmPeriod) -> String {
+        let name = period.shortName
+        guard name.count > menuBarTextCharacterLimit else {
+            return name
+        }
+        return switch period.kind {
+        case .lunarNewYear: "New Year"
+        case .holyWeek: "Holy Week"
+        default: truncated(name, limit: menuBarTextCharacterLimit)
+        }
+    }
+
+    private static func firstSentence(of text: String) -> String {
+        text.range(of: ". ").map { String(text[..<$0.lowerBound]) }
+            ?? text.trimmingCharacters(in: CharacterSet(charactersIn: ". "))
     }
 
     // MARK: - Fuel

@@ -13,6 +13,7 @@ struct SafetySettingsPage: View {
             travelAlertsSection
             emergencyCareSection
             embassySection
+            arrivalBriefingSection
         }
     }
 
@@ -59,6 +60,20 @@ struct SafetySettingsPage: View {
             Text("Your embassy")
         } footer: {
             Text(CitizenshipSettingsPresentation.embassySectionFooter)
+        }
+    }
+
+    /// The one-time summary shown on the dashboard when the traveller arrives in a new country.
+    private var arrivalBriefingSection: some View {
+        Section {
+            Toggle(
+                StaySettingsPresentation.arrivalBriefingToggleTitle,
+                isOn: settingsStore.binding(\.arrivalBriefingEnabled)
+            )
+        } header: {
+            Text(StaySettingsPresentation.arrivalBriefingTitle)
+        } footer: {
+            Text(StaySettingsPresentation.arrivalBriefingFooter)
         }
     }
 }

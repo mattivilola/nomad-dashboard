@@ -9,11 +9,16 @@ public struct NomadWorkReadinessView: View {
     let dataUsageMode: DataUsageMode
     let travelProfile: TravelProfile
     let weatherAvailabilityExplanation: String?
+    let settings: AppSettings
+    let visitedCountryDays: [VisitedCountryDay]
+    let reopenedArrival: ArrivalEvent?
     let changeDataUsage: @Sendable (DataUsageMode) -> Void
     let openDiary: () -> Void
     let openPreferences: () -> Void
     let openOfflineEssentials: () -> Void
     let openExploreCities: () -> Void
+    let acknowledgeArrival: (String) -> Void
+    let startDataGuardMonitoring: () -> Void
 
     @Environment(\.dashboardScrollToCard) private var scrollToCard
 
@@ -24,11 +29,16 @@ public struct NomadWorkReadinessView: View {
         dataUsageMode: DataUsageMode,
         travelProfile: TravelProfile = .nomad,
         weatherAvailabilityExplanation: String? = nil,
+        settings: AppSettings = AppSettings(),
+        visitedCountryDays: [VisitedCountryDay] = [],
+        reopenedArrival: ArrivalEvent? = nil,
         changeDataUsage: @escaping @Sendable (DataUsageMode) -> Void,
         openDiary: @escaping () -> Void,
         openPreferences: @escaping () -> Void,
         openOfflineEssentials: @escaping () -> Void,
-        openExploreCities: @escaping () -> Void = {}
+        openExploreCities: @escaping () -> Void = {},
+        acknowledgeArrival: @escaping (String) -> Void = { _ in },
+        startDataGuardMonitoring: @escaping () -> Void = {}
     ) {
         self.snapshot = snapshot
         self.policy = policy
@@ -36,15 +46,21 @@ public struct NomadWorkReadinessView: View {
         self.dataUsageMode = dataUsageMode
         self.travelProfile = travelProfile
         self.weatherAvailabilityExplanation = weatherAvailabilityExplanation
+        self.settings = settings
+        self.visitedCountryDays = visitedCountryDays
+        self.reopenedArrival = reopenedArrival
         self.changeDataUsage = changeDataUsage
         self.openDiary = openDiary
         self.openPreferences = openPreferences
         self.openOfflineEssentials = openOfflineEssentials
         self.openExploreCities = openExploreCities
+        self.acknowledgeArrival = acknowledgeArrival
+        self.startDataGuardMonitoring = startDataGuardMonitoring
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            arrivalCard
             verdictRow
             clocksLine
             vitalTiles
@@ -54,6 +70,57 @@ public struct NomadWorkReadinessView: View {
         .padding(12)
         .background(NomadTheme.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(NomadTheme.teal.opacity(0.16)))
+    }
+
+    private var stayInsightInput: StayInsightInput {
+        StayInsightInput(
+            countryDays: visitedCountryDays,
+            settings: settings,
+            currentCountryCode: snapshot.currentCountryCode
+        )
+    }
+
+    // MARK: Arrival briefing
+
+    @ViewBuilder
+    private var arrivalCard: some View {
+        // Decided once per render so no empty slot (and spacing) is left when there is no arrival.
+        if ArrivalBriefingEvents.event(
+            reopened: reopenedArrival,
+            countryDays: visitedCountryDays,
+            currentCountryCode: snapshot.currentCountryCode,
+            settings: settings,
+            now: .now,
+            calendar: .current
+        ) != nil {
+            TimelineView(.periodic(from: .now, by: 60)) { timeline in
+                if let event = ArrivalBriefingEvents.event(
+                    reopened: reopenedArrival,
+                    countryDays: visitedCountryDays,
+                    currentCountryCode: snapshot.currentCountryCode,
+                    settings: settings,
+                    now: timeline.date,
+                    calendar: .current
+                ) {
+                    ArrivalBriefingCardView(
+                        presentation: ArrivalBriefingPresentation(
+                            briefing: ArrivalBriefing.make(
+                                event: event,
+                                snapshot: snapshot,
+                                settings: settings,
+                                homeTimeZoneIdentifier: homeTimeZoneIdentifier,
+                                now: timeline.date
+                            ),
+                            previousCountryCode: event.previousCountryCode,
+                            now: timeline.date
+                        ),
+                        acknowledge: { acknowledgeArrival(event.countryCode) },
+                        startDataGuardMonitoring: startDataGuardMonitoring
+                    )
+                    .id(event.countryCode)
+                }
+            }
+        }
     }
 
     private var isOffline: Bool {
@@ -227,7 +294,12 @@ public struct NomadWorkReadinessView: View {
 
     private var headsUpList: some View {
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
-            let rows = DashboardInsightEngine.insights(for: snapshot, now: timeline.date, profile: travelProfile)
+            let rows = DashboardInsightEngine.insights(
+                for: snapshot,
+                now: timeline.date,
+                profile: travelProfile,
+                stays: stayInsightInput
+            )
                 .map(GlanceHeadsUpRowPresentation.init(insight:))
 
             if rows.isEmpty == false {

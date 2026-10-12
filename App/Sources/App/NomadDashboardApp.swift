@@ -121,7 +121,12 @@ struct NomadDashboardApp: App {
                 snapshot: snapshotStore.snapshot,
                 showMeteredUsageInMenuBar: settingsStore.settings.showMeteredUsageInMenuBar,
                 showsHeadsUp: settingsStore.settings.menuBarShowsHeadsUp,
-                travelProfile: settingsStore.settings.travelProfile
+                travelProfile: settingsStore.settings.travelProfile,
+                stays: StayInsightInput(
+                    countryDays: snapshotStore.visitedCountryDays,
+                    settings: settingsStore.settings,
+                    currentCountryCode: snapshotStore.snapshot.currentCountryCode
+                )
             )
         }
         .menuBarExtraStyle(.window)

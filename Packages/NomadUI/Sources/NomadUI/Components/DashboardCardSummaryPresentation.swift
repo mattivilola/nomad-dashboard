@@ -14,6 +14,7 @@ struct DashboardCardSummaryPresentation: Equatable {
         settings: AppSettings,
         travelAlertPreferences: TravelAlertPreferences,
         timeTracking: TimeTrackingDashboardState,
+        visitedCountryDays: [VisitedCountryDay] = [],
         now: Date = .now,
         calendar: Calendar = .current
     ) {
@@ -32,6 +33,15 @@ struct DashboardCardSummaryPresentation: Equatable {
                 : "Off"
         case .travelContext:
             text = Self.travelContext(snapshot)
+        case .stays:
+            let stays = StaysCardPresentation(
+                settings: settings,
+                countryDays: visitedCountryDays,
+                currentCountryCode: snapshot.currentCountryCode,
+                now: now,
+                calendar: calendar
+            )
+            (text, help) = (stays.summary, stays.summaryHelp)
         case .localInfo:
             text = Self.localInfo(settings: settings, snapshot: snapshot, now: now, calendar: calendar)
         case .fuelPrices:

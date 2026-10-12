@@ -111,6 +111,8 @@ struct OfflineEssentialsView: View {
         case .emergencyCare:
             let hospitals = snapshot.emergencyCare?.hospitals ?? []
             return hospitals.isEmpty ? "Nearby hospital references, once this card is enabled and updated." : hospitals.map { [$0.name, $0.address].compactMap(\.self).joined(separator: " — ") }.joined(separator: "\n")
+        case .airQuality:
+            return snapshot.airQuality.map(OfflineEssentialsPresentation.airQualitySummary) ?? "Air quality for your weather location."
         case .marine: return snapshot.marine.map { "\($0.spotName) · saved surf forecast" } ?? "Forecast for your saved surf spot."
         case .travelAlerts: return snapshot.travelAlerts?.states.compactMap { $0.resolvedSignal?.summary }.joined(separator: "\n") ?? "Source-linked destination advisories."
         default: return ""

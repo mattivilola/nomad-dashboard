@@ -109,6 +109,11 @@ struct SettingsView: View {
                 locationStore: locationStore,
                 navigationController: settingsNavigationController
             )
+        case .stays:
+            StaysSettingsPage(
+                settingsStore: settingsStore,
+                navigationController: settingsNavigationController
+            )
         case .connectionAndData:
             ConnectionDataSettingsPage(
                 settingsStore: settingsStore,

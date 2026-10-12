@@ -9,6 +9,7 @@ struct SettingsPageTests {
             .general,
             .weatherAndLocal,
             .safety,
+            .stays,
             .connectionAndData,
             .work,
             .privacyAndLocation,
@@ -22,6 +23,7 @@ struct SettingsPageTests {
             (.general, "General", "gearshape"),
             (.weatherAndLocal, "Weather & Local", "cloud.sun"),
             (.safety, "Safety", "cross.case"),
+            (.stays, "Stays & Visas", "calendar.badge.clock"),
             (.connectionAndData, "Connection & Data", "antenna.radiowaves.left.and.right"),
             (.work, "Work", "briefcase"),
             (.privacyAndLocation, "Privacy & Location", "hand.raised"),
@@ -54,6 +56,7 @@ struct SettingsPageTests {
         #expect(SettingsFocusTarget.fuelPrices.page == .weatherAndLocal)
         #expect(SettingsFocusTarget.travelAlerts.page == .safety)
         #expect(SettingsFocusTarget.emergencyCare.page == .safety)
+        #expect(SettingsFocusTarget.stays.page == .stays)
         #expect(SettingsFocusTarget.dataGuard.page == .connectionAndData)
         #expect(SettingsFocusTarget.timeTracking.page == .work)
     }
@@ -75,7 +78,8 @@ struct SettingsPageTests {
             .emergencyCare: .emergencyCare,
             .embassy: .citizenship,
             .travelAlerts: .travelAlerts,
-            .weather: .weather
+            .weather: .weather,
+            .stays: .stays
         ]
 
         for card in DashboardCardID.allCases {

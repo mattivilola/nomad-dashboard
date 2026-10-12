@@ -9,6 +9,11 @@ public enum OfflineEssentialsPresentation {
         return temperature + weather.conditionDescription
     }
 
+    /// "AQI 64 (poor) · saved": the saved reading of the European AQI.
+    public static func airQualitySummary(_ airQuality: AirQualitySnapshot) -> String {
+        "AQI \(airQuality.europeanAQI) (\(airQuality.band.title.lowercased())) · saved"
+    }
+
     /// "Station · 1,429 €/L", using the three-decimal pump-price format of the fuel card.
     public static func fuelLine(_ station: FuelStationPrice, locale: Locale = .autoupdatingCurrent) -> String {
         "\(station.stationName) · \(FuelPriceFormatting.price(station.pricePerLiter, currencyCode: station.currencyCode, locale: locale))/L"

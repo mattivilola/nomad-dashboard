@@ -16,6 +16,7 @@ public struct DashboardPanelView: View {
     private let travelProfile: TravelProfile
     private let isPublicIPLocationEnabled: Bool
     private let travelAlertPreferences: TravelAlertPreferences
+    private let visitedCountryDays: [VisitedCountryDay]
     private let versionDescription: String
     private let buildFlavorBadgeTitle: String?
     private let weatherAvailabilityExplanation: String?
@@ -33,6 +34,7 @@ public struct DashboardPanelView: View {
     private let openTimeTrackingAction: () -> Void
     private let copyIPAddressAction: () -> Void
     private let openVisitedMapAction: () -> Void
+    private let showArrivalBriefingAction: (() -> Void)?
     private let openNetworkSettingsAction: () -> Void
     private let openFuelStationMapPreviewAction: (FuelStationMapDestination) -> Void
     private let openFuelStationInGoogleMapsAction: (FuelStationMapDestination) -> Void
@@ -80,6 +82,7 @@ public struct DashboardPanelView: View {
         travelProfile: TravelProfile = .nomad,
         isPublicIPLocationEnabled: Bool,
         travelAlertPreferences: TravelAlertPreferences,
+        visitedCountryDays: [VisitedCountryDay] = [],
         versionDescription: String = "",
         buildFlavorBadgeTitle: String? = nil,
         weatherAvailabilityExplanation: String? = nil,
@@ -97,6 +100,7 @@ public struct DashboardPanelView: View {
         openTimeTrackingAction: @escaping () -> Void = {},
         copyIPAddressAction: @escaping () -> Void,
         openVisitedMapAction: @escaping () -> Void,
+        showArrivalBriefingAction: (() -> Void)? = nil,
         openNetworkSettingsAction: @escaping () -> Void,
         openFuelStationMapPreviewAction: @escaping (FuelStationMapDestination) -> Void = { _ in },
         openFuelStationInGoogleMapsAction: @escaping (FuelStationMapDestination) -> Void = { _ in },
@@ -136,6 +140,7 @@ public struct DashboardPanelView: View {
         self.travelProfile = travelProfile
         self.isPublicIPLocationEnabled = isPublicIPLocationEnabled
         self.travelAlertPreferences = travelAlertPreferences
+        self.visitedCountryDays = visitedCountryDays
         self.versionDescription = versionDescription
         self.buildFlavorBadgeTitle = buildFlavorBadgeTitle
         self.weatherAvailabilityExplanation = weatherAvailabilityExplanation
@@ -153,6 +158,7 @@ public struct DashboardPanelView: View {
         self.openTimeTrackingAction = openTimeTrackingAction
         self.copyIPAddressAction = copyIPAddressAction
         self.openVisitedMapAction = openVisitedMapAction
+        self.showArrivalBriefingAction = showArrivalBriefingAction
         self.openNetworkSettingsAction = openNetworkSettingsAction
         self.openFuelStationMapPreviewAction = openFuelStationMapPreviewAction
         self.openFuelStationInGoogleMapsAction = openFuelStationInGoogleMapsAction
@@ -325,6 +331,13 @@ public struct DashboardPanelView: View {
         Menu {
             Button("Open Visited Map", systemImage: "globe.europe.africa.fill") {
                 openVisitedMapAction()
+            }
+
+            if let showArrivalBriefingAction {
+                Button("Show Arrival Briefing", systemImage: "airplane.arrival") {
+                    showArrivalBriefingAction()
+                }
+                .disabled(snapshot.currentCountryCode == nil)
             }
 
             Button("Open Time Tracking", systemImage: "clock.badge.checkmark") {
@@ -548,26 +561,29 @@ public struct DashboardPanelView: View {
         ) {
             VStack(alignment: .leading, spacing: 5) {
                 dashboardCard(for: item.cardID, widthMode: item.layoutWidthMode, viewportHeight: viewportHeight)
-                if resolvedCollapsedCards.contains(item.cardID) == false,
-                   let section = dataSection(for: item.cardID),
-                   let state = sectionActivity[section]
-                {
-                    DashboardCardRefreshFooter(section: section, state: state, isOffline: resourcePolicy.isOffline) { retrySection(section) }
+                if resolvedCollapsedCards.contains(item.cardID) == false {
+                    ForEach(dataSections(for: item.cardID), id: \.self) { section in
+                        if let state = sectionActivity[section] {
+                            DashboardCardRefreshFooter(section: section, state: state, isOffline: resourcePolicy.isOffline) { retrySection(section) }
+                        }
+                    }
                 }
             }
         }
         .id(item.cardID)
     }
 
-    private func dataSection(for card: DashboardCardID) -> DashboardDataSection? {
+    /// The data sections whose refresh state a card shows as footer rows, in display order.
+    private func dataSections(for card: DashboardCardID) -> [DashboardDataSection] {
         switch card {
-        case .travelContext: .publicIP
-        case .localInfo: .localInfo
-        case .fuelPrices: .fuel
-        case .emergencyCare: .emergencyCare
-        case .travelAlerts: .travelAlerts
-        case .weather: .weather
-        default: nil
+        case .travelContext: [.publicIP]
+        case .localInfo: [.localInfo]
+        case .fuelPrices: [.fuel]
+        case .emergencyCare: [.emergencyCare]
+        case .travelAlerts: [.travelAlerts]
+        // Air quality is fetched separately from the weather, so it has its own footer row.
+        case .weather: settings.isAirQualityActive ? [.weather, .airQuality] : [.weather]
+        default: []
         }
     }
 
@@ -588,6 +604,8 @@ public struct DashboardPanelView: View {
             timeTrackingSection(widthMode: widthMode)
         case .travelContext:
             travelSection(widthMode: widthMode)
+        case .stays:
+            staysSection(widthMode: widthMode)
         case .localInfo:
             localInfoSection(widthMode: widthMode)
         case .fuelPrices:
@@ -1152,6 +1170,15 @@ public struct DashboardPanelView: View {
             value: weather.precipitationChance.map { NomadFormatters.precipitation($0) } ?? "n/a"
         )
 
+        let uv = WeatherUVPresentation(
+            weather: weather,
+            travelContext: snapshot.travelContext,
+            now: .now,
+            calendar: .current,
+            locale: .current
+        )
+        let uvStat = uv.map { WeatherStatView(title: "UV", value: $0.value, secondaryValue: $0.peak, tone: $0.tone) }
+
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 10) {
                 Text(metricValue(weather.currentTemperatureCelsius, formatter: NomadFormatters.celsius, fallback: "Estimating"))
@@ -1178,13 +1205,32 @@ public struct DashboardPanelView: View {
                     feelsLike
                     rain
                 }
-                windStat
+                HStack(alignment: .top, spacing: 12) {
+                    windStat
+                    if let uvStat {
+                        uvStat
+                    }
+                }
             } else {
                 HStack(alignment: .top, spacing: 12) {
                     feelsLike
                     windStat
                     rain
+                    if let uvStat {
+                        uvStat
+                    }
                 }
+            }
+
+            if let airQuality = WeatherAirQualityPresentation(
+                airQuality: snapshot.airQuality,
+                settings: settings,
+                travelContext: snapshot.travelContext,
+                now: .now,
+                calendar: .current,
+                locale: .current
+            ) {
+                WeatherAirQualityView(presentation: airQuality, isCompact: isCompact)
             }
 
             if forecast.hourlySlots.isEmpty == false {
@@ -1255,6 +1301,22 @@ public struct DashboardPanelView: View {
             openSettingsAction: { openSettingsForCard(.fuelPrices) },
             previewMapAction: openFuelStationMapPreviewAction,
             openGoogleMapsAction: openFuelStationInGoogleMapsAction
+        )
+    }
+
+    private func staysSection(widthMode: DashboardCardWidthMode) -> some View {
+        StaysSectionView(
+            presentation: StaysCardPresentation(
+                settings: settings,
+                countryDays: visitedCountryDays,
+                currentCountryCode: snapshot.currentCountryCode
+            ),
+            widthMode: widthMode,
+            accessory: cardControls(for: .stays),
+            collapse: collapse(for: .stays),
+            openCitizenshipSettingsAction: { openSettingsForCard(.embassy) },
+            openSettingsAction: { openSettingsForCard(.stays) },
+            reviewDaysAction: openVisitedMapAction
         )
     }
 
@@ -1629,7 +1691,8 @@ public struct DashboardPanelView: View {
             snapshot: snapshot,
             settings: settings,
             travelAlertPreferences: travelAlertPreferences,
-            timeTracking: timeTrackingDashboardState
+            timeTracking: timeTrackingDashboardState,
+            visitedCountryDays: visitedCountryDays
         )
 
         return DashboardCardCollapse(
@@ -3357,7 +3420,7 @@ private struct EmergencyCareSectionView: View {
     }
 }
 
-private struct LocalInfoSectionView: View {
+struct LocalInfoSectionView: View {
     let presentation: LocalInfoSectionPresentation
     let widthMode: DashboardCardWidthMode
     let accessory: AnyView?
@@ -3393,6 +3456,13 @@ private struct LocalInfoSectionView: View {
                     }
                 }
 
+                if presentation.rhythm.isEmpty == false {
+                    Divider()
+                        .overlay(NomadTheme.cardBorder.opacity(0.9))
+
+                    LocalRhythmSectionView(rows: presentation.rhythm)
+                }
+
                 if let note = presentation.note {
                     Divider()
                         .overlay(NomadTheme.cardBorder.opacity(0.9))
@@ -3409,6 +3479,45 @@ private struct LocalInfoSectionView: View {
                         .foregroundStyle(NomadTheme.tertiaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            }
+        }
+    }
+}
+
+/// "Local rhythm": the periods that change daily life in the country, with their dates and what to expect.
+private struct LocalRhythmSectionView: View {
+    let rows: [LocalRhythmRowModel]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(LocalRhythmRowModel.sectionTitle)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(NomadTheme.tertiaryText)
+
+            ForEach(rows) { row in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(row.name)
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(NomadTheme.primaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        NeutralChip(title: row.timing)
+                            .fixedSize()
+                    }
+
+                    Text(row.dates)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(NomadTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(row.guidance)
+                        .font(.caption)
+                        .foregroundStyle(NomadTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
             }
         }
     }
@@ -4773,6 +4882,8 @@ private struct WeatherStatView: View {
     let title: String
     let value: String
     var secondaryValue: String?
+    /// Tints the value for a status (sand, coral); neutral keeps the primary text color.
+    var tone: SummaryTileTone = .neutral
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -4783,7 +4894,7 @@ private struct WeatherStatView: View {
 
             Text(value)
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundStyle(NomadTheme.primaryText)
+                .foregroundStyle(tone.statusTint(neutral: NomadTheme.primaryText))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
 
@@ -4800,6 +4911,84 @@ private struct WeatherStatView: View {
 }
 
 /// "Sunrise 07:45 · Sunset 18:12" (or "Midnight sun" / "Polar night") as one quiet caption line.
+/// "AQI 38 · Fair · mostly PM10" with a bar per hour of the 12 hour outlook.
+private struct WeatherAirQualityView: View {
+    let presentation: WeatherAirQualityPresentation
+    let isCompact: Bool
+
+    var body: some View {
+        Group {
+            if isCompact {
+                VStack(alignment: .leading, spacing: 8) {
+                    summary
+                    outlook
+                }
+            } else {
+                HStack(alignment: .center, spacing: 12) {
+                    summary
+                    Spacer(minLength: 8)
+                    outlook
+                }
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(NomadTheme.chartBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(NomadTheme.cardBorder.opacity(0.9), lineWidth: 1)
+                )
+        )
+        .help(presentation.help)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Air quality")
+        .accessibilityValue([presentation.headline, presentation.outlookCaption].compactMap(\.self).joined(separator: ". "))
+    }
+
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("AIR QUALITY")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(NomadTheme.tertiaryText)
+                .lineLimit(1)
+
+            Text(presentation.headline)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundStyle(presentation.tone.statusTint(neutral: NomadTheme.primaryText))
+                .lineLimit(isCompact ? 2 : 1)
+                .minimumScaleFactor(0.75)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var outlook: some View {
+        if presentation.bars.isEmpty == false {
+            VStack(alignment: isCompact ? .leading : .trailing, spacing: 3) {
+                HStack(alignment: .bottom, spacing: 3) {
+                    ForEach(presentation.bars) { bar in
+                        Capsule()
+                            .fill(bar.tone.statusTint(neutral: NomadTheme.teal).opacity(0.85))
+                            .frame(width: 5, height: 22 * bar.height)
+                            .help(bar.help)
+                    }
+                }
+                .frame(height: 22, alignment: .bottom)
+
+                if let caption = presentation.outlookCaption {
+                    Text(caption)
+                        .font(.caption2)
+                        .foregroundStyle(NomadTheme.secondaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+        }
+    }
+}
+
 private struct DaylightLineView: View {
     let presentation: DaylightLinePresentation
 
@@ -5067,13 +5256,16 @@ struct LocalInfoSectionPresentation {
     let emptyActionTitle: String?
     let sourceLine: String?
     let note: String?
+    /// Periods of the current country that are on or start soon; empty when there are none.
+    private(set) var rhythm: [LocalRhythmRowModel] = []
 
     init(
         settings: AppSettings,
         snapshot: DashboardSnapshot,
         locationStatusDetail: String?,
         now: Date = .now,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        locale: Locale = .current
     ) {
         guard settings.localInfoEnabled else {
             badge = PillBadge(title: "Off", symbolName: "mappin.slash.circle.fill", tint: NomadTheme.primaryText)
@@ -5132,6 +5324,9 @@ struct LocalInfoSectionPresentation {
         }
 
         rows = builtRows
+        if localInfo.status != .locationRequired {
+            rhythm = LocalRhythmRowModel.rows(snapshot: snapshot, now: now, calendar: calendar, locale: locale)
+        }
         sourceLine = localInfo.sources.isEmpty ? nil : "Sources: " + localInfo.sources.map(\.name).joined(separator: " · ")
         // A healthy snapshot has nothing to explain; only degraded states carry their detail.
         note = (localInfo.status == .ready ? [localInfo.note] : [localInfo.detail, localInfo.note])

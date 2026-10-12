@@ -93,6 +93,9 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
 - Knowing whom to call and where to go abroad: your foreign ministry's consular emergency line and the nearest embassy or consulate of your country (or, when yours is not represented, the nearest EU or Nordic mission that can help), bundled offline and kept in Saved essentials
 - Switching to the Road trip & RV profile for a weather, fuel, emergency-care, and power-first dashboard, and keeping the local emergency numbers available offline in Saved essentials
+- Knowing how many days are left on a visa or in the Schengen area, and how many days you have spent in each country this year, counted locally from your own visited days
+- Getting a short "Welcome to Morocco" briefing on arrival: local time, emergency numbers, your embassy, driving side, plugs, currency and any local holiday or Ramadan-style rhythm
+- Checking UV and air quality in the weather card before you plan the day outside
 - Tracking visited places locally on the Mac, with yearly travel paths, chronological stop logs, and country-day summaries by year and month
 - Automatically seeing the current or nearest listed city, then browsing visual destination cards by country, monthly budget, and city internet estimates, with attributed Nomads.com ratings and meetup links
 - Tracking awake work time locally on the Mac, then assigning it from the dashboard with a compact Allocate menu, interruption counts, and focus-adjusted day, week, and month summaries
@@ -158,6 +161,8 @@ Marketing copy can safely say:
 - Some features use device location only when enabled
 - External IP location display can be turned off
 - Several travel modules are optional
+- Stay, Schengen and tax-day counts are computed on the Mac from locally saved visited days; they are a convenience, not tax or legal advice
+- Air quality sends only a location rounded to about 11 km to Open-Meteo, and only while weather location is on; it has its own switch
 - Explore Cities can follow the current city using existing dashboard context; matching happens locally and only a matched city slug is sent for details. It saves found and no-match results and waits for a different city before checking again. The feature can be turned off; coordinates and local travel history are not shared
 - Destination photos use Nomads.com's supplied image service while the explorer is open; prominent source credits link directly to Nomads.com and its city pages, alongside a Join Nomads.com action. This is an independent app, not an affiliated Nomads.com product
 - Local price level uses official public datasets and can stay limited to country fallback data where exact local sources are not available

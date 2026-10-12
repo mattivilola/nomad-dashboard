@@ -5,6 +5,7 @@ public enum SettingsPage: String, CaseIterable, Identifiable, Sendable {
     case general
     case weatherAndLocal
     case safety
+    case stays
     case connectionAndData
     case work
     case privacyAndLocation
@@ -17,6 +18,7 @@ public enum SettingsPage: String, CaseIterable, Identifiable, Sendable {
         case .general: "General"
         case .weatherAndLocal: "Weather & Local"
         case .safety: "Safety"
+        case .stays: "Stays & Visas"
         case .connectionAndData: "Connection & Data"
         case .work: "Work"
         case .privacyAndLocation: "Privacy & Location"
@@ -29,6 +31,7 @@ public enum SettingsPage: String, CaseIterable, Identifiable, Sendable {
         case .general: "gearshape"
         case .weatherAndLocal: "cloud.sun"
         case .safety: "cross.case"
+        case .stays: "calendar.badge.clock"
         case .connectionAndData: "antenna.radiowaves.left.and.right"
         case .work: "briefcase"
         case .privacyAndLocation: "hand.raised"
@@ -43,6 +46,7 @@ public enum SettingsFocusTarget: String, CaseIterable, Sendable {
     case surfSpot
     case homeTimeZone
     case citizenship
+    case stays
     case quietAlerts
     case workplaceDiary
     case visitedPlaces
@@ -62,6 +66,7 @@ public enum SettingsFocusTarget: String, CaseIterable, Sendable {
         case .workplaceDiary, .timeTracking: .work
         case .visitedPlaces: .privacyAndLocation
         case .travelAlerts, .emergencyCare: .safety
+        case .stays: .stays
         }
     }
 }
@@ -76,6 +81,7 @@ extension DashboardCardID {
         case .fuelPrices: .fuelPrices
         case .emergencyCare: .emergencyCare
         case .embassy: .citizenship
+        case .stays: .stays
         case .travelAlerts: .travelAlerts
         case .weather: .weather
         case .connectivity, .power, .travelContext: nil
