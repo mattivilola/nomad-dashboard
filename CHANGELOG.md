@@ -9,7 +9,9 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- _Nothing yet_
+- Add a daylight heads-up for the Road trip & RV profile: within two hours of sunset it shows the sunset time, the daylight left, and when civil twilight ends (a caution in the last hour), and once it is dark it shows when the sun rises. It can also appear in the menu bar, ranks right after strong wind, and is calculated on the Mac from your location with no network request.
+- Add today's sunrise and sunset to the Weather card in every profile (also when weather is unavailable), in the local time zone, with `Midnight sun` and `Polar night` near the poles.
+- Emergency numbers now include the rural or highway police where a country advertises a separate short number: Guardia Civil 062 (Spain), Federal Highway Police 191 (Brazil) and Highway Police 1193 (Thailand), alongside Morocco's Gendarmerie.
 
 ### Changed
 

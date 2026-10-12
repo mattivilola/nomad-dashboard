@@ -1,6 +1,7 @@
 # Privacy Notes
 
 - Weather uses device location when permission is granted.
+- Sunrise, sunset, civil twilight, and the Road trip daylight heads-up are calculated on the Mac from the device location (or the approximate IP location) and the current date. They use no network request and no weather service, and nothing is sent anywhere.
 - External IP lookups use FreeIPAPI.
 - External IP location display is enabled by default for new installs and can be disabled in Settings.
 - When both signals are available, the dashboard header can show device location and IP-based location side by side for comparison.

@@ -1115,6 +1115,11 @@ public struct DashboardPanelView: View {
                     )
                 }
 
+                // Calculated on the Mac from the location, so it does not depend on weather data.
+                if let daylight = DaylightLinePresentation(travelContext: snapshot.travelContext, now: .now) {
+                    DaylightLineView(presentation: daylight)
+                }
+
                 Divider()
                     .overlay(NomadTheme.cardBorder.opacity(0.9))
 
@@ -4791,6 +4796,30 @@ private struct WeatherStatView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// "Sunrise 07:45 · Sunset 18:12" (or "Midnight sun" / "Polar night") as one quiet caption line.
+private struct DaylightLineView: View {
+    let presentation: DaylightLinePresentation
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(presentation.segments.enumerated()), id: \.element.id) { index, segment in
+                if index > 0 {
+                    Text("\u{B7}")
+                        .foregroundStyle(NomadTheme.tertiaryText)
+                        .accessibilityHidden(true)
+                }
+                Label(segment.text, systemImage: segment.symbolName)
+                    .lineLimit(1)
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(NomadTheme.secondaryText)
+        .minimumScaleFactor(0.8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(presentation.summary)
     }
 }
 

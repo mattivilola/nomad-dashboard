@@ -38,17 +38,67 @@ struct EmergencyNumbersTests {
     }
 
     @Test
-    func onlyMoroccoCarriesAdditionalServices() {
-        for code in Locale.Region.isoRegions.map(\.identifier) where code != "MA" {
+    func ruralAndHighwayPoliceAreStoredOnlyForVerifiedCountries() {
+        let expected: [String: [EmergencyService]] = [
+            "MA": [EmergencyService(name: "Gendarmerie", number: "177")],
+            "ES": [EmergencyService(name: "Guardia Civil", number: "062")],
+            "BR": [EmergencyService(name: "Federal Highway Police", number: "191")],
+            "TH": [EmergencyService(name: "Highway Police", number: "1193")]
+        ]
+        for code in Locale.Region.isoRegions.map(\.identifier) {
             guard let numbers = EmergencyNumberDirectory.numbers(forCountryCode: code) else { continue }
-            #expect(numbers.other.isEmpty, "unexpected other services for \(code)")
+            #expect(numbers.other == expected[code, default: []], "unexpected other services for \(code)")
+        }
+        for (code, services) in expected {
+            #expect(EmergencyNumberDirectory.numbers(forCountryCode: code)?.other == services, "missing other services for \(code)")
         }
         #expect(EmergencyNumberDirectory.numbers(forCountryCode: "FR")?.other == [])
     }
 
     @Test
+    func spainListsTheGuardiaCivilEmergencyNumber() {
+        let spain = EmergencyNumberDirectory.numbers(forCountryCode: "ES")
+        #expect(spain == EmergencyNumbers(
+            general: "112",
+            other: [EmergencyService(name: "Guardia Civil", number: "062")]
+        ))
+        #expect(spain?.police == nil)
+    }
+
+    @Test
+    func brazilListsTheFederalHighwayPolice() {
+        #expect(EmergencyNumberDirectory.numbers(forCountryCode: "BR") == EmergencyNumbers(
+            general: "190",
+            ambulance: "192",
+            fire: "193",
+            other: [EmergencyService(name: "Federal Highway Police", number: "191")]
+        ))
+    }
+
+    @Test
+    func thailandListsTheHighwayPolice() {
+        #expect(EmergencyNumberDirectory.numbers(forCountryCode: "TH") == EmergencyNumbers(
+            general: "191",
+            ambulance: "1669",
+            fire: "199",
+            other: [EmergencyService(name: "Highway Police", number: "1193")]
+        ))
+    }
+
+    @Test
+    func additionalServiceNumbersNeverDuplicateTheNumbersAlreadyShown() {
+        for code in Locale.Region.isoRegions.map(\.identifier) {
+            guard let numbers = EmergencyNumberDirectory.numbers(forCountryCode: code) else { continue }
+            let shown = [numbers.general, numbers.police, numbers.ambulance, numbers.fire].compactMap { $0 }
+            for service in numbers.other {
+                #expect(shown.contains(service.number) == false, "\(service.name) duplicates a shown number for \(code)")
+            }
+        }
+    }
+
+    @Test
     func europeanSpotChecks() {
-        #expect(EmergencyNumberDirectory.numbers(forCountryCode: "ES") == EmergencyNumbers(general: "112"))
+        #expect(EmergencyNumberDirectory.numbers(forCountryCode: "PT") == EmergencyNumbers(general: "112"))
         #expect(EmergencyNumberDirectory.numbers(forCountryCode: "FR") == EmergencyNumbers(general: "112", police: "17", ambulance: "15", fire: "18"))
         #expect(EmergencyNumberDirectory.numbers(forCountryCode: "DE") == EmergencyNumbers(general: "112", police: "110"))
         #expect(EmergencyNumberDirectory.numbers(forCountryCode: "GB")?.general == "999")
@@ -62,7 +112,7 @@ struct EmergencyNumbersTests {
         #expect(EmergencyNumberDirectory.numbers(forCountryCode: "AU")?.general == "000")
         #expect(EmergencyNumberDirectory.numbers(forCountryCode: "NZ")?.general == "111")
         #expect(EmergencyNumberDirectory.numbers(forCountryCode: "JP") == EmergencyNumbers(general: "110", ambulance: "119", fire: "119"))
-        #expect(EmergencyNumberDirectory.numbers(forCountryCode: "TH") == EmergencyNumbers(general: "191", ambulance: "1669", fire: "199"))
+        #expect(EmergencyNumberDirectory.numbers(forCountryCode: "TH") == EmergencyNumbers(general: "191", ambulance: "1669", fire: "199", other: [EmergencyService(name: "Highway Police", number: "1193")]))
         #expect(EmergencyNumberDirectory.numbers(forCountryCode: "CO")?.general == "123")
         #expect(EmergencyNumberDirectory.numbers(forCountryCode: "AE") == EmergencyNumbers(general: "999", ambulance: "998", fire: "997"))
     }

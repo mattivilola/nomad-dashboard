@@ -113,21 +113,38 @@ struct DashboardInsightEngineTests {
             #expect(order.count == DashboardInsightKind.allCases.count)
         }
         #expect(DashboardInsightKind.tieBreakOrder(for: .nomad) == DashboardInsightKind.allCases)
+        #expect(DashboardInsightKind.allCases.last == .daylight)
+
+        let roadTrip = DashboardInsightKind.tieBreakOrder(for: .roadTrip)
+        let wind = roadTrip.firstIndex(of: .strongWind)
+        #expect(roadTrip.firstIndex(of: .daylight) == wind.map { $0 + 1 })
     }
 
     @Test
-    func everyInsightCarriesCompactMenuBarText() {
+    func everyInsightCarriesCompactMenuBarText() throws {
         let snapshot = makeSnapshot(
             metered: makeMetered(usedBytes: 850, capBytes: 1_000),
             alerts: makeAlerts([(.advisory, .caution), (.weather, .caution), (.security, .caution)]),
             weather: makeWeather(windKph: 45, slots: [slot(hours: 2, rain: 0.8)]),
             localInfo: makeLocalInfo(currentPeriod: holiday(dayOffset: 0)),
-            fuel: makeFuel(diesel: station(.diesel))
+            fuel: makeFuel(diesel: station(.diesel)),
+            deviceLocation: parisLocation
         )
 
-        let all = insights(snapshot)
-        #expect(Set(all.map(\.kind)) == Set(DashboardInsightKind.allCases))
-        #expect(all.allSatisfy { $0.menuBarText.isEmpty == false && $0.menuBarText.count <= 13 })
+        // Daylight only fires for the road trip profile, and only near sunset or in the dark.
+        let nomad = insights(snapshot)
+        #expect(Set(nomad.map(\.kind)) == Set(DashboardInsightKind.allCases).subtracting([.daylight]))
+
+        let sunset = try #require(parisSun.sunset)
+        let evening = DashboardInsightEngine.insights(
+            for: snapshot, now: sunset.addingTimeInterval(-30 * 60), calendar: parisCalendar, limit: 20, profile: .roadTrip
+        )
+        let dark = DashboardInsightEngine.insights(
+            for: snapshot, now: sunset.addingTimeInterval(3 * 3_600), calendar: parisCalendar, limit: 20, profile: .roadTrip
+        )
+        #expect(evening.contains { $0.kind == .daylight })
+        #expect(dark.contains { $0.kind == .daylight })
+        #expect((nomad + evening + dark).allSatisfy { $0.menuBarText.isEmpty == false && $0.menuBarText.count <= 13 })
     }
 
     @Test
@@ -562,6 +579,185 @@ struct DashboardInsightEngineTests {
         #expect(insights(empty).isEmpty)
     }
 
+    // MARK: - Daylight
+
+    @Test
+    func daylightIsRoadTripOnly() throws {
+        let sunset = try #require(parisSun.sunset)
+        let snapshot = makeSnapshot(deviceLocation: parisLocation)
+        let nearSunset = sunset.addingTimeInterval(-30 * 60)
+
+        #expect(roadTripInsights(snapshot, at: nearSunset).map(\.kind) == [.daylight])
+        #expect(DashboardInsightEngine.insights(for: snapshot, now: nearSunset, calendar: parisCalendar).isEmpty)
+        #expect(DashboardInsightEngine.insights(for: snapshot, now: nearSunset, calendar: parisCalendar, profile: .nomad).isEmpty)
+    }
+
+    @Test
+    func daylightWithinAnHourBeforeSunsetIsCaution() throws {
+        let sunset = try #require(parisSun.sunset)
+        let dusk = try #require(parisSun.civilDusk)
+        let insight = try #require(roadTripInsights(makeSnapshot(deviceLocation: parisLocation), at: sunset.addingTimeInterval(-45 * 60)).first)
+
+        #expect(insight.kind == .daylight)
+        #expect(insight.severity == .caution)
+        #expect(insight.symbolName == "sunset")
+        #expect(insight.title == "Sunset \(clock(sunset)) \u{B7} 45 min of daylight")
+        #expect(insight.menuBarText == "Sunset \(clock(sunset))")
+        #expect(insight.detail == "Dusk (civil twilight) ends \(clock(dusk))")
+        #expect(insight.relatedCard == .weather)
+
+        let boundary = try #require(roadTripInsights(makeSnapshot(deviceLocation: parisLocation), at: sunset.addingTimeInterval(-3_600)).first)
+        #expect(boundary.severity == .caution)
+        #expect(boundary.title.hasSuffix("1 h of daylight"))
+    }
+
+    @Test
+    func daylightWithinTwoHoursBeforeSunsetIsInfoWithHoursAndMinutes() throws {
+        let sunset = try #require(parisSun.sunset)
+        let snapshot = makeSnapshot(deviceLocation: parisLocation)
+
+        let insight = try #require(roadTripInsights(snapshot, at: sunset.addingTimeInterval(-110 * 60)).first)
+        #expect(insight.severity == .info)
+        #expect(insight.title == "Sunset \(clock(sunset)) \u{B7} 1 h 50 min of daylight")
+        #expect(insight.menuBarText == "Sunset \(clock(sunset))")
+
+        let twoHours = try #require(roadTripInsights(snapshot, at: sunset.addingTimeInterval(-7_200)).first)
+        #expect(twoHours.severity == .info)
+        #expect(twoHours.title.hasSuffix("2 h of daylight"))
+
+        #expect(roadTripInsights(snapshot, at: sunset.addingTimeInterval(-7_201)).isEmpty)
+        #expect(roadTripInsights(snapshot, at: sunset.addingTimeInterval(-6 * 3_600)).isEmpty)
+    }
+
+    @Test
+    func daylightDarkAfterCivilDuskPlusGraceNamesTomorrowsSunrise() throws {
+        let dusk = try #require(parisSun.civilDusk)
+        let tomorrowSunrise = try #require(parisSolarDay(offsetDays: 1).sunrise)
+        let snapshot = makeSnapshot(deviceLocation: parisLocation)
+
+        let insight = try #require(roadTripInsights(snapshot, at: dusk.addingTimeInterval(30 * 60)).first)
+        #expect(insight.kind == .daylight)
+        #expect(insight.severity == .info)
+        #expect(insight.symbolName == "moon.stars")
+        #expect(insight.title == "Dark until \(clock(tomorrowSunrise))")
+        #expect(insight.menuBarText == "Dark")
+        #expect(insight.detail == "Sunrise tomorrow \(clock(tomorrowSunrise))")
+        #expect(insight.relatedCard == .weather)
+    }
+
+    @Test
+    func daylightBetweenSunsetAndTheDarkGraceProducesNothing() throws {
+        let sunset = try #require(parisSun.sunset)
+        let dusk = try #require(parisSun.civilDusk)
+        let snapshot = makeSnapshot(deviceLocation: parisLocation)
+
+        #expect(roadTripInsights(snapshot, at: sunset.addingTimeInterval(1)).isEmpty)
+        #expect(roadTripInsights(snapshot, at: dusk).isEmpty)
+        #expect(roadTripInsights(snapshot, at: dusk.addingTimeInterval(30 * 60 - 1)).isEmpty)
+    }
+
+    @Test
+    func daylightStaysDarkAfterMidnightUntilTodaysSunrise() throws {
+        let sunrise = try #require(parisSun.sunrise)
+        let snapshot = makeSnapshot(deviceLocation: parisLocation)
+        let afterMidnight = date(2026, 10, 12, 1, 30)
+
+        let insight = try #require(roadTripInsights(snapshot, at: afterMidnight).first)
+        #expect(insight.title == "Dark until \(clock(sunrise))")
+        #expect(insight.detail == "Sunrise today \(clock(sunrise))")
+
+        #expect(roadTripInsights(snapshot, at: sunrise.addingTimeInterval(-60)).first?.kind == .daylight)
+        #expect(roadTripInsights(snapshot, at: sunrise.addingTimeInterval(60)).isEmpty)
+    }
+
+    @Test
+    func daylightMiddayProducesNothing() {
+        #expect(roadTripInsights(makeSnapshot(deviceLocation: parisLocation), at: now).isEmpty)
+    }
+
+    @Test
+    func daylightNeedsCoordinatesAndUsesDeviceThenIPLocation() throws {
+        let sunset = try #require(parisSun.sunset)
+        let evening = sunset.addingTimeInterval(-30 * 60)
+
+        #expect(roadTripInsights(makeSnapshot(), at: evening).isEmpty)
+        #expect(roadTripInsights(makeSnapshot(deviceLocation: location(latitude: nil, longitude: nil, timeZone: nil)), at: evening).isEmpty)
+        #expect(roadTripInsights(makeSnapshot(ipLocation: parisLocation), at: evening).first?.kind == .daylight)
+
+        // The device location wins over a faraway IP location.
+        let withFarawayIP = makeSnapshot(deviceLocation: parisLocation, ipLocation: location(latitude: -33.8688, longitude: 151.2093, timeZone: "Australia/Sydney"))
+        #expect(roadTripInsights(withFarawayIP, at: evening).first?.title.hasPrefix("Sunset \(clock(sunset))") == true)
+    }
+
+    @Test
+    func daylightFormatsTimesInTheLocationsTimeZoneNotTheCalendars() throws {
+        // Lisbon is an hour behind the Paris calendar used for formatting everywhere else in this file.
+        let lisbon = location(latitude: 38.7223, longitude: -9.1393, timeZone: "Europe/Lisbon")
+        let lisbonZone = TimeZone(identifier: "Europe/Lisbon")!
+        let sunSet = DaylightReference(latitude: 38.7223, longitude: -9.1393, timeZone: lisbonZone).solarDay(on: now)
+        let sunset = try #require(sunSet.sunset)
+
+        let insight = try #require(roadTripInsights(makeSnapshot(deviceLocation: lisbon, timeZoneIdentifier: "Europe/Lisbon"), at: sunset.addingTimeInterval(-30 * 60)).first)
+        let expected = sunset.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Locale(identifier: "en_GB"), timeZone: lisbonZone))
+        #expect(insight.title.hasPrefix("Sunset \(expected)"))
+    }
+
+    @Test
+    func daylightUsesTheIPLocationsOwnTimeZoneWhenOnlyIPIsKnown() throws {
+        // The snapshot time zone follows the Mac when there is no device location; the IP location knows better.
+        let sydney = location(latitude: -33.8688, longitude: 151.2093, timeZone: "Australia/Sydney")
+        let zone = TimeZone(identifier: "Australia/Sydney")!
+        let sunset = try #require(DaylightReference(latitude: -33.8688, longitude: 151.2093, timeZone: zone).solarDay(on: now).sunset)
+        let snapshot = makeSnapshot(ipLocation: sydney, timeZoneIdentifier: "Europe/Paris")
+        let insight = try #require(roadTripInsights(snapshot, at: sunset.addingTimeInterval(-30 * 60)).first)
+        let expected = sunset.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Locale(identifier: "en_GB"), timeZone: zone))
+        #expect(insight.title.hasPrefix("Sunset \(expected)"))
+    }
+
+    @Test
+    func daylightIsSilentInPolarDayAndPolarNight() {
+        let tromso = location(latitude: 69.6492, longitude: 18.9553, timeZone: "Europe/Oslo")
+        let snapshot = makeSnapshot(deviceLocation: tromso, timeZoneIdentifier: "Europe/Oslo")
+        let midnightSun = Date(timeIntervalSince1970: 1_782_000_000) // 2026-06-21 00:00 UTC
+        let polarNight = Date(timeIntervalSince1970: 1_797_800_000) // about 2026-12-20 21:00 UTC
+
+        for instant in stride(from: 0.0, to: 24 * 3_600, by: 3 * 3_600) {
+            #expect(roadTripInsights(snapshot, at: midnightSun.addingTimeInterval(instant)).isEmpty)
+            #expect(roadTripInsights(snapshot, at: polarNight.addingTimeInterval(instant)).isEmpty)
+        }
+    }
+
+    @Test
+    func daylightWithoutCivilDuskOmitsTheDetailAndNeverReportsDark() throws {
+        // At 64 N near midsummer the sun sets but civil twilight never ends.
+        let highNorth = location(latitude: 64.0, longitude: 25.0, timeZone: "Europe/Helsinki")
+        let zone = TimeZone(identifier: "Europe/Helsinki")!
+        let reference = DaylightReference(latitude: 64.0, longitude: 25.0, timeZone: zone)
+        let june = Date(timeIntervalSince1970: 1_782_043_200) // 2026-06-21 12:00 UTC
+        let day = reference.solarDay(on: june)
+        let sunset = try #require(day.sunset)
+        #expect(day.civilDusk == nil)
+
+        let snapshot = makeSnapshot(deviceLocation: highNorth, timeZoneIdentifier: "Europe/Helsinki")
+        let caution = try #require(roadTripInsights(snapshot, at: sunset.addingTimeInterval(-30 * 60)).first)
+        #expect(caution.detail == nil)
+        #expect(roadTripInsights(snapshot, at: sunset.addingTimeInterval(2 * 3_600)).isEmpty)
+    }
+
+    @Test
+    func daylightRanksRightAfterStrongWindForRoadTrips() throws {
+        let sunset = try #require(parisSun.sunset)
+        let evening = sunset.addingTimeInterval(-30 * 60) // daylight caution
+        let snapshot = makeSnapshot(
+            weather: makeWeather(windKph: 45, fetchedAt: evening), // wind caution
+            fuel: makeFuel(diesel: station(.diesel)), // fuel info
+            deviceLocation: parisLocation
+        )
+
+        let kinds = DashboardInsightEngine.insights(for: snapshot, now: evening, calendar: parisCalendar, limit: 20, profile: .roadTrip).map(\.kind)
+        #expect(kinds == [.strongWind, .daylight, .fuelNearby])
+    }
+
     // MARK: - Fixtures
 
     private let now = Date(timeIntervalSince1970: 1_791_806_400) // 2026-10-12 12:00:00 UTC == 14:00 Paris
@@ -571,6 +767,44 @@ struct DashboardInsightEngineTests {
         calendar.timeZone = TimeZone(identifier: "Europe/Paris")!
         calendar.locale = Locale(identifier: "en_GB")
         return calendar
+    }
+
+    private func roadTripInsights(_ snapshot: DashboardSnapshot, at instant: Date) -> [DashboardInsight] {
+        DashboardInsightEngine.insights(for: snapshot, now: instant, calendar: parisCalendar, limit: 20, profile: .roadTrip)
+    }
+
+    private var parisLocation: IPLocationSnapshot {
+        location(latitude: 48.8566, longitude: 2.3522, timeZone: "Europe/Paris")
+    }
+
+    private var parisReference: DaylightReference {
+        DaylightReference(latitude: 48.8566, longitude: 2.3522, timeZone: TimeZone(identifier: "Europe/Paris")!)
+    }
+
+    private var parisSun: SolarDay {
+        parisReference.solarDay(on: now)
+    }
+
+    private func parisSolarDay(offsetDays: Int) -> SolarDay {
+        parisReference.solarDay(on: parisCalendar.date(byAdding: .day, value: offsetDays, to: now)!)
+    }
+
+    private func clock(_ instant: Date) -> String {
+        instant.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: Locale(identifier: "en_GB"), timeZone: TimeZone(identifier: "Europe/Paris")!))
+    }
+
+    private func location(latitude: Double?, longitude: Double?, timeZone: String?) -> IPLocationSnapshot {
+        IPLocationSnapshot(
+            city: nil,
+            region: nil,
+            country: nil,
+            countryCode: nil,
+            latitude: latitude,
+            longitude: longitude,
+            timeZone: timeZone,
+            provider: "test",
+            fetchedAt: now
+        )
     }
 
     private func insights(_ snapshot: DashboardSnapshot) -> [DashboardInsight] {
@@ -586,7 +820,10 @@ struct DashboardInsightEngineTests {
         alerts: TravelAlertsSnapshot? = nil,
         weather: WeatherSnapshot? = nil,
         localInfo: LocalInfoSnapshot? = nil,
-        fuel: FuelPriceSnapshot? = nil
+        fuel: FuelPriceSnapshot? = nil,
+        deviceLocation: IPLocationSnapshot? = nil,
+        ipLocation: IPLocationSnapshot? = nil,
+        timeZoneIdentifier: String = "Europe/Paris"
     ) -> DashboardSnapshot {
         DashboardSnapshot(
             network: NetworkSectionSnapshot(
@@ -601,10 +838,10 @@ struct DashboardInsightEngineTests {
             travelContext: TravelContextSnapshot(
                 wifi: nil,
                 vpn: nil,
-                timeZoneIdentifier: "Europe/Paris",
-                deviceLocation: nil,
+                timeZoneIdentifier: timeZoneIdentifier,
+                deviceLocation: deviceLocation,
                 publicIP: nil,
-                location: nil
+                location: ipLocation
             ),
             travelAlerts: alerts,
             weather: weather,

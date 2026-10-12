@@ -75,7 +75,7 @@ Engineers who care about connection quality, VPN state, latency, power draw, tim
 
 ### Road-trippers, van-lifers, and RV travelers
 
-People on the road in a car, camper, or RV who want weather, nearby fuel prices, emergency care and the local emergency number, battery and power, and mobile data allowance first. The Road trip & RV travel profile reorders the dashboard and its heads-up items for them, and can show the most important heads-up right in the menu bar.
+People on the road in a car, camper, or RV who want weather, nearby fuel prices, emergency care and the local emergency number, battery and power, and mobile data allowance first. The Road trip & RV travel profile reorders the dashboard and its heads-up items for them, and can show the most important heads-up right in the menu bar. A daylight heads-up counts down to sunset and tells you when it is dark, so you can finish driving before nightfall; it is calculated on the Mac and works offline.
 
 ### Frequent travelers and consultants
 

@@ -44,6 +44,20 @@ import Foundation
 //    (177 Gendarmerie Royale, 19 Police, 15 Pompiers; reachable from mobile and fixed lines). The
 //    Protection Civile (15) also dispatches ambulances. UK FCDO and Canada travel advice list
 //    190 (police) and 150 (ambulance/fire) instead; those are alternatives and deliberately not stored.
+//  - Rural and highway police (stored in `other`, only where a distinct short number is officially
+//    advertised; checked 2026-10 against the official page plus independent listings):
+//    Spain, Guardia Civil 062: "La Guardia Civil tiene su propio telefono de emergencias, el 062",
+//    https://web.guardiacivil.es/es/colaboracion/planturismoseguro/ServicioAtencionTuristaExtranjero/
+//    Brazil, Policia Rodoviaria Federal 191: "O usuario devera entrar em contato pelo telefone 191",
+//    https://www.gov.br/pt-br/servicos/comunicar-a-prf-de-ocorrencia-que-possa-alterar-fluidez-ou-seguranca-viaria
+//    Thailand, Highway Police 1193: Thai government portal emergency list ("1193 for Highway Police"),
+//    https://www.thailand.go.th/issue-focus-detail/009_152
+//    Deliberately not stored: France (Gendarmerie uses 17, same as police), Italy (Carabinieri and
+//    police both reached via 112), Turkey (Jandarma 156 merged into 112 in 2021), Greece (10400 is the
+//    ELPA breakdown service), Portugal (GNR has no separate emergency number; 112), Romania (no
+//    separate Jandarmeria emergency number; 112), Argentina (Gendarmeria only has an 0800 complaint
+//    line), Mexico (088 is the Guardia Nacional citizen-attention line, emergencies are 911),
+//    Colombia (#767 is the INVIAS road information line).
 //  - Cross-check for all rows: https://en.wikipedia.org/wiki/List_of_emergency_telephone_numbers
 
 /// An additional emergency service that does not fit police, ambulance or fire, for example a
@@ -126,7 +140,10 @@ public enum EmergencyNumberDirectory {
         "RO": europeanSingle,
         "SK": EmergencyNumbers(general: "112", police: "158", ambulance: "155", fire: "150"),
         "SI": EmergencyNumbers(general: "112", police: "113"),
-        "ES": europeanSingle,
+        "ES": EmergencyNumbers(
+            general: "112",
+            other: [EmergencyService(name: "Guardia Civil", number: "062")]
+        ),
         "SE": europeanSingle,
 
         // Other European countries
@@ -152,12 +169,22 @@ public enum EmergencyNumberDirectory {
         "PE": EmergencyNumbers(general: "105", ambulance: "106", fire: "116"),
         "CL": EmergencyNumbers(general: "133", ambulance: "131", fire: "132"),
         "AR": EmergencyNumbers(general: "911", fire: "100"),
-        "BR": EmergencyNumbers(general: "190", ambulance: "192", fire: "193"),
+        "BR": EmergencyNumbers(
+            general: "190",
+            ambulance: "192",
+            fire: "193",
+            other: [EmergencyService(name: "Federal Highway Police", number: "191")]
+        ),
         "EC": EmergencyNumbers(general: "911"),
         "UY": EmergencyNumbers(general: "911"),
 
         // Asia-Pacific
-        "TH": EmergencyNumbers(general: "191", ambulance: "1669", fire: "199"),
+        "TH": EmergencyNumbers(
+            general: "191",
+            ambulance: "1669",
+            fire: "199",
+            other: [EmergencyService(name: "Highway Police", number: "1193")]
+        ),
         "VN": EmergencyNumbers(general: "113", ambulance: "115", fire: "114"),
         "ID": EmergencyNumbers(general: "112", police: "110", fire: "113"),
         "MY": EmergencyNumbers(general: "999"),

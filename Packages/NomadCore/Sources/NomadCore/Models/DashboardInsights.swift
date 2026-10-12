@@ -20,6 +20,7 @@ public enum DashboardInsightKind: String, CaseIterable, Sendable {
     case rainSoon
     case publicHoliday
     case fuelNearby
+    case daylight
 
     /// Kinds in tie-break priority within the same severity (earlier wins) for a travel profile.
     public static func tieBreakOrder(for profile: TravelProfile) -> [DashboardInsightKind] {
@@ -27,7 +28,7 @@ public enum DashboardInsightKind: String, CaseIterable, Sendable {
         case .nomad:
             allCases
         case .roadTrip:
-            [.strongWind, .fuelNearby, .weatherAlert, .dataCap, .travelAdvisory, .regionalSecurity, .rainSoon, .publicHoliday]
+            [.strongWind, .daylight, .fuelNearby, .weatherAlert, .dataCap, .travelAdvisory, .regionalSecurity, .rainSoon, .publicHoliday]
         }
     }
 }
@@ -73,6 +74,10 @@ public enum DashboardInsightEngine {
     static let windAttentionKph = 60.0
     static let rainChanceThreshold = 0.6
     static let holidayLookAheadDays = 3
+    static let daylightCautionInterval: TimeInterval = 60 * 60
+    static let daylightInfoInterval: TimeInterval = 120 * 60
+    /// The dark heads-up waits this long after civil dusk so it does not flicker while the light fades.
+    static let darkGraceInterval: TimeInterval = 30 * 60
     private static let detailCharacterLimit = 44
 
     public static func insights(
@@ -95,6 +100,9 @@ public enum DashboardInsightEngine {
         candidates.append(contentsOf: rainInsight(for: snapshot.weather, now: now, calendar: calendar, locale: locale))
         candidates.append(contentsOf: holidayInsight(for: snapshot.localInfo, now: now, calendar: calendar, locale: locale))
         candidates.append(contentsOf: fuelInsight(for: snapshot.fuelPrices, locale: locale))
+        if profile == .roadTrip {
+            candidates.append(contentsOf: daylightInsight(for: snapshot.travelContext, now: now, locale: locale))
+        }
 
         let order = Dictionary(uniqueKeysWithValues: DashboardInsightKind.tieBreakOrder(for: profile).enumerated().map { ($1, $0) })
         let sorted = candidates.sorted { lhs, rhs in
@@ -425,6 +433,100 @@ public enum DashboardInsightEngine {
             detail: "Cheapest within \(Int(fuelPrices.searchRadiusKilometers)) km",
             relatedCard: .fuelPrices
         )]
+    }
+
+    // MARK: - Daylight
+
+    /// Road trippers want to finish driving before dark: warns in the last two hours of daylight and
+    /// says when it is dark. Computed on the Mac from the coordinates, so it also works offline.
+    private static func daylightInsight(
+        for travelContext: TravelContextSnapshot,
+        now: Date,
+        locale: Locale
+    ) -> [DashboardInsight] {
+        guard let reference = DaylightReference(travelContext: travelContext) else {
+            return []
+        }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = reference.timeZone
+        func day(offset: Int) -> SolarDay? {
+            calendar.date(byAdding: .day, value: offset, to: now).map(reference.solarDay(on:))
+        }
+
+        let today = reference.solarDay(on: now)
+        guard today.isPolarDay == false, today.isPolarNight == false,
+              let sunrise = today.sunrise, let sunset = today.sunset
+        else {
+            return []
+        }
+
+        if now < sunrise {
+            // Before dawn: dark once the grace period after yesterday's civil dusk has passed.
+            guard let dusk = day(offset: -1)?.civilDusk,
+                  now >= dusk.addingTimeInterval(darkGraceInterval)
+            else {
+                return []
+            }
+            return [darkInsight(sunrise: sunrise, now: now, calendar: calendar, reference: reference, locale: locale)]
+        }
+
+        if now < sunset {
+            let remaining = sunset.timeIntervalSince(now)
+            guard remaining <= daylightInfoInterval else {
+                return []
+            }
+            let sunsetText = reference.clockTime(sunset, locale: locale)
+            return [DashboardInsight(
+                kind: .daylight,
+                severity: remaining <= daylightCautionInterval ? .caution : .info,
+                symbolName: "sunset",
+                title: "Sunset \(sunsetText) · \(durationText(remaining)) of daylight",
+                menuBarText: "Sunset \(sunsetText)",
+                detail: today.civilDusk.map { "Dusk (civil twilight) ends \(reference.clockTime($0, locale: locale))" },
+                relatedCard: .weather
+            )]
+        }
+
+        // After sunset: dark once civil twilight is over (plus the grace period), until tomorrow's sunrise.
+        guard let dusk = today.civilDusk, now >= dusk.addingTimeInterval(darkGraceInterval),
+              let nextSunrise = day(offset: 1)?.sunrise
+        else {
+            return []
+        }
+        return [darkInsight(sunrise: nextSunrise, now: now, calendar: calendar, reference: reference, locale: locale)]
+    }
+
+    private static func darkInsight(
+        sunrise: Date,
+        now: Date,
+        calendar: Calendar,
+        reference: DaylightReference,
+        locale: Locale
+    ) -> DashboardInsight {
+        let sunriseText = reference.clockTime(sunrise, locale: locale)
+        let day = calendar.isDate(sunrise, inSameDayAs: now) ? "today" : "tomorrow"
+        return DashboardInsight(
+            kind: .daylight,
+            severity: .info,
+            symbolName: "moon.stars",
+            title: "Dark until \(sunriseText)",
+            menuBarText: "Dark",
+            detail: "Sunrise \(day) \(sunriseText)",
+            relatedCard: .weather
+        )
+    }
+
+    /// "45 min", "1 h" or "1 h 50 min", rounded to the nearest minute (at least one).
+    private static func durationText(_ interval: TimeInterval) -> String {
+        let minutes = max(Int((interval / 60).rounded()), 1)
+        let hours = minutes / 60
+        let remainder = minutes % 60
+        switch (hours, remainder) {
+        case (0, _): return "\(remainder) min"
+        case (_, 0): return "\(hours) h"
+        default: return "\(hours) h \(remainder) min"
+        }
     }
 
     // MARK: - Formatting

@@ -110,6 +110,7 @@ Users can see whether the MacBook is draining normally, charging properly, or li
 - Colors tile values by status (teal good, sand caution, coral attention) instead of by metric type
 - Tapping a tile scrolls the dashboard to the related card
 - Lists at most three ranked heads-up items below the tiles when something needs attention: a data cap nearing or reaching its limit, a travel advisory, weather alert, or regional security signal, strong wind, rain within six hours, a public holiday within three days, and cheapest nearby fuel
+- Adds a daylight heads-up on the Road trip & RV profile, so you can finish driving before dark: within two hours of sunset it shows the sunset time and the daylight left (a caution in the last hour) with when civil twilight ends, and once it is properly dark it shows when the sun rises again; nothing is shown at midday or in polar day and polar night
 - Tapping a heads-up item jumps to the card that explains it; the list disappears when there is nothing to flag
 - Puts Workplaces, Saved essentials, and Explore cities in a single row of links
 - Offline essentials (Saved essentials) lead with the local emergency numbers for the current country, bundled with the app so they are available without a connection, followed by the saved weather, fuel, hospital, and alert summaries
@@ -133,6 +134,7 @@ Users can see whether the MacBook is draining normally, charging properly, or li
 - Nomad puts connection quality, work time, and city context first; Road trip & RV puts weather, fuel, emergency care, power, and the data allowance first
 - Switching profile reorders the dashboard cards to that profile's recommended order, but only if the card order has not been customized; a custom order is kept, and Settings offers `Use recommended order` to restore the profile's own order in one click
 - Ranks the glance overview's heads-up items by profile (for example fuel and weather ahead of work-related items on a road trip)
+- Adds the daylight heads-up (sunset countdown and "dark until" sunrise) for the Road trip & RV profile only; it ranks right after strong wind
 - Can show the top heads-up item in the menu bar in place of the temperature (`Show the top heads-up in the menu bar`, off by default); only caution or attention items replace the temperature, and metered data usage, low battery (50% or less), and being offline keep their own menu bar text
 - `Reset Dashboard Layout` restores the order recommended for the selected profile
 
@@ -189,6 +191,7 @@ Users can understand how the outside network sees them and keep better awareness
 - Shows the current temperature and condition symbol on one line, with feels-like, wind (with m/s), and rain chance as small stats beneath it
 - Always shows the near-term hourly strip; only the 7-day outlook folds away
 - Shows tomorrow summary when the 7-day outlook is collapsed
+- Shows today's sunrise and sunset ("Sunrise 07:45 · Sunset 18:12") in the card in every travel profile, even when weather data is unavailable, in the time zone of the place you are in, or "Midnight sun" and "Polar night" near the poles
 
 ### Who it helps
 
@@ -204,10 +207,12 @@ Users can make quick practical decisions about wind, rain risk, the next few hou
 
 - weather uses device location when enabled
 - WeatherKit access depends on a properly signed build with the required capability
+- sunrise, sunset, and the daylight heads-up are calculated on the Mac from the device location (or the approximate IP location), need no network or WeatherKit, and work offline
 
 ### Limitations
 
 - in unsupported or unsigned builds, WeatherKit-backed weather may be unavailable
+- sunrise and sunset are astronomical estimates accurate to about a minute; hills, mountains, and clouds make the real light fade earlier, and the line is hidden until a location is known
 
 ## Travel Alerts
 
@@ -340,7 +345,7 @@ Users can spot nearby fuel context without switching from the dashboard into sep
 
 - Can show nearby emergency hospitals
 - Hospital rows open the in-app map preview when clicked; a trailing menu offers the preview and Google Maps
-- Shows the local emergency number for the current country (for example "Emergency 112") in the card subtitle and as an Emergency row in Local Info, with police, ambulance, and fire numbers where they differ, plus additional services such as Morocco's Gendarmerie, which covers rural areas and highways; the numbers are bundled with the app and work offline, and can be selected and copied
+- Shows the local emergency number for the current country (for example "Emergency 112") in the card subtitle and as an Emergency row in Local Info, with police, ambulance, and fire numbers where they differ, plus additional services such as Morocco's Gendarmerie and, where a country advertises a separate short number for rural or highway police, the Guardia Civil 062 (Spain), the Federal Highway Police 191 (Brazil) and the Highway Police 1193 (Thailand); the numbers are bundled with the app and work offline, and can be selected and copied
 - Shows Public or Private ownership as a neutral label
 - Can open selected hospitals in Google Maps
 
