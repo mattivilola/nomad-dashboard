@@ -4,6 +4,7 @@ import SwiftUI
 
 struct OfflineEssentialsView: View {
     @ObservedObject var store: DashboardSnapshotStore
+    let settings: AppSettings
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -23,6 +24,9 @@ struct OfflineEssentialsView: View {
             }
             if let numbers = OfflineEssentialsPresentation.emergencyNumbers(for: store.snapshot) {
                 emergencyNumbersRow(numbers)
+            }
+            if let embassy = OfflineEssentialsPresentation.embassy(settings: settings, snapshot: store.snapshot) {
+                embassyRow(embassy)
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -66,6 +70,25 @@ struct OfflineEssentialsView: View {
                 .textSelection(.enabled)
             if let others = numbers.othersText {
                 Text(others).font(.subheadline).foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func embassyRow(_ embassy: EmbassyEssentials) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label("Your embassy", systemImage: "building.columns")
+                .font(.headline)
+            if let mission = embassy.nearestMission {
+                Text(mission).font(.subheadline)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(embassy.hotlines, id: \.phone) { hotline in
+                Text("\(hotline.title) · \(hotline.phone)").font(.subheadline).foregroundStyle(.secondary)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }

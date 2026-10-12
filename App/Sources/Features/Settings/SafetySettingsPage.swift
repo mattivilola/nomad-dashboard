@@ -12,10 +12,11 @@ struct SafetySettingsPage: View {
         SettingsPageForm(page: .safety, navigationController: navigationController) {
             travelAlertsSection
             emergencyCareSection
+            embassySection
         }
     }
 
-    /// Travel alert sources. New safety toggles (such as embassy information) belong in this group or a sibling.
+    /// Travel alert sources. New safety toggles belong in this group or a sibling.
     private var travelAlertsSection: some View {
         Section {
             Toggle("Travel advisory", isOn: settingsStore.binding(\.travelAdvisoryEnabled))
@@ -43,6 +44,21 @@ struct SafetySettingsPage: View {
             Text("Emergency care")
         } footer: {
             Text("Emergency numbers are bundled with the app and shown offline. Nearby hospitals use Apple Maps hospital points of interest and open selected hospitals in maps.")
+        }
+    }
+
+    /// Where the embassy data comes from. The citizenship itself is chosen under General › Home.
+    private var embassySection: some View {
+        Section {
+            Text(CitizenshipSettingsPresentation.embassyStatus(forCitizenships: settingsStore.settings.citizenshipCountryCodes))
+
+            Button(CitizenshipSettingsPresentation.pickerTitle) {
+                navigationController.focus(.citizenship)
+            }
+        } header: {
+            Text("Your embassy")
+        } footer: {
+            Text(CitizenshipSettingsPresentation.embassySectionFooter)
         }
     }
 }

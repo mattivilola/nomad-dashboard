@@ -45,6 +45,7 @@ struct SettingsPageTests {
     func everyFocusTargetOpensItsOwnPage() {
         #expect(SettingsFocusTarget.surfSpot.page == .weatherAndLocal)
         #expect(SettingsFocusTarget.homeTimeZone.page == .general)
+        #expect(SettingsFocusTarget.citizenship.page == .general)
         #expect(SettingsFocusTarget.quietAlerts.page == .connectionAndData)
         #expect(SettingsFocusTarget.workplaceDiary.page == .work)
         #expect(SettingsFocusTarget.visitedPlaces.page == .privacyAndLocation)
@@ -72,6 +73,7 @@ struct SettingsPageTests {
             .localInfo: .localInfo,
             .fuelPrices: .fuelPrices,
             .emergencyCare: .emergencyCare,
+            .embassy: .citizenship,
             .travelAlerts: .travelAlerts,
             .weather: .weather
         ]

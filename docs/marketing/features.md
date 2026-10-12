@@ -6,7 +6,7 @@ Use it to describe what Nomad Dashboard currently does, who each capability help
 
 ## Product-Level Summary
 
-Nomad Dashboard is a native macOS menu bar app that aggregates travel-relevant and work-relevant signals into one compact dashboard. Its current shipped scope covers connectivity, power, travel context, weather, local project time tracking, and several optional travel-aware modules including local price-level context.
+Nomad Dashboard is a native macOS menu bar app that aggregates travel-relevant and work-relevant signals into one compact dashboard. Its current shipped scope covers connectivity, power, travel context, weather, local project time tracking, and several optional travel-aware modules including local price-level context and a Your Embassy card with the consular line and nearest embassy for your citizenship.
 
 ## Connectivity And Internet Readiness
 
@@ -362,6 +362,47 @@ Users can quickly identify nearby emergency hospital options without running a s
 
 - this is a nearby-reference feature, not medical advice, triage, or guaranteed facility availability
 
+## Your Embassy
+
+### What it does
+
+- Shows where to get consular help from the country you hold citizenship of, wherever you are; you add up to three citizenships (for example a dual national) under Settings, General, Citizenship, and the card stays off ("Turned off" row, with a Settings button that opens the Citizenship group) until you do
+- Subtitle names who the card is for and where ("Finland in Morocco"; with dual citizenship both countries are named)
+- Leads with your foreign ministry's consular emergency line for citizens abroad: the ministry's name, the number (selectable, with a copy button) and the ministry's own wording for when it is staffed ("24/7 consular line" only where the ministry says 24/7, otherwise its own note such as "outside office hours"); one row per citizenship that has a verified line
+- Lists up to three embassies or consulates of your own country in the country you are in, nearest first when device location is available, with a neutral label for the kind (Embassy, Consulate-general, Consulate, Honorary consulate), the city and the distance ("4.2 km", or "~4 km" where the dataset only has the city centre); honorary consulates never rank ahead of career missions
+- Clicking a mission opens Apple Maps (missions whose location is only a city centre are searched by name and city instead of pinned on a street); a trailing menu offers Show in Maps, Open website and Copy address, each only when available
+- When your country has no listed mission where you are, shows a notice and the nearest known missions of other countries that may help: EU member states' missions for EU citizens under EU consular protection, and Nordic missions for citizens of other Nordic countries under Nordic cooperation; each row names the country that sends it
+- Links to your ministry's travel registration service where one exists (for example "Travel notification" for Finland) and to its official list of all missions
+- When you are in your own country, shows one line ("You're home in Finland") plus the consular line; when the country you are in is not known yet, asks for location
+- Collapses to one line with the consular number and a neutral status badge (Listed, EU help, Nordic help, Not listed, Home)
+- Offline essentials show your nearest own mission and your ministry's consular line under the local emergency numbers
+- Settings, Safety, Your embassy explains the sources and jumps to the Citizenship setting
+
+### Who it helps
+
+- travelers, nomads and expats who want to know whom to call and where to go if a passport is lost or stolen, they are arrested, hospitalised or caught in a crisis abroad
+- dual nationals, who see the embassies and consular lines of every citizenship that is not the country they are in
+- travelers whose country has no embassy in the country they are in and who would not otherwise know that another EU or Nordic embassy can help
+
+### Practical benefit
+
+The right consular phone number and the nearest embassy are one glance away, in the same place as the local emergency numbers, and still there when the connection is not.
+
+### Dependencies or setup
+
+- requires choosing a citizenship in Settings
+- needs a known current country (device location, or the external IP location) to find missions; distances need device location
+- embassy locations come from Wikidata (CC0) and are bundled with the app, so the card and Offline essentials work without a connection; the footer shows the dataset's date
+- consular phone lines, registration links and mission directories come from each foreign ministry's official website and are listed only for countries where the number could be confirmed first-hand
+
+### Limitations
+
+- the Wikidata dataset is community maintained and can be incomplete or stale, so the wording says "listed" and "nearest known"; most locations are city centres rather than exact buildings; always check the official site for opening hours and current contact details
+- EU consular protection and Nordic cooperation describe arrangements, not a guarantee of help in a particular case
+- not every country has a verified consular line yet; the card still shows missions for those countries
+- some ministries publish their line only for out-of-hours emergencies, and the card says so
+- the card is a reference, not legal, consular or emergency advice; in an emergency call the local emergency number first
+
 ## Surf Spot Forecast
 
 ### What it does
@@ -508,7 +549,8 @@ Users can capture and assign work time with less friction by using the dashboard
 - Keeps the dashboard clean by default: the per-card width and drag controls only appear after choosing `Customize Layout` from the header menu, with an inline hint and a `Done` button while customizing
 - Moves the appearance toggle into the header menu
 - Supports settings for weather, travel modules, analytics, and location-aware features
-- Organizes Settings into a sidebar of pages, each a grouped form like macOS System Settings: **General** (travel profile, home time zone, appearance and startup, menu bar, dashboard layout), **Weather & Local** (weather, surf spot, Local Info, fuel prices), **Safety** (travel alerts, emergency care), **Connection & Data** (data usage, Data Guard, quiet connection alerts), **Work** (project time tracking, workplace diary), **Privacy & Location** (location, external IP location, Wi-Fi names, visited places, analytics), and **Advanced** (refresh and history, fuel diagnostics, about)
+- Lets you choose up to three citizenships under General, Citizenship (a searchable country list); the choice is stored only on the Mac and is used only for the Your Embassy card and Offline essentials
+- Organizes Settings into a sidebar of pages, each a grouped form like macOS System Settings: **General** (travel profile, home time zone, citizenship, appearance and startup, menu bar, dashboard layout), **Weather & Local** (weather, surf spot, Local Info, fuel prices), **Safety** (travel alerts, emergency care, your embassy), **Connection & Data** (data usage, Data Guard, quiet connection alerts), **Work** (project time tracking, workplace diary), **Privacy & Location** (location, external IP location, Wi-Fi names, visited places, analytics), and **Advanced** (refresh and history, fuel diagnostics, about)
 - Puts each privacy and data-source note next to the setting it describes instead of in one long paragraph
 - Opens Settings on the right group from the dashboard (for example the clock's preferences button opens the home time zone, and a turned-off card's setup button opens that feature's setting) and remembers the last page while the app is running
 - Supports direct-distribution update plumbing with Sparkle in release builds
@@ -537,6 +579,7 @@ Users can shape the dashboard around their needs instead of accepting a rigid on
 - Weather relies on WeatherKit and needs proper signed release capability to work in release-quality builds.
 - Nearby fuel prices are region-dependent, and Germany requires the user to provide a Tankerkonig API key.
 - Some travel alerts are optional and disabled by default.
+- Your Embassy needs a citizenship chosen in Settings; its embassy data is bundled with the app, community maintained and can be incomplete.
 - Project time tracking is local-only and requires the user to enable it.
 - External IP geolocation is approximate.
 - Upstream data freshness and availability depend on external providers.

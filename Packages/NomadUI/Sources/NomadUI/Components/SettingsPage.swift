@@ -42,6 +42,7 @@ public enum SettingsPage: String, CaseIterable, Identifiable, Sendable {
 public enum SettingsFocusTarget: String, CaseIterable, Sendable {
     case surfSpot
     case homeTimeZone
+    case citizenship
     case quietAlerts
     case workplaceDiary
     case visitedPlaces
@@ -56,7 +57,7 @@ public enum SettingsFocusTarget: String, CaseIterable, Sendable {
     public var page: SettingsPage {
         switch self {
         case .surfSpot, .weather, .localInfo, .fuelPrices: .weatherAndLocal
-        case .homeTimeZone: .general
+        case .homeTimeZone, .citizenship: .general
         case .quietAlerts, .dataGuard: .connectionAndData
         case .workplaceDiary, .timeTracking: .work
         case .visitedPlaces: .privacyAndLocation
@@ -74,6 +75,7 @@ extension DashboardCardID {
         case .localInfo: .localInfo
         case .fuelPrices: .fuelPrices
         case .emergencyCare: .emergencyCare
+        case .embassy: .citizenship
         case .travelAlerts: .travelAlerts
         case .weather: .weather
         case .connectivity, .power, .travelContext: nil

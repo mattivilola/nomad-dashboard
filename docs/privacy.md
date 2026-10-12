@@ -22,6 +22,9 @@
 - Opening Google Maps for a diary entry is an explicit user action and sends the selected map request to Google Maps.
 - Quiet connection alerts are opt-in. They use connection, VPN, charging state changes, and Data Guard cap warnings with cooldowns and configured quiet hours; alert text does not include location or IP address.
 - Emergency numbers shown on the Emergency Care and Local Info cards and in Offline essentials come from a table bundled with the app. They are looked up offline from the current country code; nothing is sent anywhere for them.
+- Citizenship, chosen in Settings under General, is sensitive and is stored only on the Mac with the other settings. It is used only to find your embassy and your foreign ministry's consular line, is compared with data bundled in the app, is never sent anywhere, and is never part of analytics.
+- The Your Embassy card and Offline essentials use a table of embassy and consulate locations (Wikidata, CC0) and foreign-ministry contact details bundled with the app. Lookups run offline from the current country code and device coordinate; nothing is sent anywhere for them.
+- Opening a mission in Apple Maps, a mission or ministry website, or a travel registration service is an explicit user action and sends that request to Apple or to the website. Copying a phone number or address only uses the system clipboard.
 - Data Guard stores Wi-Fi network names (SSIDs), remembered metered network preferences, and cumulative byte totals locally on the Mac. This data is not uploaded.
 - Travel advisory uses Smartraveller and is enabled by default.
 - Smartraveller advisory fetches use direct HTTPS requests first and may retry through a hidden WebKit-backed page load when the direct transport path stalls.

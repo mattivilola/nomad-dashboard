@@ -6,7 +6,7 @@ Nomad Dashboard is a native macOS menu bar app for digital nomads, remote worker
 
 ## Positioning
 
-Nomad Dashboard turns a MacBook into a compact travel instrument panel. It keeps the signals that matter close at hand in the menu bar: connection quality, internet reachability, power state, travel context, weather, local project time tracking, and optional travel-oriented tools such as alerts, local price-level context, nearby fuel prices, emergency hospitals, surf conditions, visited places, and a local work diary.
+Nomad Dashboard turns a MacBook into a compact travel instrument panel. It keeps the signals that matter close at hand in the menu bar: connection quality, internet reachability, power state, travel context, weather, local project time tracking, and optional travel-oriented tools such as alerts, local price-level context, nearby fuel prices, emergency hospitals, your embassy and consular line, surf conditions, visited places, and a local work diary.
 
 The product should be positioned as:
 
@@ -91,6 +91,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Surfacing optional travel alerts and regional context while on the move
 - Checking local holiday timing, city context, and whether local prices feel cheap, medium, or expensive before settling in
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
+- Knowing whom to call and where to go abroad: your foreign ministry's consular emergency line and the nearest embassy or consulate of your country (or, when yours is not represented, the nearest EU or Nordic mission that can help), bundled offline and kept in Saved essentials
 - Switching to the Road trip & RV profile for a weather, fuel, emergency-care, and power-first dashboard, and keeping the local emergency numbers available offline in Saved essentials
 - Tracking visited places locally on the Mac, with yearly travel paths, chronological stop logs, and country-day summaries by year and month
 - Automatically seeing the current or nearest listed city, then browsing visual destination cards by country, monthly budget, and city internet estimates, with attributed Nomads.com ratings and meetup links

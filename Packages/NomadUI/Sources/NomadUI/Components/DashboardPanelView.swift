@@ -39,6 +39,8 @@ public struct DashboardPanelView: View {
     private let openEmergencyHospitalMapPreviewAction: (EmergencyHospitalMapDestination) -> Void
     private let openEmergencyHospitalInGoogleMapsAction: (EmergencyHospitalMapDestination) -> Void
     private let openTravelAlertSourceAction: (URL) -> Void
+    private let openExternalURLAction: (URL) -> Void
+    private let copyTextAction: (String) -> Void
     private let checkForUpdatesAction: (() -> Void)?
     private let openSettingsAction: () -> Void
     private let openSettingsForCard: (DashboardCardID) -> Void
@@ -101,6 +103,8 @@ public struct DashboardPanelView: View {
         openEmergencyHospitalMapPreviewAction: @escaping (EmergencyHospitalMapDestination) -> Void = { _ in },
         openEmergencyHospitalInGoogleMapsAction: @escaping (EmergencyHospitalMapDestination) -> Void = { _ in },
         openTravelAlertSourceAction: @escaping (URL) -> Void = { _ in },
+        openExternalURLAction: @escaping (URL) -> Void = { _ in },
+        copyTextAction: @escaping (String) -> Void = { _ in },
         checkForUpdatesAction: (() -> Void)? = nil,
         openSettingsAction: @escaping () -> Void,
         openSettingsForCard: @escaping (DashboardCardID) -> Void = { _ in },
@@ -155,6 +159,8 @@ public struct DashboardPanelView: View {
         self.openEmergencyHospitalMapPreviewAction = openEmergencyHospitalMapPreviewAction
         self.openEmergencyHospitalInGoogleMapsAction = openEmergencyHospitalInGoogleMapsAction
         self.openTravelAlertSourceAction = openTravelAlertSourceAction
+        self.openExternalURLAction = openExternalURLAction
+        self.copyTextAction = copyTextAction
         self.checkForUpdatesAction = checkForUpdatesAction
         self.openSettingsAction = openSettingsAction
         self.openSettingsForCard = openSettingsForCard
@@ -588,6 +594,8 @@ public struct DashboardPanelView: View {
             fuelPricesSection(widthMode: widthMode, viewportHeight: viewportHeight)
         case .emergencyCare:
             emergencyCareSection(widthMode: widthMode)
+        case .embassy:
+            embassySection(widthMode: widthMode)
         case .travelAlerts:
             travelAlertsSection(widthMode: widthMode)
         case .weather:
@@ -1267,6 +1275,19 @@ public struct DashboardPanelView: View {
         )
     }
 
+    private func embassySection(widthMode: DashboardCardWidthMode) -> some View {
+        EmbassySectionView(
+            presentation: EmbassyCardPresentation(settings: settings, snapshot: snapshot),
+            widthMode: widthMode,
+            accessory: cardControls(for: .embassy),
+            collapse: collapse(for: .embassy),
+            openCitizenshipSettingsAction: { openSettingsForCard(.embassy) },
+            openSettingsAction: openSettingsAction,
+            openURLAction: openExternalURLAction,
+            copyTextAction: copyTextAction
+        )
+    }
+
     private func travelAlertsSection(widthMode: DashboardCardWidthMode) -> some View {
         DashboardCard(
             title: DashboardCardID.travelAlerts.displayTitle,
@@ -1853,7 +1874,7 @@ struct DashboardCardCollapse {
     let toggle: () -> Void
 }
 
-private struct DashboardCard<Content: View>: View {
+struct DashboardCard<Content: View>: View {
     let title: String
     let subtitle: String
     let isSubtitleSelectable: Bool
@@ -3115,7 +3136,7 @@ private struct EmergencyHospitalRow: View {
                     }
 
                     if let ownershipTitle = model.ownershipTitle {
-                        OwnershipBadge(title: ownershipTitle)
+                        NeutralChip(title: ownershipTitle)
                     }
                 }
 
@@ -3131,8 +3152,8 @@ private struct EmergencyHospitalRow: View {
     }
 }
 
-/// Public/Private is a fact about the hospital, not a status, so it gets a neutral chip.
-private struct OwnershipBadge: View {
+/// A fact about the item (Public/Private hospital, Embassy/Consulate), not a status, so it gets a neutral chip.
+struct NeutralChip: View {
     let title: String
 
     var body: some View {
@@ -4440,7 +4461,7 @@ private struct BadgeView: View {
     }
 }
 
-private struct WeatherEmptyState: View {
+struct WeatherEmptyState: View {
     let title: String
     let systemImage: String
     let message: String

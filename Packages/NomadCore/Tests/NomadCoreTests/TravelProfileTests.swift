@@ -33,6 +33,7 @@ struct TravelProfileTests {
             .weather,
             .fuelPrices,
             .emergencyCare,
+            .embassy,
             .power,
             .meteredData,
             .travelAlerts,

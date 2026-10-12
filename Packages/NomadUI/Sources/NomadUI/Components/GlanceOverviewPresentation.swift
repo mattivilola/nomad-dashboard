@@ -456,6 +456,7 @@ extension DashboardCardID {
         case .localInfo: "Local Info"
         case .fuelPrices: "Fuel Prices"
         case .emergencyCare: "Emergency Care"
+        case .embassy: "Your Embassy"
         case .travelAlerts: "Travel Alerts"
         case .weather: "Weather"
         }

@@ -12,6 +12,9 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - Add travel profiles (Nomad, Road trip & RV) in Settings and the dashboard header menu: a profile sets the recommended card order and ranks the glance heads-up items for road trips; a customized card order is kept, and Settings offers `Use recommended order`.
 - Add `Show the top heads-up in the menu bar` (off by default): caution and attention items replace the temperature in the menu bar.
 - Show the local emergency numbers at the top of Offline essentials.
+- Add the Your Embassy card (turned off until you choose a citizenship): your foreign ministry's consular emergency line with a copy button, your own country's nearest embassies and consulates with distance and Apple Maps, website and address actions, EU consular protection or Nordic cooperation missions when your country has none listed, and links to your ministry's trip registration and list of missions. It collapses to one line, shows one line when you are home, and works offline from data bundled with the app.
+- Add `Citizenship` under Settings, General (up to three countries, stored only on this Mac) and a `Your embassy` group under Safety that explains the data sources.
+- Show your nearest own embassy and your ministry's consular line in Offline essentials, under the local emergency numbers.
 
 ### Changed
 
@@ -19,6 +22,7 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - The dashboard clock's preferences button opens Settings on the home time zone, the setup buttons on Data Guard, Time Tracking, Local Info, Fuel Prices and Emergency Care cards and the "Turned off" row open Settings on the matching group, the Visited Map's Open Settings buttons open the visited places setting, and Settings remembers the last page you viewed while the app is running.
 - `Reset Dashboard Layout` restores the card order recommended for the selected travel profile.
 - Offline essentials format temperatures and fuel prices like the dashboard cards.
+- Existing dashboards get the Your Embassy card right after Emergency Care (or after the nearest earlier default card present in a customized order), and a card order you never customized stays the recommended order.
 - Fix the General settings note that still described the appearance toggle as a dashboard header button; it now lives in the header menu.
 
 ### Fixed

@@ -267,13 +267,18 @@ public enum DiplomaticMissionDirectory {
     /// - Without a coordinate there is no honest way to rank by distance, so kind decides
     ///   (embassy, consulate-general, consulate, other, honorary), then name.
     ///
+    /// `arrangementRank` (lower is better) lets a caller prefer one kind of sending state over another
+    /// among equally near missions: it is applied after the distance bucket and before the kind. Without
+    /// a coordinate it applies right after the honorary rule. The default ranks everything equally.
+    ///
     /// Missions listed under several requested countries are returned once.
     public static func nearest(
         of sendingCountries: [String],
         in hostCountry: String,
         near coordinate: (latitude: Double, longitude: Double)?,
         limit: Int,
-        index: DiplomaticMissionIndex = .bundled
+        index: DiplomaticMissionIndex = .bundled,
+        arrangementRank: (DiplomaticMission) -> Int = { _ in 0 }
     ) -> [DiplomaticMissionMatch] {
         guard limit > 0 else {
             return []
@@ -298,7 +303,7 @@ public enum DiplomaticMissionDirectory {
             )
         }
 
-        return Array(matches.sorted(by: ordered).prefix(limit))
+        return Array(matches.sorted { ordered($0, $1, arrangementRank: arrangementRank) }.prefix(limit))
     }
 
     /// The states whose missions can help a citizen of `citizenship` when their own state has no
@@ -332,11 +337,23 @@ public enum DiplomaticMissionDirectory {
         return lhs.id < rhs.id
     }
 
-    private static func ordered(_ lhs: DiplomaticMissionMatch, _ rhs: DiplomaticMissionMatch) -> Bool {
+    private static func ordered(
+        _ lhs: DiplomaticMissionMatch,
+        _ rhs: DiplomaticMissionMatch,
+        arrangementRank: (DiplomaticMission) -> Int
+    ) -> Bool {
         let lhsDistance = lhs.distanceKilometers
         let rhsDistance = rhs.distanceKilometers
+        let lhsArrangement = arrangementRank(lhs.mission)
+        let rhsArrangement = arrangementRank(rhs.mission)
 
         guard let lhsDistance, let rhsDistance else {
+            if lhs.mission.kind.isHonorary != rhs.mission.kind.isHonorary {
+                return rhs.mission.kind.isHonorary
+            }
+            if lhsArrangement != rhsArrangement {
+                return lhsArrangement < rhsArrangement
+            }
             return orderedWithoutLocation(lhs.mission, rhs.mission)
         }
 
@@ -348,6 +365,9 @@ public enum DiplomaticMissionDirectory {
         let rhsBucket = (rhsDistance / distanceBucketKilometers).rounded(.down)
         if lhsBucket != rhsBucket {
             return lhsBucket < rhsBucket
+        }
+        if lhsArrangement != rhsArrangement {
+            return lhsArrangement < rhsArrangement
         }
         if lhs.mission.kind.rank != rhs.mission.kind.rank {
             return lhs.mission.kind.rank < rhs.mission.kind.rank
@@ -483,7 +503,15 @@ public struct EmbassyLookup: Equatable, Sendable {
             in: host,
             near: coordinate,
             limit: limit,
-            index: index
+            index: index,
+            arrangementRank: { mission in
+                // The Nordic arrangement is the more specific one, so those missions come first.
+                switch Self.fallbackReason(forSendingCountry: mission.sendingCountry, citizenships: abroadCitizenships) {
+                case .nordicCooperation: 0
+                case .euConsularProtection: 1
+                case nil: 2
+                }
+            }
         )
         let reason = fallback.first.flatMap {
             Self.fallbackReason(forSendingCountry: $0.mission.sendingCountry, citizenships: abroadCitizenships)

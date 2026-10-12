@@ -58,6 +58,13 @@ struct DashboardCardEnablementTests {
     }
 
     @Test
+    func embassyIsEnabledOnlyWhenACitizenshipIsSet() {
+        #expect(DashboardCardID.embassy.isFeatureEnabled(in: AppSettings()) == false)
+        #expect(DashboardCardID.embassy.isFeatureEnabled(in: AppSettings(citizenshipCountryCodes: ["FI"])))
+        #expect(DashboardCardID.embassy.isFeatureEnabled(in: AppSettings(citizenshipCountryCodes: ["FI", "SE"])))
+    }
+
+    @Test
     func collapsedCardsDefaultToEmpty() {
         #expect(AppSettings().dashboardCollapsedCards.isEmpty)
     }

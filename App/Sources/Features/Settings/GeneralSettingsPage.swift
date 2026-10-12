@@ -10,18 +10,23 @@ struct GeneralSettingsPage: View {
     let updatesEnabled: Bool
 
     @State private var showingTimeZonePicker = false
+    @State private var showingCitizenshipPicker = false
 
     var body: some View {
         SettingsPageForm(page: .general, navigationController: navigationController) {
             introSection
             travelProfileSection
             homeSection
+            citizenshipSection
             appearanceAndStartupSection
             menuBarSection
             dashboardLayoutSection
         }
         .sheet(isPresented: $showingTimeZonePicker) {
             HomeTimeZonePicker(selection: $lifeController.preferences.homeTimeZoneIdentifier)
+        }
+        .sheet(isPresented: $showingCitizenshipPicker) {
+            CitizenshipCountryPicker(chosen: citizenshipCodes, onSelect: addCitizenship)
         }
     }
 
@@ -87,6 +92,58 @@ struct GeneralSettingsPage: View {
         } header: {
             Text("Home")
         }
+    }
+
+    /// Citizenship belongs to the traveler's home. It drives the Your Embassy card and stays on this Mac.
+    private var citizenshipSection: some View {
+        Section {
+            if citizenshipCodes.isEmpty {
+                Text("No citizenship chosen")
+                    .foregroundStyle(.secondary)
+                    .id(SettingsFocusTarget.citizenship.rawValue)
+            } else {
+                ForEach(Array(citizenshipCodes.enumerated()), id: \.element) { offset, code in
+                    LabeledContent(CitizenshipSettingsPresentation.countryName(for: code)) {
+                        Button {
+                            removeCitizenship(code)
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Remove \(CitizenshipSettingsPresentation.countryName(for: code))")
+                        .accessibilityLabel("Remove \(CitizenshipSettingsPresentation.countryName(for: code))")
+                    }
+                    .id(offset == 0 ? SettingsFocusTarget.citizenship.rawValue : code)
+                }
+            }
+
+            Button(CitizenshipSettingsPresentation.addCountryTitle) {
+                showingCitizenshipPicker = true
+            }
+            .disabled(CitizenshipSettingsPresentation.canAddCountry(to: citizenshipCodes) == false)
+
+            if CitizenshipSettingsPresentation.canAddCountry(to: citizenshipCodes) == false {
+                Text(CitizenshipSettingsPresentation.limitText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Citizenship")
+        } footer: {
+            Text(CitizenshipSettingsPresentation.sectionFooter)
+        }
+    }
+
+    private var citizenshipCodes: [String] {
+        settingsStore.settings.citizenshipCountryCodes
+    }
+
+    private func addCitizenship(_ code: String) {
+        settingsStore.settings.citizenshipCountryCodes = AppSettings.sanitizedCitizenshipCodes(citizenshipCodes + [code])
+    }
+
+    private func removeCitizenship(_ code: String) {
+        settingsStore.settings.citizenshipCountryCodes = citizenshipCodes.filter { $0 != code }
     }
 
     private var appearanceAndStartupSection: some View {

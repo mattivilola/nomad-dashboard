@@ -36,6 +36,7 @@ struct AppSettingsStoreTests {
         #expect(store.settings.surfSpotLatitude == nil)
         #expect(store.settings.surfSpotLongitude == nil)
         #expect(store.settings.weatherForecastExpanded == false)
+        #expect(store.settings.citizenshipCountryCodes.isEmpty)
     }
 
     @Test
@@ -172,7 +173,19 @@ struct AppSettingsStoreTests {
         store.settings.dashboardCardOrder = reordered
 
         let reloaded = AppSettingsStore(defaults: defaults)
-        #expect(reloaded.settings.dashboardCardOrder == reordered + [.meteredData])
+        #expect(reloaded.settings.dashboardCardOrder == [
+            .weather,
+            .travelAlerts,
+            .fuelPrices,
+            .emergencyCare,
+            .embassy,
+            .localInfo,
+            .travelContext,
+            .timeTracking,
+            .power,
+            .connectivity,
+            .meteredData
+        ])
     }
 
     @Test
@@ -479,15 +492,16 @@ struct AppSettingsStoreTests {
 
         let store = AppSettingsStore(defaults: defaults)
         #expect(store.settings.dashboardCardOrder == [
-            .weather,
-            .power,
             .connectivity,
             .meteredData,
+            .weather,
+            .power,
             .timeTracking,
             .travelContext,
             .localInfo,
             .fuelPrices,
             .emergencyCare,
+            .embassy,
             .travelAlerts
         ])
     }

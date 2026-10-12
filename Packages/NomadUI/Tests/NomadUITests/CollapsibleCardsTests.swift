@@ -44,6 +44,7 @@ struct DashboardCardVisibilityTests {
         settings.fuelPricesEnabled = false
         settings.emergencyCareEnabled = true
         settings.travelAdvisoryEnabled = true
+        settings.citizenshipCountryCodes = ["FI"]
         configure(&settings)
         return settings
     }
@@ -63,6 +64,31 @@ struct DashboardCardVisibilityTests {
         #expect(visibility.visibleOrder.contains(.weather))
         #expect(visibility.turnedOffText == "Turned off: Data Guard, Local Info, Fuel Prices")
         #expect(visibility.turnedOffCards == [.meteredData, .localInfo, .fuelPrices])
+    }
+
+    @Test
+    func embassyCardIsNamedAsTurnedOffUntilACitizenshipIsChosen() {
+        let visibility = DashboardCardVisibility(
+            order: DashboardCardID.defaultOrder,
+            settings: settings { $0.citizenshipCountryCodes = [] },
+            isCustomizingLayout: false
+        )
+
+        #expect(visibility.visibleOrder.contains(.embassy) == false)
+        #expect(visibility.turnedOffCards == [.meteredData, .localInfo, .fuelPrices, .embassy])
+        #expect(visibility.turnedOffText == "Turned off: Data Guard, Local Info, Fuel Prices, Your Embassy")
+        #expect(visibility.turnedOffCards.first?.settingsFocusTarget == .dataGuard)
+    }
+
+    @Test
+    func embassyCardShowsOnceACitizenshipIsChosen() {
+        let visibility = DashboardCardVisibility(
+            order: DashboardCardID.defaultOrder,
+            settings: settings { _ in },
+            isCustomizingLayout: false
+        )
+
+        #expect(visibility.visibleOrder.contains(.embassy))
     }
 
     @Test

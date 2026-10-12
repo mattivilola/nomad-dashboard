@@ -49,6 +49,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var menuBarShowsHeadsUp: Bool
     public var autoMonitorRememberedWiFiHotspots: Bool
     public var useLocationForWiFiNames: Bool
+    /// The user's citizenships as upper-case ISO 3166-1 alpha-2 codes, in the order they were added.
+    /// Sensitive: stored locally only, used to find the user's embassy and foreign-ministry emergency
+    /// line, never sent anywhere and never part of analytics.
+    public var citizenshipCountryCodes: [String]
 
     public init(
         appearanceMode: AppAppearanceMode = .system,
@@ -90,7 +94,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         showMeteredUsageInMenuBar: Bool = true,
         menuBarShowsHeadsUp: Bool = false,
         autoMonitorRememberedWiFiHotspots: Bool = true,
-        useLocationForWiFiNames: Bool = true
+        useLocationForWiFiNames: Bool = true,
+        citizenshipCountryCodes: [String] = []
     ) {
         self.appearanceMode = appearanceMode
         self.dataUsageMode = dataUsageMode
@@ -132,6 +137,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.menuBarShowsHeadsUp = menuBarShowsHeadsUp
         self.autoMonitorRememberedWiFiHotspots = autoMonitorRememberedWiFiHotspots
         self.useLocationForWiFiNames = useLocationForWiFiNames
+        self.citizenshipCountryCodes = Self.sanitizedCitizenshipCodes(citizenshipCountryCodes)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -178,6 +184,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case menuBarShowsHeadsUp
         case autoMonitorRememberedWiFiHotspots
         case useLocationForWiFiNames
+        case citizenshipCountryCodes
     }
 
     public init(from decoder: any Decoder) throws {
@@ -246,6 +253,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         menuBarShowsHeadsUp = try container.decodeIfPresent(Bool.self, forKey: .menuBarShowsHeadsUp) ?? false
         autoMonitorRememberedWiFiHotspots = try container.decodeIfPresent(Bool.self, forKey: .autoMonitorRememberedWiFiHotspots) ?? true
         useLocationForWiFiNames = try container.decodeIfPresent(Bool.self, forKey: .useLocationForWiFiNames) ?? true
+        citizenshipCountryCodes = Self.sanitizedCitizenshipCodes(
+            (try? container.decodeIfPresent([String].self, forKey: .citizenshipCountryCodes)) ?? []
+        )
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -295,6 +305,20 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encode(menuBarShowsHeadsUp, forKey: .menuBarShowsHeadsUp)
         try container.encode(autoMonitorRememberedWiFiHotspots, forKey: .autoMonitorRememberedWiFiHotspots)
         try container.encode(useLocationForWiFiNames, forKey: .useLocationForWiFiNames)
+        try container.encode(citizenshipCountryCodes, forKey: .citizenshipCountryCodes)
+    }
+
+    /// The most citizenships that can be stored; enough for the dual and triple nationals this is for.
+    public static let maximumCitizenships = 3
+
+    /// Upper-case two-letter codes in the given order, without blanks, duplicates or anything that
+    /// is not a letter pair, capped at `maximumCitizenships`.
+    public static func sanitizedCitizenshipCodes(_ codes: [String]) -> [String] {
+        var seen = Set<String>()
+        let normalized = codes
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+            .filter { $0.count == 2 && $0.allSatisfy { $0.isASCII && $0.isLetter } && seen.insert($0).inserted }
+        return Array(normalized.prefix(maximumCitizenships))
     }
 
     public static func sanitizedRefreshInterval(_ value: TimeInterval) -> TimeInterval {

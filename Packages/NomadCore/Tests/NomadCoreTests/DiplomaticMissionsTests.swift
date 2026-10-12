@@ -202,11 +202,11 @@ struct DiplomaticMissionsTests {
         let lookup = EmbassyLookup(citizenships: ["FI"], hostCountry: "MA", coordinate: Self.rabat, index: index)
 
         #expect(lookup.ownMatches.isEmpty)
-        #expect(ids(lookup.fallbackMatches) == ["Q2", "Q6", "Q12"])
-        // Best match is Germany's (name order within the tie): an EU state, so EU consular protection.
-        #expect(lookup.fallbackReason == .euConsularProtection)
-        #expect(lookup.fallbackReason(for: lookup.fallbackMatches[1].mission) == .nordicCooperation)
-        #expect(lookup.fallbackReason(for: lookup.fallbackMatches[0].mission) == .euConsularProtection)
+        // Sweden and Germany are equally near; the Nordic arrangement is more specific, so Sweden leads.
+        #expect(ids(lookup.fallbackMatches) == ["Q6", "Q2", "Q12"])
+        #expect(lookup.fallbackReason == .nordicCooperation)
+        #expect(lookup.fallbackReason(for: lookup.fallbackMatches[0].mission) == .nordicCooperation)
+        #expect(lookup.fallbackReason(for: lookup.fallbackMatches[1].mission) == .euConsularProtection)
     }
 
     @Test
@@ -347,5 +347,57 @@ struct DiplomaticMissionsTests {
                 #expect(["http", "https"].contains(URL(string: website)?.scheme))
             }
         }
+    }
+
+    // MARK: - Fallback ranking
+
+    private static let amman = (latitude: 31.9539, longitude: 35.9106)
+
+    /// Alphabetically Austria, Belgium and Bulgaria come first; Sweden, Norway and Denmark are as near.
+    private static let ammanFixture = DiplomaticMissionIndex(
+        missions: [
+            mission("AT", "AT", host: "JO", .embassy, "Embassy of Austria, Amman", at: amman),
+            mission("BE", "BE", host: "JO", .embassy, "Embassy of Belgium, Amman", at: amman),
+            mission("BG", "BG", host: "JO", .embassy, "Embassy of Bulgaria, Amman", at: amman),
+            mission("DE", "DE", host: "JO", .consulateGeneral, "Consulate General of Germany, Amman", at: amman),
+            mission("SE", "SE", host: "JO", .embassy, "Embassy of Sweden, Amman", at: amman),
+            mission("NO", "NO", host: "JO", .embassy, "Embassy of Norway, Amman", at: amman),
+            mission("DK", "DK", host: "JO", .embassy, "Embassy of Denmark, Amman", at: amman),
+            mission("SE-AQ", "SE", host: "JO", .honoraryConsulate, "Honorary Consulate of Sweden, Aqaba", at: (29.53, 35.0))
+        ]
+    )
+
+    @Test
+    func nordicMissionsOutrankEUMissionsForANordicCitizenAtTheSameDistance() {
+        let lookup = EmbassyLookup(citizenships: ["FI"], hostCountry: "JO", coordinate: Self.amman, index: Self.ammanFixture)
+
+        #expect(ids(lookup.fallbackMatches) == ["DK", "NO", "SE"])
+        #expect(lookup.fallbackReason == .nordicCooperation)
+    }
+
+    @Test
+    func nordicPreferenceAlsoAppliesWithoutACoordinate() {
+        let lookup = EmbassyLookup(citizenships: ["FI"], hostCountry: "JO", coordinate: nil, limit: 4, index: Self.ammanFixture)
+
+        #expect(ids(lookup.fallbackMatches) == ["DK", "NO", "SE", "AT"])
+    }
+
+    @Test
+    func aMuchNearerEUMissionStillBeatsADistantNordicOne() {
+        let index = DiplomaticMissionIndex(missions: [
+            Self.mission("AT-NEAR", "AT", host: "JO", .embassy, "Embassy of Austria, Amman", at: Self.amman),
+            Self.mission("SE-FAR", "SE", host: "JO", .embassy, "Embassy of Sweden, Aqaba", at: (29.53, 35.0))
+        ])
+        let lookup = EmbassyLookup(citizenships: ["FI"], hostCountry: "JO", coordinate: Self.amman, index: index)
+
+        #expect(ids(lookup.fallbackMatches) == ["AT-NEAR", "SE-FAR"])
+    }
+
+    @Test
+    func anEUOnlyCitizenKeepsTheKindThenNameOrderingWithinABucket() {
+        let lookup = EmbassyLookup(citizenships: ["FR"], hostCountry: "JO", coordinate: Self.amman, limit: 6, index: Self.ammanFixture)
+
+        #expect(ids(lookup.fallbackMatches) == ["AT", "BE", "BG", "DK", "SE", "DE"])
+        #expect(lookup.fallbackReason == .euConsularProtection)
     }
 }

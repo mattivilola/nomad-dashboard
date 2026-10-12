@@ -38,6 +38,9 @@ struct DashboardCardSummaryPresentation: Equatable {
             text = Self.fuel(settings: settings, snapshot: snapshot)
         case .emergencyCare:
             (text, help) = Self.emergency(settings: settings, snapshot: snapshot)
+        case .embassy:
+            let embassy = EmbassyCardPresentation(settings: settings, snapshot: snapshot)
+            (text, help) = (embassy.summary, embassy.summaryHelp)
         case .travelAlerts:
             text = Self.travelAlerts(preferences: travelAlertPreferences, snapshot: snapshot)
         case .weather:

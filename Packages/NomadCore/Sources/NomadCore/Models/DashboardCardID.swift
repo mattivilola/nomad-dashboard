@@ -9,6 +9,7 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
     case localInfo
     case fuelPrices
     case emergencyCare
+    case embassy
     case travelAlerts
     case weather
 
@@ -21,6 +22,7 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
         .localInfo,
         .fuelPrices,
         .emergencyCare,
+        .embassy,
         .travelAlerts,
         .weather
     ]
@@ -35,6 +37,7 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
                 .weather,
                 .fuelPrices,
                 .emergencyCare,
+                .embassy,
                 .power,
                 .meteredData,
                 .travelAlerts,
@@ -46,11 +49,22 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
         }
     }
 
+    /// Drops duplicates and adds every card missing from `order`. A missing card goes right after the
+    /// nearest card before it in `defaultOrder` that is present, so a saved order from before a card
+    /// existed gets it next to its recommended neighbour (an untouched old default becomes exactly the
+    /// new default). A card with no earlier neighbour present goes first.
     public static func sanitizedOrder(_ order: [DashboardCardID]) -> [DashboardCardID] {
         var seen: Set<DashboardCardID> = []
-        let deduplicated = order.filter { seen.insert($0).inserted }
-        let missing = defaultOrder.filter { seen.contains($0) == false }
-        return deduplicated + missing
+        var result = order.filter { seen.insert($0).inserted }
+
+        for (index, card) in defaultOrder.enumerated() where seen.contains(card) == false {
+            let predecessor = defaultOrder[..<index].last { seen.contains($0) }
+            let insertionIndex = predecessor.flatMap { result.firstIndex(of: $0) }.map { $0 + 1 } ?? 0
+            result.insert(card, at: insertionIndex)
+            seen.insert(card)
+        }
+
+        return result
     }
 
     public static let defaultWidthModes: [DashboardCardID: DashboardCardWidthMode] = Dictionary(uniqueKeysWithValues: defaultOrder.map { ($0, .wide) })
@@ -97,6 +111,8 @@ public extension DashboardCardID {
             settings.travelAdvisoryEnabled
                 || settings.travelWeatherAlertsEnabled
                 || settings.regionalSecurityEnabled
+        case .embassy:
+            settings.citizenshipCountryCodes.isEmpty == false
         case .connectivity, .power, .travelContext, .weather:
             true
         }
