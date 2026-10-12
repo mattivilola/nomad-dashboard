@@ -360,16 +360,7 @@ private struct GlanceVitalTile: View {
                 }
 
                 if let progress = tile.progress {
-                    Capsule()
-                        .fill(tint.opacity(0.18))
-                        .frame(height: 3)
-                        .overlay(alignment: .leading) {
-                            GeometryReader { geometry in
-                                Capsule()
-                                    .fill(tint)
-                                    .frame(width: geometry.size.width * progress)
-                            }
-                        }
+                    UsageProgressBar(progress: progress, tint: tint)
                         .padding(.vertical, 1)
                 }
 

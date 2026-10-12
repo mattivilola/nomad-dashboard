@@ -17,6 +17,18 @@ Nomad Dashboard should feel like a compact travel instrument panel:
 - Time tracking is a single compact row; project names live in the Allocate menu so they never truncate.
 - Appearance toggle, Customize Layout, and the other secondary actions live in the header overflow menu.
 
+## Cards
+
+- Cards are as tall as their information. Charts are 24 pt sparklines placed under the metric they describe, with the time span and min/max on hover.
+- Every inline action ("Open Settings", "More details", Data Guard actions) uses one button style: teal caption text on the inline button background in a rounded rectangle. No system links or prominent buttons.
+- Color encodes status only. Fuel types, hospital ownership, and chart series are never tinted by category; allocated time uses a ramp of teal and neutral tones with pending time in sand.
+- A narrow card without a narrow neighbour renders with the wide layout at full width. The stored width preference is untouched, so it narrows again as soon as it has a partner. Paired half-width cards share the height of the taller card.
+- List rows (fuel stations, hospitals) are one button that opens the map preview; secondary actions live in a trailing menu.
+- The hourly weather strip is always visible; the disclosure only governs the 7-day outlook.
+- Every card has a chevron that collapses it to one line (title, one-line summary, status badge). Collapsed cards are always full width and never pair; pointing a tile or heads-up row at a collapsed card expands it.
+- Cards whose feature is off are not rendered. One "Turned off" row at the bottom names them and links to Settings; Customize Layout shows every card.
+- Data Guard leads with what is left, drawn in the status color with a thin status-tinted bar; the actions that are rarely needed sit in a small menu.
+
 ## Sections
 
 - Connectivity

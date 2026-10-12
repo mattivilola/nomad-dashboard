@@ -385,7 +385,7 @@ public enum DashboardInsightEngine {
             return []
         }
 
-        let price = formattedPrice(station.pricePerLiter, currencyCode: station.currencyCode, locale: locale)
+        let price = FuelPriceFormatting.price(station.pricePerLiter, currencyCode: station.currencyCode, locale: locale)
         let distance = TravelUnitFormatting.kilometers(station.distanceKilometers)
 
         return [DashboardInsight(
@@ -396,16 +396,6 @@ public enum DashboardInsightEngine {
             detail: "Cheapest within \(Int(fuelPrices.searchRadiusKilometers)) km",
             relatedCard: .fuelPrices
         )]
-    }
-
-    private static func formattedPrice(_ value: Double, currencyCode: String, locale: Locale) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = locale
-        formatter.currencyCode = currencyCode
-        formatter.minimumFractionDigits = 3
-        formatter.maximumFractionDigits = 3
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.3f %@", value, currencyCode)
     }
 
     // MARK: - Formatting

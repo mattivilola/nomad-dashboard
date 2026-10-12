@@ -568,7 +568,11 @@ func selectEmergencyHospitals(
         hospitals.append(hospital)
     }
 
-    return hospitals
+    // Selection guarantees the nearest public and private hospitals are included, but the
+    // list itself must always read nearest first.
+    return hospitals.sorted { lhs, rhs in
+        lhs.distanceKilometers < rhs.distanceKilometers
+    }
 }
 
 private func deduplicatedEmergencyHospitalResults(

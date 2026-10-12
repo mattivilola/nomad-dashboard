@@ -21,6 +21,7 @@
 - Nomad Life diary entries and preferences, including the chosen home time zone and local work-readiness context, are stored locally on the Mac.
 - Opening Google Maps for a diary entry is an explicit user action and sends the selected map request to Google Maps.
 - Quiet connection alerts are opt-in. They use connection, VPN, charging state changes, and Data Guard cap warnings with cooldowns and configured quiet hours; alert text does not include location or IP address.
+- Emergency numbers shown on the Emergency Care and Local Info cards come from a table bundled with the app. They are looked up offline from the current country code; nothing is sent anywhere for them.
 - Data Guard stores Wi-Fi network names (SSIDs), remembered metered network preferences, and cumulative byte totals locally on the Mac. This data is not uploaded.
 - Travel advisory uses Smartraveller and is enabled by default.
 - Smartraveller advisory fetches use direct HTTPS requests first and may retry through a hidden WebKit-backed page load when the direct transport path stalls.

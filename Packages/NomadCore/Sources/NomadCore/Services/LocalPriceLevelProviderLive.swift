@@ -359,8 +359,9 @@ public actor LiveLocalPriceLevelProvider: LocalPriceLevelProvider, LocalPriceLev
         suffix: String
     ) -> LocalPriceIndicatorRow {
         let valueDescription = Self.rowValueDescription(for: observation.value)
+        let differencePercent = Self.wholePercentDifference(for: observation.value, against: 100)
         let detail = [
-            Self.relativeDifferenceText(for: observation.value, against: 100, suffix: suffix),
+            Self.relativeDifferenceText(forWholePercent: differencePercent, suffix: suffix),
             LocalPricePrecision.countryFallback.displayName,
             String(observation.year)
         ].joined(separator: " · ")
@@ -370,7 +371,8 @@ public actor LiveLocalPriceLevelProvider: LocalPriceLevelProvider, LocalPriceLev
             value: valueDescription,
             detail: detail,
             precision: .countryFallback,
-            source: Self.eurostatSource
+            source: Self.eurostatSource,
+            differenceFromEUPercent: Double(differencePercent)
         )
     }
 
@@ -402,8 +404,13 @@ public actor LiveLocalPriceLevelProvider: LocalPriceLevelProvider, LocalPriceLev
         }
     }
 
-    private static func relativeDifferenceText(for value: Double, against baseline: Double, suffix: String) -> String {
-        let delta = Int((value - baseline).rounded())
+    /// Rounded signed difference from the baseline; the single source for both the detail text and
+    /// `LocalPriceIndicatorRow.differenceFromEUPercent`.
+    static func wholePercentDifference(for value: Double, against baseline: Double) -> Int {
+        Int((value - baseline).rounded())
+    }
+
+    static func relativeDifferenceText(forWholePercent delta: Int, suffix: String) -> String {
         if abs(delta) <= 1 {
             return "Around \(suffix)"
         }

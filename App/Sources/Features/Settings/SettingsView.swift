@@ -98,6 +98,7 @@ struct SettingsView: View {
                         Button("Reset Dashboard Layout") {
                             settingsStore.settings.dashboardCardOrder = DashboardCardID.defaultOrder
                             settingsStore.settings.dashboardCardWidthModes = DashboardCardID.defaultWidthModes
+                            settingsStore.settings.dashboardCollapsedCards = []
                         }
                     } header: {
                         Text("General")

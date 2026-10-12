@@ -83,19 +83,25 @@ public struct LocalPriceIndicatorRow: Codable, Equatable, Sendable, Identifiable
     public let detail: String
     public let precision: LocalPricePrecision
     public let source: LocalPriceSourceAttribution
+    /// Signed whole-percent difference from the EU average (-4 means 4% below), the same number the
+    /// detail text is built from. Nil when the row has no EU comparison, e.g. the US HUD rent row.
+    /// Optional so snapshots cached before this field existed still decode.
+    public let differenceFromEUPercent: Double?
 
     public init(
         kind: LocalPriceIndicatorKind,
         value: String,
         detail: String,
         precision: LocalPricePrecision,
-        source: LocalPriceSourceAttribution
+        source: LocalPriceSourceAttribution,
+        differenceFromEUPercent: Double? = nil
     ) {
         self.kind = kind
         self.value = value
         self.detail = detail
         self.precision = precision
         self.source = source
+        self.differenceFromEUPercent = differenceFromEUPercent
     }
 
     public var id: LocalPriceIndicatorKind {

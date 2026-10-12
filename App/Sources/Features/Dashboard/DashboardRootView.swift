@@ -54,6 +54,7 @@ struct DashboardRootView: View {
             settings: settingsStore.settings,
             dashboardCardOrder: settingsStore.settings.dashboardCardOrder,
             dashboardCardWidthModes: settingsStore.settings.dashboardCardWidthModes,
+            dashboardCollapsedCards: settingsStore.settings.dashboardCollapsedCards,
             isPublicIPLocationEnabled: settingsStore.settings.publicIPGeolocationEnabled,
             travelAlertPreferences: settingsStore.settings.travelAlertPreferences,
             versionDescription: AppRuntimeInfo.versionDescription,
@@ -90,6 +91,7 @@ struct DashboardRootView: View {
             quitAction: quitApplication,
             onCardOrderChange: persistDashboardCardOrder,
             onCardWidthModesChange: persistDashboardCardWidthModes,
+            onCollapsedCardsChange: persistDashboardCollapsedCards,
             onWeatherForecastExpandedChange: persistWeatherForecastExpanded,
             setManualMeteredSessionEnabled: { snapshotStore.setManualMeteredSessionEnabled($0) },
             markCurrentNetworkAsMetered: { snapshotStore.markCurrentNetworkAsMetered() },
@@ -255,6 +257,14 @@ struct DashboardRootView: View {
         settingsStore.settings.dashboardCardWidthModes = sanitizedWidthModes
     }
 
+    private func persistDashboardCollapsedCards(_ collapsedCards: Set<DashboardCardID>) {
+        guard settingsStore.settings.dashboardCollapsedCards != collapsedCards else {
+            return
+        }
+
+        settingsStore.settings.dashboardCollapsedCards = collapsedCards
+    }
+
     private func persistWeatherForecastExpanded(_ isExpanded: Bool) {
         guard settingsStore.settings.weatherForecastExpanded != isExpanded else {
             return
@@ -352,7 +362,7 @@ private struct FuelStationPreviewSheet: View {
 
                 Spacer(minLength: 12)
 
-                Text(NomadFormatters.fuelPricePerLiter(station.pricePerLiter))
+                Text("\(FuelPriceFormatting.price(station.pricePerLiter, currencyCode: station.currencyCode))/L")
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .foregroundStyle(station.fuelType == .diesel ? NomadTheme.teal : NomadTheme.sand)
             }

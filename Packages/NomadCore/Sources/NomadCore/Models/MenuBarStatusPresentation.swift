@@ -37,9 +37,8 @@ public extension DashboardSnapshot {
            let capBytes = meteredData.capBytes,
            capBytes > 0
         {
-            let used = meteredData.billingPeriod == .session ? meteredData.sessionTotalBytes : meteredData.periodTotalBytes
             return MenuBarStatusPresentation(
-                text: MeteredUsageFormatting.compactUsage(used: used, cap: capBytes),
+                text: MeteredUsageFormatting.compactUsage(used: meteredData.usedBytes, cap: capBytes),
                 symbolName: meteredData.isCapReached ? "antenna.radiowaves.left.and.right.slash" : "arrow.up.arrow.down.circle",
                 branch: meteredData.isCapReached ? .latencyAttention : .latencyFallback,
                 tone: meteredData.isCapReached ? .attention : .standard
@@ -81,7 +80,7 @@ public extension DashboardSnapshot {
 
         if let weather, let temperatureCelsius = weather.currentTemperatureCelsius {
             return MenuBarStatusPresentation(
-                text: Self.formatCompactTemperature(temperatureCelsius),
+                text: TravelUnitFormatting.temperature(temperatureCelsius),
                 symbolName: weather.symbolName,
                 branch: .weather
             )
@@ -108,10 +107,6 @@ public extension DashboardSnapshot {
 
     private static func formatLatency(_ value: Double) -> String {
         String(format: "%.0f ms", value)
-    }
-
-    private static func formatCompactTemperature(_ value: Double) -> String {
-        String(format: "%.0fC", value)
     }
 
     private static func batterySymbolName(for chargePercent: Double) -> String {

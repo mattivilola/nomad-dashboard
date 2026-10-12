@@ -56,3 +56,28 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
         return DashboardCardID(rawValue: rawValue)
     }
 }
+
+public extension DashboardCardID {
+    /// Whether the opt-in feature behind this card is switched on in Settings.
+    /// Cards without a feature toggle are always enabled.
+    func isFeatureEnabled(in settings: AppSettings) -> Bool {
+        switch self {
+        case .meteredData:
+            settings.meteredDataEnabled
+        case .timeTracking:
+            settings.projectTimeTrackingEnabled
+        case .localInfo:
+            settings.localInfoEnabled
+        case .fuelPrices:
+            settings.fuelPricesEnabled
+        case .emergencyCare:
+            settings.emergencyCareEnabled
+        case .travelAlerts:
+            settings.travelAdvisoryEnabled
+                || settings.travelWeatherAlertsEnabled
+                || settings.regionalSecurityEnabled
+        case .connectivity, .power, .travelContext, .weather:
+            true
+        }
+    }
+}

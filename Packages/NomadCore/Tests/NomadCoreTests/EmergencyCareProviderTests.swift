@@ -53,9 +53,29 @@ struct EmergencyCareProviderTests {
         )
 
         #expect(hospitals.count == 3)
-        #expect(hospitals[0].ownership == .public)
-        #expect(hospitals[1].ownership == .private)
-        #expect(hospitals[2].ownership == .unknown)
+        #expect(hospitals.map(\.name) == ["Hospital General", "Hospital Public de Valencia", "Hospital Privado Burjassot"])
+        #expect(hospitals.contains(where: { $0.ownership == .public }))
+        #expect(hospitals.contains(where: { $0.ownership == .private }))
+    }
+
+    @Test
+    func selectEmergencyHospitalsReturnsSelectedHospitalsNearestFirst() {
+        // One degree of latitude is ~111.2 km, so these sit at roughly 2.4, 3.2, 6.8 and 9.0 km north of the origin.
+        let origin = CLLocationCoordinate2D(latitude: 40.0, longitude: 0.0)
+        let hospitals = selectEmergencyHospitals(
+            from: [
+                EmergencyCareSearchResult(name: "Clinica Privada Lejana", address: nil, locality: nil, latitude: 40.0 + 6.8 / 111.2, longitude: 0.0, ownershipHint: nil),
+                EmergencyCareSearchResult(name: "Hospital Publico Cercano", address: nil, locality: nil, latitude: 40.0 + 3.2 / 111.2, longitude: 0.0, ownershipHint: nil),
+                EmergencyCareSearchResult(name: "Hospital General", address: nil, locality: nil, latitude: 40.0 + 2.4 / 111.2, longitude: 0.0, ownershipHint: nil),
+                EmergencyCareSearchResult(name: "Hospital Comarcal", address: nil, locality: nil, latitude: 40.0 + 9.0 / 111.2, longitude: 0.0, ownershipHint: nil)
+            ],
+            origin: origin,
+            maximumResults: 3
+        )
+
+        #expect(hospitals.map(\.name) == ["Hospital General", "Hospital Publico Cercano", "Clinica Privada Lejana"])
+        let distances = hospitals.map(\.distanceKilometers)
+        #expect(distances == distances.sorted())
     }
 
     @Test
@@ -586,9 +606,9 @@ struct EmergencyCareProviderTests {
         )
 
         #expect(snapshot.hospitals.count == 3)
-        #expect(snapshot.hospitals[0].ownership == .public)
-        #expect(snapshot.hospitals[1].ownership == .private)
-        #expect(snapshot.hospitals[2].ownership == .unknown)
+        #expect(snapshot.hospitals.map(\.name) == ["Urgencias Torrevieja", "Hospital Privado de Torrevieja", "Hospital Publico Vega Baja"])
+        #expect(snapshot.hospitals.map(\.ownership) == [.unknown, .private, .public])
+        #expect(snapshot.hospitals.map(\.distanceKilometers) == snapshot.hospitals.map(\.distanceKilometers).sorted())
         #expect(snapshot.searchRadiusKilometers == 25)
     }
 

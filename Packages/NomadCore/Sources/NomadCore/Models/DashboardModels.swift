@@ -949,7 +949,8 @@ public extension DashboardSnapshot {
                         source: LocalPriceSourceAttribution(
                             name: "Eurostat",
                             url: URL(string: "https://ec.europa.eu/eurostat/web/main/data/database")
-                        )
+                        ),
+                        differenceFromEUPercent: -4
                     ),
                     LocalPriceIndicatorRow(
                         kind: .groceries,
@@ -959,17 +960,19 @@ public extension DashboardSnapshot {
                         source: LocalPriceSourceAttribution(
                             name: "Eurostat",
                             url: URL(string: "https://ec.europa.eu/eurostat/web/main/data/database")
-                        )
+                        ),
+                        differenceFromEUPercent: -4
                     ),
                     LocalPriceIndicatorRow(
                         kind: .overall,
                         value: "Moderate",
-                        detail: "1% below EU average · Country fallback · 2024",
+                        detail: "Around EU average · Country fallback · 2024",
                         precision: .countryFallback,
                         source: LocalPriceSourceAttribution(
                             name: "Eurostat",
                             url: URL(string: "https://ec.europa.eu/eurostat/web/main/data/database")
-                        )
+                        ),
+                        differenceFromEUPercent: -1
                     )
                 ],
                 sources: [
@@ -1058,6 +1061,15 @@ public extension DashboardSnapshot {
             searchRadiusKilometers: 25,
             hospitals: [
                 EmergencyHospital(
+                    name: "Hospital Casa de Salut",
+                    address: "Carrer del Doctor Manuel Candela 41",
+                    locality: "Valencia",
+                    distanceKilometers: 2.4,
+                    latitude: 39.4662,
+                    longitude: -0.3473,
+                    ownership: .unknown
+                ),
+                EmergencyHospital(
                     name: "Hospital Universitari i Politècnic La Fe",
                     address: "Avinguda de Fernando Abril Martorell 106",
                     locality: "Valencia",
@@ -1074,15 +1086,6 @@ public extension DashboardSnapshot {
                     latitude: 39.5092,
                     longitude: -0.4188,
                     ownership: .private
-                ),
-                EmergencyHospital(
-                    name: "Hospital Casa de Salut",
-                    address: "Carrer del Doctor Manuel Candela 41",
-                    locality: "Valencia",
-                    distanceKilometers: 2.4,
-                    latitude: 39.4662,
-                    longitude: -0.3473,
-                    ownership: .unknown
                 )
             ],
             fetchedAt: .now,

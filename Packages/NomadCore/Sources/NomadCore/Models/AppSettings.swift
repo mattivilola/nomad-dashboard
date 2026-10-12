@@ -13,6 +13,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var dataUsageMode: DataUsageMode
     public var dashboardCardOrder: [DashboardCardID]
     public var dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode]
+    public var dashboardCollapsedCards: Set<DashboardCardID>
     public var refreshIntervalSeconds: TimeInterval
     public var slowRefreshIntervalSeconds: TimeInterval
     public var historyRetentionHours: Int
@@ -52,6 +53,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         dataUsageMode: DataUsageMode = .automatic,
         dashboardCardOrder: [DashboardCardID] = DashboardCardID.defaultOrder,
         dashboardCardWidthModes: [DashboardCardID: DashboardCardWidthMode] = DashboardCardID.defaultWidthModes,
+        dashboardCollapsedCards: Set<DashboardCardID> = [],
         refreshIntervalSeconds: TimeInterval = Self.defaultRefreshIntervalSeconds,
         slowRefreshIntervalSeconds: TimeInterval = Self.defaultSlowRefreshIntervalSeconds,
         historyRetentionHours: Int = 24,
@@ -90,6 +92,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.dataUsageMode = dataUsageMode
         self.dashboardCardOrder = DashboardCardID.sanitizedOrder(dashboardCardOrder)
         self.dashboardCardWidthModes = DashboardCardID.sanitizedWidthModes(dashboardCardWidthModes)
+        self.dashboardCollapsedCards = dashboardCollapsedCards
         self.refreshIntervalSeconds = Self.sanitizedRefreshInterval(refreshIntervalSeconds)
         self.slowRefreshIntervalSeconds = Self.sanitizedSlowRefreshInterval(slowRefreshIntervalSeconds)
         self.historyRetentionHours = historyRetentionHours
@@ -130,6 +133,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case dataUsageMode
         case dashboardCardOrder
         case dashboardCardWidthModes
+        case dashboardCollapsedCards
         case refreshIntervalSeconds
         case slowRefreshIntervalSeconds
         case historyRetentionHours
@@ -188,6 +192,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         dashboardCardWidthModes = DashboardCardID.sanitizedWidthModes(
             persistedCardWidthModes ?? DashboardCardID.defaultWidthModes
         )
+        let persistedCollapsedCards = (try? container.decodeIfPresent([String].self, forKey: .dashboardCollapsedCards))?
+            .compactMap(DashboardCardID.fromPersistedRawValue(_:))
+        dashboardCollapsedCards = Set(persistedCollapsedCards ?? [])
         dataUsageMode = (try? container.decodeIfPresent(DataUsageMode.self, forKey: .dataUsageMode)) ?? .automatic
         let decodedRefreshIntervalSeconds = try container.decode(TimeInterval.self, forKey: .refreshIntervalSeconds)
         refreshIntervalSeconds = Self.sanitizedRefreshInterval(decodedRefreshIntervalSeconds)
@@ -242,6 +249,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             },
             forKey: .dashboardCardWidthModes
         )
+        try container.encode(dashboardCollapsedCards.map(\.rawValue).sorted(), forKey: .dashboardCollapsedCards)
         try container.encode(refreshIntervalSeconds, forKey: .refreshIntervalSeconds)
         try container.encode(slowRefreshIntervalSeconds, forKey: .slowRefreshIntervalSeconds)
         try container.encode(historyRetentionHours, forKey: .historyRetentionHours)

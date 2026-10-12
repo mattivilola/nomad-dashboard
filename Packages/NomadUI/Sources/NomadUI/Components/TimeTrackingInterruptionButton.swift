@@ -100,24 +100,11 @@ public struct TimeTrackingInterruptionButton: View {
             .padding(.horizontal, 9)
             .padding(.vertical, 7)
         case .standard:
-            HStack(spacing: 10) {
-                icon(metrics: metrics, heat: heat)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(NomadTheme.primaryText.opacity(isEnabled ? 1 : 0.74))
-                        .lineLimit(1)
-
-                    Text(countLine)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(NomadTheme.secondaryText.opacity(isEnabled ? 1 : 0.72))
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 8)
-
-                countBadge(metrics: metrics, heat: heat)
+            // The count line is the first thing to go when the control is squeezed into a
+            // half-width card; the title and the count badge always stay.
+            ViewThatFits(in: .horizontal) {
+                standardContent(metrics: metrics, heat: heat, showsCountLine: true)
+                standardContent(metrics: metrics, heat: heat, showsCountLine: false)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -151,6 +138,31 @@ public struct TimeTrackingInterruptionButton: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
+        }
+    }
+
+    private func standardContent(metrics: StyleMetrics, heat: Double, showsCountLine: Bool) -> some View {
+        HStack(spacing: showsCountLine ? 10 : 8) {
+            icon(metrics: metrics, heat: heat)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NomadTheme.primaryText.opacity(isEnabled ? 1 : 0.74))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                if showsCountLine {
+                    Text(countLine)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(NomadTheme.secondaryText.opacity(isEnabled ? 1 : 0.72))
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 4)
+
+            countBadge(metrics: metrics, heat: heat)
         }
     }
 
@@ -266,7 +278,9 @@ public struct TimeTrackingInterruptionButton: View {
             )
         case .standard:
             StyleMetrics(
-                minimumWidth: 176,
+                // No minimum: the dashboard card gives it the full (or half) card width, and a
+                // fixed floor would overflow the half-width layout.
+                minimumWidth: 0,
                 height: 48,
                 cornerRadius: 18,
                 iconSize: 15,

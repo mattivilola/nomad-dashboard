@@ -45,7 +45,7 @@ struct MenuBarStatusPresentationTests {
     func weatherWinsWhenBatteryIsHealthyAndLatencyIsGood() {
         let presentation = makeSnapshot(chargePercent: 0.51, latency: 28, weather: makeWeather()).menuBarStatusPresentation
 
-        #expect(presentation.text == "22C")
+        #expect(presentation.text == "22°")
         #expect(presentation.symbolName == "sun.max.fill")
         #expect(presentation.branch == .weather)
     }
@@ -99,7 +99,7 @@ struct MenuBarStatusPresentationTests {
             issues: [.publicIPLookupUnavailable]
         ).menuBarStatusPresentation
 
-        #expect(presentation.text == "22C")
+        #expect(presentation.text == "22°")
         #expect(presentation.symbolName == "sun.max.fill")
         #expect(presentation.branch == .weather)
     }

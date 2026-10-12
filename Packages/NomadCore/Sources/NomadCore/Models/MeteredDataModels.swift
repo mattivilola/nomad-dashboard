@@ -130,6 +130,7 @@ public struct MeteredUsageSnapshot: Equatable, Sendable {
     public let sessionStartedAt: Date?
     public let sessionBytesReceived: UInt64
     public let sessionBytesSent: UInt64
+    public let periodStartedAt: Date?
     public let periodBytesReceived: UInt64
     public let periodBytesSent: UInt64
     public let capBytes: UInt64?
@@ -144,12 +145,65 @@ public struct MeteredUsageSnapshot: Equatable, Sendable {
     public let statusMessage: String?
     public let capAlertSignal: MeteredDataCapAlertSignal?
 
+    public init(
+        isFeatureEnabled: Bool,
+        isMonitoringActive: Bool,
+        networkKey: String?,
+        networkDisplayName: String?,
+        meteredInterfaceName: String?,
+        sessionStartedAt: Date?,
+        sessionBytesReceived: UInt64,
+        sessionBytesSent: UInt64,
+        periodStartedAt: Date? = nil,
+        periodBytesReceived: UInt64,
+        periodBytesSent: UInt64,
+        capBytes: UInt64?,
+        usageFraction: Double?,
+        isCapReached: Bool,
+        billingPeriod: MeteredBillingPeriod,
+        manualSessionEnabled: Bool,
+        isKnownMeteredNetwork: Bool,
+        networkNameSource: MeteredNetworkNameSource,
+        isWiFiConnected: Bool,
+        needsLocationForWiFiNames: Bool,
+        statusMessage: String?,
+        capAlertSignal: MeteredDataCapAlertSignal?
+    ) {
+        self.isFeatureEnabled = isFeatureEnabled
+        self.isMonitoringActive = isMonitoringActive
+        self.networkKey = networkKey
+        self.networkDisplayName = networkDisplayName
+        self.meteredInterfaceName = meteredInterfaceName
+        self.sessionStartedAt = sessionStartedAt
+        self.sessionBytesReceived = sessionBytesReceived
+        self.sessionBytesSent = sessionBytesSent
+        self.periodStartedAt = periodStartedAt
+        self.periodBytesReceived = periodBytesReceived
+        self.periodBytesSent = periodBytesSent
+        self.capBytes = capBytes
+        self.usageFraction = usageFraction
+        self.isCapReached = isCapReached
+        self.billingPeriod = billingPeriod
+        self.manualSessionEnabled = manualSessionEnabled
+        self.isKnownMeteredNetwork = isKnownMeteredNetwork
+        self.networkNameSource = networkNameSource
+        self.isWiFiConnected = isWiFiConnected
+        self.needsLocationForWiFiNames = needsLocationForWiFiNames
+        self.statusMessage = statusMessage
+        self.capAlertSignal = capAlertSignal
+    }
+
     public var sessionTotalBytes: UInt64 {
         sessionBytesReceived + sessionBytesSent
     }
 
     public var periodTotalBytes: UInt64 {
         periodBytesReceived + periodBytesSent
+    }
+
+    /// Bytes counted against the cap for the active billing period.
+    public var usedBytes: UInt64 {
+        billingPeriod == .session ? sessionTotalBytes : periodTotalBytes
     }
 
     public static let disabled = MeteredUsageSnapshot(
@@ -258,5 +312,43 @@ public enum MeteredUsageFormatting {
             return byteCount(used)
         }
         return "\(byteCount(used))/\(byteCount(cap))"
+    }
+}
+
+
+/// Forward-looking Data Guard numbers derived from a snapshot: what is left of the cap,
+/// when the allowance resets, and how many days the remainder lasts at the current pace.
+public struct MeteredUsageOutlook: Equatable, Sendable {
+    /// Smallest window of usage history that gives a trustworthy daily pace.
+    public static let minimumElapsedForEstimate: TimeInterval = 3_600
+
+    public let remainingBytes: UInt64?
+    public let resetsAt: Date?
+    public let estimatedDaysLeft: Double?
+
+    public init(snapshot: MeteredUsageSnapshot, now: Date, calendar: Calendar = .current) {
+        let used = snapshot.usedBytes
+        let remaining = snapshot.capBytes.map { $0 > used ? $0 - used : 0 }
+        remainingBytes = remaining
+
+        switch snapshot.billingPeriod {
+        case .calendarMonth:
+            resetsAt = calendar.dateInterval(of: .month, for: now)?.end
+        case .session, .manual:
+            resetsAt = nil
+        }
+
+        let startedAt = snapshot.billingPeriod == .session ? snapshot.sessionStartedAt : snapshot.periodStartedAt
+        if let remaining, let startedAt, used > 0 {
+            let elapsed = now.timeIntervalSince(startedAt)
+            if elapsed >= Self.minimumElapsedForEstimate {
+                let bytesPerDay = Double(used) / (elapsed / 86_400)
+                estimatedDaysLeft = Double(remaining) / bytesPerDay
+            } else {
+                estimatedDaysLeft = nil
+            }
+        } else {
+            estimatedDaysLeft = nil
+        }
     }
 }

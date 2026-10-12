@@ -162,10 +162,10 @@ struct NomadUITests {
     }
 
     @Test
-    func timeTrackingDashboardHighlightedActionUsesExplicitThemeColors() {
-        let style = TimeTrackingDashboardActionButtonStyle.make(role: .highlighted, isEnabled: true)
+    func inlineButtonHighlightedActionUsesExplicitThemeColors() {
+        let style = DashboardInlineButtonAppearance.make(role: .highlighted, isEnabled: true)
 
-        #expect(style == TimeTrackingDashboardActionButtonStyle(
+        #expect(style == DashboardInlineButtonAppearance(
             foreground: NomadTheme.teal.opacity(1),
             background: NomadTheme.inlineButtonBackground.opacity(1),
             border: NomadTheme.cardBorder.opacity(1)
@@ -173,10 +173,10 @@ struct NomadUITests {
     }
 
     @Test
-    func timeTrackingDashboardNeutralActionUsesExplicitThemeColors() {
-        let style = TimeTrackingDashboardActionButtonStyle.make(role: .neutral, isEnabled: true)
+    func inlineButtonNeutralActionUsesExplicitThemeColors() {
+        let style = DashboardInlineButtonAppearance.make(role: .neutral, isEnabled: true)
 
-        #expect(style == TimeTrackingDashboardActionButtonStyle(
+        #expect(style == DashboardInlineButtonAppearance(
             foreground: NomadTheme.primaryText.opacity(1),
             background: NomadTheme.inlineButtonBackground.opacity(1),
             border: NomadTheme.cardBorder.opacity(1)
@@ -184,10 +184,10 @@ struct NomadUITests {
     }
 
     @Test
-    func timeTrackingDashboardDisabledHighlightedActionKeepsVisibleReducedOpacity() {
-        let style = TimeTrackingDashboardActionButtonStyle.make(role: .highlighted, isEnabled: false)
+    func inlineButtonDisabledHighlightedActionKeepsVisibleReducedOpacity() {
+        let style = DashboardInlineButtonAppearance.make(role: .highlighted, isEnabled: false)
 
-        #expect(style == TimeTrackingDashboardActionButtonStyle(
+        #expect(style == DashboardInlineButtonAppearance(
             foreground: NomadTheme.teal.opacity(0.72),
             background: NomadTheme.inlineButtonBackground.opacity(0.76),
             border: NomadTheme.cardBorder.opacity(0.76)
@@ -195,13 +195,13 @@ struct NomadUITests {
     }
 
     @Test
-    func timeTrackingDashboardQuickAllocateButtonsFillAvailableWidth() {
-        let layout = TimeTrackingDashboardActionButtonLayout.make(
+    func inlineButtonCanFillAvailableWidth() {
+        let layout = DashboardInlineButtonLayout.make(
             isCompact: true,
             fillsAvailableWidth: true
         )
 
-        #expect(layout == TimeTrackingDashboardActionButtonLayout(
+        #expect(layout == DashboardInlineButtonLayout(
             horizontalPadding: 10,
             verticalPadding: 6,
             fillsAvailableWidth: true
@@ -209,13 +209,13 @@ struct NomadUITests {
     }
 
     @Test
-    func timeTrackingDashboardControlButtonsKeepIntrinsicWidth() {
-        let layout = TimeTrackingDashboardActionButtonLayout.make(
+    func inlineButtonKeepsIntrinsicWidthByDefault() {
+        let layout = DashboardInlineButtonLayout.make(
             isCompact: false,
             fillsAvailableWidth: false
         )
 
-        #expect(layout == TimeTrackingDashboardActionButtonLayout(
+        #expect(layout == DashboardInlineButtonLayout(
             horizontalPadding: 12,
             verticalPadding: 7,
             fillsAvailableWidth: false
@@ -442,7 +442,7 @@ struct NomadUITests {
 
         #expect(presentation.title == "Alerts")
         #expect(presentation.label == "Clear")
-        #expect(presentation.detail == "18 C · No current alerts")
+        #expect(presentation.detail == "18° · No current alerts")
         #expect(presentation.tone == .ready)
     }
 
@@ -463,7 +463,7 @@ struct NomadUITests {
         )
 
         #expect(presentation.label == "Warning")
-        #expect(presentation.detail == "18 C · Flood warning in effect.")
+        #expect(presentation.detail == "18° · Flood warning in effect.")
         #expect(presentation.tone == .attention)
     }
 
@@ -478,7 +478,7 @@ struct NomadUITests {
         )
 
         #expect(presentation.label == "Off")
-        #expect(presentation.detail == "18 C · Alerts off")
+        #expect(presentation.detail == "18° · Alerts off")
         #expect(presentation.tone == .neutral)
     }
 
@@ -708,10 +708,84 @@ struct NomadUITests {
             )
         )
 
-        #expect(presentation.badge == TravelAlertsBadgePresentation.stale)
+        #expect(presentation.badge == TravelAlertsBadgePresentation.severity(.info))
+        #expect(presentation.staleNotice != nil)
+        #expect(presentation.limitedNotice?.text == "Some sources unavailable")
         #expect(presentation.rows.count == 3)
         #expect(presentation.rows.contains { $0.status == TravelAlertSignalStatus.checking } == false)
         #expect(presentation.rows.contains { $0.summary == "Checking alerts…" } == false)
+    }
+
+    @Test
+    func travelAlertsHeaderBadgeShowsHighestLevelEvenWhenASignalIsStale() {
+        let lastSuccessAt = fixedTravelAlertDate(day: 12)
+        let presentation = TravelAlertsCardPresentation(
+            preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: true, securityEnabled: false),
+            snapshot: makeTravelAlertsSnapshot(
+                enabledKinds: [.advisory, .weather],
+                states: [
+                    makeState(kind: .advisory, status: .ready, severity: .caution, summary: "Exercise caution."),
+                    makeState(kind: .weather, status: .stale, severity: .clear, summary: "No active weather alerts.", lastSuccessAt: lastSuccessAt)
+                ]
+            )
+        )
+
+        #expect(presentation.badge == TravelAlertsBadgePresentation.severity(.caution))
+        #expect(presentation.staleNotice == TravelAlertsCardPresentation.Notice(
+            text: "Updated 12 Apr · may be outdated",
+            symbolName: "clock.arrow.circlepath"
+        ))
+        #expect(presentation.limitedNotice == nil)
+    }
+
+    @Test
+    func travelAlertsStaleNoticeUsesTheOldestGoodRefresh() {
+        let presentation = TravelAlertsCardPresentation(
+            preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: true, securityEnabled: false),
+            snapshot: makeTravelAlertsSnapshot(
+                enabledKinds: [.advisory, .weather],
+                states: [
+                    makeState(kind: .advisory, status: .stale, severity: .clear, summary: "Clear.", lastSuccessAt: fixedTravelAlertDate(day: 9)),
+                    makeState(kind: .weather, status: .stale, severity: .clear, summary: "Clear.", lastSuccessAt: fixedTravelAlertDate(day: 3))
+                ]
+            )
+        )
+
+        #expect(presentation.staleNotice?.text == "Updated 3 Apr · may be outdated")
+    }
+
+    @Test
+    func travelAlertsCardHasNoNoticesWhenEverythingIsFresh() {
+        let presentation = TravelAlertsCardPresentation(
+            preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: false, securityEnabled: false),
+            snapshot: makeTravelAlertsSnapshot(
+                enabledKinds: [.advisory],
+                states: [makeState(kind: .advisory, status: .ready, severity: .warning, summary: "Warning.")]
+            )
+        )
+
+        #expect(presentation.notices.isEmpty)
+    }
+
+    @Test
+    func travelAlertRowOnlyShowsTheImpactLineWhenItAddsToTheStatusChip() throws {
+        func row(_ severity: TravelAlertSeverity, status: TravelAlertSignalStatus = .ready) throws -> TravelAlertRowModel {
+            let presentation = TravelAlertsCardPresentation(
+                preferences: TravelAlertPreferences(advisoryEnabled: true, weatherEnabled: false, securityEnabled: false),
+                snapshot: makeTravelAlertsSnapshot(
+                    enabledKinds: [.advisory],
+                    states: [makeState(kind: .advisory, status: status, severity: severity, summary: "Summary.")]
+                )
+            )
+            return try #require(presentation.rows.first)
+        }
+
+        #expect(try row(.clear).showsImpactText == false)
+        #expect(try row(.caution).showsImpactText == false)
+        #expect(try row(.caution, status: .stale).showsImpactText == false)
+        #expect(try row(.warning).showsImpactText)
+        #expect(try row(.critical).showsImpactText)
+        #expect(try row(.warning).impactText == "Review before travel")
     }
 
     @Test
@@ -866,6 +940,67 @@ struct NomadUITests {
         #expect(presentation.showsForecastDisclosure == false)
         #expect(presentation.isForecastExpanded == false)
         #expect(presentation.shouldShowTomorrowSummary)
+    }
+
+    @Test
+    func weatherForecastPresentationAlwaysKeepsTheHourlyStripVisible() {
+        var settings = AppSettings()
+        settings.weatherForecastExpanded = false
+
+        for widthMode in [DashboardCardWidthMode.wide, .narrow] {
+            let presentation = WeatherForecastPresentation(
+                settings: settings,
+                weather: makeWeatherSnapshot(),
+                widthMode: widthMode
+            )
+
+            #expect(presentation.hourlySlots.count == 4)
+        }
+    }
+
+    @Test
+    func weatherForecastDisclosureOnlyGovernsTheDailyOutlook() {
+        var settings = AppSettings()
+        settings.weatherForecastExpanded = true
+
+        let wide = WeatherForecastPresentation(settings: settings, weather: makeWeatherSnapshot(), widthMode: .wide)
+        #expect(wide.hourlySlots.count == 4)
+        #expect(wide.showsForecastDisclosure)
+        #expect(wide.isForecastExpanded)
+        #expect(wide.dailyRows.count == 7)
+
+        let withoutDailyRows = WeatherSnapshot(
+            currentTemperatureCelsius: 18,
+            apparentTemperatureCelsius: 17,
+            conditionDescription: "Clear",
+            symbolName: "sun.max.fill",
+            precipitationChance: 0,
+            windSpeedKph: 5,
+            windDirectionDegrees: 90,
+            hourlyForecastSlots: makeWeatherSnapshot().hourlyForecastSlots,
+            fetchedAt: .now
+        )
+        let hourlyOnly = WeatherForecastPresentation(settings: settings, weather: withoutDailyRows, widthMode: .wide)
+        #expect(hourlyOnly.showsForecastDisclosure == false)
+        #expect(hourlyOnly.hourlySlots.count == 4)
+    }
+
+    @Test
+    func surfForecastSlotKeepsWindOnASingleLine() {
+        let slot = SurfForecastSlotPresentation(
+            index: 0,
+            slot: MarineForecastSlot(
+                date: Date().addingTimeInterval(3 * 3_600),
+                waveHeightMeters: 1.2,
+                swellHeightMeters: 1.0,
+                windSpeedKph: 16,
+                windDirectionDegrees: 315
+            ),
+            referenceDate: .now
+        )
+
+        #expect(slot.windValue == "16 km/h NW")
+        #expect(slot.windValue.contains("\n") == false)
     }
 
     @Test
@@ -1123,8 +1258,8 @@ struct NomadUITests {
         )
 
         #expect(presentation.badge.title == "Live")
-        #expect(presentation.rows.map(\.title).prefix(3) == ["Location", "Public Holiday", "School Break"])
-        #expect(presentation.rows.contains(where: { $0.title == "Meal Out" }))
+        #expect(presentation.rows.map(\.title) == ["Emergency", "Public Holiday", "School Break", "Prices vs EU"])
+        #expect(presentation.subtitle == "Valencia · Valencian Community, Spain · Europe/Madrid")
         #expect(presentation.sourceLine?.contains("Nager.Date") == true)
         #expect(presentation.rows.first(where: { $0.title == "School Break" })?.badge == nil)
         #expect(presentation.rows.first(where: { $0.title == "Public Holiday" })?.badge == nil)
@@ -1346,8 +1481,7 @@ struct NomadUITests {
 
         #expect(presentation.badge.title == "Nearby")
         #expect(presentation.rows.count == 3)
-        #expect(presentation.rows.first?.ownershipTitle == "Public")
-        #expect(presentation.rows.last?.ownershipTitle == nil)
+        #expect(presentation.rows.map(\.ownershipTitle) == [nil, "Public", "Private"])
         #expect(presentation.rows.map(\.hasMapActions) == [true, true, true])
     }
 
@@ -1383,7 +1517,7 @@ struct NomadUITests {
             locationStatusDetail: nil
         )
 
-        #expect(presentation.subtitle == "Within 50 km")
+        #expect(presentation.subtitle == "Within 50 km · Emergency 112")
         #expect(presentation.rows.count == 3)
     }
 

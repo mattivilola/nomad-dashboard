@@ -15,6 +15,19 @@ public enum FuelType: String, Codable, CaseIterable, Sendable {
     }
 }
 
+public enum FuelPriceFormatting {
+    /// Pump-price label in the locale's currency style with three decimals ("1,429 €").
+    public static func price(_ value: Double, currencyCode: String, locale: Locale = .autoupdatingCurrent) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = locale
+        formatter.currencyCode = currencyCode
+        formatter.minimumFractionDigits = 3
+        formatter.maximumFractionDigits = 3
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.3f %@", value, currencyCode)
+    }
+}
+
 public enum FuelPriceStatus: String, Codable, Equatable, Sendable {
     case ready
     case unsupported

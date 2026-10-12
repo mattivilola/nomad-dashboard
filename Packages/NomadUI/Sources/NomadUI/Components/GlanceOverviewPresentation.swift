@@ -275,7 +275,7 @@ struct GlanceVitalTilePresentation: Equatable, Identifiable {
             )
         }
 
-        let used = MeteredUsageFormatting.byteCount(metered.displayedUsedBytes)
+        let used = MeteredUsageFormatting.byteCount(metered.usedBytes)
         let value: String
         let progress: Double?
         if let capBytes = metered.capBytes {
@@ -388,11 +388,6 @@ extension WeatherDaySummary {
 // MARK: - Data Guard helpers
 
 extension MeteredUsageSnapshot {
-    /// Bytes counted against the cap for the active billing period.
-    var displayedUsedBytes: UInt64 {
-        billingPeriod == .session ? sessionTotalBytes : periodTotalBytes
-    }
-
     /// Cap status as a health level: ready below 80 %, caution from 80 %, attention at the cap.
     var usageLevel: HealthLevel {
         if isCapReached {

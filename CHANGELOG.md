@@ -9,11 +9,27 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Add a collapse chevron to every dashboard card: a collapsed card is one line with a summary and status badge, stays collapsed across relaunches, and expands when a glance tile or heads-up row points at it.
 - Add a glance overview at the top of the dashboard: a verdict strip, a single line of Here and Home clocks, four tappable vital tiles (Internet, Power, Data Guard or VPN, Weather) that scroll to their cards, and up to three ranked heads-up items (data cap, travel advisory, weather alert, regional security, strong wind, rain within six hours, public holiday within three days, cheapest nearby fuel).
 - Add Customize Layout to the header menu; card width and drag controls now appear only while customizing.
 
 ### Changed
 
+- Redesign the dashboard cards to be as compact as their content: sparklines replace the tall trend charts, Connectivity shows Down, Up, and Latency in one row, Power shows its history under Battery and Drain, and duplicate captions are gone.
+- Condense Travel Context to public IP, Wi-Fi (name, signal, and rate), VPN, and location with the time zone.
+- Travel Alerts keeps the highest alert level in its badge and reports stale data in a separate "may be outdated" note; each signal names its level once.
+- Fuel and Emergency Care rows open the map preview when clicked and move Google Maps into a trailing menu; fuel prices and hospital ownership no longer use category colors, and the fuel backdrop is subtler.
+- Time Tracking shows today, focus, and pending time with an allocation bar and legend, and a single interruption control.
+- Local Info leads with the answer: holiday date and countdown, school break dates, and one "Prices vs EU" row, with the location in the card subtitle.
+- Weather shows current conditions on one line with compact stats, always shows the hourly strip, and folds only the 7-day outlook; surf conditions fit one row with equal single-line forecast columns.
+- Use one inline button style for every in-card action.
+- Data Guard leads with what is left and a status-tinted bar, shows cap, reset date, and pace, explains why it is monitoring, and moves Remember, Forget, and Reset into a menu; the manual toggle is now labeled "Monitor manually".
+- Cards whose feature is off are no longer rendered; one "Turned off" row names them with a Settings button. Customize Layout still shows every card.
+- Fuel prices use the locale's currency format ("1,429 €/L").
+- The fuel backdrop fades out behind station rows.
+- Show the emergency number of the current country on the Emergency Care and Local Info cards (offline, selectable).
+- "Prices vs EU" uses the numeric difference from the EU average ("≈ EU" within one percent).
+- A narrow card without a narrow neighbour now renders full width with the wide layout instead of leaving a gap; paired half-width cards share the taller height.
 - Lead the dashboard header with the current place and show device region and country beside the IP location on one line, instead of the app title.
 - Move the appearance toggle into the header menu.
 - Replace the time-tracking chip row with a single compact row and an Allocate menu that lists project names in full.

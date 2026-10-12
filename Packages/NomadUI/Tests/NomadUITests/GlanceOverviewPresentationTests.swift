@@ -265,8 +265,8 @@ struct GlanceOverviewPresentationTests {
         let session = makeMetered(monitoring: true, usedBytes: 100, capBytes: nil, fraction: nil, period: .session)
         let month = makeMetered(monitoring: true, usedBytes: 100, capBytes: nil, fraction: nil, period: .calendarMonth)
 
-        #expect(session.displayedUsedBytes == 100)
-        #expect(month.displayedUsedBytes == 100)
+        #expect(session.usedBytes == 100)
+        #expect(month.usedBytes == 100)
     }
 
     @Test
@@ -305,9 +305,9 @@ struct GlanceOverviewPresentationTests {
         let weather = makeWeather(today: now)
         let tile = GlanceVitalTilePresentation.weather(snapshot: makeSnapshot(weather: weather), weatherAvailabilityExplanation: nil, now: now)
 
-        #expect(tile.value == "18 C")
+        #expect(tile.value == "18°")
         #expect(tile.valueSymbolName == "cloud.sun.fill")
-        #expect(tile.secondary == "Partly Cloudy · 12 C / 24 C")
+        #expect(tile.secondary == "Partly Cloudy · 12° / 24°")
         #expect(tile.level == nil)
         #expect(tile.scrollTarget == .weather)
     }

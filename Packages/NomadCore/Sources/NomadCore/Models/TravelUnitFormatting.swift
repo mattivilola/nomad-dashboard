@@ -13,4 +13,11 @@ public enum TravelUnitFormatting {
     public static func kilometers(_ value: Double) -> String {
         String(format: value >= 10 ? "%.0f km" : "%.1f km", value)
     }
+
+    /// Temperature rounded to whole degrees with a degree sign ("19°", "-3°"); never "-0°".
+    public static func temperature(_ celsius: Double) -> String {
+        guard celsius.isFinite else { return "n/a" }
+        let rounded = celsius.rounded()
+        return "\(Int(rounded == 0 ? 0 : rounded))°"
+    }
 }

@@ -164,6 +164,7 @@ public actor MeteredDataController {
             sessionStartedAt: state.sessionStartedAt,
             sessionBytesReceived: state.sessionBytesReceived,
             sessionBytesSent: state.sessionBytesSent,
+            periodStartedAt: state.periodStartedAt,
             periodBytesReceived: state.periodBytesReceived,
             periodBytesSent: state.periodBytesSent,
             capBytes: capBytes,

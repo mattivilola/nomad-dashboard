@@ -15,7 +15,8 @@ Nomad Dashboard is a native macOS menu bar app that aggregates travel-relevant a
 - Shows internet reachability state
 - Monitors passive download and upload throughput
 - Runs periodic latency and jitter checks
-- Shows Wi-Fi context such as interface, SSID, signal, noise, and transmit rate when available
+- Shows download, upload, and latency side by side, each with a compact sparkline (hover for the time span and min/max) that shows a dashed baseline until enough history exists
+- Shows Wi-Fi context such as interface, SSID, signal, noise, and transmit rate when available (name, signal strength, and rate share one Travel Context row; noise and the full signal detail appear on hover)
 - Detects VPN activity
 
 ### Who it helps
@@ -47,6 +48,8 @@ Users can quickly judge whether their current connection is workable without ope
 - Supports default and per-network data caps with quiet alerts at 80%, 95%, and 100%
 - Pauses Nomad's own large background downloads when a cap is reached
 - Can show compact used/cap usage in the menu bar while monitoring
+- Leads the card with what is left ("1.0 GB left", tinted by cap status) above a status-tinted progress bar, then the cap, reset date, and an estimate of how many days the remainder lasts at the current pace (parts that are unknown are left out)
+- Says why it is monitoring (remembered metered network, turned on manually, or not monitoring) and keeps Remember, Forget, and Reset in a small actions menu
 
 ### Who it helps
 
@@ -60,7 +63,7 @@ You see how much data this connection has used, get warned before overage, and N
 ### Dependencies or setup
 
 - enable Data Guard in Settings (on by default for new installs)
-- optional: mark a Wi-Fi network as metered or toggle **Monitor this connection** on the Data Guard card
+- optional: mark a Wi-Fi network as metered or toggle **Monitor manually** on the Data Guard card
 - allow location access when prompted so macOS can expose the Wi‑Fi name (SSID) for each hotspot separately
 
 ### Limitations
@@ -124,7 +127,8 @@ Users can see whether the MacBook is draining normally, charging properly, or li
 
 ### What it does
 
-- Shows public IP address
+- Shows public IP address with a copy action
+- Condenses the card to four rows: public IP, Wi-Fi (name, signal strength, and transmit rate), VPN, and location with the time zone and a visited-map action
 - Can show IP-based city, region, country, and time zone context
 - Leads the dashboard header with the current place (device city, falling back to the IP city) and shows device region and country next to the IP-based location on one line when both are available
 - Helps compare network-detected location with expected location
@@ -155,8 +159,9 @@ Users can understand how the outside network sees them and keep better awareness
 - Shows current weather conditions
 - Shows current, apparent, wind, and rain-chance key metrics
 - Shows wind speed with compass direction
-- Shows a unified forecast view with near-term checkpoints and a 7-day outlook
-- Shows tomorrow summary when the full forecast is collapsed
+- Shows the current temperature and condition symbol on one line, with feels-like, wind (with m/s), and rain chance as small stats beneath it
+- Always shows the near-term hourly strip; only the 7-day outlook folds away
+- Shows tomorrow summary when the 7-day outlook is collapsed
 
 ### Who it helps
 
@@ -186,6 +191,7 @@ Users can make quick practical decisions about wind, rain risk, the next few hou
 - Uses the live Smartraveller destinations page first, falls back to `destinations-export`, and can retry through a hidden WebKit fetch when direct transport stalls
 - Keeps Smartraveller severity sourced from the destination list, then optionally fetches the matched destination page for a short reason sentence and a `More details` link
 - Keeps the dashboard compact by summarizing status rather than becoming a full alert center
+- The card badge always names the highest alert level; stale data is called out beside it ("Updated 12 Oct · may be outdated") instead of replacing it, and each signal states its level once
 
 ### Who it helps
 
@@ -213,10 +219,10 @@ Users can notice higher-level advisory or environmental signals without doing a 
 ### What it does
 
 - Can show a compact local info card for travelers
-- Shows current local city, region, country, and holiday context when location or external IP location is available
-- Shows next public holiday with free public data
-- Shows school holiday context only when a confident local or regional match is available
-- Reuses official country-level Eurostat price indices for European meal-out, groceries, and overall local cost context
+- Shows the resolved place (city, region, country, time zone) in the card subtitle when location or external IP location is available
+- Shows next public holiday with free public data as a date and countdown with the holiday name beneath it
+- Shows school holiday context as a date range with the break name, only when a confident local or regional match is available
+- Reuses official country-level Eurostat price indices for European meal-out, groceries, and overall local cost context as one "Prices vs EU" row (overall level plus the meal, grocery, and overall difference)
 - Can show a US 1-bedroom rent benchmark from HUD USER when the user adds a HUD API token
 - Keeps source attribution visible for holidays and price signals
 
@@ -275,8 +281,9 @@ Users can get a quick sense of local holiday timing, place context, and price pr
 ### What it does
 
 - Can show nearby fuel price information
-- Supports station rows and map preview behavior
+- Station rows open the map preview when clicked; a trailing menu offers the preview and Google Maps
 - Can open selected stations in Google Maps
+- Shows prices in the locale's currency style ("1,429 €/L") in primary text rather than fuel-type colors, and the animated road backdrop stays subtle and fades out behind the rows
 - Includes diagnostics in Settings for troubleshooting
 
 ### Who it helps
@@ -305,7 +312,9 @@ Users can spot nearby fuel context without switching from the dashboard into sep
 ### What it does
 
 - Can show nearby emergency hospitals
-- Supports preview maps inside the app
+- Hospital rows open the in-app map preview when clicked; a trailing menu offers the preview and Google Maps
+- Shows the local emergency number for the current country (for example "Emergency 112") in the card subtitle and as an Emergency row in Local Info, with police, ambulance, and fire numbers where they differ; the numbers are bundled with the app and work offline, and can be selected and copied
+- Shows Public or Private ownership as a neutral label
 - Can open selected hospitals in Google Maps
 
 ### Who it helps
@@ -331,7 +340,7 @@ Users can quickly identify nearby emergency hospital options without running a s
 ### What it does
 
 - Lets the user configure a surf spot
-- Shows marine conditions for that saved spot
+- Shows marine conditions for that saved spot: wave, swell, wind, and sea temperature in one row, plus four equal single-line forecast columns on full-width cards
 - Uses a dedicated surf spot instead of only the user’s current position
 
 ### Who it helps
@@ -422,9 +431,10 @@ Users can build a simple local travel history over time, revisit where they have
 - Can track awake working time locally while Nomad Dashboard is running
 - Lets the user define project buckets in Settings plus one built-in `Other` bucket
 - Shows live pending unallocated time and a status dot directly in the dashboard header as a single compact row with play/pause, stop, and interruption controls
+- Shows today, focus, and pending time in the card with a thin allocation bar (allocated buckets in teal tones, pending time in sand) and a short legend
 - Lets the user report interruptions from the dashboard or the full time-tracking window with an interruption count that resets per day
 - Offers an `Allocate` menu in the header listing recent or active projects plus `Other` (full project names, never truncated) and a shortcut to the time-tracking window
-- Supports quick one-click allocation of today’s pending time into a project or `Other` without opening the full time-tracking view
+- Supports one-click allocation of today’s pending time into a project or `Other` from the header Allocate menu without opening the full time-tracking view
 - Includes a dedicated time-tracking window with day, week, and month views
 - Attributes interruption events to the project or bucket that covered that moment once the time is allocated
 - Estimates focus lost from interruptions at 23 minutes each and shows focus-adjusted time in summaries and exports
@@ -465,6 +475,8 @@ Users can capture and assign work time with less friction by using the dashboard
 - Retains a bounded local cache of selected remote dashboard content for a more useful offline or temporarily disconnected view
 - Supports dashboard card reordering
 - Supports dashboard card width customization
+- Lets every card collapse to a single line (title, one-line summary such as "72% · 3h 28m", status badge) with a chevron in its header; collapsed cards stay collapsed across relaunches, expand when a glance tile or heads-up row points at them, and reset with `Reset Dashboard Layout`
+- Hides cards whose feature is turned off and names them in one "Turned off" row with a Settings button at the bottom; `Customize Layout` still shows every card so it can be ordered
 - Keeps the dashboard clean by default: the per-card width and drag controls only appear after choosing `Customize Layout` from the header menu, with an inline hint and a `Done` button while customizing
 - Moves the appearance toggle into the header menu
 - Supports settings for weather, travel modules, analytics, and location-aware features

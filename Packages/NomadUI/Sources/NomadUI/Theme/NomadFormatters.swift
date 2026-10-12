@@ -1,15 +1,39 @@
 import Foundation
 import NomadCore
 
+/// A formatted number and its unit kept apart, so a layout can draw the unit small.
+public struct FormattedMetric: Equatable, Sendable {
+    public let number: String
+    public let unit: String?
+
+    public init(number: String, unit: String? = nil) {
+        self.number = number
+        self.unit = unit
+    }
+
+    /// "96.0 Mbps": the same text the plain string formatters return.
+    public var text: String {
+        unit.map { "\(number) \($0)" } ?? number
+    }
+}
+
 public enum NomadFormatters {
     public static func megabitsPerSecond(_ value: Double?) -> String {
-        guard let value else { return "n/a" }
-        return String(format: "%.1f Mbps", value)
+        megabitsPerSecondParts(value).text
+    }
+
+    public static func megabitsPerSecondParts(_ value: Double?) -> FormattedMetric {
+        guard let value else { return FormattedMetric(number: "n/a") }
+        return FormattedMetric(number: String(format: "%.1f", value), unit: "Mbps")
     }
 
     public static func latency(_ value: Double?) -> String {
-        guard let value else { return "n/a" }
-        return String(format: "%.0f ms", value)
+        latencyParts(value).text
+    }
+
+    public static func latencyParts(_ value: Double?) -> FormattedMetric {
+        guard let value else { return FormattedMetric(number: "n/a") }
+        return FormattedMetric(number: String(format: "%.0f", value), unit: "ms")
     }
 
     public static func percentage(_ value: Double?) -> String {
@@ -19,7 +43,7 @@ public enum NomadFormatters {
 
     public static func celsius(_ value: Double?) -> String {
         guard let value else { return "n/a" }
-        return String(format: "%.0f C", value)
+        return TravelUnitFormatting.temperature(value)
     }
 
     public static func kilometersPerHour(_ value: Double?) -> String {
@@ -53,8 +77,12 @@ public enum NomadFormatters {
     }
 
     public static func watts(_ value: Double?) -> String {
-        guard let value else { return "n/a" }
-        return String(format: "%.1f W", value)
+        wattsParts(value).text
+    }
+
+    public static func wattsParts(_ value: Double?) -> FormattedMetric {
+        guard let value else { return FormattedMetric(number: "n/a") }
+        return FormattedMetric(number: String(format: "%.1f", value), unit: "W")
     }
 
     public static func minutes(_ value: Int?) -> String {
@@ -72,11 +100,6 @@ public enum NomadFormatters {
     public static func precipitation(_ value: Double?) -> String {
         guard let value else { return "n/a" }
         return String(format: "%.0f%%", value * 100)
-    }
-
-    public static func fuelPricePerLiter(_ value: Double?) -> String {
-        guard let value else { return "n/a" }
-        return String(format: "EUR %.3f/L", value)
     }
 
     public static func kilometers(_ value: Double?) -> String {
