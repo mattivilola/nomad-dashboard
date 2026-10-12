@@ -239,6 +239,8 @@ public struct WeatherHourlyForecastSlot: Codable, Equatable, Sendable, Identifia
     public let precipitationChance: Double?
     public let windSpeedKph: Double?
     public let windDirectionDegrees: Double?
+    /// WHO UV index as a whole number; nil when unavailable or cached before UV was captured.
+    public let uvIndex: Int?
 
     public var id: Date {
         date
@@ -251,7 +253,8 @@ public struct WeatherHourlyForecastSlot: Codable, Equatable, Sendable, Identifia
         temperatureCelsius: Double?,
         precipitationChance: Double?,
         windSpeedKph: Double?,
-        windDirectionDegrees: Double?
+        windDirectionDegrees: Double?,
+        uvIndex: Int? = nil
     ) {
         self.date = date
         self.symbolName = symbolName
@@ -260,6 +263,7 @@ public struct WeatherHourlyForecastSlot: Codable, Equatable, Sendable, Identifia
         self.precipitationChance = precipitationChance
         self.windSpeedKph = windSpeedKph
         self.windDirectionDegrees = windDirectionDegrees
+        self.uvIndex = uvIndex
     }
 }
 
@@ -271,6 +275,8 @@ public struct WeatherSnapshot: Codable, Equatable, Sendable {
     public let precipitationChance: Double?
     public let windSpeedKph: Double?
     public let windDirectionDegrees: Double?
+    /// WHO UV index right now as a whole number; nil when unavailable or cached before UV was captured.
+    public let uvIndex: Int?
     public let hourlyForecastSlots: [WeatherHourlyForecastSlot]
     public let dailyForecast: [WeatherDaySummary]
     public let tomorrow: WeatherDaySummary?
@@ -284,6 +290,7 @@ public struct WeatherSnapshot: Codable, Equatable, Sendable {
         precipitationChance: Double?,
         windSpeedKph: Double?,
         windDirectionDegrees: Double?,
+        uvIndex: Int? = nil,
         hourlyForecastSlots: [WeatherHourlyForecastSlot] = [],
         dailyForecast: [WeatherDaySummary] = [],
         tomorrow: WeatherDaySummary? = nil,
@@ -296,6 +303,7 @@ public struct WeatherSnapshot: Codable, Equatable, Sendable {
         self.precipitationChance = precipitationChance
         self.windSpeedKph = windSpeedKph
         self.windDirectionDegrees = windDirectionDegrees
+        self.uvIndex = uvIndex
         self.hourlyForecastSlots = hourlyForecastSlots
         self.dailyForecast = dailyForecast.isEmpty ? tomorrow.map { [$0] } ?? [] : dailyForecast
         self.tomorrow = self.dailyForecast.first ?? tomorrow
@@ -572,6 +580,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
     public let fuelDiagnostics: FuelDiagnosticsSnapshot?
     public let emergencyCare: EmergencyCareSnapshot?
     public let marine: MarineSnapshot?
+    public let airQuality: AirQualitySnapshot?
     public let appState: AppStatusSnapshot
     public let meteredData: MeteredUsageSnapshot
     public let healthSummary: DashboardHealthSummary
@@ -587,6 +596,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         fuelDiagnostics: FuelDiagnosticsSnapshot? = nil,
         emergencyCare: EmergencyCareSnapshot? = nil,
         marine: MarineSnapshot? = nil,
+        airQuality: AirQualitySnapshot? = nil,
         appState: AppStatusSnapshot,
         meteredData: MeteredUsageSnapshot = .disabled,
         healthSummary: DashboardHealthSummary? = nil
@@ -601,6 +611,7 @@ public struct DashboardSnapshot: Equatable, Sendable {
         self.fuelDiagnostics = fuelDiagnostics
         self.emergencyCare = emergencyCare
         self.marine = marine
+        self.airQuality = airQuality
         self.appState = appState
         self.meteredData = meteredData
         self.healthSummary = healthSummary ?? DashboardHealthEvaluator.makeSummary(
@@ -809,6 +820,7 @@ public extension DashboardSnapshot {
             precipitationChance: 0.18,
             windSpeedKph: 14,
             windDirectionDegrees: 315,
+            uvIndex: 4,
             hourlyForecastSlots: [
                 WeatherHourlyForecastSlot(
                     date: Date().addingTimeInterval(3 * 3_600),
@@ -817,7 +829,8 @@ public extension DashboardSnapshot {
                     temperatureCelsius: 20,
                     precipitationChance: 0.10,
                     windSpeedKph: 12,
-                    windDirectionDegrees: 300
+                    windDirectionDegrees: 300,
+                    uvIndex: 5
                 ),
                 WeatherHourlyForecastSlot(
                     date: Date().addingTimeInterval(6 * 3_600),
@@ -826,7 +839,8 @@ public extension DashboardSnapshot {
                     temperatureCelsius: 21,
                     precipitationChance: 0.02,
                     windSpeedKph: 10,
-                    windDirectionDegrees: 290
+                    windDirectionDegrees: 290,
+                    uvIndex: 2
                 ),
                 WeatherHourlyForecastSlot(
                     date: Date().addingTimeInterval(12 * 3_600),
@@ -835,7 +849,8 @@ public extension DashboardSnapshot {
                     temperatureCelsius: 17,
                     precipitationChance: 0.22,
                     windSpeedKph: 15,
-                    windDirectionDegrees: 270
+                    windDirectionDegrees: 270,
+                    uvIndex: 0
                 ),
                 WeatherHourlyForecastSlot(
                     date: Date().addingTimeInterval(24 * 3_600),
@@ -844,7 +859,8 @@ public extension DashboardSnapshot {
                     temperatureCelsius: 16,
                     precipitationChance: 0.45,
                     windSpeedKph: 18,
-                    windDirectionDegrees: 255
+                    windDirectionDegrees: 255,
+                    uvIndex: 3
                 )
             ],
             dailyForecast: [
@@ -1112,6 +1128,21 @@ public extension DashboardSnapshot {
             ],
             fetchedAt: .now
         ),
+        airQuality: AirQualitySnapshot(
+            latitude: 39.5,
+            longitude: -0.4,
+            sourceName: "Open-Meteo",
+            europeanAQI: 38,
+            mainPollutant: .ozone,
+            pm2_5: 9,
+            pm10: 18,
+            ozone: 84,
+            nitrogenDioxide: 14,
+            forecastSlots: [3, 6, 9, 12].map { hours in
+                AirQualityForecastSlot(date: Date().addingTimeInterval(Double(hours) * 3_600), europeanAQI: 38 + hours)
+            },
+            fetchedAt: .now
+        ),
         appState: AppStatusSnapshot(
             lastRefresh: .now,
             updateState: UpdateStateSnapshot(kind: .idle, detail: "Up to date", lastCheckedAt: .now),
@@ -1132,6 +1163,7 @@ public extension DashboardSnapshot {
             fuelDiagnostics: fuelDiagnostics,
             emergencyCare: emergencyCare,
             marine: marine,
+            airQuality: airQuality,
             appState: appState,
             meteredData: meteredData,
             healthSummary: healthSummary

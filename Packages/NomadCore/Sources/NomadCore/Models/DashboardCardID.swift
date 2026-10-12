@@ -6,6 +6,7 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
     case power
     case timeTracking
     case travelContext
+    case stays
     case localInfo
     case fuelPrices
     case emergencyCare
@@ -19,6 +20,7 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
         .power,
         .timeTracking,
         .travelContext,
+        .stays,
         .localInfo,
         .fuelPrices,
         .emergencyCare,
@@ -41,6 +43,7 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
                 .power,
                 .meteredData,
                 .travelAlerts,
+                .stays,
                 .connectivity,
                 .localInfo,
                 .travelContext,
@@ -50,15 +53,16 @@ public enum DashboardCardID: String, Codable, CaseIterable, Equatable, Hashable,
     }
 
     /// Drops duplicates and adds every card missing from `order`. A missing card goes right after the
-    /// nearest card before it in `defaultOrder` that is present, so a saved order from before a card
-    /// existed gets it next to its recommended neighbour (an untouched old default becomes exactly the
-    /// new default). A card with no earlier neighbour present goes first.
-    public static func sanitizedOrder(_ order: [DashboardCardID]) -> [DashboardCardID] {
+    /// nearest card before it in the profile's recommended order that is present, so a saved order from
+    /// before a card existed gets it next to its recommended neighbour (an untouched old default becomes
+    /// exactly the new default). A card with no earlier neighbour present goes first.
+    public static func sanitizedOrder(_ order: [DashboardCardID], profile: TravelProfile = .nomad) -> [DashboardCardID] {
         var seen: Set<DashboardCardID> = []
         var result = order.filter { seen.insert($0).inserted }
+        let recommendedOrder = defaultOrder(for: profile)
 
-        for (index, card) in defaultOrder.enumerated() where seen.contains(card) == false {
-            let predecessor = defaultOrder[..<index].last { seen.contains($0) }
+        for (index, card) in recommendedOrder.enumerated() where seen.contains(card) == false {
+            let predecessor = recommendedOrder[..<index].last { seen.contains($0) }
             let insertionIndex = predecessor.flatMap { result.firstIndex(of: $0) }.map { $0 + 1 } ?? 0
             result.insert(card, at: insertionIndex)
             seen.insert(card)
@@ -113,6 +117,8 @@ public extension DashboardCardID {
                 || settings.regionalSecurityEnabled
         case .embassy:
             settings.citizenshipCountryCodes.isEmpty == false
+        case .stays:
+            settings.visitedPlacesEnabled
         case .connectivity, .power, .travelContext, .weather:
             true
         }

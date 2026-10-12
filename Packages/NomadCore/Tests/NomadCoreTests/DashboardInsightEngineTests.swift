@@ -118,6 +118,19 @@ struct DashboardInsightEngineTests {
         let roadTrip = DashboardInsightKind.tieBreakOrder(for: .roadTrip)
         let wind = roadTrip.firstIndex(of: .strongWind)
         #expect(roadTrip.firstIndex(of: .daylight) == wind.map { $0 + 1 })
+
+        // UV and air quality follow the rain heads-up for nomads and the daylight heads-up for road trips.
+        let nomadOrder = DashboardInsightKind.tieBreakOrder(for: .nomad)
+        let rain = nomadOrder.firstIndex(of: .rainSoon)
+        #expect(Array(nomadOrder[(rain ?? 0) + 1...(rain ?? 0) + 2]) == [.uvIndex, .airQuality])
+        let daylight = roadTrip.firstIndex(of: .daylight)
+        #expect(Array(roadTrip[(daylight ?? 0) + 1...(daylight ?? 0) + 2]) == [.uvIndex, .airQuality])
+
+        // The stay insights follow the data cap in both profiles.
+        for order in [DashboardInsightKind.tieBreakOrder(for: .nomad), roadTrip] {
+            let dataCap = order.firstIndex(of: .dataCap)
+            #expect(Array(order[(dataCap ?? 0) + 1...(dataCap ?? 0) + 3]) == [.stayAllowance, .schengenLimit, .taxResidenceDays])
+        }
     }
 
     @Test
@@ -125,22 +138,39 @@ struct DashboardInsightEngineTests {
         let snapshot = makeSnapshot(
             metered: makeMetered(usedBytes: 850, capBytes: 1_000),
             alerts: makeAlerts([(.advisory, .caution), (.weather, .caution), (.security, .caution)]),
-            weather: makeWeather(windKph: 45, slots: [slot(hours: 2, rain: 0.8)]),
+            weather: makeWeather(windKph: 45, slots: [slot(hours: 2, rain: 0.8)], uvIndex: 9),
             localInfo: makeLocalInfo(currentPeriod: holiday(dayOffset: 0)),
             fuel: makeFuel(diesel: station(.diesel)),
-            deviceLocation: parisLocation
+            deviceLocation: parisLocation,
+            airQuality: makeAirQuality(aqi: 86)
         )
 
         // Daylight only fires for the road trip profile, and only near sunset or in the dark.
-        let nomad = insights(snapshot)
+        // Morocco: 12 of 90 days left, Schengen: 10 of 90 left (80 days in France), Spain: 160 days this year.
+        let stayDays = (0..<80).map { offset -> VisitedCountryDay in
+            let date = parisCalendar.date(byAdding: .day, value: -offset, to: now)!
+            let stamp = VisitedCountryDayStamp(date: date, calendar: parisCalendar)
+            return VisitedCountryDay(day: stamp, country: "France", countryCode: "FR", source: .deviceLocation, isInferred: false)
+        }
+        let stayInput = StayInsightInput(
+            countryDays: stayDays,
+            settings: AppSettings(citizenshipCountryCodes: ["US"], stayAllowances: ["FR": 92], taxResidenceThresholdDays: 90),
+            currentCountryCode: "FR"
+        )
+        let nomad = DashboardInsightEngine.insights(for: snapshot, now: now, calendar: parisCalendar, limit: 20, stays: stayInput)
         #expect(Set(nomad.map(\.kind)) == Set(DashboardInsightKind.allCases).subtracting([.daylight]))
+        // Same severity ranks by tie-break order: the data cap, then the stay insights, then the advisory.
+        let cautionKinds = nomad.filter { $0.severity == .caution }.map(\.kind)
+        #expect(cautionKinds.prefix(3) == [.dataCap, .stayAllowance, .schengenLimit])
 
         let sunset = try #require(parisSun.sunset)
         let evening = DashboardInsightEngine.insights(
-            for: snapshot, now: sunset.addingTimeInterval(-30 * 60), calendar: parisCalendar, limit: 20, profile: .roadTrip
+            for: snapshot, now: sunset.addingTimeInterval(-30 * 60), calendar: parisCalendar, limit: 20, profile: .roadTrip,
+            stays: stayInput
         )
         let dark = DashboardInsightEngine.insights(
-            for: snapshot, now: sunset.addingTimeInterval(3 * 3_600), calendar: parisCalendar, limit: 20, profile: .roadTrip
+            for: snapshot, now: sunset.addingTimeInterval(3 * 3_600), calendar: parisCalendar, limit: 20, profile: .roadTrip,
+            stays: stayInput
         )
         #expect(evening.contains { $0.kind == .daylight })
         #expect(dark.contains { $0.kind == .daylight })
@@ -823,7 +853,8 @@ struct DashboardInsightEngineTests {
         fuel: FuelPriceSnapshot? = nil,
         deviceLocation: IPLocationSnapshot? = nil,
         ipLocation: IPLocationSnapshot? = nil,
-        timeZoneIdentifier: String = "Europe/Paris"
+        timeZoneIdentifier: String = "Europe/Paris",
+        airQuality: AirQualitySnapshot? = nil
     ) -> DashboardSnapshot {
         DashboardSnapshot(
             network: NetworkSectionSnapshot(
@@ -847,6 +878,7 @@ struct DashboardInsightEngineTests {
             weather: weather,
             localInfo: localInfo,
             fuelPrices: fuel,
+            airQuality: airQuality,
             appState: AppStatusSnapshot(lastRefresh: nil, updateState: .idle, issues: []),
             meteredData: metered
         )
@@ -944,7 +976,8 @@ struct DashboardInsightEngineTests {
         windDegrees: Double? = 270,
         rain: Double? = nil,
         slots: [WeatherHourlyForecastSlot] = [],
-        fetchedAt: Date? = nil
+        fetchedAt: Date? = nil,
+        uvIndex: Int? = nil
     ) -> WeatherSnapshot {
         WeatherSnapshot(
             currentTemperatureCelsius: 18,
@@ -954,8 +987,25 @@ struct DashboardInsightEngineTests {
             precipitationChance: rain,
             windSpeedKph: windKph,
             windDirectionDegrees: windDegrees,
+            uvIndex: uvIndex,
             hourlyForecastSlots: slots,
             fetchedAt: fetchedAt ?? now
+        )
+    }
+
+    private func makeAirQuality(aqi: Int) -> AirQualitySnapshot {
+        AirQualitySnapshot(
+            latitude: 48.9,
+            longitude: 2.4,
+            sourceName: "Open-Meteo",
+            europeanAQI: aqi,
+            mainPollutant: .pm2_5,
+            pm2_5: 40,
+            pm10: 50,
+            ozone: 60,
+            nitrogenDioxide: 20,
+            forecastSlots: [],
+            fetchedAt: now
         )
     }
 

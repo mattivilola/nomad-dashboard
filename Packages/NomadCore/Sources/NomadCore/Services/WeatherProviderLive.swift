@@ -84,6 +84,7 @@ private enum WeatherKitSnapshotProjector {
             precipitationChance: precipitationChance,
             windSpeedKph: weather.currentWeather.wind.speed.converted(to: .kilometersPerHour).value,
             windDirectionDegrees: weather.currentWeather.wind.direction.converted(to: .degrees).value,
+            uvIndex: weather.currentWeather.uvIndex.value,
             hourlyForecastSlots: hourlyForecast,
             dailyForecast: dailyForecast,
             fetchedAt: fetchedAt
@@ -120,7 +121,8 @@ private enum WeatherKitSnapshotProjector {
                 temperatureCelsius: hour.temperature.converted(to: .celsius).value,
                 precipitationChance: hour.precipitationChance,
                 windSpeedKph: hour.wind.speed.converted(to: .kilometersPerHour).value,
-                windDirectionDegrees: hour.wind.direction.converted(to: .degrees).value
+                windDirectionDegrees: hour.wind.direction.converted(to: .degrees).value,
+                uvIndex: hour.uvIndex.value
             )
         }
     }

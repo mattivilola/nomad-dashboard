@@ -24,6 +24,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var launchAtLoginEnabled: Bool
     public var useCurrentLocationForWeather: Bool
     public var weatherForecastExpanded: Bool
+    /// Fetches air quality for the weather location. Only takes effect while `useCurrentLocationForWeather` is on.
+    public var airQualityEnabled: Bool
     public var localInfoEnabled: Bool
     public var fuelPricesEnabled: Bool
     public var emergencyCareEnabled: Bool
@@ -53,6 +55,18 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// Sensitive: stored locally only, used to find the user's embassy and foreign-ministry emergency
     /// line, never sent anywhere and never part of analytics.
     public var citizenshipCountryCodes: [String]
+    /// Days the user may stay per visit, keyed by upper-case ISO 3166-1 alpha-2 country code, for
+    /// example a 90-day visa. Stored locally only.
+    public var stayAllowances: [String: Int]
+    public var schengenCounterEnabled: Bool
+    public var taxResidenceDaysEnabled: Bool
+    /// Days in a calendar year after which a country may treat the user as tax resident.
+    public var taxResidenceThresholdDays: Int
+    public var arrivalBriefingEnabled: Bool
+    /// The country whose arrival briefing the user last dismissed, so it is not shown again until they
+    /// arrive somewhere else.
+    public var arrivalBriefingAcknowledgedCountryCode: String?
+    public var arrivalBriefingAcknowledgedAt: Date?
 
     public init(
         appearanceMode: AppAppearanceMode = .system,
@@ -70,6 +84,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         launchAtLoginEnabled: Bool = false,
         useCurrentLocationForWeather: Bool = true,
         weatherForecastExpanded: Bool = false,
+        airQualityEnabled: Bool = true,
         localInfoEnabled: Bool = false,
         fuelPricesEnabled: Bool = false,
         emergencyCareEnabled: Bool = false,
@@ -95,12 +110,19 @@ public struct AppSettings: Codable, Equatable, Sendable {
         menuBarShowsHeadsUp: Bool = false,
         autoMonitorRememberedWiFiHotspots: Bool = true,
         useLocationForWiFiNames: Bool = true,
-        citizenshipCountryCodes: [String] = []
+        citizenshipCountryCodes: [String] = [],
+        stayAllowances: [String: Int] = [:],
+        schengenCounterEnabled: Bool = true,
+        taxResidenceDaysEnabled: Bool = true,
+        taxResidenceThresholdDays: Int = AppSettings.defaultTaxResidenceThresholdDays,
+        arrivalBriefingEnabled: Bool = true,
+        arrivalBriefingAcknowledgedCountryCode: String? = nil,
+        arrivalBriefingAcknowledgedAt: Date? = nil
     ) {
         self.appearanceMode = appearanceMode
         self.dataUsageMode = dataUsageMode
         self.travelProfile = travelProfile
-        self.dashboardCardOrder = DashboardCardID.sanitizedOrder(dashboardCardOrder)
+        self.dashboardCardOrder = DashboardCardID.sanitizedOrder(dashboardCardOrder, profile: travelProfile)
         self.dashboardCardWidthModes = DashboardCardID.sanitizedWidthModes(dashboardCardWidthModes)
         self.dashboardCollapsedCards = dashboardCollapsedCards
         self.refreshIntervalSeconds = Self.sanitizedRefreshInterval(refreshIntervalSeconds)
@@ -112,6 +134,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.launchAtLoginEnabled = launchAtLoginEnabled
         self.useCurrentLocationForWeather = useCurrentLocationForWeather
         self.weatherForecastExpanded = weatherForecastExpanded
+        self.airQualityEnabled = airQualityEnabled
         self.localInfoEnabled = localInfoEnabled
         self.fuelPricesEnabled = fuelPricesEnabled
         self.emergencyCareEnabled = emergencyCareEnabled
@@ -138,6 +161,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.autoMonitorRememberedWiFiHotspots = autoMonitorRememberedWiFiHotspots
         self.useLocationForWiFiNames = useLocationForWiFiNames
         self.citizenshipCountryCodes = Self.sanitizedCitizenshipCodes(citizenshipCountryCodes)
+        self.stayAllowances = Self.sanitizedStayAllowances(stayAllowances)
+        self.schengenCounterEnabled = schengenCounterEnabled
+        self.taxResidenceDaysEnabled = taxResidenceDaysEnabled
+        self.taxResidenceThresholdDays = Self.sanitizedTaxResidenceThreshold(taxResidenceThresholdDays)
+        self.arrivalBriefingEnabled = arrivalBriefingEnabled
+        self.arrivalBriefingAcknowledgedCountryCode = arrivalBriefingAcknowledgedCountryCode.flatMap(Self.normalizedCountryCode)
+        self.arrivalBriefingAcknowledgedAt = arrivalBriefingAcknowledgedAt
     }
 
     enum CodingKeys: String, CodingKey {
@@ -158,6 +188,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case weatherForecastExpanded
         case weatherHourlyForecastExpanded
         case weatherDailyForecastExpanded
+        case airQualityEnabled
         case localInfoEnabled
         case localPriceLevelEnabled
         case fuelPricesEnabled
@@ -185,6 +216,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case autoMonitorRememberedWiFiHotspots
         case useLocationForWiFiNames
         case citizenshipCountryCodes
+        case stayAllowances
+        case schengenCounterEnabled
+        case taxResidenceDaysEnabled
+        case taxResidenceThresholdDays
+        case arrivalBriefingEnabled
+        case arrivalBriefingAcknowledgedCountryCode
+        case arrivalBriefingAcknowledgedAt
     }
 
     public init(from decoder: any Decoder) throws {
@@ -194,7 +232,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
         travelProfile = (try? container.decodeIfPresent(TravelProfile.self, forKey: .travelProfile)) ?? .nomad
         let persistedCardOrder = (try? container.decodeIfPresent([String].self, forKey: .dashboardCardOrder))?
             .compactMap(DashboardCardID.fromPersistedRawValue(_:))
-        dashboardCardOrder = DashboardCardID.sanitizedOrder(persistedCardOrder ?? DashboardCardID.defaultOrder)
+        dashboardCardOrder = DashboardCardID.sanitizedOrder(
+            persistedCardOrder ?? DashboardCardID.defaultOrder,
+            profile: travelProfile
+        )
         let persistedCardWidthModes = (try? container.decodeIfPresent([String: String].self, forKey: .dashboardCardWidthModes))?
             .reduce(into: [DashboardCardID: DashboardCardWidthMode]()) { result, entry in
                 guard let cardID = DashboardCardID.fromPersistedRawValue(entry.key),
@@ -226,6 +267,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         let legacyDailyForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherDailyForecastExpanded) ?? false
         weatherForecastExpanded = try container.decodeIfPresent(Bool.self, forKey: .weatherForecastExpanded)
             ?? (legacyHourlyForecastExpanded || legacyDailyForecastExpanded)
+        airQualityEnabled = try container.decodeIfPresent(Bool.self, forKey: .airQualityEnabled) ?? true
         let legacyLocalPriceLevelEnabled = try container.decodeIfPresent(Bool.self, forKey: .localPriceLevelEnabled)
         localInfoEnabled = try container.decodeIfPresent(Bool.self, forKey: .localInfoEnabled)
             ?? (legacyLocalPriceLevelEnabled ?? false)
@@ -256,6 +298,19 @@ public struct AppSettings: Codable, Equatable, Sendable {
         citizenshipCountryCodes = Self.sanitizedCitizenshipCodes(
             (try? container.decodeIfPresent([String].self, forKey: .citizenshipCountryCodes)) ?? []
         )
+        stayAllowances = Self.sanitizedStayAllowances(
+            (try? container.decodeIfPresent([String: Int].self, forKey: .stayAllowances)) ?? [:]
+        )
+        schengenCounterEnabled = try container.decodeIfPresent(Bool.self, forKey: .schengenCounterEnabled) ?? true
+        taxResidenceDaysEnabled = try container.decodeIfPresent(Bool.self, forKey: .taxResidenceDaysEnabled) ?? true
+        taxResidenceThresholdDays = Self.sanitizedTaxResidenceThreshold(
+            try container.decodeIfPresent(Int.self, forKey: .taxResidenceThresholdDays) ?? Self.defaultTaxResidenceThresholdDays
+        )
+        arrivalBriefingEnabled = try container.decodeIfPresent(Bool.self, forKey: .arrivalBriefingEnabled) ?? true
+        arrivalBriefingAcknowledgedCountryCode = try container
+            .decodeIfPresent(String.self, forKey: .arrivalBriefingAcknowledgedCountryCode)
+            .flatMap(Self.normalizedCountryCode)
+        arrivalBriefingAcknowledgedAt = try container.decodeIfPresent(Date.self, forKey: .arrivalBriefingAcknowledgedAt)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -280,6 +335,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encode(launchAtLoginEnabled, forKey: .launchAtLoginEnabled)
         try container.encode(useCurrentLocationForWeather, forKey: .useCurrentLocationForWeather)
         try container.encode(weatherForecastExpanded, forKey: .weatherForecastExpanded)
+        try container.encode(airQualityEnabled, forKey: .airQualityEnabled)
         try container.encode(localInfoEnabled, forKey: .localInfoEnabled)
         try container.encode(fuelPricesEnabled, forKey: .fuelPricesEnabled)
         try container.encode(emergencyCareEnabled, forKey: .emergencyCareEnabled)
@@ -306,6 +362,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encode(autoMonitorRememberedWiFiHotspots, forKey: .autoMonitorRememberedWiFiHotspots)
         try container.encode(useLocationForWiFiNames, forKey: .useLocationForWiFiNames)
         try container.encode(citizenshipCountryCodes, forKey: .citizenshipCountryCodes)
+        try container.encode(stayAllowances, forKey: .stayAllowances)
+        try container.encode(schengenCounterEnabled, forKey: .schengenCounterEnabled)
+        try container.encode(taxResidenceDaysEnabled, forKey: .taxResidenceDaysEnabled)
+        try container.encode(taxResidenceThresholdDays, forKey: .taxResidenceThresholdDays)
+        try container.encode(arrivalBriefingEnabled, forKey: .arrivalBriefingEnabled)
+        try container.encodeIfPresent(arrivalBriefingAcknowledgedCountryCode, forKey: .arrivalBriefingAcknowledgedCountryCode)
+        try container.encodeIfPresent(arrivalBriefingAcknowledgedAt, forKey: .arrivalBriefingAcknowledgedAt)
     }
 
     /// The most citizenships that can be stored; enough for the dual and triple nationals this is for.
@@ -316,9 +379,41 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public static func sanitizedCitizenshipCodes(_ codes: [String]) -> [String] {
         var seen = Set<String>()
         let normalized = codes
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
-            .filter { $0.count == 2 && $0.allSatisfy { $0.isASCII && $0.isLetter } && seen.insert($0).inserted }
+            .compactMap(normalizedCountryCode)
+            .filter { seen.insert($0).inserted }
         return Array(normalized.prefix(maximumCitizenships))
+    }
+
+    /// The upper-case two-letter form of a country code, or nil for anything that is not a letter pair.
+    static func normalizedCountryCode(_ code: String) -> String? {
+        let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard normalized.count == 2, normalized.allSatisfy({ $0.isASCII && $0.isLetter }) else {
+            return nil
+        }
+
+        return normalized
+    }
+
+    public static let defaultTaxResidenceThresholdDays = 183
+    public static let minimumTaxResidenceThresholdDays = 30
+    public static let maximumTaxResidenceThresholdDays = 365
+    public static let maximumStayAllowanceDays = 365
+
+    public static func sanitizedTaxResidenceThreshold(_ value: Int) -> Int {
+        min(max(value, minimumTaxResidenceThresholdDays), maximumTaxResidenceThresholdDays)
+    }
+
+    /// Upper-case two-letter country codes mapped to an allowance in days. Entries with an invalid
+    /// code or no days (zero or negative) are dropped; allowances above a year are capped at 365.
+    /// When two keys normalize to the same code (`"ma"` and `"MA"`) the larger allowance wins.
+    public static func sanitizedStayAllowances(_ allowances: [String: Int]) -> [String: Int] {
+        allowances.reduce(into: [String: Int]()) { result, entry in
+            guard let code = normalizedCountryCode(entry.key), entry.value > 0 else {
+                return
+            }
+
+            result[code] = max(result[code] ?? 0, min(entry.value, maximumStayAllowanceDays))
+        }
     }
 
     public static func sanitizedRefreshInterval(_ value: TimeInterval) -> TimeInterval {
@@ -387,6 +482,11 @@ public extension AppSettings {
         if followsRecommendation {
             dashboardCardOrder = DashboardCardID.defaultOrder(for: profile)
         }
+    }
+
+    /// Air quality shares the weather location consent: it is only fetched while device-location weather is on.
+    var isAirQualityActive: Bool {
+        airQualityEnabled && useCurrentLocationForWeather
     }
 
     var surfSpotConfiguration: SurfSpotConfiguration {

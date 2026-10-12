@@ -15,6 +15,7 @@ public struct DashboardDependencies: Sendable {
     public let fuelPriceProvider: any FuelPriceProvider
     public let emergencyCareProvider: any EmergencyCareProvider
     public let marineProvider: any MarineProvider
+    public let airQualityProvider: any AirQualityProvider
     public let neighborCountryResolver: any NeighborCountryResolver
     public let travelAdvisoryProvider: any TravelAdvisoryProvider
     public let travelWeatherAlertsProvider: any TravelWeatherAlertsProvider
@@ -43,6 +44,7 @@ public struct DashboardDependencies: Sendable {
         fuelPriceProvider: any FuelPriceProvider,
         emergencyCareProvider: any EmergencyCareProvider,
         marineProvider: any MarineProvider,
+        airQualityProvider: any AirQualityProvider,
         neighborCountryResolver: any NeighborCountryResolver,
         travelAdvisoryProvider: any TravelAdvisoryProvider,
         travelWeatherAlertsProvider: any TravelWeatherAlertsProvider,
@@ -70,6 +72,7 @@ public struct DashboardDependencies: Sendable {
         self.fuelPriceProvider = fuelPriceProvider
         self.emergencyCareProvider = emergencyCareProvider
         self.marineProvider = marineProvider
+        self.airQualityProvider = airQualityProvider
         self.neighborCountryResolver = neighborCountryResolver
         self.travelAdvisoryProvider = travelAdvisoryProvider
         self.travelWeatherAlertsProvider = travelWeatherAlertsProvider
@@ -125,6 +128,7 @@ public struct DashboardDependencies: Sendable {
             ),
             emergencyCareProvider: LiveEmergencyCareProvider(),
             marineProvider: LiveOpenMeteoMarineProvider(session: session),
+            airQualityProvider: LiveOpenMeteoAirQualityProvider(session: session),
             neighborCountryResolver: BundledNeighborCountryResolver(),
             travelAdvisoryProvider: SmartravellerAdvisoryProvider(
                 session: session,

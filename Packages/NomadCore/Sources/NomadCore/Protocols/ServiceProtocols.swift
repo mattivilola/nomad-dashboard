@@ -79,6 +79,11 @@ public protocol MarineProvider: Sendable {
     func marine(for spot: MarineSpot) async throws -> MarineSnapshot
 }
 
+public protocol AirQualityProvider: Sendable {
+    /// The implementation decides how precisely the coordinate is shared with its service.
+    func airQuality(for coordinate: CLLocationCoordinate2D) async throws -> AirQualitySnapshot
+}
+
 public protocol NeighborCountryResolver: Sendable {
     func neighboringCountryCodes(for countryCode: String) -> [String]
 }

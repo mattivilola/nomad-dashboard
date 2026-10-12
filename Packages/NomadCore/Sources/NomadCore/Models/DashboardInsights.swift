@@ -13,11 +13,16 @@ public enum DashboardInsightSeverity: Int, Comparable, Sendable {
 public enum DashboardInsightKind: String, CaseIterable, Sendable {
     // Declaration order is the tie-break priority within the same severity (earlier wins).
     case dataCap
+    case stayAllowance
+    case schengenLimit
+    case taxResidenceDays
     case travelAdvisory
     case weatherAlert
     case regionalSecurity
     case strongWind
     case rainSoon
+    case uvIndex
+    case airQuality
     case publicHoliday
     case fuelNearby
     case daylight
@@ -28,7 +33,7 @@ public enum DashboardInsightKind: String, CaseIterable, Sendable {
         case .nomad:
             allCases
         case .roadTrip:
-            [.strongWind, .daylight, .fuelNearby, .weatherAlert, .dataCap, .travelAdvisory, .regionalSecurity, .rainSoon, .publicHoliday]
+            [.strongWind, .daylight, .uvIndex, .airQuality, .fuelNearby, .weatherAlert, .dataCap, .stayAllowance, .schengenLimit, .taxResidenceDays, .travelAdvisory, .regionalSecurity, .rainSoon, .publicHoliday]
         }
     }
 }
@@ -63,6 +68,20 @@ public struct DashboardInsight: Identifiable, Equatable, Sendable {
     }
 }
 
+/// What the engine needs, beyond the dashboard snapshot, to derive stay heads-ups.
+public struct StayInsightInput: Equatable, Sendable {
+    public let countryDays: [VisitedCountryDay]
+    public let settings: AppSettings
+    /// ISO 3166-1 alpha-2 code of the country the Mac is in right now, if known.
+    public let currentCountryCode: String?
+
+    public init(countryDays: [VisitedCountryDay], settings: AppSettings, currentCountryCode: String?) {
+        self.countryDays = countryDays
+        self.settings = settings
+        self.currentCountryCode = currentCountryCode
+    }
+}
+
 /// Derives the few actionable "heads-up" items for a travelling remote worker from a snapshot.
 ///
 /// Network and power health are intentionally excluded: `DashboardHealthEvaluator` owns those.
@@ -73,9 +92,19 @@ public enum DashboardInsightEngine {
     static let windCautionKph = 40.0
     static let windAttentionKph = 60.0
     static let rainChanceThreshold = 0.6
+    /// WHO UV index categories: 6-7 high, 8-10 very high, 11+ extreme.
+    /// https://www.who.int/news-room/questions-and-answers/item/radiation-the-ultraviolet-(uv)-index
+    static let airQualityLookAheadInterval: TimeInterval = 12 * 3_600
+    static let uvHighThreshold = 6
+    static let uvVeryHighThreshold = 8
+    static let uvExtremeThreshold = 11
     static let holidayLookAheadDays = 3
     static let daylightCautionInterval: TimeInterval = 60 * 60
     static let daylightInfoInterval: TimeInterval = 120 * 60
+    static let stayCautionDays = 14
+    static let stayAttentionDays = 3
+    static let taxResidenceInfoLeadDays = 30
+    static let taxResidenceCautionLeadDays = 7
     /// The dark heads-up waits this long after civil dusk so it does not flicker while the light fades.
     static let darkGraceInterval: TimeInterval = 30 * 60
     private static let detailCharacterLimit = 44
@@ -85,7 +114,8 @@ public enum DashboardInsightEngine {
         now: Date,
         calendar: Calendar = .current,
         limit: Int = 3,
-        profile: TravelProfile = .nomad
+        profile: TravelProfile = .nomad,
+        stays: StayInsightInput? = nil
     ) -> [DashboardInsight] {
         guard limit > 0 else {
             return []
@@ -95,9 +125,20 @@ public enum DashboardInsightEngine {
         var candidates: [DashboardInsight] = []
 
         candidates.append(contentsOf: dataCapInsight(for: snapshot.meteredData))
+        if let stays {
+            candidates.append(contentsOf: stayInsights(for: stays, now: now, calendar: calendar, locale: locale))
+        }
         candidates.append(contentsOf: travelAlertInsights(for: snapshot.travelAlerts))
         candidates.append(contentsOf: windInsight(for: snapshot.weather, now: now, calendar: calendar, locale: locale))
         candidates.append(contentsOf: rainInsight(for: snapshot.weather, now: now, calendar: calendar, locale: locale))
+        candidates.append(contentsOf: uvInsight(
+            for: snapshot.weather,
+            travelContext: snapshot.travelContext,
+            now: now,
+            calendar: calendar,
+            locale: locale
+        ))
+        candidates.append(contentsOf: airQualityInsight(for: snapshot.airQuality, now: now, calendar: calendar, locale: locale))
         candidates.append(contentsOf: holidayInsight(for: snapshot.localInfo, now: now, calendar: calendar, locale: locale))
         candidates.append(contentsOf: fuelInsight(for: snapshot.fuelPrices, locale: locale))
         if profile == .roadTrip {
@@ -161,6 +202,103 @@ public enum DashboardInsightEngine {
         }
 
         return []
+    }
+
+    // MARK: - Stays
+
+    private static func stayInsights(
+        for input: StayInsightInput,
+        now: Date,
+        calendar: Calendar,
+        locale: Locale
+    ) -> [DashboardInsight] {
+        let settings = input.settings
+        guard DashboardCardID.stays.isFeatureEnabled(in: settings) else {
+            return []
+        }
+
+        let currentCode = input.currentCountryCode.flatMap(AppSettings.normalizedCountryCode)
+        let calculator = StayCalculator(
+            days: input.countryDays,
+            now: now,
+            calendar: calendar,
+            liveCountryCode: currentCode
+        )
+        let dayStyle = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
+            .day().month(.abbreviated)
+
+        var insights: [DashboardInsight] = []
+
+        if let currentCode,
+           let allowanceDays = settings.stayAllowances[currentCode],
+           let status = calculator.allowanceStatus(country: currentCode, allowanceDays: allowanceDays),
+           status.remainingDays <= stayCautionDays
+        {
+            let countryName = locale.localizedString(forRegionCode: currentCode) ?? currentCode
+            let leaveBy = status.lastPermittedDay.formatted(dayStyle)
+            let phrase: (title: String, menuBar: String) = if status.overstayDays > 0 {
+                ("\(dayCount(status.overstayDays)) over", "\(dayCount(status.overstayDays)) over")
+            } else if status.remainingDays == 0 {
+                ("last day", "Last day")
+            } else {
+                ("\(dayCount(status.remainingDays)) left", "\(dayCount(status.remainingDays)) left")
+            }
+            insights.append(DashboardInsight(
+                kind: .stayAllowance,
+                severity: status.remainingDays <= stayAttentionDays ? .attention : .caution,
+                symbolName: "calendar.badge.clock",
+                title: "\(countryName): \(phrase.title)",
+                menuBarText: phrase.menuBar,
+                detail: status.overstayDays > 0
+                    ? "Allowance \(dayCount(allowanceDays)) · ended \(leaveBy)"
+                    : "Allowance \(dayCount(allowanceDays)) · leave by \(leaveBy)",
+                relatedCard: .stays
+            ))
+        }
+
+        // Without a citizenship it is unknown whether the limit applies, so only the card says so.
+        if settings.schengenCounterEnabled,
+           case let .counting(allowance) = calculator.schengenStatus(citizenships: settings.citizenshipCountryCodes),
+           let mustLeaveBy = allowance.mustLeaveBy,
+           allowance.remainingDays <= stayCautionDays
+        {
+            let limit = SchengenArea.maximumStayDays
+            let overstay = allowance.usedDays - limit
+            insights.append(DashboardInsight(
+                kind: .schengenLimit,
+                severity: allowance.remainingDays <= stayAttentionDays ? .attention : .caution,
+                symbolName: "globe.europe.africa",
+                title: "Schengen: \(allowance.remainingDays) of \(limit) days left",
+                menuBarText: "Schengen \(allowance.remainingDays)d",
+                detail: overstay > 0
+                    ? "Over the limit by \(dayCount(overstay))"
+                    : "Leave by \(mustLeaveBy.formatted(dayStyle))",
+                relatedCard: .stays
+            ))
+        }
+
+        if settings.taxResidenceDaysEnabled, let currentCode {
+            let threshold = settings.taxResidenceThresholdDays
+            let days = calculator.taxYearDays(year: calendar.component(.year, from: now)).days(inCountry: currentCode)
+            if days > 0, days >= threshold - taxResidenceInfoLeadDays {
+                let countryName = locale.localizedString(forRegionCode: currentCode) ?? currentCode
+                insights.append(DashboardInsight(
+                    kind: .taxResidenceDays,
+                    severity: days >= threshold - taxResidenceCautionLeadDays ? .caution : .info,
+                    symbolName: "building.columns",
+                    title: "\(countryName): \(dayCount(days)) this year",
+                    menuBarText: dayCount(days),
+                    detail: "\(threshold)-day tax residence threshold · not tax advice",
+                    relatedCard: .stays
+                ))
+            }
+        }
+
+        return insights
+    }
+
+    private static func dayCount(_ count: Int) -> String {
+        count == 1 ? "1 day" : "\(count) days"
     }
 
     // MARK: - Travel alerts
@@ -339,19 +477,177 @@ public enum DashboardInsightEngine {
             .sorted { $0.date < $1.date }
     }
 
-    // MARK: - Public holiday
+    // MARK: - UV index
 
-    private static func holidayInsight(
-        for localInfo: LocalInfoSnapshot?,
+    /// Warns about the strongest UV left in today's daylight. The hourly forecast only has a few slots, so the
+    /// time range is the run of consecutive readings (the current one first) that reach the same WHO category.
+    private static func uvInsight(
+        for weather: WeatherSnapshot?,
+        travelContext: TravelContextSnapshot,
         now: Date,
         calendar: Calendar,
         locale: Locale
     ) -> [DashboardInsight] {
-        guard let status = localInfo?.publicHolidayStatus else {
+        guard let weather else {
             return []
         }
 
-        // The stored state was computed at fetch time, so re-derive relative to `now` from the periods.
+        let reference = DaylightReference(travelContext: travelContext)
+        let sunset = reference.flatMap { reference in
+            let today = reference.solarDay(on: now)
+            return today.isPolarDay || today.isPolarNight ? nil : today.sunset
+        }
+        // Without a location to compute the sunset, fall back to the rest of the calendar day.
+        func isDaylight(_ date: Date) -> Bool {
+            if let sunset {
+                return date < sunset
+            }
+            return calendar.isDate(date, inSameDayAs: now)
+        }
+
+        var readings: [(date: Date?, uv: Int)] = []
+        if isCurrentReadingFresh(weather, now: now), isDaylight(now), let uv = weather.uvIndex {
+            readings.append((nil, uv))
+        }
+        for slot in weather.hourlyForecastSlots.sorted(by: { $0.date < $1.date })
+            where slot.date >= now && isDaylight(slot.date)
+        {
+            if let uv = slot.uvIndex {
+                readings.append((slot.date, uv))
+            }
+        }
+
+        guard let peak = readings.map(\.uv).max(), peak >= uvHighThreshold,
+              let peakIndex = readings.firstIndex(where: { $0.uv == peak })
+        else {
+            return []
+        }
+
+        let (severity, floor): (DashboardInsightSeverity, Int) = if peak >= uvExtremeThreshold {
+            (.attention, uvExtremeThreshold)
+        } else if peak >= uvVeryHighThreshold {
+            (.caution, uvVeryHighThreshold)
+        } else {
+            (.info, uvHighThreshold)
+        }
+
+        // The run of consecutive readings at or above the category's floor around the peak.
+        var first = peakIndex
+        while first > readings.startIndex, readings[first - 1].uv >= floor {
+            first -= 1
+        }
+        var last = peakIndex
+        while last < readings.endIndex - 1, readings[last + 1].uv >= floor {
+            last += 1
+        }
+
+        func clock(_ date: Date?) -> String {
+            guard let date else {
+                return "now"
+            }
+            return reference.map { $0.clockTime(date, locale: locale) } ?? timeString(date, calendar: calendar, locale: locale)
+        }
+        let start = clock(readings[first].date)
+        let end = clock(readings[last].date)
+
+        let label: String
+        let detail: String
+        switch severity {
+        case .attention:
+            label = "extreme"
+            detail = "Avoid midday sun; cover up and use SPF 30+"
+        case .caution:
+            label = "very high"
+            detail = "Seek shade at midday; SPF 30+"
+        case .info:
+            label = "high"
+            detail = "Hat and sunscreen around midday"
+        }
+
+        // Caution reads "from 12:00"; the others give the span, or one moment when there is no span.
+        let when: String = if severity == .caution {
+            "from \(start)"
+        } else if first == last {
+            readings[first].date == nil ? "now" : "around \(start)"
+        } else {
+            "\(start)–\(end)"
+        }
+
+        return [DashboardInsight(
+            kind: .uvIndex,
+            severity: severity,
+            symbolName: severity == .info ? "sun.max" : "sun.max.trianglebadge.exclamationmark",
+            title: "UV \(label) (\(peak)) \(when)",
+            menuBarText: "UV \(peak)",
+            detail: detail,
+            relatedCard: .weather
+        )]
+    }
+
+    // MARK: - Air quality
+
+    /// European AQI of 60+ (poor) is worth a heads-up; moderate or better is not. Also warns when the
+    /// next hours are forecast to reach poor while the air is not poor now.
+    private static func airQualityInsight(
+        for airQuality: AirQualitySnapshot?,
+        now: Date,
+        calendar: Calendar,
+        locale: Locale
+    ) -> [DashboardInsight] {
+        guard let airQuality, now.timeIntervalSince(airQuality.fetchedAt) <= currentReadingMaxAge else {
+            return []
+        }
+
+        let aqi = airQuality.europeanAQI
+        if aqi >= EuropeanAQIBand.poorThreshold {
+            let isVeryPoor = aqi >= EuropeanAQIBand.veryPoorThreshold
+            let advice = isVeryPoor ? "limit time outdoors" : "consider shorter outdoor activity"
+            let detail = airQuality.mainPollutant.map { "Mostly \($0.displayName) · \(advice)" }
+                ?? advice.prefix(1).uppercased() + advice.dropFirst()
+            return [DashboardInsight(
+                kind: .airQuality,
+                severity: isVeryPoor ? .attention : .caution,
+                symbolName: isVeryPoor ? "aqi.high" : "aqi.medium",
+                title: "Air quality \(airQuality.band.title.lowercased()) (AQI \(aqi))",
+                menuBarText: "AQI \(aqi)",
+                detail: detail,
+                relatedCard: .weather
+            )]
+        }
+
+        let upcoming = airQuality.forecastSlots
+            .filter { $0.date > now && $0.date <= now.addingTimeInterval(airQualityLookAheadInterval) }
+            .sorted { $0.date < $1.date }
+        guard let onset = upcoming.first(where: { ($0.europeanAQI ?? 0) >= EuropeanAQIBand.poorThreshold }) else {
+            return []
+        }
+
+        let peak = upcoming.compactMap(\.europeanAQI).max() ?? aqi
+        return [DashboardInsight(
+            kind: .airQuality,
+            severity: .caution,
+            symbolName: "aqi.medium",
+            title: "Air quality worsening from \(timeString(onset.date, calendar: calendar, locale: locale))",
+            menuBarText: "AQI ↑\(peak)",
+            detail: "Forecast AQI up to \(peak) · now \(aqi)",
+            relatedCard: .weather
+        )]
+    }
+
+    // MARK: - Public holiday
+
+    /// The public holiday that is on now or starts within `holidayLookAheadDays`, with the number of
+    /// whole days from today (0 = on today). The stored state was computed at fetch time, so this
+    /// re-derives it relative to `now` from the periods.
+    static func nextPublicHoliday(
+        in localInfo: LocalInfoSnapshot?,
+        now: Date,
+        calendar: Calendar
+    ) -> (period: HolidayPeriodSnapshot, offset: Int)? {
+        guard let status = localInfo?.publicHolidayStatus else {
+            return nil
+        }
+
         let today = calendar.startOfDay(for: now)
         let upcoming: [(period: HolidayPeriodSnapshot, offset: Int)] = [status.currentPeriod, status.nextPeriod]
             .compactMap { $0 }
@@ -370,6 +666,18 @@ public enum DashboardInsightEngine {
         guard let next = upcoming.min(by: { $0.offset < $1.offset }),
               next.offset <= holidayLookAheadDays
         else {
+            return nil
+        }
+        return next
+    }
+
+    private static func holidayInsight(
+        for localInfo: LocalInfoSnapshot?,
+        now: Date,
+        calendar: Calendar,
+        locale: Locale
+    ) -> [DashboardInsight] {
+        guard let next = nextPublicHoliday(in: localInfo, now: now, calendar: calendar) else {
             return []
         }
 

@@ -276,24 +276,7 @@ private extension [Double?] {
 
 private extension MarineSeries {
     static func parseDates(_ values: [String], timezoneIdentifier: String?, utcOffsetSeconds: Int?) throws -> [Date] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm"
-
-        if let timezoneIdentifier, let timezone = TimeZone(identifier: timezoneIdentifier) {
-            formatter.timeZone = timezone
-        } else if let utcOffsetSeconds, let timezone = TimeZone(secondsFromGMT: utcOffsetSeconds) {
-            formatter.timeZone = timezone
-        } else {
-            formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        }
-
-        let dates = values.compactMap { formatter.date(from: $0) }
-        guard dates.count == values.count else {
-            throw ProviderError.invalidResponse
-        }
-
-        return dates
+        try OpenMeteoTimestamps.dates(from: values, timezoneIdentifier: timezoneIdentifier, utcOffsetSeconds: utcOffsetSeconds)
     }
 }
 

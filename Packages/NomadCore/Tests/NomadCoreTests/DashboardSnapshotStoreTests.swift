@@ -1192,6 +1192,100 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func refreshFetchesAirQualityForTheWeatherLocation() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let airQualityProvider = RecordingAirQualityProvider()
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(airQualityProvider: airQualityProvider, historyStore: InMemoryHistoryStore())
+        )
+        store.setCurrentLocation(CLLocation(latitude: 60.1699, longitude: 24.9384))
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.airQuality?.europeanAQI == 42)
+        #expect(store.sectionActivity[.airQuality]?.lastSuccessAt != nil)
+        #expect(await airQualityProvider.requestedCoordinates().count == 1)
+    }
+
+    @Test
+    func refreshSkipsAirQualityWhenItsSettingOrWeatherLocationIsOff() async throws {
+        for configure in [
+            { (settings: inout AppSettings) in settings.airQualityEnabled = false },
+            { (settings: inout AppSettings) in settings.useCurrentLocationForWeather = false }
+        ] {
+            let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+            configure(&settingsStore.settings)
+            let airQualityProvider = RecordingAirQualityProvider()
+            let store = DashboardSnapshotStore(
+                settingsStore: settingsStore,
+                dependencies: makeDependencies(airQualityProvider: airQualityProvider, historyStore: InMemoryHistoryStore())
+            )
+            store.setCurrentLocation(CLLocation(latitude: 60.1699, longitude: 24.9384))
+
+            await store.refresh(manual: true)
+
+            #expect(store.snapshot.airQuality == nil)
+            #expect(store.sectionActivity[.airQuality] == nil)
+            #expect(await airQualityProvider.requestedCoordinates().isEmpty)
+        }
+    }
+
+    @Test
+    func airQualityFailureLeavesWeatherIntactAndReportsTheSection() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(airQualityProvider: FailingAirQualityProvider(), historyStore: InMemoryHistoryStore())
+        )
+        store.setCurrentLocation(CLLocation(latitude: 60.1699, longitude: 24.9384))
+
+        await store.refresh(manual: true)
+
+        #expect(store.snapshot.weather?.conditionDescription == "Clear")
+        #expect(store.snapshot.airQuality == nil)
+        #expect(store.sectionActivity[.airQuality]?.message != nil)
+        #expect(store.sectionActivity[.airQuality]?.isRefreshing == false)
+    }
+
+    @Test
+    func turningAirQualityOffClearsTheSnapshot() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(historyStore: InMemoryHistoryStore())
+        )
+        store.setCurrentLocation(CLLocation(latitude: 60.1699, longitude: 24.9384))
+        await store.refresh(manual: true)
+        #expect(store.snapshot.airQuality != nil)
+
+        settingsStore.settings.airQualityEnabled = false
+
+        try await waitUntil { store.snapshot.airQuality == nil }
+        #expect(store.sectionActivity[.airQuality] == nil)
+        #expect(store.snapshot.weather != nil)
+    }
+
+    @Test
+    func turningAirQualityOnRefreshesImmediately() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.airQualityEnabled = false
+        let airQualityProvider = RecordingAirQualityProvider()
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(airQualityProvider: airQualityProvider, historyStore: InMemoryHistoryStore())
+        )
+        store.setCurrentLocation(CLLocation(latitude: 60.1699, longitude: 24.9384))
+        await store.refresh(manual: true)
+        #expect(await airQualityProvider.requestedCoordinates().isEmpty)
+
+        settingsStore.settings.airQualityEnabled = true
+
+        try await waitUntil { await airQualityProvider.requestedCoordinates().count >= 1 }
+        try await waitUntil { store.snapshot.airQuality != nil }
+    }
+
+    @Test
     func staleDeviceLocationIsNotReverseGeocodedOrRecordedAsCurrent() async throws {
         let reverseGeocoder = RecordingReverseGeocodingProvider()
         let dependencies = makeDependencies(
@@ -1375,6 +1469,7 @@ private func makeDependencies(
     fuelPriceProvider: any FuelPriceProvider = FixedFuelPriceProvider(),
     emergencyCareProvider: any EmergencyCareProvider = FixedEmergencyCareProvider(),
     marineProvider: any MarineProvider = FixedMarineProvider(),
+    airQualityProvider: any AirQualityProvider = FixedAirQualityProvider(),
     neighborCountryResolver: any NeighborCountryResolver = FixedNeighborCountryResolver(),
     travelAdvisoryProvider: any TravelAdvisoryProvider = FixedTravelAdvisoryProvider(),
     travelWeatherAlertsProvider: any TravelWeatherAlertsProvider = FixedTravelWeatherAlertsProvider(),
@@ -1400,6 +1495,7 @@ private func makeDependencies(
         fuelPriceProvider: fuelPriceProvider,
         emergencyCareProvider: emergencyCareProvider,
         marineProvider: marineProvider,
+        airQualityProvider: airQualityProvider,
         neighborCountryResolver: neighborCountryResolver,
         travelAdvisoryProvider: travelAdvisoryProvider,
         travelWeatherAlertsProvider: travelWeatherAlertsProvider,
@@ -2520,6 +2616,43 @@ private struct FixedMarineProvider: MarineProvider {
             ],
             fetchedAt: .now
         )
+    }
+}
+
+private struct FixedAirQualityProvider: AirQualityProvider {
+    func airQuality(for coordinate: CLLocationCoordinate2D) async throws -> AirQualitySnapshot {
+        AirQualitySnapshot(
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            sourceName: "Open-Meteo",
+            europeanAQI: 42,
+            mainPollutant: .pm2_5,
+            pm2_5: 14,
+            pm10: 22,
+            ozone: 60,
+            nitrogenDioxide: 12,
+            forecastSlots: [],
+            fetchedAt: .now
+        )
+    }
+}
+
+private actor RecordingAirQualityProvider: AirQualityProvider {
+    private var coordinates: [CLLocationCoordinate2D] = []
+
+    func airQuality(for coordinate: CLLocationCoordinate2D) async throws -> AirQualitySnapshot {
+        coordinates.append(coordinate)
+        return try await FixedAirQualityProvider().airQuality(for: coordinate)
+    }
+
+    func requestedCoordinates() -> [CLLocationCoordinate2D] {
+        coordinates
+    }
+}
+
+private struct FailingAirQualityProvider: AirQualityProvider {
+    func airQuality(for coordinate: CLLocationCoordinate2D) async throws -> AirQualitySnapshot {
+        throw ProviderError.invalidResponse
     }
 }
 

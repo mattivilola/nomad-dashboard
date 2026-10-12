@@ -10,6 +10,8 @@ public struct OfflineDashboardContent: Codable, Equatable, Sendable {
     public let fuelPrices: FuelPriceSnapshot?
     public let emergencyCare: EmergencyCareSnapshot?
     public let marine: MarineSnapshot?
+    /// Optional so caches written before air quality existed still decode.
+    public let airQuality: AirQualitySnapshot?
     public let travelAlerts: TravelAlertsSnapshot?
     public let deviceLocation: IPLocationSnapshot?
     public let location: IPLocationSnapshot?
@@ -23,6 +25,7 @@ public struct OfflineDashboardContent: Codable, Equatable, Sendable {
         fuelPrices = snapshot.fuelPrices
         emergencyCare = Self.bounded(snapshot.emergencyCare)
         marine = Self.bounded(snapshot.marine)
+        airQuality = Self.bounded(snapshot.airQuality)
         travelAlerts = Self.bounded(snapshot.travelAlerts)
         deviceLocation = snapshot.travelContext.deviceLocation
         location = snapshot.travelContext.location
@@ -48,6 +51,7 @@ public struct OfflineDashboardContent: Codable, Equatable, Sendable {
             fuelDiagnostics: snapshot.fuelDiagnostics,
             emergencyCare: emergencyCare,
             marine: marine,
+            airQuality: airQuality,
             appState: snapshot.appState,
             meteredData: snapshot.meteredData
         )
@@ -63,6 +67,7 @@ public struct OfflineDashboardContent: Codable, Equatable, Sendable {
             precipitationChance: weather.precipitationChance,
             windSpeedKph: weather.windSpeedKph,
             windDirectionDegrees: weather.windDirectionDegrees,
+            uvIndex: weather.uvIndex,
             hourlyForecastSlots: Array(weather.hourlyForecastSlots.prefix(48)),
             dailyForecast: Array(weather.dailyForecast.prefix(10)),
             fetchedAt: weather.fetchedAt
@@ -99,6 +104,23 @@ public struct OfflineDashboardContent: Codable, Equatable, Sendable {
             seaSurfaceTemperatureCelsius: marine.seaSurfaceTemperatureCelsius,
             forecastSlots: Array(marine.forecastSlots.prefix(48)),
             fetchedAt: marine.fetchedAt
+        )
+    }
+
+    private static func bounded(_ airQuality: AirQualitySnapshot?) -> AirQualitySnapshot? {
+        guard let airQuality else { return nil }
+        return AirQualitySnapshot(
+            latitude: airQuality.latitude,
+            longitude: airQuality.longitude,
+            sourceName: airQuality.sourceName,
+            europeanAQI: airQuality.europeanAQI,
+            mainPollutant: airQuality.mainPollutant,
+            pm2_5: airQuality.pm2_5,
+            pm10: airQuality.pm10,
+            ozone: airQuality.ozone,
+            nitrogenDioxide: airQuality.nitrogenDioxide,
+            forecastSlots: Array(airQuality.forecastSlots.prefix(24)),
+            fetchedAt: airQuality.fetchedAt
         )
     }
 

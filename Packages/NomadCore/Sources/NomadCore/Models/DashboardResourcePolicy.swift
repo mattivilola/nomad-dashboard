@@ -78,7 +78,7 @@ public struct DashboardResourcePolicy: Equatable, Sendable {
 }
 
 public enum DashboardDataSection: String, Codable, CaseIterable, Sendable, Identifiable {
-    case location, publicIP, weather, localInfo, fuel, emergencyCare, marine, travelAlerts
+    case location, publicIP, weather, localInfo, fuel, emergencyCare, marine, airQuality, travelAlerts
     public var id: String {
         rawValue
     }
@@ -92,6 +92,7 @@ public enum DashboardDataSection: String, Codable, CaseIterable, Sendable, Ident
         case .fuel: "Fuel prices"
         case .emergencyCare: "Emergency care"
         case .marine: "Surf forecast"
+        case .airQuality: "Air quality"
         case .travelAlerts: "Travel alerts"
         }
     }

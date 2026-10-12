@@ -224,6 +224,27 @@ private struct ProbeRunner {
             results.append(.skipped(name: "Open-Meteo marine", reason: "Coordinate unavailable."))
         }
 
+        let airQualityProvider = LiveOpenMeteoAirQualityProvider()
+        if let coordinate {
+            await results.append(
+                probe("Open-Meteo air quality") {
+                    let snapshot = try await airQualityProvider.airQuality(for: coordinate)
+                    return ProbeResult.success(
+                        name: "Open-Meteo air quality",
+                        lines: [
+                            "grid point: \(snapshot.latitude), \(snapshot.longitude)",
+                            "european AQI: \(snapshot.europeanAQI) (\(snapshot.band.title))",
+                            "main pollutant: \(snapshot.mainPollutant?.displayName ?? "n/a")",
+                            "pm2.5 / pm10 ug/m3: \(displayNumber(snapshot.pm2_5)) / \(displayNumber(snapshot.pm10))",
+                            "forecast hours: \(snapshot.forecastSlots.count)"
+                        ]
+                    )
+                }
+            )
+        } else {
+            results.append(.skipped(name: "Open-Meteo air quality", reason: "Coordinate unavailable."))
+        }
+
         if fuelCountryCode == "ES" {
             await results.append(
                 probe("Spain fuel URLSession preflight") {

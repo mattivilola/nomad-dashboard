@@ -12,6 +12,7 @@ struct DashboardSnapshotDraft {
     var fuelDiagnostics: FuelDiagnosticsSnapshot?
     var emergencyCare: EmergencyCareSnapshot?
     var marine: MarineSnapshot?
+    var airQuality: AirQualitySnapshot?
     var appState: AppStatusSnapshot
     var meteredData: MeteredUsageSnapshot
 
@@ -26,6 +27,7 @@ struct DashboardSnapshotDraft {
         fuelDiagnostics = snapshot.fuelDiagnostics
         emergencyCare = snapshot.emergencyCare
         marine = snapshot.marine
+        airQuality = snapshot.airQuality
         appState = snapshot.appState
         meteredData = snapshot.meteredData
     }
@@ -42,6 +44,7 @@ struct DashboardSnapshotDraft {
             fuelDiagnostics: fuelDiagnostics,
             emergencyCare: emergencyCare,
             marine: marine,
+            airQuality: airQuality,
             appState: appState,
             meteredData: meteredData
         )

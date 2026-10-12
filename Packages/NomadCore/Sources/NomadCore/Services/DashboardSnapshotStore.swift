@@ -572,6 +572,9 @@ public final class DashboardSnapshotStore: ObservableObject {
         if settings.surfSpotConfiguration.isValid {
             result.append(.marine)
         }
+        if settings.isAirQualityActive {
+            result.append(.airQuality)
+        }
         if !settings.travelAlertPreferences.enabledKinds.isEmpty {
             result.append(.travelAlerts)
         }
@@ -719,7 +722,8 @@ public final class DashboardSnapshotStore: ObservableObject {
 
     private enum RemoteValue: Sendable {
         case weather(WeatherSnapshot), localInfo(LocalInfoSnapshot), fuel(FuelPriceSnapshot, FuelDiagnosticsSnapshot)
-        case emergency(EmergencyCareSnapshot), marine(MarineSnapshot), alerts(TravelAlertsSnapshot)
+        case emergency(EmergencyCareSnapshot), marine(MarineSnapshot), airQuality(AirQualitySnapshot)
+        case alerts(TravelAlertsSnapshot)
     }
 
     private func refreshSection(
@@ -747,6 +751,9 @@ public final class DashboardSnapshotStore: ObservableObject {
                     case .marine:
                         guard let name = settings.surfSpotConfiguration.name, let spotCoordinate = settings.surfSpotConfiguration.coordinate else { throw ProviderError.missingCoordinate }
                         return try await .marine(self.dependencies.marineProvider.marine(for: MarineSpot(name: name, coordinate: spotCoordinate)))
+                    case .airQuality:
+                        guard let coordinate else { throw ProviderError.missingCoordinate }
+                        return try await .airQuality(self.dependencies.airQualityProvider.airQuality(for: coordinate))
                     case .travelAlerts:
                         return await .alerts(self.refreshTravelAlerts(settings: settings, locationSnapshot: context, previousSnapshot: previousAlerts, manual: manual, now: Date()))
                     case .location, .publicIP: throw ProviderError.invalidResponse
@@ -780,6 +787,8 @@ public final class DashboardSnapshotStore: ObservableObject {
                     }
                     fetchedAt = failed ? nil : value.fetchedAt
                 case let .marine(value): draft.marine = value
+                    fetchedAt = value.fetchedAt
+                case let .airQuality(value): draft.airQuality = value
                     fetchedAt = value.fetchedAt
                 case let .alerts(value):
                     draft.travelAlerts = value
@@ -878,6 +887,7 @@ public final class DashboardSnapshotStore: ObservableObject {
     private func clearLocationDependentContent() {
         mutateSnapshot { draft in
             draft.weather = nil
+            draft.airQuality = nil
             draft.localInfo = nil
             draft.fuelPrices = nil
             draft.fuelDiagnostics = nil
@@ -893,7 +903,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                 location: old.location
             )
         }
-        for section in [DashboardDataSection.location, .weather, .localInfo, .fuel, .emergencyCare, .travelAlerts] {
+        for section in [DashboardDataSection.location, .weather, .airQuality, .localInfo, .fuel, .emergencyCare, .travelAlerts] {
             sectionActivity[section] = DashboardSectionActivity(message: "Updating for your new location")
         }
     }
@@ -915,6 +925,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             || snapshot.fuelPrices != nil
             || snapshot.emergencyCare != nil
             || snapshot.marine != nil
+            || snapshot.airQuality != nil
             || snapshot.travelAlerts?.states.contains(where: { $0.resolvedSignal != nil }) == true
             || snapshot.travelContext.deviceLocation != nil
             || snapshot.travelContext.location != nil
@@ -987,6 +998,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                             .location: content.deviceLocation?.fetchedAt, .weather: content.weather?.fetchedAt,
                             .localInfo: content.localInfo?.fetchedAt, .fuel: content.fuelPrices?.fetchedAt,
                             .emergencyCare: content.emergencyCare?.fetchedAt, .marine: content.marine?.fetchedAt,
+                            .airQuality: content.airQuality?.fetchedAt,
                             .travelAlerts: content.travelAlerts?.fetchedAt
                         ]
                         for (section, date) in dates {
@@ -1028,6 +1040,10 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
 
         if previousSettings.useCurrentLocationForWeather != newSettings.useCurrentLocationForWeather {
+            needsManualRefresh = true
+        }
+
+        if previousSettings.airQualityEnabled != newSettings.airQualityEnabled {
             needsManualRefresh = true
         }
 
@@ -1121,6 +1137,9 @@ public final class DashboardSnapshotStore: ObservableObject {
         mutateSnapshot { draft in
             if !settings.useCurrentLocationForWeather {
                 draft.weather = nil
+            }
+            if !settings.isAirQualityActive {
+                draft.airQuality = nil
             }
             if !settings.localInfoEnabled {
                 draft.localInfo = nil

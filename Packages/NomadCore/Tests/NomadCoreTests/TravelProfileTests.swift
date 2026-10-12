@@ -37,6 +37,7 @@ struct TravelProfileTests {
             .power,
             .meteredData,
             .travelAlerts,
+            .stays,
             .connectivity,
             .localInfo,
             .travelContext,
