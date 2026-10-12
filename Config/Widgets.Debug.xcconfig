@@ -1,0 +1,9 @@
+// Debug configuration of the widget extension. The bundle identifier is the debug app's plus ".widgets",
+// and the App Group is the debug app's, so the two share the widget snapshot file.
+#include "Version.xcconfig"
+#include? "Signing.debug.local.xcconfig"
+
+PRODUCT_NAME = NomadDashboardWidgets
+PRODUCT_BUNDLE_IDENTIFIER = com.iloapps.NomadDashboard.dev.widgets
+APP_GROUP_IDENTIFIER = $(TeamIdentifierPrefix)com.iloapps.NomadDashboard.dev
+NOMAD_URL_SCHEME = nomaddashboard-dev

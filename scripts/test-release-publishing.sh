@@ -26,7 +26,7 @@ assert_contains() {
 bootstrap_repo() {
   local repo_path="$1"
 
-  mkdir -p "$repo_path/scripts" "$repo_path/Config"
+  mkdir -p "$repo_path/scripts" "$repo_path/Config" "$repo_path/App/Widgets"
   cp "$REPO_ROOT/scripts/release-common.sh" "$repo_path/scripts/release-common.sh"
   cp "$REPO_ROOT/scripts/release-preflight.sh" "$repo_path/scripts/release-preflight.sh"
   cp "$REPO_ROOT/scripts/sign-and-notarize.sh" "$repo_path/scripts/sign-and-notarize.sh"
@@ -34,6 +34,10 @@ bootstrap_repo() {
   cp "$REPO_ROOT/scripts/check-release-setup.sh" "$repo_path/scripts/check-release-setup.sh"
   cp "$REPO_ROOT/scripts/setup-notary-profile.sh" "$repo_path/scripts/setup-notary-profile.sh"
   chmod +x "$repo_path/scripts/"*.sh
+  cp "$REPO_ROOT/App/NomadDashboard.entitlements" "$repo_path/App/NomadDashboard.entitlements"
+  cp "$REPO_ROOT/App/Widgets/NomadDashboardWidgets.entitlements" "$repo_path/App/Widgets/NomadDashboardWidgets.entitlements"
+  cp "$REPO_ROOT/Config/Release.xcconfig" "$repo_path/Config/Release.xcconfig"
+  cp "$REPO_ROOT/Config/Widgets.Release.xcconfig" "$repo_path/Config/Widgets.Release.xcconfig"
 
   cat > "$repo_path/Config/Version.xcconfig" <<'EOF'
 MARKETING_VERSION = 0.1.6
@@ -89,6 +93,7 @@ run_sign_dry_run_test() {
   assert_contains "$output" "Version: 0.1.6" "sign dry run should report the release version"
   assert_contains "$output" "Tag: v0.1.6" "sign dry run should report the release tag"
   assert_contains "$output" "Sparkle ZIP:" "sign dry run should report the Sparkle zip path"
+  assert_contains "$output" "embedded widget extension" "sign dry run should list the widget extension re-signing step"
 }
 
 run_publish_dry_run_test() {
@@ -503,6 +508,7 @@ EOF
       ./scripts/check-release-setup.sh
   )"
 
+  assert_contains "$output" "OK   Widget extension project configuration" "release-check-setup should validate the widget extension project files"
   assert_contains "$output" "OK   Signing environment configuration" "release-check-setup should validate signing config"
   assert_contains "$output" "OK   Developer ID signing identity" "release-check-setup should validate the signing identity"
   assert_contains "$output" "OK   GitHub CLI authentication" "release-check-setup should validate gh auth"
@@ -592,6 +598,177 @@ EOF
   assert_contains "$output" "Release setup check failed" "release-check-setup should report an overall failure summary"
 }
 
+# Builds a minimal, ad-hoc signed .appex or .app at $1 with the bundle identifier $2. Any further
+# arguments are passed to codesign (for example --entitlements <file>).
+make_fake_bundle() {
+  local bundle_path="$1"
+  local bundle_id="$2"
+  shift 2
+
+  mkdir -p "$bundle_path/Contents/MacOS"
+  cp /usr/bin/true "$bundle_path/Contents/MacOS/fake"
+  cat > "$bundle_path/Contents/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key>
+  <string>fake</string>
+  <key>CFBundleIdentifier</key>
+  <string>$bundle_id</string>
+</dict>
+</plist>
+EOF
+  /usr/bin/codesign --force --sign - "$@" "$bundle_path" >/dev/null 2>&1
+}
+
+# Writes an entitlements plist with one App Group and the App Sandbox set to $3 (true or false).
+write_entitlements() {
+  local file="$1"
+  local group="$2"
+  local sandbox="$3"
+
+  cat > "$file" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.app-sandbox</key>
+  <$sandbox/>
+  <key>com.apple.security.application-groups</key>
+  <array>
+    <string>$group</string>
+  </array>
+</dict>
+</plist>
+EOF
+}
+
+# Runs one widget guard in a bootstrapped repo and sets GUARD_OUTPUT and GUARD_EXIT_CODE.
+run_guard() {
+  local repo_path="$1"
+  local guard="$2"
+
+  set +e
+  GUARD_OUTPUT="$(cd "$repo_path" && NOMAD_TEAM_ID=TEAM123456 zsh -c "source ./scripts/release-common.sh; $guard" 2>&1)"
+  GUARD_EXIT_CODE=$?
+  set -e
+}
+
+archive_app_path() {
+  printf '%s/artifacts/NomadDashboard.xcarchive/Products/Applications/Nomad Dashboard.app\n' "$1"
+}
+
+run_widget_extension_missing_test() {
+  local repo_path="$TEST_ROOT/widget-missing"
+
+  bootstrap_repo "$repo_path"
+  mkdir -p "$(archive_app_path "$repo_path")/Contents"
+  run_guard "$repo_path" assert_archive_widget_extension
+
+  [[ "$GUARD_EXIT_CODE" -ne 0 ]] || fail "assert_archive_widget_extension should fail when the archive has no widget extension"
+  assert_contains "$GUARD_OUTPUT" "does not embed NomadDashboardWidgets.appex" "widget guard should explain that the extension is not embedded"
+}
+
+run_widget_extension_unsandboxed_test() {
+  local repo_path="$TEST_ROOT/widget-unsandboxed"
+
+  bootstrap_repo "$repo_path"
+  make_fake_bundle "$(archive_app_path "$repo_path")/Contents/PlugIns/NomadDashboardWidgets.appex" "com.iloapps.NomadDashboard.widgets"
+  run_guard "$repo_path" assert_archive_widget_extension
+
+  [[ "$GUARD_EXIT_CODE" -ne 0 ]] || fail "assert_archive_widget_extension should fail when the extension is not sandboxed"
+  assert_contains "$GUARD_OUTPUT" "missing the App Sandbox entitlement" "widget guard should require the App Sandbox entitlement"
+}
+
+run_widget_extension_wrong_bundle_id_test() {
+  local repo_path="$TEST_ROOT/widget-bundle-id"
+
+  bootstrap_repo "$repo_path"
+  make_fake_bundle "$(archive_app_path "$repo_path")/Contents/PlugIns/NomadDashboardWidgets.appex" "com.iloapps.NomadDashboard.dev.widgets"
+  run_guard "$repo_path" assert_archive_widget_extension
+
+  [[ "$GUARD_EXIT_CODE" -ne 0 ]] || fail "assert_archive_widget_extension should fail for a development bundle identifier"
+  assert_contains "$GUARD_OUTPUT" "expected 'com.iloapps.NomadDashboard.widgets'" "widget guard should name the expected release bundle identifier"
+}
+
+run_widget_extension_group_mismatch_test() {
+  local repo_path="$TEST_ROOT/widget-group-mismatch"
+  local app_path
+
+  bootstrap_repo "$repo_path"
+  app_path="$(archive_app_path "$repo_path")"
+  write_entitlements "$repo_path/app.entitlements" "TEAM123456.com.iloapps.NomadDashboard" "false"
+  write_entitlements "$repo_path/widget.entitlements" "TEAM123456.com.iloapps.Other" "true"
+  make_fake_bundle "$app_path" "com.iloapps.NomadDashboard" --entitlements "$repo_path/app.entitlements"
+  make_fake_bundle "$app_path/Contents/PlugIns/NomadDashboardWidgets.appex" "com.iloapps.NomadDashboard.widgets" --entitlements "$repo_path/widget.entitlements"
+  run_guard "$repo_path" assert_archive_widget_extension
+
+  [[ "$GUARD_EXIT_CODE" -ne 0 ]] || fail "assert_archive_widget_extension should fail when the extension's App Group differs from the app's"
+  assert_contains "$GUARD_OUTPUT" "differs from the app's" "widget guard should require the same App Group as the app"
+}
+
+run_widget_extension_adhoc_test() {
+  local repo_path="$TEST_ROOT/widget-adhoc"
+  local app_path
+
+  bootstrap_repo "$repo_path"
+  app_path="$(archive_app_path "$repo_path")"
+  write_entitlements "$repo_path/app.entitlements" "TEAM123456.com.iloapps.NomadDashboard" "false"
+  write_entitlements "$repo_path/widget.entitlements" "TEAM123456.com.iloapps.NomadDashboard" "true"
+  make_fake_bundle "$app_path" "com.iloapps.NomadDashboard" --entitlements "$repo_path/app.entitlements"
+  make_fake_bundle "$app_path/Contents/PlugIns/NomadDashboardWidgets.appex" "com.iloapps.NomadDashboard.widgets" --options runtime --entitlements "$repo_path/widget.entitlements"
+  run_guard "$repo_path" assert_archive_widget_extension
+
+  [[ "$GUARD_EXIT_CODE" -ne 0 ]] || fail "assert_archive_widget_extension should fail for an ad-hoc signed extension"
+  assert_contains "$GUARD_OUTPUT" "ad-hoc signed" "widget guard should reject an ad-hoc signature"
+}
+
+run_app_group_team_prefix_test() {
+  local repo_path="$TEST_ROOT/app-group-team-prefix"
+  local app_path
+
+  bootstrap_repo "$repo_path"
+  app_path="$(archive_app_path "$repo_path")"
+  write_entitlements "$repo_path/app.entitlements" "OTHERTEAM1.com.iloapps.NomadDashboard" "false"
+  make_fake_bundle "$app_path" "com.iloapps.NomadDashboard" --entitlements "$repo_path/app.entitlements"
+  run_guard "$repo_path" assert_archive_app_group_entitlement
+
+  [[ "$GUARD_EXIT_CODE" -ne 0 ]] || fail "assert_archive_app_group_entitlement should fail for a group that is not prefixed with the team ID"
+  assert_contains "$GUARD_OUTPUT" "is not prefixed with the team ID TEAM123456" "app group guard should require the team prefix"
+
+  write_entitlements "$repo_path/app.entitlements" "TEAM123456.com.iloapps.NomadDashboard" "false"
+  make_fake_bundle "$app_path" "com.iloapps.NomadDashboard" --entitlements "$repo_path/app.entitlements"
+  run_guard "$repo_path" assert_archive_app_group_entitlement
+
+  [[ "$GUARD_EXIT_CODE" -eq 0 ]] || fail "assert_archive_app_group_entitlement should accept a team-prefixed group: $GUARD_OUTPUT"
+}
+
+run_app_group_missing_test() {
+  local repo_path="$TEST_ROOT/app-group-missing"
+
+  bootstrap_repo "$repo_path"
+  make_fake_bundle "$(archive_app_path "$repo_path")" "com.iloapps.NomadDashboard"
+  run_guard "$repo_path" assert_archive_app_group_entitlement
+
+  [[ "$GUARD_EXIT_CODE" -ne 0 ]] || fail "assert_archive_app_group_entitlement should fail when the app has no App Group"
+  assert_contains "$GUARD_OUTPUT" "missing the App Group entitlement" "app group guard should explain the missing entitlement"
+}
+
+run_widget_project_configuration_test() {
+  local repo_path="$TEST_ROOT/widget-project-config"
+
+  bootstrap_repo "$repo_path"
+  run_guard "$repo_path" assert_widget_project_configuration
+  [[ "$GUARD_EXIT_CODE" -eq 0 ]] || fail "the repository's widget project files should pass the widget configuration check: $GUARD_OUTPUT"
+
+  sed -i '' 's/APP_GROUP_IDENTIFIER/GROUP/' "$repo_path/App/Widgets/NomadDashboardWidgets.entitlements"
+  run_guard "$repo_path" assert_widget_project_configuration
+
+  [[ "$GUARD_EXIT_CODE" -ne 0 ]] || fail "assert_widget_project_configuration should fail when the widget entitlements drop the team-prefixed group"
+  assert_contains "$GUARD_OUTPUT" "APP_GROUP_IDENTIFIER" "widget project check should explain the group requirement"
+}
+
 run_sign_dry_run_test
 run_publish_dry_run_test
 run_dirty_tree_rejection_test
@@ -606,5 +783,13 @@ run_setup_notary_profile_test
 run_setup_notary_profile_requires_apple_id_test
 run_release_check_setup_success_test
 run_release_check_setup_reports_missing_notary_profile_test
+run_widget_extension_missing_test
+run_widget_extension_unsandboxed_test
+run_widget_extension_wrong_bundle_id_test
+run_widget_extension_group_mismatch_test
+run_widget_extension_adhoc_test
+run_app_group_team_prefix_test
+run_app_group_missing_test
+run_widget_project_configuration_test
 
 echo "release publishing tests passed"

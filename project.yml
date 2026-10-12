@@ -44,6 +44,12 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.travel
         LSUIElement: true
+        NomadAppGroupIdentifier: $(APP_GROUP_IDENTIFIER)
+        NomadURLScheme: $(NOMAD_URL_SCHEME)
+        CFBundleURLTypes:
+          - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER)
+            CFBundleURLSchemes:
+              - $(NOMAD_URL_SCHEME)
         NSLocationUsageDescription: Nomad Dashboard uses your location for local weather, travel context, and reading the name of your current Wi‑Fi network for Data Guard hotspot metering.
         NSLocationWhenInUseUsageDescription: Nomad Dashboard uses your location for local weather, travel context, and reading the name of your current Wi‑Fi network for Data Guard hotspot metering.
         ReliefWebAppName: $(RELIEFWEB_APPNAME)
@@ -62,6 +68,37 @@ targets:
       - package: NomadUI
       - package: Sparkle
         product: Sparkle
+      - target: NomadDashboardWidgets
+        embed: true
+        codeSign: true
+  NomadDashboardWidgets:
+    type: app-extension
+    platform: macOS
+    configFiles:
+      Debug: Config/Widgets.Debug.xcconfig
+      Release: Config/Widgets.Release.xcconfig
+    sources:
+      - App/Widgets/Sources
+    info:
+      path: App/Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: Nomad Dashboard Widgets
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        NomadAppGroupIdentifier: $(APP_GROUP_IDENTIFIER)
+        NomadURLScheme: $(NOMAD_URL_SCHEME)
+    settings:
+      base:
+        INFOPLIST_FILE: App/Widgets/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/Widgets/NomadDashboardWidgets.entitlements
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: NomadCore
+      - package: NomadUI
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
 schemes:
   NomadDashboard:
     build:

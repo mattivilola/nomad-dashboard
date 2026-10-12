@@ -16,6 +16,12 @@ Nomad Dashboard is split into three layers:
 4. `NomadUI` renders the snapshot into a compact dashboard.
 5. The app layer wires quick actions, windows, permissions, and update flow.
 
+## Siri, Shortcuts, And Widgets
+
+- `NomadCore/Models/QuickAnswers.swift` turns a snapshot into the spoken and written answers (emergency numbers, status, nearest embassy, daylight). App Intents in `App/Sources/Intents/` read the live stores registered with `AppDependencyManager` in the app's `init` and return those sentences; they never open a window.
+- `WidgetSnapshot` (NomadCore) is the compact, display-ready state for the widgets. `WidgetSnapshotPublisher` (app) writes it to the App Group container after dashboard refreshes, throttled and only when the content changed, and reloads the WidgetKit timelines. The widget extension in `App/Widgets/` only reads it and renders it.
+- The App Group is team-prefixed (`$(TeamIdentifierPrefix)com.iloapps.NomadDashboard[.dev]`, set as `APP_GROUP_IDENTIFIER` in `Config/*.xcconfig`) and is in the entitlements of both the app and the sandboxed extension. Builds without it have no widget data and the app skips writing.
+
 ## Design Goals
 
 - Native macOS feel

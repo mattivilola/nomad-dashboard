@@ -38,6 +38,8 @@ private keys into tracked config or the shipped app bundle.
 8. Local Debug builds default to unsigned mode so `make build`, `make run`, and `make rerun` work without Apple provisioning setup. If you want local WeatherKit access in the separate debug app, create a second App ID for `com.iloapps.NomadDashboard.dev`, enable WeatherKit there too, and add local values plus `DEBUG_CODE_SIGN_ENTITLEMENTS = App/NomadDashboard.entitlements` in `Config/Signing.debug.local.xcconfig`.
 9. Optional for signed local Debug builds: set `NOMAD_DEBUG_ALLOW_PROVISIONING_UPDATES = true` in `Config/Signing.debug.local.xcconfig` to let `xcodebuild` request or refresh the `com.iloapps.NomadDashboard.dev` provisioning profile automatically.
 
+10. Widgets and Siri/Shortcuts: the app embeds a WidgetKit extension (`com.iloapps.NomadDashboard.widgets`, debug `com.iloapps.NomadDashboard.dev.widgets`) and shares data with it through a team-prefixed App Group (`<TeamID>.com.iloapps.NomadDashboard`, debug `<TeamID>.com.iloapps.NomadDashboard.dev`). The group is set once as `APP_GROUP_IDENTIFIER` in `Config/*.xcconfig` and is in both entitlements files (`App/NomadDashboard.entitlements`, `App/Widgets/NomadDashboardWidgets.entitlements`). Team-prefixed groups are the macOS form that needs no App Group registration in the Developer portal. The extension is signed with the same Developer ID identity and needs no provisioning profile of its own, so `Config/Signing.local.xcconfig` (the app's profile) is deliberately not included by `Config/Widgets.Release.xcconfig`. Signed debug builds register the `.dev.widgets` App ID automatically when `NOMAD_DEBUG_ALLOW_PROVISIONING_UPDATES = true`; unsigned debug and CI builds have no App Group, so the widgets stay empty there and the app skips writing the widget snapshot.
+
 `Config/Signing.env` is ignored by git and should stay local to the release machine.
 `Config/AppConfig.local.xcconfig` is also ignored by git and should stay local to developer or release machines.
 
@@ -71,6 +73,7 @@ private keys into tracked config or the shipped app bundle.
    - `appcast.xml`
 9. Install from the DMG, launch the app, and verify `Check for Updates` reaches the published GitHub appcast.
 10. Verify the installed release can load current weather and WeatherKit-backed travel weather alerts.
+11. Verify the widgets: right-click the desktop, choose Edit Widgets, add Glance, Safety and Daylight from Nomad Dashboard, and confirm they show data and "Updated" times after the app has run for a minute. `pluginkit -mAvv -p com.apple.widgetkit-extension | grep -i nomad` lists the registered extension. Also run the Emergency Number action from Shortcuts. The first release that ships the widgets is the first to carry the App Group under Developer ID signing, so treat a widget that stays empty as a signing problem: check `codesign -d --entitlements - "/Applications/Nomad Dashboard.app"` and the extension for `com.apple.security.application-groups`, and if macOS rejects the group, enable the App Groups capability on both App IDs and add the group to their Developer ID profiles.
 
 ## Commands
 
@@ -81,7 +84,7 @@ private keys into tracked config or the shipped app bundle.
 - `make release-dry-run`
   Prints the exact version, tag, repository, feed URL, and artifact paths the release pipeline will use.
 - `make release-check-setup`
-  Verifies the local release prerequisites before you start: command availability, `Config/Signing.env`, Developer ID signing identity, GitHub CLI auth, Sparkle CLI tools, and the stored notary profile. If Apple has blocked notarization because a required agreement is unsigned or expired, this usually surfaces in the notary-profile check once the profile exists.
+  Verifies the local release prerequisites before you start: the widget extension's project files (team-prefixed App Group in both entitlements files, sandbox on the extension, release bundle identifier), command availability, `Config/Signing.env`, Developer ID signing identity, GitHub CLI auth, Sparkle CLI tools, and the stored notary profile. If Apple has blocked notarization because a required agreement is unsigned or expired, this usually surfaces in the notary-profile check once the profile exists.
 - `make release-setup-notary APPLE_ID=<apple-id>`
   Stores or refreshes the `notarytool` keychain profile from `Config/Signing.env`. `notarytool` will still prompt interactively for the app-specific password, but the profile name and Team ID no longer need to be typed manually.
 - `make release`
@@ -92,7 +95,9 @@ private keys into tracked config or the shipped app bundle.
 
 ## Notes
 
-- Version metadata lives in `Config/Version.xcconfig`.
+- Version metadata lives in `Config/Version.xcconfig`. The widget extension takes its version and build number from the same file.
+- The archive embeds `Contents/PlugIns/NomadDashboardWidgets.appex`. `make release` re-signs nested code inside out: the Sparkle helpers and framework, then the widget extension, then the app that seals them, all with the Developer ID identity, `--timestamp`, the hardened runtime and the preserved entitlements. It then checks that the app carries a team-prefixed App Group and that the extension has the release bundle identifier, the App Sandbox (WidgetKit requires it) and the same App Group, is not ad-hoc signed and has the hardened runtime. `codesign --verify --deep --strict` and notarization cover the extension because it is nested in the app.
+- Sparkle updates replace the whole app bundle, so the extension updates with it.
 - Sparkle remains unavailable in local/dev builds until both `SUFeedURL` and `SUPublicEDKey` are injected into the app bundle.
 - Release builds must not ship a shared `TankerkonigAPIKey`; Germany fuel support now depends on a user-supplied key stored in app settings.
 - Treat any new provider the same way: if it needs a private credential, redesign the feature so the client does not ship that shared secret.

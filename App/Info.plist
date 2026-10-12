@@ -18,6 +18,17 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(NOMAD_URL_SCHEME)</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSApplicationCategoryType</key>
@@ -28,6 +39,10 @@
 	<string>Nomad Dashboard uses your location for local weather, travel context, and reading the name of your current Wi‑Fi network for Data Guard hotspot metering.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Nomad Dashboard uses your location for local weather, travel context, and reading the name of your current Wi‑Fi network for Data Guard hotspot metering.</string>
+	<key>NomadAppGroupIdentifier</key>
+	<string>$(APP_GROUP_IDENTIFIER)</string>
+	<key>NomadURLScheme</key>
+	<string>$(NOMAD_URL_SCHEME)</string>
 	<key>ReliefWebAppName</key>
 	<string>$(RELIEFWEB_APPNAME)</string>
 	<key>SUEnableAutomaticChecks</key>

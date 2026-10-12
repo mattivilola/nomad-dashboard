@@ -48,7 +48,8 @@ questions quickly:
 ## Repository Layout
 
 ```text
-App/                    App target sources, assets, scenes, Sparkle glue
+App/                    App target sources, assets, scenes, Sparkle glue, App Intents
+App/Widgets/            Widget extension (WidgetKit) and its entitlements
 Packages/NomadCore/     Models, monitors, persistence, provider protocols
 Packages/NomadUI/       Shared dashboard components, theme, charts
 Config/                 xcconfig templates and release configuration

@@ -1,3 +1,4 @@
+import AppIntents
 import AppKit
 import NomadCore
 import NomadUI
@@ -5,6 +6,7 @@ import SwiftUI
 
 @main
 struct NomadDashboardApp: App {
+    @NSApplicationDelegateAdaptor(NomadAppDelegate.self) private var appDelegate
     @StateObject private var settingsStore: AppSettingsStore
     @StateObject private var snapshotStore: DashboardSnapshotStore
     @StateObject private var locationStore: CurrentLocationStore
@@ -16,6 +18,7 @@ struct NomadDashboardApp: App {
     @StateObject private var nomadsCurrentCity: NomadsCurrentCityController
     private let analytics: AppAnalytics
     private let nomadsCityProvider: NomadsCityProvider
+    private let widgetSnapshotPublisher: WidgetSnapshotPublisher
 
     init() {
         let storageNamespace = AppRuntimeInfo.storageNamespace
@@ -71,6 +74,11 @@ struct NomadDashboardApp: App {
         }
 
         let snapshotStore = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies, analytics: analytics)
+        // Siri and Shortcuts intents read these live stores, and the widgets are fed from them.
+        AppDependencyManager.shared.add(dependency: snapshotStore)
+        AppDependencyManager.shared.add(dependency: settingsStore)
+        IntentSnapshotReader.registerLaunch()
+        widgetSnapshotPublisher = WidgetSnapshotPublisher(snapshotStore: snapshotStore, settingsStore: settingsStore)
         let nomadsCityProvider = NomadsCityProvider()
         self.nomadsCityProvider = nomadsCityProvider
         let nomadsCurrentCity = NomadsCurrentCityController(
@@ -100,6 +108,8 @@ struct NomadDashboardApp: App {
         analytics.recordAppLaunch()
     }
 
+    /// Links from the widgets (`nomaddashboard://dashboard`) are handled by `NomadAppDelegate`; no window scene
+    /// may claim them, or SwiftUI opens that window instead.
     var body: some Scene {
         MenuBarExtra {
             DashboardRootView(
@@ -157,12 +167,14 @@ struct NomadDashboardApp: App {
         }
         .windowResizability(.contentMinSize)
         .defaultSize(width: 780, height: 600)
+        .handlesExternalEvents(matching: [])
 
         Window("About Nomad Dashboard", id: "about") {
             AboutView()
                 .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
         .windowResizability(.contentSize)
+        .handlesExternalEvents(matching: [])
 
         Window("Visited Map", id: "visited-map") {
             VisitedMapWindowView(
@@ -172,6 +184,7 @@ struct NomadDashboardApp: App {
             )
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
+        .handlesExternalEvents(matching: [])
 
         Window("Workplace Diary", id: "workplace-diary") {
             WorkplaceDiaryWindow(controller: lifeController, locationStore: locationStore)
@@ -179,12 +192,14 @@ struct NomadDashboardApp: App {
                 .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
         .defaultSize(width: 740, height: 600)
+        .handlesExternalEvents(matching: [])
 
         Window("Explore Cities", id: "explore-cities") {
             NomadsCityExplorerView(provider: nomadsCityProvider, currentCity: nomadsCurrentCity)
                 .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
         .defaultSize(width: 1_100, height: 760)
+        .handlesExternalEvents(matching: [])
 
         Window("Time Tracking", id: "time-tracking") {
             TimeTrackingWindowView(
@@ -195,6 +210,7 @@ struct NomadDashboardApp: App {
             .onDisappear { runtimeCoordinator.setVisible(false, surface: "time-tracking") }
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
+        .handlesExternalEvents(matching: [])
     }
 }
 

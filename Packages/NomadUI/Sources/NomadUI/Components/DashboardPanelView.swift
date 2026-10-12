@@ -5643,7 +5643,9 @@ struct PillBadge {
     let tint: Color
 }
 
-extension HealthLevel {
+public extension HealthLevel {
+    /// The status colour: teal ready, sand caution, coral attention, neutral while there is no reading.
+    /// Public so the widgets colour status exactly like the dashboard.
     var tint: Color {
         switch self {
         case .ready:

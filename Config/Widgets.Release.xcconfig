@@ -1,0 +1,10 @@
+// Release configuration of the widget extension. The bundle identifier is the app's plus ".widgets",
+// and the App Group is the app's, so the two share the widget snapshot file.
+// Signing.local.xcconfig is not included: its provisioning profile belongs to the app (WeatherKit).
+// The extension is signed with the same Developer ID identity from the command line and needs no profile.
+#include "Version.xcconfig"
+
+PRODUCT_NAME = NomadDashboardWidgets
+PRODUCT_BUNDLE_IDENTIFIER = com.iloapps.NomadDashboard.widgets
+APP_GROUP_IDENTIFIER = $(TeamIdentifierPrefix)com.iloapps.NomadDashboard
+NOMAD_URL_SCHEME = nomaddashboard

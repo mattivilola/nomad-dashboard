@@ -19,9 +19,11 @@ if [[ "$DRY_RUN" == "true" ]]; then
 Dry run steps
   1. Archive the app with release signing and Sparkle metadata overrides.
   2. Verify the archive is Developer ID signed and contains the release feed/public key.
-  3. Notarize a temporary ZIP submission for the archived app.
-  4. Staple the archived app bundle, repackage the final Sparkle ZIP, and create the versioned DMG.
-  5. Notarize and staple the DMG.
+  3. Re-sign the Sparkle components, then the embedded widget extension, then the app (nested code before the code that seals it).
+  4. Verify the signatures, the widget extension's sandbox, App Group and hardened runtime, and the App Group of the app.
+  5. Notarize a temporary ZIP submission for the archived app.
+  6. Staple the archived app bundle, repackage the final Sparkle ZIP, and create the versioned DMG.
+  7. Notarize and staple the DMG.
 EOF
   exit 0
 fi
@@ -84,17 +86,29 @@ resign_sparkle_components() {
   fi
 
   codesign_item "$SPARKLE_FRAMEWORK_PATH"
-  codesign_item "$ARCHIVE_APP_PATH"
+}
+
+# Embedded app extensions are signed after the frameworks and before the app that seals them.
+resign_widget_extensions() {
+  local appex
+
+  while IFS= read -r appex; do
+    [[ -n "$appex" ]] && codesign_item "$appex"
+  done < <(archive_widget_extensions)
 }
 
 ./scripts/archive-release.sh
 resign_sparkle_components
+resign_widget_extensions
+codesign_item "$ARCHIVE_APP_PATH"
 
 codesign --verify --deep --strict --verbose=2 "$ARCHIVE_APP_PATH"
 assert_archive_is_not_adhoc
 assert_archive_update_configuration
 assert_archive_has_no_tankerkonig_api_key
 assert_archive_weatherkit_entitlement
+assert_archive_app_group_entitlement
+assert_archive_widget_extension
 
 rm -f "$TEMP_NOTARY_ZIP" "$FINAL_ZIP_PATH" "$FINAL_DMG_PATH"
 

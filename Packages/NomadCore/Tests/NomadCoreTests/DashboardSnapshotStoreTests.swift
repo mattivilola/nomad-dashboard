@@ -51,6 +51,34 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func onDemandLatencyProbeFillsAMissingReadingWhileTheDashboardIsClosed() async throws {
+        let settings = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let store = DashboardSnapshotStore(settingsStore: settings, dependencies: makeDependencies())
+        store.setDashboardInterfaceActive(false)
+        await store.refresh()
+        #expect(store.snapshot.network.latency == nil)
+
+        await store.probeLatencyIfStale()
+
+        #expect(store.snapshot.network.latency?.milliseconds == 22)
+    }
+
+    @Test
+    func onDemandLatencyProbeReusesAFreshReadingAndRefreshesAnOldOne() async throws {
+        let settings = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let store = DashboardSnapshotStore(settingsStore: settings, dependencies: makeDependencies())
+        await store.refresh()
+        let first = try #require(store.snapshot.network.latency)
+
+        await store.probeLatencyIfStale()
+        #expect(store.snapshot.network.latency == first)
+
+        try await Task.sleep(for: .milliseconds(20))
+        await store.probeLatencyIfStale(maximumAge: 0.001)
+        #expect(try #require(store.snapshot.network.latency).collectedAt > first.collectedAt)
+    }
+
+    @Test
     func lowDataModeDefersLargeOptionalBackgroundCards() async throws {
         let settings = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settings.settings.dataUsageMode = .lowData
