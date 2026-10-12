@@ -147,13 +147,16 @@ struct NomadDashboardApp: App {
                 locationStore: locationStore,
                 launchAtLoginController: launchAtLoginController,
                 timeTrackingController: timeTrackingController,
+                lifeController: lifeController,
+                notifications: runtimeCoordinator.notifications,
                 settingsNavigationController: settingsNavigationController,
                 updatesEnabled: UpdateFeatureConfiguration.isEnabled,
                 analytics: analytics
             )
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 780, height: 600)
 
         Window("About Nomad Dashboard", id: "about") {
             AboutView()
@@ -164,7 +167,8 @@ struct NomadDashboardApp: App {
         Window("Visited Map", id: "visited-map") {
             VisitedMapWindowView(
                 snapshotStore: snapshotStore,
-                settingsStore: settingsStore
+                settingsStore: settingsStore,
+                settingsNavigationController: settingsNavigationController
             )
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
@@ -175,12 +179,6 @@ struct NomadDashboardApp: App {
                 .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
         .defaultSize(width: 740, height: 600)
-
-        Window("Nomad Preferences", id: "nomad-preferences") {
-            NomadLifeSettingsWindow(controller: lifeController, notifications: runtimeCoordinator.notifications)
-                .modifier(SceneAppearanceSync(settingsStore: settingsStore))
-        }
-        .defaultSize(width: 600, height: 640)
 
         Window("Explore Cities", id: "explore-cities") {
             NomadsCityExplorerView(provider: nomadsCityProvider, currentCity: nomadsCurrentCity)

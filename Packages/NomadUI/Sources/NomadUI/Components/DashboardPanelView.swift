@@ -41,6 +41,7 @@ public struct DashboardPanelView: View {
     private let openTravelAlertSourceAction: (URL) -> Void
     private let checkForUpdatesAction: (() -> Void)?
     private let openSettingsAction: () -> Void
+    private let openSettingsForCard: (DashboardCardID) -> Void
     private let openSurfSpotSettingsAction: () -> Void
     private let openAboutAction: () -> Void
     private let quitAction: () -> Void
@@ -102,6 +103,7 @@ public struct DashboardPanelView: View {
         openTravelAlertSourceAction: @escaping (URL) -> Void = { _ in },
         checkForUpdatesAction: (() -> Void)? = nil,
         openSettingsAction: @escaping () -> Void,
+        openSettingsForCard: @escaping (DashboardCardID) -> Void = { _ in },
         openSurfSpotSettingsAction: @escaping () -> Void,
         openAboutAction: @escaping () -> Void,
         quitAction: @escaping () -> Void,
@@ -155,6 +157,7 @@ public struct DashboardPanelView: View {
         self.openTravelAlertSourceAction = openTravelAlertSourceAction
         self.checkForUpdatesAction = checkForUpdatesAction
         self.openSettingsAction = openSettingsAction
+        self.openSettingsForCard = openSettingsForCard
         self.openSurfSpotSettingsAction = openSurfSpotSettingsAction
         self.openAboutAction = openAboutAction
         self.quitAction = quitAction
@@ -444,7 +447,7 @@ public struct DashboardPanelView: View {
             }
 
             if let turnedOffText = cardVisibility.turnedOffText {
-                turnedOffRow(turnedOffText)
+                turnedOffRow(turnedOffText, firstTurnedOffCard: cardVisibility.turnedOffCards.first)
             }
         }
     }
@@ -458,7 +461,7 @@ public struct DashboardPanelView: View {
     }
 
     /// One compact line naming the cards whose feature is off, with a way to turn them on.
-    private func turnedOffRow(_ text: String) -> some View {
+    private func turnedOffRow(_ text: String, firstTurnedOffCard: DashboardCardID?) -> some View {
         HStack(spacing: 10) {
             Image(systemName: "switch.2")
                 .font(.caption.weight(.semibold))
@@ -473,7 +476,11 @@ public struct DashboardPanelView: View {
             Spacer(minLength: 8)
 
             Button("Settings") {
-                openSettingsAction()
+                if let firstTurnedOffCard {
+                    openSettingsForCard(firstTurnedOffCard)
+                } else {
+                    openSettingsAction()
+                }
             }
             .buttonStyle(.dashboardInline(isCompact: true))
         }
@@ -699,7 +706,7 @@ public struct DashboardPanelView: View {
                 Text("Turn on Data Guard in Settings to track capped hotspot usage.")
                     .font(.caption)
                     .foregroundStyle(NomadTheme.secondaryText)
-                Button("Open Settings") { openSettingsAction() }
+                Button("Open Settings") { openSettingsForCard(.meteredData) }
                     .buttonStyle(.dashboardInline)
             } else {
                 VStack(alignment: .leading, spacing: 8) {
@@ -1003,7 +1010,7 @@ public struct DashboardPanelView: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     Button("Open Settings") {
-                        openSettingsAction()
+                        openSettingsForCard(.timeTracking)
                     }
                     .buttonStyle(.dashboardInline)
                 }
@@ -1232,7 +1239,7 @@ public struct DashboardPanelView: View {
             viewportHeight: viewportHeight,
             accessory: cardControls(for: .fuelPrices),
             collapse: collapse(for: .fuelPrices),
-            openSettingsAction: openSettingsAction,
+            openSettingsAction: { openSettingsForCard(.fuelPrices) },
             previewMapAction: openFuelStationMapPreviewAction,
             openGoogleMapsAction: openFuelStationInGoogleMapsAction
         )
@@ -1244,7 +1251,7 @@ public struct DashboardPanelView: View {
             widthMode: widthMode,
             accessory: cardControls(for: .localInfo),
             collapse: collapse(for: .localInfo),
-            openSettingsAction: openSettingsAction
+            openSettingsAction: { openSettingsForCard(.localInfo) }
         )
     }
 
@@ -1254,7 +1261,7 @@ public struct DashboardPanelView: View {
             widthMode: widthMode,
             accessory: cardControls(for: .emergencyCare),
             collapse: collapse(for: .emergencyCare),
-            openSettingsAction: openSettingsAction,
+            openSettingsAction: { openSettingsForCard(.emergencyCare) },
             previewMapAction: openEmergencyHospitalMapPreviewAction,
             openGoogleMapsAction: openEmergencyHospitalInGoogleMapsAction
         )

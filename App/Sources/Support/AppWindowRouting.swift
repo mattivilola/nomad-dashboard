@@ -4,7 +4,6 @@ import SwiftUI
 enum AppWindowDestination: String {
     case settings
     case workplaceDiary = "workplace-diary"
-    case nomadPreferences = "nomad-preferences"
     case exploreCities = "explore-cities"
     case about
     case visitedMap = "visited-map"
@@ -13,7 +12,6 @@ enum AppWindowDestination: String {
     var title: String {
         switch self {
         case .workplaceDiary: "Workplace Diary"
-        case .nomadPreferences: "Nomad Preferences"
         case .exploreCities: "Explore Cities"
         case .settings:
             "Settings"

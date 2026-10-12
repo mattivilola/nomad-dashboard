@@ -40,7 +40,7 @@ struct DashboardRootView: View {
                     weatherAvailabilityExplanation: AppRuntimeInfo.weatherAvailabilityExplanation,
                     changeDataUsage: { settingsStore.settings.dataUsageMode = $0 },
                     openDiary: { openDashboardWindow(.workplaceDiary) },
-                    openPreferences: { openDashboardWindow(.nomadPreferences) },
+                    openPreferences: openHomeTimeZoneSettings,
                     openOfflineEssentials: { showsOfflineEssentials = true },
                     openExploreCities: { openDashboardWindow(.exploreCities) }
                 )
@@ -88,6 +88,7 @@ struct DashboardRootView: View {
             openTravelAlertSourceAction: openTravelAlertSource,
             checkForUpdatesAction: checkForUpdatesAction,
             openSettingsAction: openSettings,
+            openSettingsForCard: openSettings(for:),
             openSurfSpotSettingsAction: openSurfSpotSettings,
             openAboutAction: openAbout,
             quitAction: quitApplication,
@@ -185,12 +186,26 @@ struct DashboardRootView: View {
         openDashboardWindow(.settings)
     }
 
+    /// Opens Settings on the group that controls `card`'s feature, or plainly when the card has no setting of its own.
+    private func openSettings(for card: DashboardCardID) {
+        if let target = card.settingsFocusTarget {
+            settingsNavigationController.focus(target)
+        }
+
+        openDashboardWindow(.settings)
+    }
+
     private func openAbout() {
         openDashboardWindow(.about)
     }
 
     private func openSurfSpotSettings() {
         settingsNavigationController.focus(.surfSpot)
+        openDashboardWindow(.settings)
+    }
+
+    private func openHomeTimeZoneSettings() {
+        settingsNavigationController.focus(.homeTimeZone)
         openDashboardWindow(.settings)
     }
 

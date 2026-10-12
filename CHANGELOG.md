@@ -15,6 +15,8 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Reorganize Settings into a sidebar of pages (General, Weather & Local, Safety, Connection & Data, Work, Privacy & Location, Advanced) with grouped forms. Every setting and action is kept; the Nomad Preferences window is folded in (home time zone under General, quiet connection alerts under Connection & Data, workplace diary under Work), the menu bar toggles are under General, `Use location to read Wi‑Fi names` and `Open Visited Map` are under Privacy & Location, and the long Privacy & Location paragraph is split into short notes next to the settings they describe.
+- The dashboard clock's preferences button opens Settings on the home time zone, the setup buttons on Data Guard, Time Tracking, Local Info, Fuel Prices and Emergency Care cards and the "Turned off" row open Settings on the matching group, the Visited Map's Open Settings buttons open the visited places setting, and Settings remembers the last page you viewed while the app is running.
 - `Reset Dashboard Layout` restores the card order recommended for the selected travel profile.
 - Offline essentials format temperatures and fuel prices like the dashboard cards.
 - Fix the General settings note that still described the appearance toggle as a dashboard header button; it now lives in the header menu.
