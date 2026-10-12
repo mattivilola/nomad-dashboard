@@ -6,7 +6,7 @@ Use it to describe what Nomad Dashboard currently does, who each capability help
 
 ## Product-Level Summary
 
-Nomad Dashboard is a native macOS menu bar app that aggregates travel-relevant and work-relevant signals into one compact dashboard. Its current shipped scope covers connectivity, power, travel context, weather, local project time tracking, and several optional travel-aware modules including local price-level context a Your Embassy card with the consular line and nearest embassy for your citizenship, a Stays & Visas card that counts days against visa allowances, the Schengen 90/180 rule and tax-residence thresholds, a one-time arrival briefing in each new country, local rhythm notes such as Ramadan, and UV and air quality in the weather card.
+Nomad Dashboard is a native macOS menu bar app that aggregates travel-relevant and work-relevant signals into one compact dashboard. Its current shipped scope covers connectivity, power, travel context, weather, local project time tracking, and several optional travel-aware modules: local price-level context, a Your Embassy card with the consular line and nearest embassy for your citizenship, a Stays & Visas card that counts days against visa allowances, the Schengen 90/180 rule and tax-residence thresholds, a one-time arrival briefing in each new country, local rhythm notes such as Ramadan, and UV and air quality in the weather card. Siri and Shortcuts actions and desktop widgets bring the emergency number, verdict, embassy line and daylight outside the menu bar.
 
 ## Connectivity And Internet Readiness
 
@@ -473,6 +473,66 @@ You see how many days are left before a limit, and the date to leave by, without
 
 - it appears when a stay in a new country began within the last three days and the day before it was recorded in another country within 30 days; a first run or a long gap is not treated as an arrival
 - everything comes from data already on the dashboard or bundled with the app, and a section is left out rather than guessed when data is missing
+
+## Siri And Shortcuts
+
+### What it does
+
+- Adds five Siri and Shortcuts actions (App Intents) that need no window and do not bring the app to the front: `Emergency Number`, `Dashboard Status`, `Nearest Embassy`, `Daylight` and `Set Travel Profile`
+- Each action answers in a short natural sentence that Siri speaks, Shortcuts shows, and an automation can use as text
+- `Emergency Number` gives the emergency number for the country you are in, then the police, ambulance, fire and rural police numbers where the bundled table lists them, or says clearly that the country is not known or not verified yet
+- `Dashboard Status` gives the overall verdict (Ready, Caution, Attention) with its reason and your top heads-up for the selected travel profile
+- `Nearest Embassy` gives your nearest embassy or consulate with distance and your foreign ministry's consular line, the EU or Nordic fallback when your country has no mission there, or "Set your citizenship in Nomad Dashboard settings" when no citizenship is chosen
+- `Daylight` gives sunset and the daylight left, or when it gets light again, with midnight sun and polar night handled
+- `Set Travel Profile` switches between Nomad and Road trip & RV; the card order follows only when it had not been customized
+- Siri phrases include the app name, for example "What's the emergency number in Nomad Dashboard", "How am I doing in Nomad Dashboard", "When is sunset in Nomad Dashboard", "Switch Nomad Dashboard to Road trip & RV"; all actions also appear in the Shortcuts app for automations
+
+### Who it helps
+
+- travelers who want the local emergency number or their embassy by voice, hands-free, or from a shortcut
+- road-trippers who ask for the daylight left before driving on
+- people who automate their Mac with Shortcuts and want travel context as a step
+
+### Dependencies or setup
+
+- no setup; the actions appear in Shortcuts and Spotlight once the app has run
+- the answers use what the app already knows; when the app is not running the system starts it in the background first and it gets a few seconds to collect readings
+- the embassy answer needs a citizenship chosen in Settings
+
+### Limitations
+
+- the answers are as good as the app's current knowledge: without a known country there are no emergency numbers, and without a location there is no daylight answer
+- the verdict's network quality is measured when you ask, but otherwise only while the dashboard is open
+- the emergency number sentence names "the emergency number" and does not say which service every number reaches, because the bundled table does not
+- Siri voice recognition of the phrases depends on your Mac's language and Siri setup
+
+## Widgets
+
+### What it does
+
+- Adds three widgets for the desktop and Notification Center (macOS 14 and later): `Glance` (small and medium), `Safety` (small) and `Daylight` (small)
+- `Glance` shows the overall verdict, the place you are in and your top heads-up (the medium size shows two)
+- `Safety` shows the emergency number for your current country and your foreign ministry's consular line when a citizenship is chosen
+- `Daylight` shows sunset and the daylight left, or "Dark until" sunrise, switching by itself at sunrise and sunset; the symbol turns to the caution colour in the last hour of daylight
+- Every widget shows when it was last updated ("Updated 12:40") and switches to an "Out of date" state when the app has not refreshed it for more than six hours
+- The widgets use the dashboard's colours and rounded type, and colour only status
+- Tapping a widget brings Nomad Dashboard to the front
+
+### Who it helps
+
+- travelers who want the emergency number or the day's light on the desktop without opening the menu bar panel
+
+### Dependencies or setup
+
+- the app has to be running to keep the widgets current; add the widgets from the widget gallery (right-click the desktop, Edit Widgets)
+- the Safety widget shows the consular line only after a citizenship is chosen in Settings
+
+### Limitations
+
+- the widgets show what the app last saved, not live data; the verdict's network quality is only measured while the dashboard is open, so a widget can show Waiting or an older reading until you open it
+- a widget is visible to anyone who can see your screen, so the place, the emergency number and the consular line are on show
+- tapping a widget brings the app forward but does not yet open the dashboard panel
+- development and unsigned builds have no shared storage, so they cannot feed the widgets
 
 ## Surf Spot Forecast
 

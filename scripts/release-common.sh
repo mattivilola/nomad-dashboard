@@ -14,6 +14,12 @@ ARTIFACTS_ROOT="$REPO_ROOT/artifacts"
 ARCHIVE_PATH="$ARTIFACTS_ROOT/NomadDashboard.xcarchive"
 ARCHIVE_APP_PATH="$ARCHIVE_PATH/Products/Applications/Nomad Dashboard.app"
 DEFAULT_GITHUB_REPOSITORY="mattivilola/nomad-dashboard"
+WIDGET_EXTENSION_NAME="NomadDashboardWidgets.appex"
+WIDGET_BUNDLE_IDENTIFIER="com.iloapps.NomadDashboard.widgets"
+APP_GROUP_ENTITLEMENT_KEY="com.apple.security.application-groups"
+APP_SANDBOX_ENTITLEMENT_KEY="com.apple.security.app-sandbox"
+ARCHIVE_PLUGINS_PATH="$ARCHIVE_APP_PATH/Contents/PlugIns"
+ARCHIVE_WIDGET_PATH="$ARCHIVE_PLUGINS_PATH/$WIDGET_EXTENSION_NAME"
 
 fail() {
   echo "$1" >&2
@@ -290,6 +296,81 @@ assert_archive_weatherkit_entitlement() {
 
   entitlements="$(codesign -d --entitlements - "$ARCHIVE_APP_PATH" 2>&1)"
   [[ "$entitlements" == *"com.apple.developer.weatherkit"* ]] || fail "Archived app is missing the WeatherKit entitlement."
+}
+
+# The entitlements a code signature carries, as an XML plist on stdout.
+signed_entitlements_xml() {
+  local path="$1"
+
+  /usr/bin/codesign -d --entitlements :- "$path" 2>/dev/null
+}
+
+# The first App Group in a signed bundle's entitlements, empty when there is none.
+signed_app_group() {
+  local path="$1"
+
+  signed_entitlements_xml "$path" |
+    /usr/bin/plutil -extract "${APP_GROUP_ENTITLEMENT_KEY//./\\.}.0" raw -o - - 2>/dev/null || true
+}
+
+assert_archive_app_group_entitlement() {
+  local app_group
+
+  app_group="$(signed_app_group "$ARCHIVE_APP_PATH")"
+  [[ -n "$app_group" ]] || fail "Archived app is missing the App Group entitlement ($APP_GROUP_ENTITLEMENT_KEY); the widgets could not share data with it."
+
+  if [[ -n "${NOMAD_TEAM_ID:-}" ]]; then
+    [[ "$app_group" == "$NOMAD_TEAM_ID."* ]] || fail "Archived app's App Group '$app_group' is not prefixed with the team ID $NOMAD_TEAM_ID."
+  fi
+}
+
+# The widget extension must be embedded, signed with the same identity and hardened runtime as the app,
+# sandboxed (WidgetKit requires it) and in the app's App Group.
+assert_archive_widget_extension() {
+  local info_plist="$ARCHIVE_WIDGET_PATH/Contents/Info.plist"
+  local bundle_id signature_details app_group widget_group
+
+  [[ -d "$ARCHIVE_WIDGET_PATH" ]] || fail "Archived app does not embed $WIDGET_EXTENSION_NAME in Contents/PlugIns."
+  assert_file_exists "$info_plist"
+
+  bundle_id="$(trimmed_value "$(plist_value "$info_plist" CFBundleIdentifier)")"
+  [[ "$bundle_id" == "$WIDGET_BUNDLE_IDENTIFIER" ]] || fail "Widget extension has bundle ID '$bundle_id', expected '$WIDGET_BUNDLE_IDENTIFIER'."
+
+  signed_entitlements_xml "$ARCHIVE_WIDGET_PATH" | grep -F "$APP_SANDBOX_ENTITLEMENT_KEY" >/dev/null ||
+    fail "Widget extension is missing the App Sandbox entitlement ($APP_SANDBOX_ENTITLEMENT_KEY)."
+
+  widget_group="$(signed_app_group "$ARCHIVE_WIDGET_PATH")"
+  app_group="$(signed_app_group "$ARCHIVE_APP_PATH")"
+  [[ -n "$widget_group" ]] || fail "Widget extension is missing the App Group entitlement ($APP_GROUP_ENTITLEMENT_KEY)."
+  [[ "$widget_group" == "$app_group" ]] || fail "Widget extension App Group '$widget_group' differs from the app's '$app_group'."
+
+  signature_details="$(/usr/bin/codesign -dv --verbose=4 "$ARCHIVE_WIDGET_PATH" 2>&1)"
+  [[ "$signature_details" != *"Signature=adhoc"* ]] || fail "Widget extension is still ad-hoc signed."
+  [[ "$signature_details" == *"(runtime)"* ]] || fail "Widget extension is not signed with the hardened runtime."
+}
+
+# Every embedded widget extension, for re-signing and checks.
+archive_widget_extensions() {
+  [[ -d "$ARCHIVE_PLUGINS_PATH" ]] || return 0
+  find "$ARCHIVE_PLUGINS_PATH" -maxdepth 1 -name '*.appex' -type d -print
+}
+
+# Release signing and the widgets depend on these project files; check they are still wired up.
+assert_widget_project_configuration() {
+  local entitlements
+
+  for entitlements in "$REPO_ROOT/App/NomadDashboard.entitlements" "$REPO_ROOT/App/Widgets/NomadDashboardWidgets.entitlements"; do
+    assert_file_exists "$entitlements"
+    grep -F "$APP_GROUP_ENTITLEMENT_KEY" "$entitlements" >/dev/null || fail "${entitlements#$REPO_ROOT/} is missing the App Group entitlement."
+    grep -F '$(APP_GROUP_IDENTIFIER)' "$entitlements" >/dev/null || fail "${entitlements#$REPO_ROOT/} must use \$(APP_GROUP_IDENTIFIER), the team-prefixed group from Config/*.xcconfig."
+  done
+
+  grep -F "$APP_SANDBOX_ENTITLEMENT_KEY" "$REPO_ROOT/App/Widgets/NomadDashboardWidgets.entitlements" >/dev/null ||
+    fail "App/Widgets/NomadDashboardWidgets.entitlements is missing the App Sandbox entitlement."
+  grep -F "PRODUCT_BUNDLE_IDENTIFIER = $WIDGET_BUNDLE_IDENTIFIER" "$REPO_ROOT/Config/Widgets.Release.xcconfig" >/dev/null ||
+    fail "Config/Widgets.Release.xcconfig must set PRODUCT_BUNDLE_IDENTIFIER = $WIDGET_BUNDLE_IDENTIFIER."
+  grep -F 'APP_GROUP_IDENTIFIER = $(TeamIdentifierPrefix)com.iloapps.NomadDashboard' "$REPO_ROOT/Config/Release.xcconfig" >/dev/null ||
+    fail "Config/Release.xcconfig must set the team-prefixed APP_GROUP_IDENTIFIER."
 }
 
 assert_archive_is_not_adhoc() {

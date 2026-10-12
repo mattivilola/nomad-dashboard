@@ -322,6 +322,40 @@ public final class DashboardSnapshotStore: ObservableObject {
         localRefreshTask = nil
     }
 
+    private func recordLatency(_ sample: LatencySample) async {
+        mutateSnapshot { draft in
+            let old = draft.network
+            draft.network = NetworkSectionSnapshot(
+                throughput: old.throughput,
+                connectivity: old.connectivity,
+                latency: sample,
+                downloadHistory: old.downloadHistory,
+                uploadHistory: old.uploadHistory,
+                latencyHistory: old.latencyHistory
+            )
+        }
+        try? await dependencies.historyStore.append(MetricPoint(timestamp: sample.collectedAt, value: sample.milliseconds), to: .latencyMilliseconds)
+    }
+
+    /// Measures latency once even while the dashboard is closed, which is the only time it is probed
+    /// otherwise. A verdict asked for by voice or from a shortcut then reflects the connection now rather
+    /// than the last time the dashboard was open. A reading younger than `maximumAge` is reused, and
+    /// nothing is probed while offline.
+    public func probeLatencyIfStale(maximumAge: TimeInterval = 60) async {
+        await initializationTask?.value
+        updateResourcePolicy()
+        guard !resourcePolicy.isOffline else { return }
+
+        let now = Date()
+        if let latency = snapshot.network.latency, now.timeIntervalSince(latency.collectedAt) < maximumAge {
+            return
+        }
+
+        lastLatencyCheck = now
+        guard let sample = await dependencies.latencyProbe.currentSample() else { return }
+        await recordLatency(sample)
+    }
+
     private enum LocalReading: Sendable {
         case throughput(NetworkThroughputSample?), connectivity(ConnectivitySnapshot), power(PowerSnapshot?)
         case wifi(WiFiSnapshot?), vpn(VPNStatusSnapshot), latency(LatencySample?)
@@ -408,18 +442,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                     }
                 case let .latency(value):
                     if let value {
-                        mutateSnapshot { draft in
-                            let old = draft.network
-                            draft.network = NetworkSectionSnapshot(
-                                throughput: old.throughput,
-                                connectivity: old.connectivity,
-                                latency: value,
-                                downloadHistory: old.downloadHistory,
-                                uploadHistory: old.uploadHistory,
-                                latencyHistory: old.latencyHistory
-                            )
-                        }
-                        try? await dependencies.historyStore.append(MetricPoint(timestamp: value.collectedAt, value: value.milliseconds), to: .latencyMilliseconds)
+                        await recordLatency(value)
                     }
                 }
             }

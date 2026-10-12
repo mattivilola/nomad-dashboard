@@ -2,6 +2,9 @@
 // Without this file, local Debug builds fall back to unsigned mode and WeatherKit remains unavailable.
 // This file is included only by Debug.xcconfig and is ignored by git.
 // Use values that match the debug bundle identifier: com.iloapps.NomadDashboard.dev
+// The signed debug app also needs its widget extension (com.iloapps.NomadDashboard.dev.widgets) and the
+// App Group <TeamID>.com.iloapps.NomadDashboard.dev; with provisioning updates enabled Xcode registers them.
+// Widgets and the widget snapshot only work in this signed build; unsigned builds have no App Group.
 
 DEVELOPMENT_TEAM = YOURTEAMID
 CODE_SIGN_STYLE = Automatic
