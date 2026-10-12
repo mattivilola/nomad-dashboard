@@ -9,6 +9,21 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- _Nothing yet_
+
+### Changed
+
+- _Nothing yet_
+
+### Fixed
+
+- _Nothing yet_
+
+
+## [0.17.0] - 2026-10-12
+
+### Added
+
 - Add Morocco emergency numbers (police 19, ambulance/fire 15, Gendarmerie 177).
 - Add a collapse chevron to every dashboard card: a collapsed card is one line with a summary and status badge, stays collapsed across relaunches, and expands when a glance tile or heads-up row points at it.
 - Add a glance overview at the top of the dashboard: a verdict strip, a single line of Here and Home clocks, four tappable vital tiles (Internet, Power, Data Guard or VPN, Weather) that scroll to their cards, and up to three ranked heads-up items (data cap, travel advisory, weather alert, regional security, strong wind, rain within six hours, public holiday within three days, cheapest nearby fuel).
@@ -37,11 +52,13 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - Color metric values by status instead of by metric name, so healthy values no longer render in alarm colors.
 - The power card shows adapter wattage while on external power, time to full while charging, and no longer repeats its subtitle.
 - Show the device city for "Here" in the clocks instead of the time-zone city.
+- Lead the dashboard with a glance overview and ranked heads-up items
+- Compact dashboard cards with collapsible summaries and safety fixes
+- Add Morocco emergency numbers with the rural Gendarmerie
 
 ### Fixed
 
 - Fix half-width card titles and subtitles truncating because of always-visible card controls.
-
 
 ## [0.16.0] - 2026-09-22
 
