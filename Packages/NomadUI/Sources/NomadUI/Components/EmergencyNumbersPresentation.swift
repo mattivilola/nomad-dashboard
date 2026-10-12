@@ -7,7 +7,7 @@ extension EmergencyNumbers {
     }
 
     /// The other numbers worth knowing, only those that differ from `general`:
-    /// "Police 110 · Ambulance/Fire 119". Nil when `general` covers everything.
+    /// "Police 110 · Ambulance/Fire 119 · Gendarmerie 177". Nil when `general` covers everything.
     var othersText: String? {
         var parts: [String] = []
 
@@ -26,6 +26,8 @@ extension EmergencyNumbers {
                 parts.append("Fire \(fire)")
             }
         }
+
+        parts.append(contentsOf: other.map { "\($0.name) \($0.number)" })
 
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }

@@ -4,9 +4,9 @@ import Foundation
 //
 // Safety-critical data: a wrong number is worse than none, so a country is only listed when its
 // numbers agree across an official source and at least one independent compilation. Countries
-// that could not be verified are deliberately absent (the lookup returns nil), e.g. Morocco
-// (official foreign advice disagrees on 19/190 and 15/150), Laos (3-digit vs 4-digit forms) and
-// Guatemala (no unified number; fire/ambulance split across volunteer brigades).
+// that could not be verified are deliberately absent (the lookup returns nil), e.g. Laos (3-digit
+// vs 4-digit forms) and Guatemala (no unified number; fire/ambulance split across volunteer
+// brigades).
 //
 // Verified 2026-10
 //
@@ -40,7 +40,23 @@ import Foundation
 //    MHA ERSS https://www.mha.gov.in/en/commoncontent/emergency-response-support-system-erss (IN)
 //  - Middle East / Africa: https://u.ae/en/information-and-services/justice-safety-and-the-law/handling-emergencies (AE),
 //    Public Security Directorate https://jordan.gov.jo (JO), Western Cape Government emergency numbers (ZA)
+//  - Morocco: ANRT, the telecoms regulator, https://www.anrt.ma/infos-pratiques/que-sont-les-numeros-speciaux
+//    (177 Gendarmerie Royale, 19 Police, 15 Pompiers; reachable from mobile and fixed lines). The
+//    Protection Civile (15) also dispatches ambulances. UK FCDO and Canada travel advice list
+//    190 (police) and 150 (ambulance/fire) instead; those are alternatives and deliberately not stored.
 //  - Cross-check for all rows: https://en.wikipedia.org/wiki/List_of_emergency_telephone_numbers
+
+/// An additional emergency service that does not fit police, ambulance or fire, for example a
+/// gendarmerie covering rural areas and highways.
+public struct EmergencyService: Equatable, Sendable {
+    public let name: String
+    public let number: String
+
+    public init(name: String, number: String) {
+        self.name = name
+        self.number = number
+    }
+}
 
 /// Phone numbers to call in an emergency in one country.
 public struct EmergencyNumbers: Equatable, Sendable {
@@ -52,12 +68,21 @@ public struct EmergencyNumbers: Equatable, Sendable {
     public let ambulance: String?
     /// Fire brigade, only when it differs from `general`.
     public let fire: String?
+    /// Further services that do not fit the fields above, such as a rural gendarmerie.
+    public let other: [EmergencyService]
 
-    public init(general: String, police: String? = nil, ambulance: String? = nil, fire: String? = nil) {
+    public init(
+        general: String,
+        police: String? = nil,
+        ambulance: String? = nil,
+        fire: String? = nil,
+        other: [EmergencyService] = []
+    ) {
         self.general = general
         self.police = police
         self.ambulance = ambulance
         self.fire = fire
+        self.other = other
     }
 }
 
@@ -154,6 +179,12 @@ public enum EmergencyNumberDirectory {
         "JO": EmergencyNumbers(general: "911"),
         "EG": EmergencyNumbers(general: "122", ambulance: "123", fire: "180"),
         "ZA": EmergencyNumbers(general: "112", police: "10111", ambulance: "10177"),
+        "MA": EmergencyNumbers(
+            general: "19",
+            ambulance: "15",
+            fire: "15",
+            other: [EmergencyService(name: "Gendarmerie", number: "177")]
+        ),
         "KE": EmergencyNumbers(general: "999"),
         "TZ": EmergencyNumbers(general: "112")
     ]

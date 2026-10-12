@@ -9,6 +9,7 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Add Morocco emergency numbers (police 19, ambulance/fire 15, Gendarmerie 177).
 - Add a collapse chevron to every dashboard card: a collapsed card is one line with a summary and status badge, stays collapsed across relaunches, and expands when a glance tile or heads-up row points at it.
 - Add a glance overview at the top of the dashboard: a verdict strip, a single line of Here and Home clocks, four tappable vital tiles (Internet, Power, Data Guard or VPN, Weather) that scroll to their cards, and up to three ranked heads-up items (data cap, travel advisory, weather alert, regional security, strong wind, rain within six hours, public holiday within three days, cheapest nearby fuel).
 - Add Customize Layout to the header menu; card width and drag controls now appear only while customizing.

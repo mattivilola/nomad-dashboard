@@ -313,7 +313,7 @@ Users can spot nearby fuel context without switching from the dashboard into sep
 
 - Can show nearby emergency hospitals
 - Hospital rows open the in-app map preview when clicked; a trailing menu offers the preview and Google Maps
-- Shows the local emergency number for the current country (for example "Emergency 112") in the card subtitle and as an Emergency row in Local Info, with police, ambulance, and fire numbers where they differ; the numbers are bundled with the app and work offline, and can be selected and copied
+- Shows the local emergency number for the current country (for example "Emergency 112") in the card subtitle and as an Emergency row in Local Info, with police, ambulance, and fire numbers where they differ, plus additional services such as Morocco's Gendarmerie, which covers rural areas and highways; the numbers are bundled with the app and work offline, and can be selected and copied
 - Shows Public or Private ownership as a neutral label
 - Can open selected hospitals in Google Maps
 

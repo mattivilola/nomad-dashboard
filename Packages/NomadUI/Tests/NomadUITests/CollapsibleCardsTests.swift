@@ -395,6 +395,15 @@ struct EmergencyNumbersPresentationTests {
         #expect(EmergencyNumbers(general: "112", police: "101").othersText == "Police 101")
         #expect(EmergencyNumbers(general: "110", ambulance: "119", fire: "119").othersText == "Ambulance/Fire 119")
         #expect(EmergencyNumbers(general: "112", police: "133", ambulance: "144", fire: "122").othersText == "Police 133 · Ambulance 144 · Fire 122")
+        #expect(
+            EmergencyNumbers(
+                general: "19",
+                ambulance: "15",
+                fire: "15",
+                other: [EmergencyService(name: "Gendarmerie", number: "177")]
+            ).othersText == "Ambulance/Fire 15 · Gendarmerie 177"
+        )
+        #expect(EmergencyNumbers(general: "112", other: [EmergencyService(name: "Rural", number: "7")]).othersText == "Rural 7")
     }
 
     @Test

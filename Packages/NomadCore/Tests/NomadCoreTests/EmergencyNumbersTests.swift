@@ -20,9 +20,30 @@ struct EmergencyNumbersTests {
 
     @Test
     func unverifiedCountriesAreDeliberatelyAbsent() {
-        #expect(EmergencyNumberDirectory.numbers(forCountryCode: "MA") == nil)
         #expect(EmergencyNumberDirectory.numbers(forCountryCode: "LA") == nil)
         #expect(EmergencyNumberDirectory.numbers(forCountryCode: "GT") == nil)
+    }
+
+    @Test
+    func moroccoListsPoliceAmbulanceFireAndTheRuralGendarmerie() {
+        let morocco = EmergencyNumberDirectory.numbers(forCountryCode: "MA")
+        #expect(morocco == EmergencyNumbers(
+            general: "19",
+            ambulance: "15",
+            fire: "15",
+            other: [EmergencyService(name: "Gendarmerie", number: "177")]
+        ))
+        #expect(morocco?.police == nil)
+        #expect(morocco?.other == [EmergencyService(name: "Gendarmerie", number: "177")])
+    }
+
+    @Test
+    func onlyMoroccoCarriesAdditionalServices() {
+        for code in Locale.Region.isoRegions.map(\.identifier) where code != "MA" {
+            guard let numbers = EmergencyNumberDirectory.numbers(forCountryCode: code) else { continue }
+            #expect(numbers.other.isEmpty, "unexpected other services for \(code)")
+        }
+        #expect(EmergencyNumberDirectory.numbers(forCountryCode: "FR")?.other == [])
     }
 
     @Test
@@ -64,7 +85,7 @@ struct EmergencyNumbersTests {
             "LI", "LT", "LU", "MT", "NL", "NO", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "GB", "CH", "TR", "GE",
             "AL", "BA", "ME", "RS", "MK", "UA", "MD", "US", "CA", "MX", "CR", "PA", "CO", "PE", "CL", "AR", "BR",
             "EC", "UY", "TH", "VN", "ID", "MY", "SG", "PH", "JP", "KR", "TW", "IN", "LK", "NP", "KH", "AU", "NZ",
-            "AE", "IL", "JO", "EG", "ZA", "KE", "TZ"
+            "AE", "IL", "JO", "EG", "MA", "ZA", "KE", "TZ"
         ]
         for code in required {
             #expect(EmergencyNumberDirectory.numbers(forCountryCode: code) != nil, "missing \(code)")
