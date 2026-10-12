@@ -11,13 +11,10 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 - Add Siri and Shortcuts actions (App Intents) that run without opening a window: `Emergency Number`, `Dashboard Status`, `Nearest Embassy`, `Daylight` and `Set Travel Profile`, with phrases such as "What's the emergency number in Nomad Dashboard". Answers are short sentences built on the Mac from the dashboard, the bundled emergency numbers and embassy data, and your location, and the Status action measures network quality when you ask even while the dashboard is closed.
 - Add desktop and Notification Center widgets: `Glance` (small and medium: verdict, place and top heads-up), `Safety` (emergency number and your consular line) and `Daylight` (sunset and daylight left, or when it gets light again). Each shows when it was last updated and marks itself out of date after six hours; a tap brings the app forward. The app shares a small snapshot (no IP address, coordinates or citizenship codes) with the widgets through an App Group on your Mac.
-- Add a daylight heads-up for the Road trip & RV profile: within two hours of sunset it shows the sunset time, the daylight left, and when civil twilight ends (a caution in the last hour), and once it is dark it shows when the sun rises. It can also appear in the menu bar, ranks right after strong wind, and is calculated on the Mac from your location with no network request.
-- Add today's sunrise and sunset to the Weather card in every profile (also when weather is unavailable), in the local time zone, with `Midnight sun` and `Polar night` near the poles.
 - Add the Stays & Visas card: the days of your current stay, an optional visa allowance per country with the date to leave by, the Schengen 90/180 counter (no limit shown for EU, EEA and Swiss citizens), and this year's days per country against a tax-residence threshold with a Review days button for the Visited Map. It is computed on the Mac from your saved visited days, turns sand and coral as limits near, and adds heads-up items and optional menu bar text. Settings, Stays & Visas sets the allowances, the threshold and the switches.
 - Add an arrival briefing at the top of the overview when you arrive in a new country: local time and the difference from home, emergency numbers, your embassy and consular line, driving side, plugs and voltage, currency, a public holiday, a travel advisory, a Data Guard prompt and local rhythm, with `Got it` to dismiss it and `Show Arrival Briefing` in the header menu to open it again. It can be switched off under Safety.
 - Add UV index (with today's peak) and air quality (European AQI with a 12-hour outlook, from Open-Meteo, only a location rounded to about 11 km is sent) to the Weather card, with heads-up items for high UV and poor air quality, an air quality line in Offline essentials, and an `Air quality` switch in Settings.
 - Add a Local rhythm section to the Local Info card, and a heads-up item, for periods such as Ramadan, Lunar New Year, Holy Week, Songkran, Golden Week, Nyepi and Diwali, with their dates and what to expect.
-- Emergency numbers now include the rural or highway police where a country advertises a separate short number: Guardia Civil 062 (Spain), Federal Highway Police 191 (Brazil) and Highway Police 1193 (Thailand), alongside Morocco's Gendarmerie.
 
 ### Changed
 
@@ -27,6 +24,18 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 - _Nothing yet_
 
+
+## [0.17.2] - 2026-10-12
+
+### Added
+
+- Add a daylight heads-up for the Road trip & RV profile: within two hours of sunset it shows the sunset time, the daylight left, and when civil twilight ends (a caution in the last hour), and once it is dark it shows when the sun rises. It can also appear in the menu bar, ranks right after strong wind, and is calculated on the Mac from your location with no network request.
+- Add today's sunrise and sunset to the Weather card in every profile (also when weather is unavailable), in the local time zone, with `Midnight sun` and `Polar night` near the poles.
+- Emergency numbers now include the rural or highway police where a country advertises a separate short number: Guardia Civil 062 (Spain), Federal Highway Police 191 (Brazil) and Highway Police 1193 (Thailand), alongside Morocco's Gendarmerie.
+
+### Changed
+
+- Add a daylight heads-up and rural police emergency numbers
 
 ## [0.17.1] - 2026-10-12
 
