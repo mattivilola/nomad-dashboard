@@ -15,6 +15,10 @@ let package = Package(
         .executable(
             name: "NomadSourceProbe",
             targets: ["NomadSourceProbe"]
+        ),
+        .executable(
+            name: "NomadMissionDatasetBuilder",
+            targets: ["NomadMissionDatasetBuilder"]
         )
     ],
     dependencies: [
@@ -34,6 +38,10 @@ let package = Package(
             name: "NomadSourceProbe",
             dependencies: ["NomadCore"]
         ),
+        .executableTarget(
+            name: "NomadMissionDatasetBuilder",
+            dependencies: ["NomadCore"]
+        ),
         .testTarget(
             name: "NomadCoreTests",
             dependencies: ["NomadCore"]
@@ -41,6 +49,10 @@ let package = Package(
         .testTarget(
             name: "NomadSourceProbeTests",
             dependencies: ["NomadSourceProbe"]
+        ),
+        .testTarget(
+            name: "NomadMissionDatasetBuilderTests",
+            dependencies: ["NomadMissionDatasetBuilder"]
         )
     ]
 )

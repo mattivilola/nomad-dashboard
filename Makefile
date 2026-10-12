@@ -3,7 +3,7 @@ SCHEME := NomadDashboard
 PROJECT := $(APP_NAME).xcodeproj
 .DEFAULT_GOAL := help
 
-.PHONY: help bootstrap generate open build run rerun test probe-sources lint archive brand-assets dmg release release-patch release-minor release-major release-dry-run release-check-setup release-setup-notary clean
+.PHONY: help bootstrap generate open build run rerun test probe-sources update-missions lint archive brand-assets dmg release release-patch release-minor release-major release-dry-run release-check-setup release-setup-notary clean
 
 help: ## Print available make targets
 	@printf "\nAvailable commands:\n\n"
@@ -33,6 +33,9 @@ test: ## Run the test suite
 
 probe-sources: ## Probe external data sources used by the app
 	./scripts/probe-external-sources.sh
+
+update-missions: ## Regenerate the bundled embassy and consulate dataset from Wikidata
+	./scripts/update-diplomatic-missions.sh
 
 lint: ## Run linting and formatting checks when available
 	./scripts/lint.sh
