@@ -129,7 +129,7 @@ Users can see whether the MacBook is draining normally, charging properly, or li
 
 ### What it does
 
-- Offers two profiles in Settings (at the top of the form) and in the dashboard header menu under `Travel Profile`: **Nomad** and **Road trip & RV**
+- Offers two profiles in Settings (General page) and in the dashboard header menu under `Travel Profile`: **Nomad** and **Road trip & RV**
 - Nomad puts connection quality, work time, and city context first; Road trip & RV puts weather, fuel, emergency care, power, and the data allowance first
 - Switching profile reorders the dashboard cards to that profile's recommended order, but only if the card order has not been customized; a custom order is kept, and Settings offers `Use recommended order` to restore the profile's own order in one click
 - Ranks the glance overview's heads-up items by profile (for example fuel and weather ahead of work-related items on a road trip)
@@ -311,7 +311,7 @@ Users can get a quick sense of local holiday timing, place context, and price pr
 - Station rows open the map preview when clicked; a trailing menu offers the preview and Google Maps
 - Can open selected stations in Google Maps
 - Shows prices in the locale's currency style ("1,429 €/L") in primary text rather than fuel-type colors, and the animated road backdrop stays subtle and fades out behind the rows
-- Includes diagnostics in Settings for troubleshooting
+- Includes diagnostics in Settings (Advanced page) for troubleshooting
 
 ### Who it helps
 
@@ -508,6 +508,9 @@ Users can capture and assign work time with less friction by using the dashboard
 - Keeps the dashboard clean by default: the per-card width and drag controls only appear after choosing `Customize Layout` from the header menu, with an inline hint and a `Done` button while customizing
 - Moves the appearance toggle into the header menu
 - Supports settings for weather, travel modules, analytics, and location-aware features
+- Organizes Settings into a sidebar of pages, each a grouped form like macOS System Settings: **General** (travel profile, home time zone, appearance and startup, menu bar, dashboard layout), **Weather & Local** (weather, surf spot, Local Info, fuel prices), **Safety** (travel alerts, emergency care), **Connection & Data** (data usage, Data Guard, quiet connection alerts), **Work** (project time tracking, workplace diary), **Privacy & Location** (location, external IP location, Wi-Fi names, visited places, analytics), and **Advanced** (refresh and history, fuel diagnostics, about)
+- Puts each privacy and data-source note next to the setting it describes instead of in one long paragraph
+- Opens Settings on the right group from the dashboard (for example the clock's preferences button opens the home time zone, and a turned-off card's setup button opens that feature's setting) and remembers the last page while the app is running
 - Supports direct-distribution update plumbing with Sparkle in release builds
 
 ### Who it helps

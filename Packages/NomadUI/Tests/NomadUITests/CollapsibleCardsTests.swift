@@ -62,6 +62,7 @@ struct DashboardCardVisibilityTests {
         #expect(visibility.visibleOrder.contains(.connectivity))
         #expect(visibility.visibleOrder.contains(.weather))
         #expect(visibility.turnedOffText == "Turned off: Data Guard, Local Info, Fuel Prices")
+        #expect(visibility.turnedOffCards == [.meteredData, .localInfo, .fuelPrices])
     }
 
     @Test

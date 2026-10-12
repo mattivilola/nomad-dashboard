@@ -7,18 +7,20 @@ struct DashboardCardVisibility: Equatable {
     let visibleOrder: [DashboardCardID]
     /// Titles of the cards that are turned off, in dashboard order. Empty while customizing.
     let turnedOffTitles: [String]
+    /// The cards that are turned off, in dashboard order. Empty while customizing.
+    let turnedOffCards: [DashboardCardID]
 
     init(order: [DashboardCardID], settings: AppSettings, isCustomizingLayout: Bool) {
         if isCustomizingLayout {
             visibleOrder = order
             turnedOffTitles = []
+            turnedOffCards = []
             return
         }
 
         visibleOrder = order.filter { $0.isFeatureEnabled(in: settings) }
-        turnedOffTitles = order
-            .filter { $0.isFeatureEnabled(in: settings) == false }
-            .map(\.displayTitle)
+        turnedOffCards = order.filter { $0.isFeatureEnabled(in: settings) == false }
+        turnedOffTitles = turnedOffCards.map(\.displayTitle)
     }
 
     /// "Turned off: Data Guard, Local Info, Fuel Prices", or nil when everything is on.

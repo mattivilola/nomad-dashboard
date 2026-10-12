@@ -6,6 +6,7 @@ import SwiftUI
 struct VisitedMapWindowView: View {
     @ObservedObject var snapshotStore: DashboardSnapshotStore
     @ObservedObject var settingsStore: AppSettingsStore
+    let settingsNavigationController: SettingsNavigationController
 
     @Environment(\.openWindow) private var openWindow
     @State private var mapMode: VisitedMapMode = .footprint
@@ -92,7 +93,7 @@ struct VisitedMapWindowView: View {
                 actionButton(
                     title: "Settings",
                     systemImage: "slider.horizontal.3",
-                    action: { openAndActivateWindow(.settings, with: openWindow) }
+                    action: openVisitedPlacesSettings
                 )
 
                 actionButton(
@@ -490,10 +491,15 @@ struct VisitedMapWindowView: View {
                 actionButton(
                     title: "Open Settings",
                     systemImage: "slider.horizontal.3",
-                    action: { openAndActivateWindow(.settings, with: openWindow) }
+                    action: openVisitedPlacesSettings
                 )
             }
         }
+    }
+
+    private func openVisitedPlacesSettings() {
+        settingsNavigationController.focus(.visitedPlaces)
+        openAndActivateWindow(.settings, with: openWindow)
     }
 
     private var emptyState: some View {
@@ -512,7 +518,7 @@ struct VisitedMapWindowView: View {
                     actionButton(
                         title: "Open Settings",
                         systemImage: "slider.horizontal.3",
-                        action: { openAndActivateWindow(.settings, with: openWindow) }
+                        action: openVisitedPlacesSettings
                     )
 
                     actionButton(
