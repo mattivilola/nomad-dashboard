@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.21.0] - 2026-10-13
+
+### Changed
+
+- Add Keep Awake with lid-closed mode
+
 ## [0.20.1] - 2026-10-13
 
 ### Changed
