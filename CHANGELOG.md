@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.20.1] - 2026-10-13
+
+### Changed
+
+- Make DashboardSnapshotStoreTests deterministic
+
 ## [0.20.0] - 2026-10-13
 
 ### Added
