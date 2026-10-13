@@ -9,6 +9,21 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- _Nothing yet_
+
+### Changed
+
+- _Nothing yet_
+
+### Fixed
+
+- _Nothing yet_
+
+
+## [0.19.0] - 2026-10-13
+
+### Added
+
 - Add a Trip Planner window (header menu, `Plan a trip` on the overview, or the new `Trip Planner` button on the Stays & Visas card): plan up to 20 trips and see, for the selected one, the time difference from home, emergency numbers, your embassy and consular line with links, driving side, plugs and currency (with a `Changed` chip where they differ from where you are), local periods such as Ramadan that overlap the trip, public holidays and the travel advisory (loaded after the preview, only the destination country code is sent), a price comparison with home, and a visa what-if for the Schengen 90/180 count, your stay allowance and the tax-residence days. Trips and the home country stay on the Mac.
 - Add a `Next trip` line to the Stays & Visas card, in coral with the date when the plan would break the Schengen limit, and an upcoming-trip heads-up in the 14 days before a trip starts.
 - Add a `Home country` setting under General, Home (defaults to your first citizenship) and a price comparison with home on the Local Info card ("Groceries ~30% cheaper than Finland", with the caption "Compared with Finland (your home)").
@@ -17,11 +32,8 @@ and this project follows [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Cover 36 European countries for Eurostat price levels: the EU27 plus Albania, Bosnia and Herzegovina, Switzerland, Iceland, Montenegro, North Macedonia, Norway, Serbia and Türkiye, and the United Kingdom for the overall level only.
-
-### Fixed
-
-- _Nothing yet_
-
+- Add trip planner and prices-vs-home model layers
+- Add the Trip Planner window, home country and prices vs home
 
 ## [0.18.0] - 2026-10-12
 
