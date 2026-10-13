@@ -42,6 +42,10 @@ public final class DashboardSnapshotStore: ObservableObject {
     private var initializationTask: Task<Void, Never>?
     private var cacheSaveTask: Task<Void, Never>?
     private var settingsRefreshTask: Task<Void, Never>?
+    /// Settings changes whose `applySettingsChange` has not returned yet. Only read by
+    /// `waitForSettingsChangesToRegister()`.
+    private var settingsChangesInFlight = 0
+    private var settingsRegistrationWaiters: [AsyncStream<Void>.Continuation] = []
     /// Set when a settings change or a manual refresh asks for a refresh while one is already running. That
     /// run started with the old settings (or without forcing the sources), so exactly one forced follow-up
     /// runs after it, however many requests arrived meanwhile.
@@ -1119,8 +1123,10 @@ public final class DashboardSnapshotStore: ObservableObject {
                 let previousSettings = appliedSettings
                 appliedSettings = newSettings
 
+                settingsChangesInFlight += 1
                 Task { [weak self] in
                     await self?.applySettingsChange(from: previousSettings, to: newSettings)
+                    self?.finishSettingsChange()
                 }
             }
     }
@@ -1277,7 +1283,43 @@ public final class DashboardSnapshotStore: ObservableObject {
 
     private func performScheduledSettingsRefresh() async {
         settingsRefreshTask = nil
+        resumeSettingsRegistrationWaitersIfRegistered()
         await refresh(manual: true, afterSettingsChange: true)
+    }
+
+    private func finishSettingsChange() {
+        settingsChangesInFlight -= 1
+        resumeSettingsRegistrationWaitersIfRegistered()
+    }
+
+    /// True when every settings change made so far has been applied and the refresh it asked for (if any) has
+    /// been handed to `refresh`, where it either runs or registers as the follow-up of the running one.
+    private var settingsChangesAreRegistered: Bool {
+        settingsChangesInFlight == 0 && settingsRefreshTask == nil
+    }
+
+    private func resumeSettingsRegistrationWaitersIfRegistered() {
+        guard settingsChangesAreRegistered else { return }
+        let waiters = settingsRegistrationWaiters
+        settingsRegistrationWaiters = []
+        for waiter in waiters {
+            waiter.yield()
+            waiter.finish()
+        }
+    }
+
+    /// Test seam: settings changes are applied by unstructured tasks, so a test that changes a setting has
+    /// nothing to await. This suspends until all changes made so far are applied and their refresh requests
+    /// are registered, without waiting for those refreshes to finish (a test holding a refresh open needs
+    /// exactly that point). Await `refreshActivity == .idle` afterwards for completion. Changes made before
+    /// the initial settings were applied may register later than this returns.
+    func waitForSettingsChangesToRegister() async {
+        guard !settingsChangesAreRegistered else { return }
+        let (stream, continuation) = AsyncStream<Void>.makeStream()
+        settingsRegistrationWaiters.append(continuation)
+        for await _ in stream {
+            return
+        }
     }
 
     private func sanitizeDisabledSections() {

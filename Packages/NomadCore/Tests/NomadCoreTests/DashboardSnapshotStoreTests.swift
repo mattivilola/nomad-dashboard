@@ -12,8 +12,10 @@ struct DashboardSnapshotStoreTests {
         let store = DashboardSnapshotStore(settingsStore: settings, dependencies: makeDependencies(weatherProvider: weather))
         store.setCurrentLocation(CLLocation(latitude: 60.17, longitude: 24.94))
         let task = Task { await store.refresh(manual: true) }
-        try await waitUntil { await weather.hasStarted() }
-        try await waitUntil { store.snapshot.power.snapshot != nil && store.snapshot.travelContext.publicIP != nil }
+        await weather.waitUntilStarted()
+        await waitForStore(store, "the independent cards to publish") {
+            store.snapshot.power.snapshot != nil && store.snapshot.travelContext.publicIP != nil
+        }
         #expect(store.snapshot.weather == nil)
         #expect(store.snapshot.network.throughput != nil)
         #expect(store.sectionActivity[.weather]?.isRefreshing == true)
@@ -28,11 +30,12 @@ struct DashboardSnapshotStoreTests {
         let weather = HeldWeatherProvider()
         let store = DashboardSnapshotStore(settingsStore: settings, dependencies: makeDependencies(weatherProvider: weather))
         let task = Task { await store.refresh(manual: true) }
-        try await waitUntil { await weather.hasStarted() }
+        await weather.waitUntilStarted()
         store.stop()
         await task.value
         await weather.release()
-        await Task.yield()
+        // The held call now returns its late result; the store must have nothing left to apply it to.
+        await waitForIdle(store)
         #expect(store.snapshot.weather == nil)
         #expect(store.refreshActivity == .idle)
         #expect(store.sectionActivity.values.allSatisfy { !$0.isRefreshing })
@@ -66,16 +69,21 @@ struct DashboardSnapshotStoreTests {
     @Test
     func onDemandLatencyProbeReusesAFreshReadingAndRefreshesAnOldOne() async throws {
         let settings = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
-        let store = DashboardSnapshotStore(settingsStore: settings, dependencies: makeDependencies())
+        // Every reading is a second newer than the one before, and the first is already ten seconds old, so
+        // no test depends on how much wall-clock time passes between probes.
+        let probe = SequencedLatencyProbe(firstReadingAge: 10, interval: 1)
+        let store = DashboardSnapshotStore(settingsStore: settings, dependencies: makeDependencies(latencyProbe: probe))
         await store.refresh()
         let first = try #require(store.snapshot.network.latency)
+        #expect(await probe.callCount() == 1)
 
         await store.probeLatencyIfStale()
         #expect(store.snapshot.network.latency == first)
+        #expect(await probe.callCount() == 1)
 
-        try await Task.sleep(for: .milliseconds(20))
-        await store.probeLatencyIfStale(maximumAge: 0.001)
+        await store.probeLatencyIfStale(maximumAge: 5)
         #expect(try #require(store.snapshot.network.latency).collectedAt > first.collectedAt)
+        #expect(await probe.callCount() == 2)
     }
 
     @Test
@@ -141,10 +149,11 @@ struct DashboardSnapshotStoreTests {
     @Test
     func manualRefreshPublishesVisibleActivityUntilCompletion() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let throughputMonitor = GatedThroughputMonitor()
         let store = DashboardSnapshotStore(
             settingsStore: settingsStore,
             dependencies: makeDependencies(
-                throughputMonitor: SlowThroughputMonitor(),
+                throughputMonitor: throughputMonitor,
                 historyStore: InMemoryHistoryStore()
             )
         )
@@ -153,10 +162,11 @@ struct DashboardSnapshotStoreTests {
             await store.refresh(manual: true)
         }
 
-        try await Task.sleep(for: .milliseconds(10))
+        await throughputMonitor.waitForCall(1)
 
         #expect(store.refreshActivity == .manualInProgress)
 
+        await throughputMonitor.release()
         await refreshTask.value
 
         #expect(store.refreshActivity == .idle)
@@ -165,10 +175,11 @@ struct DashboardSnapshotStoreTests {
     @Test
     func automaticSlowRefreshPublishesVisibleActivityUntilCompletion() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let throughputMonitor = GatedThroughputMonitor()
         let store = DashboardSnapshotStore(
             settingsStore: settingsStore,
             dependencies: makeDependencies(
-                throughputMonitor: SlowThroughputMonitor(),
+                throughputMonitor: throughputMonitor,
                 historyStore: InMemoryHistoryStore()
             )
         )
@@ -177,10 +188,11 @@ struct DashboardSnapshotStoreTests {
             await store.refresh(manual: false)
         }
 
-        try await Task.sleep(for: .milliseconds(10))
+        await throughputMonitor.waitForCall(1)
 
         #expect(store.refreshActivity == .slowAutomaticInProgress)
 
+        await throughputMonitor.release()
         await refreshTask.value
 
         #expect(store.refreshActivity == .idle)
@@ -191,24 +203,27 @@ struct DashboardSnapshotStoreTests {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.slowRefreshIntervalSeconds = 60
 
+        let throughputMonitor = GatedThroughputMonitor(isHeld: false)
         let store = DashboardSnapshotStore(
             settingsStore: settingsStore,
             dependencies: makeDependencies(
-                throughputMonitor: SlowThroughputMonitor(),
+                throughputMonitor: throughputMonitor,
                 historyStore: InMemoryHistoryStore()
             )
         )
 
         await store.refresh(manual: true)
+        await throughputMonitor.hold()
 
         let refreshTask = Task {
             await store.refresh(manual: false)
         }
 
-        try await Task.sleep(for: .milliseconds(10))
+        await throughputMonitor.waitForCall(2)
 
         #expect(store.refreshActivity == .idle)
 
+        await throughputMonitor.release()
         await refreshTask.value
 
         #expect(store.refreshActivity == .idle)
@@ -227,7 +242,11 @@ struct DashboardSnapshotStoreTests {
         )
 
         store.start()
-        try await waitUntil { store.snapshot.appState.lastRefresh != nil }
+        // The startup refresh runs as a manual one; idle again means its external part has finished too, so
+        // an event it wrongly emitted would already be recorded.
+        await waitForStore(store, "the startup refresh to finish") {
+            store.snapshot.appState.lastRefresh != nil && store.refreshActivity == .idle
+        }
         store.stop()
 
         #expect(recorder.events.map(\.event).contains(.appBackgroundActiveDay) == false)
@@ -379,7 +398,7 @@ struct DashboardSnapshotStoreTests {
     @Test
     func overlappingRefreshesShareCurrentWorkWithoutForcedFollowUp() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
-        let throughputMonitor = SlowThroughputMonitor()
+        let throughputMonitor = GatedThroughputMonitor()
         let publicIPProvider = RecordingPublicIPProvider()
         let dependencies = makeDependencies(
             throughputMonitor: throughputMonitor,
@@ -393,14 +412,16 @@ struct DashboardSnapshotStoreTests {
             await store.refresh(manual: true)
         }
 
-        try await Task.sleep(for: .milliseconds(10))
+        await throughputMonitor.waitForCall(1)
 
         let overlappingRefreshes = [
             Task { await store.refresh(manual: false) },
             Task { await store.refresh(manual: true) },
             Task { await store.refresh(manual: true) }
         ]
+        await letMainActorTasksRunToTheirFirstSuspension()
 
+        await throughputMonitor.release()
         await firstRefresh.value
         for task in overlappingRefreshes {
             await task.value
@@ -496,7 +517,7 @@ struct DashboardSnapshotStoreTests {
 
         store.clearVisitedPlaces()
 
-        try await waitUntil {
+        await waitForStore(store, "the cleared diary to publish") {
             store.visitedPlaces.isEmpty && store.visitedPlaceEvents.isEmpty && store.visitedCountryDays.isEmpty
         }
         #expect(store.visitedCountryDayYears.isEmpty)
@@ -517,7 +538,7 @@ struct DashboardSnapshotStoreTests {
             dependencies: makeDependencies(visitedCountryDaysStore: visitedCountryDaysStore)
         )
 
-        try await waitUntil {
+        await waitForStore(store, "the stored country days to load") {
             store.visitedCountryDays.count == 4
         }
 
@@ -545,7 +566,7 @@ struct DashboardSnapshotStoreTests {
         )
         await store.refresh(manual: true)
 
-        try await waitUntil {
+        await waitForStore(store, "the time zone shift to be recorded") {
             store.timeZoneShifts.count == 2
         }
         #expect(store.timeZoneShifts.first == earlier)
@@ -557,7 +578,7 @@ struct DashboardSnapshotStoreTests {
         #expect(try await shiftStore.loadAll().count == 2)
 
         store.clearVisitedPlaces()
-        try await waitUntil {
+        await waitForStore(store, "the cleared shift history to publish") {
             store.timeZoneShifts.isEmpty || store.timeZoneShifts.count == 1
         }
         #expect(store.timeZoneShifts.first != earlier)
@@ -672,15 +693,16 @@ struct DashboardSnapshotStoreTests {
         #expect(initial.allSatisfy { $0 == nil })
 
         settingsStore.settings.citizenshipCountryCodes = ["FI"]
-        try await waitUntil(timeout: .seconds(3)) { await localInfoProvider.requestedHomeCountryCodes().last == "FI" }
-        try await waitUntil(timeout: .seconds(3)) { store.refreshActivity == .idle }
+        await waitForSettingsToTakeEffect(store)
+        #expect(await localInfoProvider.requestedHomeCountryCodes().last == "FI")
 
         settingsStore.settings.homeCountryCode = "SE"
-        try await waitUntil(timeout: .seconds(3)) { await localInfoProvider.requestedHomeCountryCodes().last == "SE" }
-        try await waitUntil(timeout: .seconds(3)) { store.refreshActivity == .idle }
+        await waitForSettingsToTakeEffect(store)
+        #expect(await localInfoProvider.requestedHomeCountryCodes().last == "SE")
 
         settingsStore.settings.homeCountryCode = nil
-        try await waitUntil(timeout: .seconds(3)) { await localInfoProvider.requestedHomeCountryCodes().last == "FI" }
+        await waitForSettingsToTakeEffect(store)
+        #expect(await localInfoProvider.requestedHomeCountryCodes().last == "FI")
     }
 
     @Test
@@ -690,23 +712,27 @@ struct DashboardSnapshotStoreTests {
         settingsStore.settings.useCurrentLocationForWeather = false
         settingsStore.settings.homeCountryCode = "FI"
 
+        let throughputMonitor = GatedThroughputMonitor()
         let localInfoProvider = RecordingHomeCountryLocalInfoProvider()
         let store = DashboardSnapshotStore(
             settingsStore: settingsStore,
             dependencies: makeDependencies(
-                throughputMonitor: SlowThroughputMonitor(),
+                throughputMonitor: throughputMonitor,
                 localInfoProvider: localInfoProvider,
                 historyStore: InMemoryHistoryStore()
             )
         )
 
         let running = Task { await store.refresh(manual: true) }
-        try await waitUntil { await localInfoProvider.requestedHomeCountryCodes().count == 1 }
+        await localInfoProvider.waitForRequests(1)
+        await throughputMonitor.waitForCall(1)
 
-        // The refresh is still collecting local metrics (the slow monitor) when the setting changes.
+        // The refresh is still collecting local metrics (the held monitor) when the setting changes.
         settingsStore.settings.homeCountryCode = "SE"
+        await waitForSettingsChangesToRegister(store)
+        await throughputMonitor.release()
         await running.value
-        try await waitUntil(timeout: .seconds(3)) { store.refreshActivity == .idle }
+        await waitForIdle(store)
 
         #expect(await localInfoProvider.requestedHomeCountryCodes() == ["FI", "SE"])
     }
@@ -717,27 +743,32 @@ struct DashboardSnapshotStoreTests {
         settingsStore.settings.localInfoEnabled = true
         settingsStore.settings.useCurrentLocationForWeather = false
 
+        let throughputMonitor = GatedThroughputMonitor()
         let localInfoProvider = RecordingHomeCountryLocalInfoProvider()
         let store = DashboardSnapshotStore(
             settingsStore: settingsStore,
             dependencies: makeDependencies(
-                throughputMonitor: SlowThroughputMonitor(),
+                throughputMonitor: throughputMonitor,
                 localInfoProvider: localInfoProvider,
                 historyStore: InMemoryHistoryStore()
             )
         )
 
         let running = Task { await store.refresh(manual: true) }
-        try await waitUntil { await localInfoProvider.requestedHomeCountryCodes().count == 1 }
+        await localInfoProvider.waitForRequests(1)
+        await throughputMonitor.waitForCall(1)
 
+        // Each change is applied and has asked for its refresh while the first one is still running.
         settingsStore.settings.homeCountryCode = "SE"
-        try await Task.sleep(for: .milliseconds(5))
+        await waitForSettingsChangesToRegister(store)
         settingsStore.settings.homeCountryCode = "NO"
-        try await Task.sleep(for: .milliseconds(5))
+        await waitForSettingsChangesToRegister(store)
         settingsStore.settings.homeCountryCode = "DK"
+        await waitForSettingsChangesToRegister(store)
+        await throughputMonitor.release()
         await running.value
-        try await waitUntil(timeout: .seconds(3)) { store.refreshActivity == .idle }
-        try await Task.sleep(for: .milliseconds(200))
+        // Idle means every requested refresh has finished and none is left pending, so the counts are final.
+        await waitForIdle(store)
 
         let requested = await localInfoProvider.requestedHomeCountryCodes()
         #expect(requested.count == 2)
@@ -751,7 +782,7 @@ struct DashboardSnapshotStoreTests {
         settingsStore.settings.useCurrentLocationForWeather = false
         settingsStore.settings.refreshIntervalSeconds = 60
 
-        let throughputMonitor = SlowThroughputMonitor()
+        let throughputMonitor = GatedThroughputMonitor()
         let localInfoProvider = RecordingHomeCountryLocalInfoProvider()
         let store = DashboardSnapshotStore(
             settingsStore: settingsStore,
@@ -763,13 +794,15 @@ struct DashboardSnapshotStoreTests {
         )
 
         let running = Task { await store.refresh(manual: true) }
-        try await waitUntil { await localInfoProvider.requestedHomeCountryCodes().count == 1 }
+        await localInfoProvider.waitForRequests(1)
+        await throughputMonitor.waitForCall(1)
 
         // The periodic loop ticks while the refresh is still collecting local metrics.
         store.start()
+        await letMainActorTasksRunToTheirFirstSuspension()
+        await throughputMonitor.release()
         await running.value
-        try await waitUntil(timeout: .seconds(3)) { store.refreshActivity == .idle }
-        try await Task.sleep(for: .milliseconds(200))
+        await waitForIdle(store)
         store.stop()
 
         #expect(await throughputMonitor.callCount() == 1)
@@ -782,22 +815,30 @@ struct DashboardSnapshotStoreTests {
         settingsStore.settings.localInfoEnabled = true
         settingsStore.settings.useCurrentLocationForWeather = false
 
+        let throughputMonitor = GatedThroughputMonitor()
         let localInfoProvider = RecordingHomeCountryLocalInfoProvider()
         let store = DashboardSnapshotStore(
             settingsStore: settingsStore,
             dependencies: makeDependencies(
-                throughputMonitor: SlowThroughputMonitor(),
+                throughputMonitor: throughputMonitor,
                 localInfoProvider: localInfoProvider,
                 historyStore: InMemoryHistoryStore()
             )
         )
 
         let automatic = Task { await store.refresh(manual: false) }
-        try await waitUntil { await localInfoProvider.requestedHomeCountryCodes().count == 1 }
+        await localInfoProvider.waitForRequests(1)
+        await throughputMonitor.waitForCall(1)
+        #expect(store.refreshActivity == .slowAutomaticInProgress)
         let manual = Task { await store.refresh(manual: true) }
+        // A manual request shows as manual activity the moment it joins the running refresh.
+        await waitForStore(store, "the manual request to join the running refresh") {
+            store.refreshActivity == .manualInProgress
+        }
+        await throughputMonitor.release()
         await automatic.value
         await manual.value
-        try await waitUntil(timeout: .seconds(3)) { store.refreshActivity == .idle }
+        await waitForIdle(store)
 
         #expect(await localInfoProvider.requestedHomeCountryCodes().count == 2)
     }
@@ -865,7 +906,7 @@ struct DashboardSnapshotStoreTests {
 
         settingsStore.settings.hudUserAPIToken = "hud-token-123"
 
-        try? await Task.sleep(for: .milliseconds(50))
+        await waitForSettingsToTakeEffect(store)
 
         #expect(await localPriceProvider.latestConfiguredToken() == "hud-token-123")
         #expect(store.snapshot.localInfo?.localPriceLevel?.status == .partial)
@@ -921,7 +962,7 @@ struct DashboardSnapshotStoreTests {
 
         settingsStore.settings.tankerkonigAPIKey = "user-key-123"
 
-        try? await Task.sleep(for: .milliseconds(50))
+        await waitForSettingsToTakeEffect(store)
 
         #expect(await fuelPriceProvider.latestConfiguredAPIKey() == "user-key-123")
         #expect(store.snapshot.fuelPrices?.status == .ready)
@@ -1419,7 +1460,7 @@ struct DashboardSnapshotStoreTests {
 
         settingsStore.settings.travelAdvisoryEnabled = true
 
-        try await waitForSettingsPropagation()
+        await waitForSettingsToTakeEffect(store)
         #expect(await advisoryProvider.callCount() == 1)
         #expect(store.snapshot.travelAlerts?.state(for: .advisory)?.status == .ready)
         _ = store
@@ -1442,7 +1483,8 @@ struct DashboardSnapshotStoreTests {
         settingsStore.settings.surfSpotLatitude = 60.1699
         settingsStore.settings.surfSpotLongitude = 24.9384
 
-        try await waitUntil { await marineProvider.callCount() >= 1 }
+        await waitForSettingsToTakeEffect(store)
+        #expect(await marineProvider.callCount() >= 1)
         #expect(store.snapshot.marine?.spotName == "Helsinki Beach")
     }
 
@@ -1516,7 +1558,8 @@ struct DashboardSnapshotStoreTests {
 
         settingsStore.settings.airQualityEnabled = false
 
-        try await waitUntil { store.snapshot.airQuality == nil }
+        await waitForSettingsToTakeEffect(store)
+        #expect(store.snapshot.airQuality == nil)
         #expect(store.sectionActivity[.airQuality] == nil)
         #expect(store.snapshot.weather != nil)
     }
@@ -1536,8 +1579,9 @@ struct DashboardSnapshotStoreTests {
 
         settingsStore.settings.airQualityEnabled = true
 
-        try await waitUntil { await airQualityProvider.requestedCoordinates().count >= 1 }
-        try await waitUntil { store.snapshot.airQuality != nil }
+        await waitForSettingsToTakeEffect(store)
+        #expect(await airQualityProvider.requestedCoordinates().count >= 1)
+        #expect(store.snapshot.airQuality != nil)
     }
 
     @Test
@@ -1586,7 +1630,7 @@ struct DashboardSnapshotStoreTests {
 
         settingsStore.settings.fuelPricesEnabled = true
 
-        try await waitForSettingsPropagation()
+        await waitForSettingsToTakeEffect(store)
         #expect(await fuelPriceProvider.callCount() == 1)
         #expect(store.snapshot.fuelPrices?.status == .ready)
     }
@@ -1603,18 +1647,14 @@ struct DashboardSnapshotStoreTests {
 
         let store = DashboardSnapshotStore(settingsStore: settingsStore, dependencies: dependencies)
 
-        try await waitUntil {
-            let history = await updateCoordinator.automaticChecksHistory()
-            return history.last == false
-        }
+        // The initial settings reach the coordinator first, then the change.
+        await updateCoordinator.waitForCalls(1)
+        #expect(await updateCoordinator.automaticChecksHistory() == [false])
 
         settingsStore.settings.automaticUpdateChecksEnabled = true
 
-        try await waitUntil {
-            let history = await updateCoordinator.automaticChecksHistory()
-            return Array(history.suffix(2)) == [false, true]
-        }
-        _ = store
+        await waitForSettingsToTakeEffect(store)
+        #expect(await updateCoordinator.automaticChecksHistory() == [false, true])
     }
 
     @Test
@@ -1645,13 +1685,9 @@ struct DashboardSnapshotStoreTests {
 
         settingsStore.settings.historyRetentionHours = 6
 
-        try await waitForSettingsPropagation()
+        await waitForSettingsToTakeEffect(store)
         #expect(store.snapshot.network.downloadHistory.count == 1)
         #expect(store.snapshot.network.downloadHistory.first?.value == 22)
-    }
-
-    private func waitForSettingsPropagation() async throws {
-        try await Task.sleep(for: .milliseconds(50))
     }
 
     private func makeTestAnalytics(
@@ -1675,36 +1711,85 @@ struct DashboardSnapshotStoreTests {
         return defaults
     }
 
-    private func waitUntil(
-        timeout: Duration = .seconds(1),
-        pollInterval: Duration = .milliseconds(10),
-        condition: @escaping () -> Bool
-    ) async throws {
-        let deadline = ContinuousClock.now + timeout
-        while condition() == false {
-            if ContinuousClock.now >= deadline {
-                Issue.record("Condition was not met before timeout.")
-                return
-            }
+    // MARK: Synchronisation
 
-            try await Task.sleep(for: pollInterval)
+    // Nothing here waits for a duration to pass. Each wait ends on the event it names: a stub provider being
+    // called, a published store value, or the store registering a settings change. `hangGuard` is the only
+    // timeout, and it exists so a test that can never finish fails instead of hanging the whole run.
+
+    /// Fails the test, instead of hanging it, when `operation` has not finished after `timeout`. It is a
+    /// safety net for a missed event and never the thing a test relies on to make work happen.
+    private func hangGuard(
+        _ description: String,
+        timeout: Duration = .seconds(10),
+        sourceLocation: SourceLocation = #_sourceLocation,
+        operation: @escaping @MainActor @Sendable () async -> Void
+    ) async {
+        let work = Task { @MainActor in await operation() }
+        let watchdog = Task { @MainActor () -> Bool in
+            do { try await Task.sleep(for: timeout) } catch { return false }
+            work.cancel()
+            return true
+        }
+        await work.value
+        watchdog.cancel()
+        if await watchdog.value {
+            Issue.record("Timed out waiting for \(description).", sourceLocation: sourceLocation)
         }
     }
 
-    private func waitUntil(
-        timeout: Duration = .seconds(1),
-        pollInterval: Duration = .milliseconds(10),
-        condition: @escaping () async -> Bool
-    ) async throws {
-        let deadline = ContinuousClock.now + timeout
-        while await condition() == false {
-            if ContinuousClock.now >= deadline {
-                Issue.record("Condition was not met before timeout.")
+    /// Returns once `condition` holds, re-checking after every published change of the store.
+    private func waitForStore(
+        _ store: DashboardSnapshotStore,
+        _ description: String,
+        sourceLocation: SourceLocation = #_sourceLocation,
+        until condition: @escaping @MainActor @Sendable () -> Bool
+    ) async {
+        await hangGuard(description, sourceLocation: sourceLocation) {
+            // `objectWillChange.values` cannot be used: the publisher emits without demand, which traps.
+            let (changes, continuation) = AsyncStream<Void>.makeStream(bufferingPolicy: .bufferingNewest(1))
+            let subscription = store.objectWillChange.sink { continuation.yield() }
+            defer { subscription.cancel() }
+            if condition() {
                 return
             }
-
-            try await Task.sleep(for: pollInterval)
+            // A change is published before it is applied, but this only resumes after the main actor has
+            // finished applying it, and a change that lands while waiting wakes the loop again.
+            for await _ in changes {
+                if condition() {
+                    return
+                }
+            }
         }
+    }
+
+    /// Returns once no refresh is running or pending, so every provider call it makes has been made.
+    private func waitForIdle(_ store: DashboardSnapshotStore, sourceLocation: SourceLocation = #_sourceLocation) async {
+        await waitForStore(store, "the store to become idle", sourceLocation: sourceLocation) {
+            store.refreshActivity == .idle
+        }
+    }
+
+    /// Returns once every settings change made so far is applied and its refresh is registered, while that
+    /// refresh may still be running.
+    private func waitForSettingsChangesToRegister(_ store: DashboardSnapshotStore, sourceLocation: SourceLocation = #_sourceLocation) async {
+        await hangGuard("the settings changes to register", sourceLocation: sourceLocation) {
+            await store.waitForSettingsChangesToRegister()
+        }
+    }
+
+    /// Returns once the settings changes made so far have been applied and the refreshes they caused have
+    /// finished.
+    private func waitForSettingsToTakeEffect(_ store: DashboardSnapshotStore, sourceLocation: SourceLocation = #_sourceLocation) async {
+        await waitForSettingsChangesToRegister(store, sourceLocation: sourceLocation)
+        await waitForIdle(store, sourceLocation: sourceLocation)
+    }
+
+    /// Main actor tasks run in the order they were started. Yielding therefore lets every task a test started
+    /// just before run until it first suspends, which for a refresh that joins a running one is when it has
+    /// joined.
+    private func letMainActorTasksRunToTheirFirstSuspension() async {
+        await Task.yield()
     }
 }
 
@@ -2055,17 +2140,95 @@ private struct FixedConnectivityMonitor: ConnectivityMonitor {
     }
 }
 
-private actor SlowThroughputMonitor: ThroughputMonitor {
-    private var calls = 0
+/// Counts the events a stub sees and lets a test await the n-th one. Waiting ends when the event happens and
+/// also when the waiting task is cancelled, so the hang guard can always end a wait that never completes.
+private actor CallRecorder<Value: Sendable> {
+    private(set) var values: [Value] = []
+    private var waiters: [(count: Int, continuation: AsyncStream<Void>.Continuation)] = []
+
+    func record(_ value: Value) {
+        values.append(value)
+        let ready = waiters.filter { $0.count <= values.count }
+        waiters.removeAll { $0.count <= values.count }
+        for waiter in ready {
+            waiter.continuation.yield()
+            waiter.continuation.finish()
+        }
+    }
+
+    func waitForCount(_ count: Int) async {
+        guard values.count < count else { return }
+        let (stream, continuation) = AsyncStream<Void>.makeStream()
+        waiters.append((count, continuation))
+        for await _ in stream {
+            return
+        }
+    }
+}
+
+/// Holds callers until a test lets them through. Opening it also lets every later caller straight through,
+/// so a test never has to guess whether the caller has arrived yet. Callers are not released by
+/// cancellation, like a provider that ignores it.
+private actor Gate {
+    private var isOpen: Bool
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    init(isOpen: Bool) {
+        self.isOpen = isOpen
+    }
+
+    func pass() async {
+        guard !isOpen else { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func open() {
+        isOpen = true
+        let released = waiters
+        waiters = []
+        for waiter in released {
+            waiter.resume()
+        }
+    }
+
+    func close() {
+        isOpen = false
+    }
+}
+
+/// A throughput monitor whose samples a test can hold open, so a refresh stays in its local metrics phase for
+/// exactly as long as the test needs.
+private final class GatedThroughputMonitor: ThroughputMonitor, Sendable {
+    private let calls = CallRecorder<Void>()
+    private let gate: Gate
+
+    init(isHeld: Bool = true) {
+        gate = Gate(isOpen: !isHeld)
+    }
 
     func currentSample() async -> NetworkThroughputSample? {
-        calls += 1
-        try? await Task.sleep(for: .milliseconds(50))
+        await calls.record(())
+        await gate.pass()
         return await FixedThroughputMonitor().currentSample()
     }
 
-    func callCount() -> Int {
-        calls
+    /// Returns once the monitor has been asked for its `number`-th sample.
+    func waitForCall(_ number: Int) async {
+        await calls.waitForCount(number)
+    }
+
+    func callCount() async -> Int {
+        await calls.values.count
+    }
+
+    /// Holds the samples asked for from now on.
+    func hold() async {
+        await gate.close()
+    }
+
+    /// Lets the held samples, and all later ones, through.
+    func release() async {
+        await gate.open()
     }
 }
 
@@ -2100,6 +2263,33 @@ private struct NilThroughputMonitor: ThroughputMonitor {
 private struct FixedLatencyProbe: LatencyProbe {
     func currentSample() async -> LatencySample? {
         LatencySample(host: "1.1.1.1", milliseconds: 22, jitterMilliseconds: 2, collectedAt: .now)
+    }
+}
+
+/// Reports readings with chosen timestamps instead of the time they were taken, so freshness and ordering
+/// never depend on how long the test took to get from one probe to the next.
+private actor SequencedLatencyProbe: LatencyProbe {
+    private let firstReading: Date
+    private let interval: TimeInterval
+    private var calls = 0
+
+    init(firstReadingAge: TimeInterval, interval: TimeInterval) {
+        firstReading = Date().addingTimeInterval(-firstReadingAge)
+        self.interval = interval
+    }
+
+    func currentSample() async -> LatencySample? {
+        defer { calls += 1 }
+        return LatencySample(
+            host: "1.1.1.1",
+            milliseconds: 22,
+            jitterMilliseconds: 2,
+            collectedAt: firstReading.addingTimeInterval(Double(calls) * interval)
+        )
+    }
+
+    func callCount() -> Int {
+        calls
     }
 }
 
@@ -2273,10 +2463,10 @@ private struct FixedPriceLevelIndexProvider: PriceLevelIndexProvider {
 
 /// Records the home country of every local info request.
 private actor RecordingHomeCountryLocalInfoProvider: LocalInfoProvider {
-    private var homeCountryCodes: [String?] = []
+    private let requests = CallRecorder<String?>()
 
     func info(for request: LocalInfoRequest, forceRefresh: Bool) async throws -> LocalInfoSnapshot {
-        homeCountryCodes.append(request.homeCountryCode)
+        await requests.record(request.homeCountryCode)
         return LocalInfoSnapshot(
             status: .partial,
             locality: request.locality,
@@ -2295,8 +2485,13 @@ private actor RecordingHomeCountryLocalInfoProvider: LocalInfoProvider {
         )
     }
 
-    func requestedHomeCountryCodes() -> [String?] {
-        homeCountryCodes
+    func requestedHomeCountryCodes() async -> [String?] {
+        await requests.values
+    }
+
+    /// Returns once the provider has been asked for local info `count` times.
+    func waitForRequests(_ count: Int) async {
+        await requests.waitForCount(count)
     }
 }
 
@@ -3003,7 +3198,7 @@ private struct MissingCoordinateWeatherProvider: WeatherProvider {
 }
 
 private actor RecordingUpdateCoordinator: UpdateCoordinator {
-    private var history: [Bool] = []
+    private let history = CallRecorder<Bool>()
 
     func currentState() async -> UpdateStateSnapshot {
         UpdateStateSnapshot(kind: .idle, detail: "Testing", lastCheckedAt: nil)
@@ -3012,33 +3207,35 @@ private actor RecordingUpdateCoordinator: UpdateCoordinator {
     func checkForUpdates() async {}
 
     func setAutomaticChecksEnabled(_ isEnabled: Bool) async {
-        history.append(isEnabled)
+        await history.record(isEnabled)
     }
 
-    func automaticChecksHistory() -> [Bool] {
-        history
+    func automaticChecksHistory() async -> [Bool] {
+        await history.values
+    }
+
+    /// Returns once the automatic update checks setting has been handed over `count` times.
+    func waitForCalls(_ count: Int) async {
+        await history.waitForCount(count)
     }
 }
 
 private actor HeldWeatherProvider: WeatherProvider {
-    private var continuation: CheckedContinuation<WeatherSnapshot, Error>?
-    private var started = false
-    func hasStarted() -> Bool {
-        started
+    private let calls = CallRecorder<Void>()
+    private let gate = Gate(isOpen: false)
+
+    /// Returns once the provider has been asked for weather and is holding the request.
+    func waitUntilStarted() async {
+        await calls.waitForCount(1)
     }
 
     func weather(for coordinate: CLLocationCoordinate2D?) async throws -> WeatherSnapshot {
-        started = true
-        return try await withCheckedThrowingContinuation { continuation = $0 }
+        await calls.record(())
+        await gate.pass()
+        return try await FixedWeatherProvider().weather(for: coordinate)
     }
 
     func release() async {
-        let value = try? await FixedWeatherProvider().weather(for: nil)
-        if let value {
-            continuation?.resume(returning: value)
-        } else {
-            continuation?.resume(throwing: ProviderError.invalidResponse)
-        }
-        continuation = nil
+        await gate.open()
     }
 }
