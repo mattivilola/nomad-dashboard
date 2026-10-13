@@ -102,6 +102,7 @@ public enum QuickAnswers {
         snapshot: DashboardSnapshot,
         settings: AppSettings,
         visitedCountryDays: [VisitedCountryDay],
+        timeZoneShifts: [TimeZoneShiftRecord] = [],
         now: Date,
         calendar: Calendar = .current
     ) -> DashboardStatusAnswer {
@@ -116,7 +117,8 @@ public enum QuickAnswers {
                 countryDays: visitedCountryDays,
                 settings: settings,
                 currentCountryCode: snapshot.currentCountryCode
-            )
+            ),
+            timeZoneShifts: timeZoneShifts
         ).first
 
         var sentence = "\(overall.label). \(spoken(overall.reason))."

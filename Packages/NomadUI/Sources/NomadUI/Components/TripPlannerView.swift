@@ -158,6 +158,13 @@ public struct TripPlannerView: View {
         if let presentation = model.presentation, let id = model.selectedTripID {
             TripPreviewView(
                 presentation: presentation,
+                checklistActions: TripChecklistActions(
+                    setChecked: { model.setChecked($0, itemID: $1) },
+                    addCustomItem: { model.addCustomItem(title: $0) },
+                    setCustomItemChecked: { model.setCustomItemChecked($0, id: $1) },
+                    removeCustomItem: { model.removeCustomItem(id: $0) },
+                    openURL: openURLAction
+                ),
                 editAction: { model.beginEditing(id) },
                 refreshOnlineAction: { model.refreshOnline() },
                 openURLAction: openURLAction,
@@ -199,10 +206,20 @@ private struct TripListRowView: View {
                     .foregroundStyle(row.hasEnded ? NomadTheme.tertiaryText : NomadTheme.primaryText)
                     .lineLimit(1)
 
-                Text(row.dates)
-                    .font(.caption)
-                    .foregroundStyle(NomadTheme.secondaryText)
-                    .lineLimit(1)
+                HStack(spacing: 8) {
+                    Text(row.dates)
+                        .font(.caption)
+                        .foregroundStyle(NomadTheme.secondaryText)
+                        .lineLimit(1)
+
+                    if let progress = row.checklistProgress {
+                        Label(progress, systemImage: "checklist")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(row.checklistTone.statusTint(neutral: NomadTheme.tertiaryText))
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                }
             }
 
             Spacer(minLength: 4)

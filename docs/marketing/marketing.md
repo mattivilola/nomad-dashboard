@@ -163,6 +163,8 @@ Marketing copy can safely say:
 - External IP location display can be turned off
 - Several travel modules are optional
 - Planned trips and your home country stay on the Mac; looking up holidays and the travel advisory for a trip sends only the destination's country code, never your dates or location, and the price comparison with home sends only the home and destination country codes to Eurostat
+- The departure checklist for a planned trip, your ticks and your own items, and the time zone history behind the jet-lag nudge stay on the Mac; the jet-lag guidance is general information, not medical advice
+- The trip map loads Apple Maps tiles for the destination region when you open a trip; the framing and the embassy markers come from data bundled with the app
 - Stay, Schengen and tax-day counts, and the what-if for a planned trip, are computed on the Mac from locally saved visited days; they are a convenience, not tax or legal advice
 - Air quality sends only a location rounded to about 11 km to Open-Meteo, and only while weather location is on; it has its own switch
 - Explore Cities can follow the current city using existing dashboard context; matching happens locally and only a matched city slug is sent for details. It saves found and no-match results and waits for a different city before checking again. The feature can be turned off; coordinates and local travel history are not shared

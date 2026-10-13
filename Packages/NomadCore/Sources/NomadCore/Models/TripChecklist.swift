@@ -16,7 +16,7 @@ public enum TripChecklistGroup: String, CaseIterable, Codable, Sendable {
 
     public var title: String {
         switch self {
-        case .beforeYouGo: "Before you go"
+        case .beforeYouGo: "Plan ahead"
         case .moneyAndPower: "Money & power"
         case .documents: "Documents"
         case .onArrival: "On arrival"
@@ -146,6 +146,19 @@ public struct TripChecklistState: Codable, Equatable, Hashable, Sendable {
         let item = TripChecklistCustomItem(title: cleaned)
         customItems.append(item)
         return item
+    }
+
+    /// Marks the traveller's own item with `id` done or open. Nothing happens for an unknown id.
+    public mutating func setCustomItemChecked(_ checked: Bool, id: UUID) {
+        guard let index = customItems.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        customItems[index].isChecked = checked
+    }
+
+    /// Removes the traveller's own item with `id`. Nothing happens for an unknown id.
+    public mutating func removeCustomItem(id: UUID) {
+        customItems.removeAll { $0.id == id }
     }
 
     /// The state ready to store: custom items with a trimmed title (at most

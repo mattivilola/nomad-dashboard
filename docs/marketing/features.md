@@ -109,7 +109,7 @@ Users can see whether the MacBook is draining normally, charging properly, or li
 - Shows four vital tiles: Internet (latency, throughput, network name), Power (charge and time left or time to full), Data Guard usage against its cap (or VPN status when Data Guard is off), and Weather (current temperature and condition with today's low and high; imminent rain and strong wind are reported by the heads-up items instead)
 - Colors tile values by status (teal good, sand caution, coral attention) instead of by metric type
 - Tapping a tile scrolls the dashboard to the related card
-- Lists at most three ranked heads-up items below the tiles when something needs attention: a data cap nearing or reaching its limit, a visa allowance, the Schengen 90-day limit or a tax-residence day count nearing its limit, a travel advisory, weather alert, or regional security signal, strong wind, rain within six hours, high UV, poor air quality, a public holiday within three days, a local rhythm such as Ramadan or Lunar New Year, a planned trip starting within 14 days (with a Schengen warning when the plan breaks the limit), and cheapest nearby fuel
+- Lists at most three ranked heads-up items below the tiles when something needs attention: a data cap nearing or reaching its limit, a visa allowance, the Schengen 90-day limit or a tax-residence day count nearing its limit, a travel advisory, weather alert, or regional security signal, strong wind, rain within six hours, high UV, poor air quality, a public holiday within three days, a local rhythm such as Ramadan or Lunar New Year, a planned trip starting within 14 days (with a Schengen warning when the plan breaks the limit, or the number of open checklist items in the last three days), jet lag after a time zone shift of three hours or more, and cheapest nearby fuel
 - Adds a daylight heads-up on the Road trip & RV profile, so you can finish driving before dark: within two hours of sunset it shows the sunset time and the daylight left (a caution in the last hour) with when civil twilight ends, and once it is properly dark it shows when the sun rises again; nothing is shown at midday or in polar day and polar night
 - Tapping a heads-up item jumps to the card that explains it; the list disappears when there is nothing to flag
 - Opens with a one-time "Welcome to Morocco" arrival briefing above the verdict strip on the day you arrive in a new country; see Arrival Briefing
@@ -460,6 +460,7 @@ You see how many days are left before a limit, and the date to leave by, without
 
 - Shows a compact "Welcome to Morocco" card at the top of the overview when you arrive in a new country and for three days after, until you dismiss it, with only the sections that have data: local time and the offset from home ("Local 10:42 (UTC+0) · Home (Helsinki) is 2 h ahead"), the emergency numbers (selectable), your embassy and your foreign ministry's consular line, the driving side (emphasised in sand when it changes), plugs and voltage, the currency, a public holiday today or tomorrow, a travel advisory of caution or worse, a Data Guard prompt with a Start monitoring button, and any local rhythm
 - Flags plugs, voltage or currency that differ from the country you came from
+- Adds a jet-lag row after a time zone shift of three hours or more (see Jet Lag Nudge)
 - Collapses to one line and is dismissed with Got it; it does not return until you arrive somewhere else
 - Show Arrival Briefing in the dashboard's header menu opens it again for the current country at any time
 - Can be switched off under Settings, Safety, Arrival briefing
@@ -478,6 +479,27 @@ You see how many days are left before a limit, and the date to leave by, without
 - it appears when a stay in a new country began within the last three days and the day before it was recorded in another country within 30 days; a first run or a long gap is not treated as an arrival
 - everything comes from data already on the dashboard or bundled with the app, and a section is left out rather than guessed when data is missing
 
+## Jet Lag Nudge
+
+### What it does
+
+- Notices when your Mac's local time zone moves by three hours or more in a short time and shows a "Jet lag: day 2 of about 5" heads-up on the overview, in the menu bar heads-up, in the Siri and Shortcuts dashboard status, on the Glance widget and as a row in the arrival briefing ("Shifted 7 h east")
+- Gives general light-timing guidance for today: after eastward travel "Get morning light 07:45–10:15 · dim lights after 21:00", after westward travel "Get afternoon light … · avoid bright light before 08:00", with the times from the local sunrise and sunset of the place you are in
+- Estimates the adjustment at about one day per hour of shift eastward and one per one and a half hours westward (at most seven days), then stops; a new shift replaces it, a one-hour daylight saving change never counts, and stopovers within three days add up to one shift
+- Needs nothing but the time zone history the app keeps itself: the last ten changes of the time zone are saved on the Mac and cleared together with the visited places
+
+### Who it helps
+
+- travelers crossing several time zones who want a simple reminder of when light helps and when to avoid it
+
+### Dependencies or setup
+
+- works offline; the light times need a location (device location or the IP location) for sunrise and sunset, and are left out when none is known
+
+### Limitations
+
+- general information based on public guidance from the US CDC, not medical advice; it does not know your sleep, flight or medication
+
 ## Trip Planner
 
 ### What it does
@@ -490,6 +512,8 @@ You see how many days are left before a limit, and the date to leave by, without
 - Loads public holidays on the days of the trip and the current travel advisory for the destination after the preview, with a progress line, the time they were saved, and "Not available offline" (or in Low Data mode) when nothing is saved; a refresh button checks again
 - Compares prices with home (Eurostat price levels, annual): one neutral line per category such as "Groceries ~30% cheaper than Finland", left out when no comparison is possible
 - Shows a visa what-if: how the trip changes the Schengen count ("Peak 76 of 90 days on 24 Jan" with a bar, and in coral "Exceeds 90/180 on 30 Oct" when it would, or "no limit for EU/EEA/Swiss citizens"), your stay allowance for the country ("14 of 90 days", coral with the last permitted day when the trip is longer), and the days in the destination this calendar year against the tax-residence threshold ("Morocco 2027: 14 planned + 0 recorded days of 183")
+- Adds a departure checklist, "Before you leave", right under the trip header: a progress line ("3 of 9 done") with a thin bar and suggested items grouped as Plan ahead, Money & power, Documents and On arrival, each with a checkbox, a short detail and, where an official page exists (the travel advisory, travel registration), an Open button. The items follow the trip: check roaming or a local SIM, save your foreign ministry's consular line, note the emergency numbers, pack a plug adapter or get local currency when they differ from home or where you are, drive on the other side, register your trip, an entry allowance or Schengen plan to check, local periods such as Ramadan, and, once holidays and the advisory have loaded, public holidays and the advisory itself. You can add up to 30 items of your own (Return adds, 120 characters each), tick and remove them. Ticks and own items are kept with the trip, so editing the trip does not lose them. The trip list shows the progress ("3/9") next to the dates, in neutral colour and in sand only when the trip starts within three days with items left, and the upcoming-trip heads-up then names the open items
+- Adds a compact map of the destination country with your embassy or consulate locations (the fallback missions when your state has none there). A precise location is a marker; a city-centre location is drawn as an area with a label instead of a pin that would point at the wrong street. Tapping one opens Apple Maps with the same search as the Your Embassy card, and an Open in Maps button searches for the destination; the map itself stays still so it does not get in the way of scrolling the preview. The caption reads "Map © Apple · embassy locations from Wikidata, approximate where marked", and offline it adds "Map needs a connection"
 - Adds an upcoming-trip heads-up in the 14 days before a trip starts (see Glance Overview) and a Next Trip Siri and Shortcuts action
 - Adds a Home country setting under Settings, General, Home that defaults to your first citizenship and can be set to any country; it decides what trips and local prices are compared with
 
@@ -504,12 +528,13 @@ You see what to expect and what a trip does to your counts before you commit to 
 
 ### Dependencies or setup
 
-- the preview works offline from bundled data; holidays and the advisory need a connection (the advisory also needs travel advisories switched on in Safety)
+- the preview works offline from bundled data; holidays and the advisory need a connection (the advisory also needs travel advisories switched on in Safety); the map tiles also need a connection, the framing and the markers do not
 - the embassy section needs a citizenship; the time comparison needs a home time zone; the prices need a home country (or a first citizenship) and a country Eurostat covers
 - the visa what-if follows the Schengen, allowance and tax-residence settings under Stays & Visas and uses the days Nomad recorded on this Mac
 
 ### Limitations
 
+- the checklist is a generic reminder list built from public data, not a complete travel or entry requirement list; check official sources. The map shows embassy locations from community-maintained data, and a city-centre location is approximate
 - planned days count from today on and are added to the recorded days; the plan does not fill gaps in or contradict what was recorded
 - the Schengen, allowance and tax-residence results are a convenience, not tax, immigration or legal advice; check official sources
 - price levels are annual country-level figures; the embassy list comes from community-maintained bundled data and can be incomplete

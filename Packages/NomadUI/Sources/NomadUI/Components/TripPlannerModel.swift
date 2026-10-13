@@ -34,6 +34,8 @@ final class TripPlannerModel: ObservableObject {
     @Published private(set) var preview: TripPreview?
     @Published private(set) var onlineState: TripOnlineState = .loading
     @Published private(set) var priceState: TripPriceState = .unavailable
+    /// How many checklist items are done, out of how many, for each trip in the list.
+    @Published private(set) var checklistProgress: [UUID: (done: Int, total: Int)] = [:]
     @Published var editor: EditorSession?
     @Published private(set) var context: Context
     @Published var homeTimeZoneIdentifier: String {
@@ -53,6 +55,9 @@ final class TripPlannerModel: ObservableObject {
     private var onlineTask: Task<Void, Never>?
     private var priceTask: Task<Void, Never>?
     private var onlineKey: String?
+    /// The holidays and advisory loaded for each trip, so the list can count the items they add. A trip's
+    /// entry is dropped while its data loads again.
+    private var loadedOnline: [UUID: TripPreviewOnline] = [:]
     private var priceKey: String?
     private var cancellables = Set<AnyCancellable>()
 
@@ -153,7 +158,7 @@ final class TripPlannerModel: ObservableObject {
     }
 
     var listRows: [TripListRow] {
-        TripListRow.rows(for: trips, now: now(), calendar: calendar, locale: locale)
+        TripListRow.rows(for: trips, checklists: checklistProgress, now: now(), calendar: calendar, locale: locale)
     }
 
     /// The preview with whatever has loaded so far; nil without a selected trip.
@@ -164,7 +169,7 @@ final class TripPlannerModel: ObservableObject {
                 online: onlineState,
                 prices: priceState,
                 policy: context.policy,
-                homeCountryCode: settings.effectiveHomeCountryCode,
+                settings: settings,
                 now: now(),
                 calendar: calendar,
                 locale: locale
@@ -231,6 +236,71 @@ final class TripPlannerModel: ObservableObject {
         editor = nil
     }
 
+    // MARK: Checklist
+
+    /// Ticks or unticks a suggested item of the selected trip.
+    func setChecked(_ checked: Bool, itemID: String) {
+        updateChecklist { $0.setChecked(checked, itemID: itemID) }
+    }
+
+    /// Adds an item of the traveller's own to the selected trip. False, and nothing added, when the title is
+    /// empty or the list is full.
+    @discardableResult
+    func addCustomItem(title: String) -> Bool {
+        var added = false
+        updateChecklist { added = $0.addCustomItem(title: title) != nil }
+        return added
+    }
+
+    func setCustomItemChecked(_ checked: Bool, id: UUID) {
+        updateChecklist { $0.setCustomItemChecked(checked, id: id) }
+    }
+
+    func removeCustomItem(id: UUID) {
+        updateChecklist { $0.removeCustomItem(id: id) }
+    }
+
+    /// Every checklist write goes through the sanitizer into the settings store, like the other trip edits.
+    private func updateChecklist(_ change: (inout TripChecklistState) -> Void) {
+        guard let id = selectedTripID else {
+            return
+        }
+
+        settingsStore.settings.plannedTrips = TripPlannerEditing.updatingChecklist(
+            of: id,
+            in: settingsStore.settings.plannedTrips,
+            now: now(),
+            calendar: calendar,
+            change: change
+        )
+    }
+
+    private func rebuildChecklistProgress() {
+        let ids = Set(trips.map(\.id))
+        loadedOnline = loadedOnline.filter { ids.contains($0.key) }
+        checklistProgress = Dictionary(uniqueKeysWithValues: trips.map { trip in
+            let tripPreview = preview?.trip.id == trip.id ? preview : nil
+            let source = tripPreview ?? TripPreview.make(
+                trip: trip,
+                settings: settings,
+                countryDays: context.countryDays,
+                currentCountryCode: context.currentCountryCode,
+                homeTimeZoneIdentifier: homeTimeZoneIdentifier,
+                now: now(),
+                calendar: calendar,
+                locale: locale
+            )
+            let items = TripChecklist.items(
+                for: source,
+                online: loadedOnline[trip.id],
+                settings: settings,
+                calendar: calendar,
+                locale: locale
+            )
+            return (trip.id, TripChecklist.progress(items: items, state: trip.checklist))
+        })
+    }
+
     // MARK: Loading
 
     /// Loads the holidays and advisory again, ignoring what is saved.
@@ -259,6 +329,8 @@ final class TripPlannerModel: ObservableObject {
         guard let trip = selectedTrip else {
             preview = nil
             cancelLoads()
+            loadedOnline = [:]
+            checklistProgress = [:]
             return
         }
 
@@ -288,6 +360,7 @@ final class TripPlannerModel: ObservableObject {
             self.priceKey = priceKey
             loadPrices(for: trip)
         }
+        rebuildChecklistProgress()
     }
 
     private func cancelLoads() {
@@ -304,6 +377,7 @@ final class TripPlannerModel: ObservableObject {
         }
 
         onlineState = .loading
+        loadedOnline[trip.id] = nil
         let key = onlineKey
         let online = services.online
         onlineTask = Task { [weak self] in
@@ -313,6 +387,8 @@ final class TripPlannerModel: ObservableObject {
             }
 
             onlineState = result.map(TripOnlineState.loaded) ?? .unavailable
+            loadedOnline[trip.id] = result
+            rebuildChecklistProgress()
         }
     }
 

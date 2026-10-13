@@ -44,7 +44,7 @@ struct TripPreviewPresentationTests {
             online: online,
             prices: prices,
             policy: policy,
-            homeCountryCode: home,
+            settings: Support.settings(trips: [preview.trip], citizenships: home.map { [$0] } ?? [], home: home),
             now: now,
             calendar: calendar,
             locale: locale
@@ -445,6 +445,52 @@ struct TripPreviewPresentationTests {
         settings.schengenCounterEnabled = false
 
         #expect(presentation(preview(morocco, settings: settings)).visa == nil)
+    }
+
+    // MARK: Checklist and map
+
+    @Test
+    func theChecklistIsPartOfThePreviewAndReadsTheTripsTicks() {
+        var trip = morocco
+        trip.checklist = TripChecklistState(checkedItemIDs: ["roaming"])
+        let result = presentation(preview(trip))
+
+        #expect(result.checklist.total > 0)
+        #expect(result.checklist.done == 1)
+        #expect(result.checklist.groups.flatMap(\.items).first { $0.id == "roaming" }?.isChecked == true)
+    }
+
+    @Test
+    func theChecklistGainsTheAdvisoryWhenTheOnlineDataLoads() {
+        let loading = presentation(preview(morocco))
+        let loaded = presentation(preview(morocco), online: .loaded(online(advisory: advisory(.caution))))
+
+        #expect(loading.checklist.groups.flatMap(\.items).contains { $0.id == "advisory" } == false)
+        #expect(loaded.checklist.groups.flatMap(\.items).contains { $0.id == "advisory" })
+    }
+
+    @Test
+    func theMapFramesTheDestinationAndPinsTheEmbassy() throws {
+        let map = try #require(presentation(preview(morocco)).map)
+
+        #expect(map.pins.isEmpty == false)
+        #expect(map.camera.latitudeSpan > 10)
+        #expect(map.offlineNote == nil)
+    }
+
+    @Test
+    func offlineThePreviewsMapSaysItNeedsAConnection() throws {
+        let offline = DashboardResourcePolicy(mode: .automatic, conditions: ResourceConditions(pathAvailable: false))
+
+        #expect(try #require(presentation(preview(morocco), policy: offline).map).offlineNote == "Map needs a connection")
+    }
+
+    @Test
+    func theMapStillShowsTheCountryWithoutAnEmbassy() throws {
+        let result = presentation(preview(Support.trip("FI", from: (2_027, 1, 12), to: (2_027, 1, 26)), current: "ES"))
+
+        #expect(result.embassy == nil)
+        #expect(try #require(result.map).pins.isEmpty)
     }
 
     @Test

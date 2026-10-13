@@ -10,12 +10,14 @@ struct WidgetSnapshotTests {
         _ snapshot: DashboardSnapshot,
         settings: AppSettings = AppSettings(),
         visitedCountryDays: [VisitedCountryDay] = [],
+        timeZoneShifts: [TimeZoneShiftRecord] = [],
         at date: Date? = nil
     ) -> WidgetSnapshot {
         WidgetSnapshot(
             snapshot: snapshot,
             settings: settings,
             visitedCountryDays: visitedCountryDays,
+            timeZoneShifts: timeZoneShifts,
             now: date ?? now,
             calendar: QuickAnswersFixtures.calendar,
             locale: locale,
@@ -98,6 +100,20 @@ struct WidgetSnapshotTests {
 
         #expect(widget.headsUp.map(\.title) == ["Morocco: 5 days left"])
         #expect(widget.headsUp.first?.severity == .caution)
+    }
+
+    @Test
+    func aRecentTimeZoneShiftReachesTheWidgetHeadsUps() {
+        let shifts = [
+            TimeZoneShiftRecord(date: now.addingTimeInterval(-10 * 86_400), identifier: "Europe/Helsinki", offsetSeconds: 10_800),
+            TimeZoneShiftRecord(date: now.addingTimeInterval(-86_400), identifier: "Asia/Bangkok", offsetSeconds: 25_200)
+        ]
+
+        let widget = make(QuickAnswersFixtures.helsinkiSnapshot(), timeZoneShifts: shifts)
+
+        #expect(widget.headsUp.map(\.title) == ["Jet lag: day 2 of about 4"])
+        #expect(widget.headsUp.first?.severity == .info)
+        #expect(make(QuickAnswersFixtures.helsinkiSnapshot()).headsUp.isEmpty)
     }
 
     @Test

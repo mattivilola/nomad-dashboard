@@ -453,6 +453,16 @@ enum EmbassyMapsLink {
         return components.url
     }
 
+    /// A plain Apple Maps search for a place by name, such as a country, escaped like the mission links.
+    static func url(forPlaceNamed name: String) -> URL? {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "maps.apple.com"
+        components.path = "/"
+        components.percentEncodedQuery = "q=\(encode(name))"
+        return components.url
+    }
+
     /// Unreserved characters stay, everything else is escaped; the comma of a coordinate pair stays literal.
     private static func encode(_ value: String) -> String {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~,"))

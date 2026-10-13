@@ -338,6 +338,29 @@ struct TripChecklistTests {
     }
 
     @Test
+    func ownItemsCanBeTickedAndRemovedByID() throws {
+        var state = TripChecklistState()
+        let addedFirst = state.addCustomItem(title: "Print the booking")
+        let addedSecond = state.addCustomItem(title: "Buy sunscreen")
+        let first = try #require(addedFirst)
+        let second = try #require(addedSecond)
+
+        state.setCustomItemChecked(true, id: second.id)
+        #expect(state.customItems.map(\.isChecked) == [false, true])
+        state.setCustomItemChecked(false, id: second.id)
+        #expect(state.customItems.map(\.isChecked) == [false, false])
+
+        state.removeCustomItem(id: first.id)
+        #expect(state.customItems.map(\.title) == ["Buy sunscreen"])
+
+        // An unknown id changes nothing.
+        let before = state
+        state.setCustomItemChecked(true, id: UUID())
+        state.removeCustomItem(id: UUID())
+        #expect(state == before)
+    }
+
+    @Test
     func settingsKeepTheChecklistThroughCoding() throws {
         var state = TripChecklistState(checkedItemIDs: ["roaming"])
         state.addCustomItem(title: "Print the booking")

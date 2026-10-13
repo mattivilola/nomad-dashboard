@@ -11,6 +11,8 @@ public struct NomadWorkReadinessView: View {
     let weatherAvailabilityExplanation: String?
     let settings: AppSettings
     let visitedCountryDays: [VisitedCountryDay]
+    /// The recent changes of the Mac's time zone, for the jet-lag heads-up and briefing. Local only.
+    let timeZoneShifts: [TimeZoneShiftRecord]
     let reopenedArrival: ArrivalEvent?
     let changeDataUsage: @Sendable (DataUsageMode) -> Void
     let openDiary: () -> Void
@@ -32,6 +34,7 @@ public struct NomadWorkReadinessView: View {
         weatherAvailabilityExplanation: String? = nil,
         settings: AppSettings = AppSettings(),
         visitedCountryDays: [VisitedCountryDay] = [],
+        timeZoneShifts: [TimeZoneShiftRecord] = [],
         reopenedArrival: ArrivalEvent? = nil,
         changeDataUsage: @escaping @Sendable (DataUsageMode) -> Void,
         openDiary: @escaping () -> Void,
@@ -50,6 +53,7 @@ public struct NomadWorkReadinessView: View {
         self.weatherAvailabilityExplanation = weatherAvailabilityExplanation
         self.settings = settings
         self.visitedCountryDays = visitedCountryDays
+        self.timeZoneShifts = timeZoneShifts
         self.reopenedArrival = reopenedArrival
         self.changeDataUsage = changeDataUsage
         self.openDiary = openDiary
@@ -112,6 +116,7 @@ public struct NomadWorkReadinessView: View {
                                 snapshot: snapshot,
                                 settings: settings,
                                 homeTimeZoneIdentifier: homeTimeZoneIdentifier,
+                                timeZoneShifts: timeZoneShifts,
                                 now: timeline.date
                             ),
                             previousCountryCode: event.previousCountryCode,
@@ -301,7 +306,8 @@ public struct NomadWorkReadinessView: View {
                 for: snapshot,
                 now: timeline.date,
                 profile: travelProfile,
-                stays: stayInsightInput
+                stays: stayInsightInput,
+                timeZoneShifts: timeZoneShifts
             )
                 .map(GlanceHeadsUpRowPresentation.init(insight:))
 

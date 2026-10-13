@@ -211,6 +211,98 @@ struct TripPlannerPresentationTests {
         #expect(trip.note == "  Surf camp ")
     }
 
+    @Test
+    func editingATripKeepsItsChecklist() throws {
+        var state = TripChecklistState(checkedItemIDs: ["roaming", "cash.MAD"])
+        state.addCustomItem(title: "Print the booking")
+        var existing = Support.trip(from: (2_027, 1, 12), to: (2_027, 1, 26))
+        existing.checklist = state
+
+        var draft = TripDraft(trip: existing)
+        draft.note = "Surf camp"
+        draft.setStart(Support.date(2_027, 1, 14))
+
+        #expect(draft.checklist == state)
+        #expect(try #require(draft.trip()).checklist == state)
+    }
+
+    @Test
+    func aNewDraftStartsWithAnEmptyChecklist() throws {
+        var draft = TripDraft.new(now: now, calendar: calendar)
+        draft.countryCode = "MA"
+
+        #expect(try #require(draft.trip()).checklist.isEmpty)
+    }
+
+    // MARK: Checklist
+
+    private func row(startingInDays days: Int, checklist: (done: Int, total: Int)?) -> TripListRow {
+        let start = calendar.date(byAdding: .day, value: days, to: Support.date(2_026, 10, 12))!
+        let trip = PlannedTrip(countryCode: "MA", startDate: start, endDate: calendar.date(byAdding: .day, value: 6, to: start)!)
+        return TripListRow(trip: trip, checklist: checklist, now: now, calendar: calendar, locale: locale)
+    }
+
+    @Test
+    func theListRowShowsTheChecklistProgressInNeutralColour() {
+        let result = row(startingInDays: 60, checklist: (done: 3, total: 9))
+
+        #expect(result.checklistProgress == "3/9")
+        #expect(result.checklistTone == .neutral)
+        #expect(result.accessibilityLabel.hasSuffix("in 60 days, 3 of 9 checklist items done"))
+    }
+
+    @Test
+    func theListRowTurnsSandWhenTheTripIsAboutToStartWithItemsLeft() {
+        #expect(row(startingInDays: 3, checklist: (done: 3, total: 9)).checklistTone == .caution)
+        #expect(row(startingInDays: 0, checklist: (done: 8, total: 9)).checklistTone == .caution)
+        #expect(row(startingInDays: 4, checklist: (done: 3, total: 9)).checklistTone == .neutral)
+    }
+
+    @Test
+    func aCompleteOrStartedChecklistStaysNeutral() {
+        #expect(row(startingInDays: 1, checklist: (done: 9, total: 9)).checklistTone == .neutral)
+        #expect(row(startingInDays: -2, checklist: (done: 3, total: 9)).checklistTone == .neutral)
+    }
+
+    @Test
+    func aTripWithoutChecklistItemsShowsNoProgress() {
+        let none = row(startingInDays: 1, checklist: (done: 0, total: 0))
+
+        #expect(none.checklistProgress == nil)
+        #expect(none.checklistTone == .neutral)
+        #expect(none.checklistSpokenProgress == nil)
+        #expect(row(startingInDays: 1, checklist: nil).checklistProgress == nil)
+    }
+
+    @Test
+    func updatingTheChecklistGoesThroughTheSanitizer() throws {
+        let trip = Support.trip(from: (2_027, 1, 12), to: (2_027, 1, 26))
+        let other = Support.trip("PT", from: (2_027, 3, 1), to: (2_027, 3, 8))
+
+        let trips = TripPlannerEditing.updatingChecklist(of: trip.id, in: [other, trip], now: now, calendar: calendar) {
+            $0.setChecked(true, itemID: "roaming")
+            $0.setChecked(true, itemID: "")
+            $0.addCustomItem(title: "  Print the booking  ")
+        }
+
+        let updated = try #require(trips.first { $0.id == trip.id })
+        #expect(trips.map(\.id) == [trip.id, other.id])
+        #expect(updated.checklist.checkedItemIDs == ["roaming"])
+        #expect(updated.checklist.customItems.map(\.title) == ["Print the booking"])
+        #expect(trips.first { $0.id == other.id }?.checklist.isEmpty == true)
+    }
+
+    @Test
+    func updatingTheChecklistOfAnUnknownTripChangesNothing() {
+        let trip = Support.trip(from: (2_027, 1, 12), to: (2_027, 1, 26))
+
+        let trips = TripPlannerEditing.updatingChecklist(of: UUID(), in: [trip], now: now, calendar: calendar) {
+            $0.setChecked(true, itemID: "roaming")
+        }
+
+        #expect(trips == [trip])
+    }
+
     // MARK: Editing
 
     @Test

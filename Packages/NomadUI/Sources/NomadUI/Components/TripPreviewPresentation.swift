@@ -94,7 +94,11 @@ struct TripPreviewPresentation {
 
     /// Time difference, emergency numbers, driving side, plugs and currency.
     let basics: [Row]
+    /// The departure checklist, ticked and extended locally by the traveller.
+    let checklist: TripChecklistPresentation
     let embassy: Embassy?
+    /// The destination with the traveller's embassy locations; nil when nothing can be framed.
+    let map: TripMapPresentation?
     let rhythm: [Row]
     let online: OnlineSection
     let prices: Prices?
@@ -106,7 +110,7 @@ struct TripPreviewPresentation {
         online: TripOnlineState,
         prices: TripPriceState,
         policy: DashboardResourcePolicy,
-        homeCountryCode: String?,
+        settings: AppSettings,
         now: Date,
         calendar: Calendar = .current,
         locale: Locale = .current,
@@ -152,13 +156,21 @@ struct TripPreviewPresentation {
             basics.append(ArrivalBriefingPresentation.moneyRow(money))
         }
         self.basics = basics
+        checklist = TripChecklistPresentation(
+            preview: preview,
+            online: online,
+            settings: settings,
+            calendar: calendar,
+            locale: locale
+        )
 
         embassy = preview.embassy.map {
             Self.embassy($0, hostName: preview.countryName, locale: locale, missionIndex: missionIndex)
         }
+        map = TripMapPresentation(preview: preview, policy: policy)
         rhythm = preview.rhythm.map { Self.rhythmRow($0, now: now, calendar: calendar, locale: locale) }
         self.online = Self.onlineSection(online, policy: policy, locale: locale, calendar: calendar)
-        self.prices = Self.prices(prices, homeCountryCode: homeCountryCode, locale: locale)
+        self.prices = Self.prices(prices, homeCountryCode: settings.effectiveHomeCountryCode, locale: locale)
         visa = Self.visa(preview, dayText: dayText)
     }
 

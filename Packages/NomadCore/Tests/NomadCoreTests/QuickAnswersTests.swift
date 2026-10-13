@@ -125,6 +125,27 @@ struct QuickAnswersDashboardStatusTests {
     }
 
     @Test
+    func aRecentTimeZoneShiftIsTheTopHeadsUpWhenItIsGiven() {
+        // Helsinki (UTC+3 in June) to Bangkok (UTC+7)... the shift itself is what counts: four hours east, a day ago.
+        let helsinki = QuickAnswersFixtures.helsinkiSnapshot()
+        let shifts = [
+            TimeZoneShiftRecord(date: now.addingTimeInterval(-10 * 86_400), identifier: "Europe/Helsinki", offsetSeconds: 10_800),
+            TimeZoneShiftRecord(date: now.addingTimeInterval(-86_400), identifier: "Asia/Bangkok", offsetSeconds: 25_200)
+        ]
+
+        let with = QuickAnswers.dashboardStatus(
+            snapshot: helsinki, settings: AppSettings(), visitedCountryDays: [], timeZoneShifts: shifts, now: now
+        )
+        let without = QuickAnswers.dashboardStatus(
+            snapshot: helsinki, settings: AppSettings(), visitedCountryDays: [], now: now
+        )
+
+        #expect(with.headsUp?.kind == .jetLag)
+        #expect(with.sentence.contains("Top heads-up: Jet lag: day 2 of about 4."))
+        #expect(without.headsUp == nil)
+    }
+
+    @Test
     func timeSeparatorsAreSpokenAsCommas() throws {
         // Road trip profile, 45 minutes before sunset in Helsinki: "Sunset 21:30 · 45 min of daylight".
         let helsinki = QuickAnswersFixtures.helsinkiSnapshot()

@@ -106,7 +106,7 @@ public enum DashboardInsightEngine {
     /// A planned trip becomes a heads-up this many days before it starts.
     static let upcomingTripLookAheadDays = 14
     /// From this many days before a trip starts, open checklist items become its heads-up detail.
-    static let upcomingTripChecklistLeadDays = 3
+    public static let upcomingTripChecklistLeadDays = 3
     private static let menuBarTextCharacterLimit = 12
     static let daylightCautionInterval: TimeInterval = 60 * 60
     static let daylightInfoInterval: TimeInterval = 120 * 60

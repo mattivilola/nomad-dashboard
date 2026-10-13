@@ -136,7 +136,8 @@ struct NomadDashboardApp: App {
                     countryDays: snapshotStore.visitedCountryDays,
                     settings: settingsStore.settings,
                     currentCountryCode: snapshotStore.snapshot.currentCountryCode
-                )
+                ),
+                timeZoneShifts: snapshotStore.timeZoneShifts
             )
         }
         .menuBarExtraStyle(.window)

@@ -356,6 +356,142 @@ struct TripPlannerModelTests {
         #expect(model.listRows.map(\.countryName) == ["Morocco", "Portugal"])
     }
 
+    @Test
+    func editingATripKeepsItsTicksAndOwnItems() throws {
+        let store = try makeStore(trips: [morocco])
+        let model = makeModel(store: store, services: RecordingServices())
+        model.setChecked(true, itemID: "roaming")
+        model.addCustomItem(title: "Print the booking")
+
+        model.beginEditing(morocco.id)
+        var draft = try #require(model.editor?.draft)
+        draft.note = "Surf camp"
+        draft.setStart(Support.date(2_027, 1, 14))
+        model.save(draft)
+
+        let saved = try #require(store.settings.plannedTrips.first)
+        #expect(saved.note == "Surf camp")
+        #expect(saved.checklist.checkedItemIDs == ["roaming"])
+        #expect(saved.checklist.customItems.map(\.title) == ["Print the booking"])
+    }
+
+    // MARK: Checklist
+
+    @Test
+    func tickingAnItemIsStoredWithTheTripAndShownInThePresentation() throws {
+        let store = try makeStore(trips: [morocco, portugal])
+        let model = makeModel(store: store, services: RecordingServices())
+        let before = try #require(model.presentation?.checklist)
+        let itemID = try #require(before.groups.first?.items.first?.id)
+
+        model.setChecked(true, itemID: itemID)
+
+        #expect(store.settings.plannedTrips.first { $0.id == morocco.id }?.checklist.checkedItemIDs == [itemID])
+        #expect(store.settings.plannedTrips.first { $0.id == portugal.id }?.checklist.isEmpty == true)
+        #expect(model.presentation?.checklist.done == 1)
+        #expect(model.presentation?.checklist.total == before.total)
+
+        model.setChecked(false, itemID: itemID)
+        #expect(store.settings.plannedTrips.first { $0.id == morocco.id }?.checklist.checkedItemIDs.isEmpty == true)
+        #expect(model.presentation?.checklist.done == 0)
+    }
+
+    @Test
+    func ownItemsAreTrimmedLimitedAndCappedBeforeTheyAreStored() throws {
+        let store = try makeStore(trips: [morocco])
+        let model = makeModel(store: store, services: RecordingServices())
+
+        #expect(model.addCustomItem(title: "   ") == false)
+        #expect(model.addCustomItem(title: "  Print the booking  "))
+        #expect(model.addCustomItem(title: String(repeating: "x", count: 200)))
+        let stored = try #require(store.settings.plannedTrips.first).checklist.customItems
+        #expect(stored.map(\.title) == ["Print the booking", String(repeating: "x", count: TripChecklistCustomItem.maximumTitleLength)])
+
+        for index in 0..<TripChecklistState.maximumCustomItems {
+            model.addCustomItem(title: "Item \(index)")
+        }
+        #expect(model.addCustomItem(title: "One too many") == false)
+        #expect(store.settings.plannedTrips.first?.checklist.customItems.count == TripChecklistState.maximumCustomItems)
+        #expect(model.presentation?.checklist.canAddCustomItem == false)
+    }
+
+    @Test
+    func ownItemsCanBeTickedAndRemoved() throws {
+        let store = try makeStore(trips: [morocco])
+        let model = makeModel(store: store, services: RecordingServices())
+        model.addCustomItem(title: "Print the booking")
+        model.addCustomItem(title: "Buy sunscreen")
+        let first = try #require(model.presentation?.checklist.customItems.first)
+
+        model.setCustomItemChecked(true, id: first.id)
+        #expect(model.presentation?.checklist.customItems.map(\.isChecked) == [true, false])
+
+        model.removeCustomItem(id: first.id)
+        #expect(model.presentation?.checklist.customItems.map(\.title) == ["Buy sunscreen"])
+        #expect(store.settings.plannedTrips.first?.checklist.customItems.map(\.title) == ["Buy sunscreen"])
+    }
+
+    @Test
+    func checklistWritesDoNotAskTheNetworkAgain() async throws {
+        let store = try makeStore(trips: [morocco])
+        let services = RecordingServices()
+        let model = makeModel(store: store, services: services)
+        await model.waitForLoads()
+
+        model.setChecked(true, itemID: "roaming")
+        model.addCustomItem(title: "Print the booking")
+        await model.waitForLoads()
+
+        #expect(services.onlineCalls.count == 1)
+    }
+
+    @Test
+    func theListRowsShowEachTripsProgress() throws {
+        let store = try makeStore(trips: [morocco, portugal])
+        let model = makeModel(store: store, services: RecordingServices())
+        let total = try #require(model.presentation?.checklist.total)
+        model.setChecked(true, itemID: "roaming")
+        model.addCustomItem(title: "Print the booking")
+
+        let rows = model.listRows
+        #expect(rows.first?.checklistProgress == "1/\(total + 1)")
+        #expect(rows.last?.checklistProgress?.hasPrefix("0/") == true)
+        #expect(rows.allSatisfy { $0.checklistTone == .neutral })
+    }
+
+    @Test
+    func theListCountsHolidaysAndTheAdvisoryOnceTheyHaveLoaded() async throws {
+        let store = try makeStore(trips: [morocco])
+        let services = RecordingServices()
+        let signal = TravelAlertSignalSnapshot(
+            kind: .advisory,
+            severity: .caution,
+            title: "Morocco",
+            summary: "Exercise a high degree of caution",
+            sourceName: "Smartraveller",
+            sourceURL: nil,
+            updatedAt: Support.date(2_026, 10, 1),
+            affectedCountryCodes: ["MA"]
+        )
+        services.online = TripPreviewOnline(holidays: [], advisory: signal, fetchedAt: Support.now)
+        let model = makeModel(store: store, services: services)
+        let offlineTotal = try #require(model.presentation?.checklist.total)
+        #expect(model.listRows.first?.checklistProgress == "0/\(offlineTotal)")
+
+        await model.waitForLoads()
+
+        #expect(model.presentation?.checklist.total == offlineTotal + 1)
+        #expect(model.listRows.first?.checklistProgress == "0/\(offlineTotal + 1)")
+    }
+
+    @Test
+    func aTripStartingSoonWithItemsLeftIsSandInTheList() throws {
+        let soon = Support.trip(from: (2_026, 10, 14), to: (2_026, 10, 20))
+        let model = makeModel(store: try makeStore(trips: [soon]), services: RecordingServices())
+
+        #expect(model.listRows.first?.checklistTone == .caution)
+    }
+
     // MARK: Context
 
     @Test

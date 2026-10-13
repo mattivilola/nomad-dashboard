@@ -9,15 +9,17 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- _Nothing yet_
+- Add a departure checklist, "Before you leave", to the Trip Planner preview: suggested items grouped as Plan ahead, Money & power, Documents and On arrival (roaming, consular line and emergency numbers, plug adapter, local currency, driving side, travel registration, visa and Schengen checks, local periods, and public holidays and the advisory once they load), with checkboxes, a progress bar, Open buttons for official pages and up to 30 items of your own. The trip list shows the progress ("3/9"), in sand only when the trip starts within three days with items left. Ticks stay on the Mac with the trip.
+- Add a map of the destination to the Trip Planner preview with your embassy or consulate locations: a marker for a precise location, an area with a label for a city-centre one, and a tap opens Apple Maps with the same search as the Your Embassy card; an Open in Maps button searches for the destination. Offline it says "Map needs a connection".
+- Add a jet-lag nudge: after a time zone shift of three hours or more a "Jet lag: day 2 of about 5" heads-up with light-timing guidance (menu bar, overview, Siri and Shortcuts, Glance widget) and a row in the arrival briefing. The last 10 time zone changes are kept locally in `time-zone-shifts.json` and cleared with the visited places.
 
 ### Changed
 
-- _Nothing yet_
+- The Mac's time zone is re-read when it changes (travel, Date & Time settings), so a new zone registers without restarting the app.
 
 ### Fixed
 
-- _Nothing yet_
+- Editing a planned trip no longer loses its checklist ticks and own items.
 
 
 ## [0.19.0] - 2026-10-13

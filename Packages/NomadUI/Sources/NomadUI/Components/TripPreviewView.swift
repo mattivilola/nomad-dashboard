@@ -5,6 +5,7 @@ import SwiftUI
 /// data does not cover are left out.
 struct TripPreviewView: View {
     let presentation: TripPreviewPresentation
+    let checklistActions: TripChecklistActions
     let editAction: () -> Void
     let refreshOnlineAction: () -> Void
     let openURLAction: (URL) -> Void
@@ -15,6 +16,18 @@ struct TripPreviewView: View {
             VStack(alignment: .leading, spacing: 14) {
                 header
 
+                TripTile(
+                    title: TripChecklistPresentation.title,
+                    systemImage: "checklist.checked",
+                    accessory: {
+                        Text(presentation.checklist.progressText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(NomadTheme.secondaryText)
+                    }
+                ) {
+                    TripChecklistSection(checklist: presentation.checklist, actions: checklistActions)
+                }
+
                 if presentation.basics.isEmpty == false {
                     TripTile(title: TripPreviewPresentation.basicsTitle, systemImage: "checklist") {
                         rows(presentation.basics)
@@ -24,6 +37,12 @@ struct TripPreviewView: View {
                 if let embassy = presentation.embassy {
                     TripTile(title: TripPreviewPresentation.embassyTitle, systemImage: "building.columns.fill") {
                         embassySection(embassy)
+                    }
+                }
+
+                if let map = presentation.map {
+                    TripTile(title: TripMapPresentation.title, systemImage: "map") {
+                        TripMapView(map: map, openURLAction: openURLAction)
                     }
                 }
 

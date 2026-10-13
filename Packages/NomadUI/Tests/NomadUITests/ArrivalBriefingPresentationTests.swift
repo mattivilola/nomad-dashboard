@@ -65,6 +65,37 @@ struct ArrivalBriefingPresentationTests {
     }
 
     @Test
+    func jetLagShowsTheDayTheShiftAndTheLightAdvice() throws {
+        let summary = JetLagSummary(
+            assessment: JetLagAssessment(direction: .east, shiftHours: 7, shiftedAt: Support.now, dayNumber: 2, adjustmentDays: 5),
+            guidance: JetLagGuidance(
+                seekLight: nil,
+                dimLightsAfter: nil,
+                avoidLightBefore: nil,
+                text: "Get morning light 07:45–10:15 · dim lights after 21:00"
+            )
+        )
+        let time = ArrivalBriefing.Time(timeZoneIdentifier: "UTC", utcOffsetSeconds: 0, home: nil)
+        let result = presentation(ArrivalBriefing(countryCode: "MA", countryName: "Morocco", time: time, emergency: morocco, jetLag: summary))
+        let row = try #require(row(.jetLag, in: result))
+
+        #expect(row.title == "Jet lag: day 2 of about 5")
+        #expect(row.text == "Shifted 7 h east")
+        #expect(row.detail == "Get morning light 07:45–10:15 · dim lights after 21:00")
+        #expect(row.tone == .neutral)
+        #expect(row.flag == nil)
+        // It follows the time row, since it is about the clock.
+        #expect(result.rows.map(\.kind) == [.time, .jetLag, .emergency])
+    }
+
+    @Test
+    func withoutJetLagThereIsNoRowForIt() {
+        let result = presentation(ArrivalBriefing(countryCode: "MA", countryName: "Morocco", emergency: morocco))
+
+        #expect(row(.jetLag, in: result) == nil)
+    }
+
+    @Test
     func emergencyNumbersAreSelectableAndListTheOthers() throws {
         let row = try #require(row(.emergency, in: presentation(ArrivalBriefing(countryCode: "MA", countryName: "Morocco", emergency: morocco))))
 

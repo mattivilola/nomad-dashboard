@@ -126,6 +126,7 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
         snapshot: DashboardSnapshot,
         settings: AppSettings,
         visitedCountryDays: [VisitedCountryDay],
+        timeZoneShifts: [TimeZoneShiftRecord] = [],
         now: Date,
         calendar: Calendar = .current,
         locale: Locale = .current,
@@ -145,7 +146,8 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
                 countryDays: visitedCountryDays,
                 settings: settings,
                 currentCountryCode: snapshot.currentCountryCode
-            )
+            ),
+            timeZoneShifts: timeZoneShifts
         )
         .filter { $0.kind != .daylight }
         .map { HeadsUp(title: $0.title, symbolName: $0.symbolName, severity: Severity($0.severity)) }

@@ -17,6 +17,7 @@ enum IntentAnswers {
             snapshot: snapshotStore.snapshot,
             settings: settingsStore.settings,
             visitedCountryDays: snapshotStore.visitedCountryDays,
+            timeZoneShifts: snapshotStore.timeZoneShifts,
             now: .now
         ).sentence
     }

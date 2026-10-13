@@ -38,18 +38,41 @@ final class WidgetSnapshotPublisher {
         }
 
         lastWritten = store.load()
-        subscription = Publishers.CombineLatest3(snapshotStore.$snapshot, settingsStore.$settings, snapshotStore.$visitedCountryDays)
-            .throttle(for: Self.evaluationInterval, scheduler: DispatchQueue.main, latest: true)
-            .sink { [weak self] snapshot, settings, visitedCountryDays in
-                self?.publish(snapshot: snapshot, settings: settings, visitedCountryDays: visitedCountryDays, now: .now)
-            }
+        subscription = Publishers.CombineLatest4(
+            snapshotStore.$snapshot,
+            settingsStore.$settings,
+            snapshotStore.$visitedCountryDays,
+            snapshotStore.$timeZoneShifts
+        )
+        .throttle(for: Self.evaluationInterval, scheduler: DispatchQueue.main, latest: true)
+        .sink { [weak self] snapshot, settings, visitedCountryDays, timeZoneShifts in
+            self?.publish(
+                snapshot: snapshot,
+                settings: settings,
+                visitedCountryDays: visitedCountryDays,
+                timeZoneShifts: timeZoneShifts,
+                now: .now
+            )
+        }
     }
 
-    func publish(snapshot: DashboardSnapshot, settings: AppSettings, visitedCountryDays: [VisitedCountryDay], now: Date) {
+    func publish(
+        snapshot: DashboardSnapshot,
+        settings: AppSettings,
+        visitedCountryDays: [VisitedCountryDay],
+        timeZoneShifts: [TimeZoneShiftRecord],
+        now: Date
+    ) {
         // Until the first local readings arrive the snapshot is a placeholder, not something to show.
         guard let store, snapshot.hasLiveReadings else { return }
 
-        let candidate = WidgetSnapshot(snapshot: snapshot, settings: settings, visitedCountryDays: visitedCountryDays, now: now)
+        let candidate = WidgetSnapshot(
+            snapshot: snapshot,
+            settings: settings,
+            visitedCountryDays: visitedCountryDays,
+            timeZoneShifts: timeZoneShifts,
+            now: now
+        )
         guard WidgetSnapshotPublishPolicy.shouldPublish(candidate, previous: lastWritten) else { return }
 
         do {

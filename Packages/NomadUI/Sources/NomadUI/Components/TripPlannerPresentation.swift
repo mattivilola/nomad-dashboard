@@ -92,23 +92,45 @@ struct TripListRow: Identifiable, Equatable {
     let timing: String
     let hasEnded: Bool
     let note: String?
+    /// "3/9" when the trip has checklist items.
+    let checklistProgress: String?
+    /// Sand when the trip is about to start and items are left; neutral otherwise (the list's colour is a status).
+    let checklistTone: SummaryTileTone
+    /// Spoken: "3 of 9 checklist items done".
+    let checklistSpokenProgress: String?
 
-    init(trip: PlannedTrip, now: Date, calendar: Calendar, locale: Locale) {
+    /// - Parameter checklist: How many of the trip's checklist items are done, out of how many; nil when it
+    ///   is not known.
+    init(trip: PlannedTrip, checklist: (done: Int, total: Int)? = nil, now: Date, calendar: Calendar, locale: Locale) {
         id = trip.id
         countryName = CountryNames.displayName(forCode: trip.countryCode, locale: locale)
         dates = TripDateFormatting.range(of: trip, calendar: calendar, locale: locale)
         timing = TripTiming.text(for: trip, now: now, calendar: calendar)
         hasEnded = trip.daysSinceEnd(now: now, calendar: calendar) > 0
         note = trip.note
+        checklistProgress = checklist.flatMap { TripChecklistPresentation.compactProgressText(done: $0.done, total: $0.total) }
+        checklistSpokenProgress = checklist.flatMap { TripChecklistPresentation.spokenProgress(done: $0.done, total: $0.total) }
+        let daysUntilStart = trip.daysUntilStart(now: now, calendar: calendar)
+        let hasItemsLeft = checklist.map { $0.done < $0.total } ?? false
+        checklistTone = hasItemsLeft && (0...DashboardInsightEngine.upcomingTripChecklistLeadDays).contains(daysUntilStart)
+            ? .caution
+            : .neutral
     }
 
-    /// Spoken as one sentence: "Morocco, 12–26 Jan 2027, in 12 days".
+    /// Spoken as one sentence: "Morocco, 12–26 Jan 2027, in 12 days, 3 of 9 checklist items done".
     var accessibilityLabel: String {
-        [countryName, dates, timing].joined(separator: ", ")
+        [countryName, dates, timing, checklistSpokenProgress].compactMap(\.self).joined(separator: ", ")
     }
 
-    static func rows(for trips: [PlannedTrip], now: Date, calendar: Calendar, locale: Locale) -> [TripListRow] {
-        trips.map { TripListRow(trip: $0, now: now, calendar: calendar, locale: locale) }
+    /// - Parameter checklists: The checklist progress by trip id, for the trips it is known for.
+    static func rows(
+        for trips: [PlannedTrip],
+        checklists: [UUID: (done: Int, total: Int)] = [:],
+        now: Date,
+        calendar: Calendar,
+        locale: Locale
+    ) -> [TripListRow] {
+        trips.map { TripListRow(trip: $0, checklist: checklists[$0.id], now: now, calendar: calendar, locale: locale) }
     }
 }
 
@@ -138,6 +160,8 @@ struct TripDraft: Equatable {
     var startDate: Date
     var endDate: Date
     var note: String
+    /// The checklist progress of the trip being edited, carried through the edit so saving keeps it.
+    var checklist: TripChecklistState
 
     /// A new trip a week from today that lasts a week.
     static func new(now: Date, calendar: Calendar) -> TripDraft {
@@ -147,12 +171,20 @@ struct TripDraft: Equatable {
         return TripDraft(id: nil, countryCode: nil, startDate: start, endDate: end, note: "")
     }
 
-    init(id: UUID?, countryCode: String?, startDate: Date, endDate: Date, note: String) {
+    init(
+        id: UUID?,
+        countryCode: String?,
+        startDate: Date,
+        endDate: Date,
+        note: String,
+        checklist: TripChecklistState = TripChecklistState()
+    ) {
         self.id = id
         self.countryCode = countryCode
         self.startDate = startDate
         self.endDate = endDate
         self.note = note
+        self.checklist = checklist
     }
 
     init(trip: PlannedTrip) {
@@ -161,7 +193,8 @@ struct TripDraft: Equatable {
             countryCode: trip.countryCode,
             startDate: trip.startDate,
             endDate: trip.endDate,
-            note: trip.note ?? ""
+            note: trip.note ?? "",
+            checklist: trip.checklist
         )
     }
 
@@ -217,7 +250,8 @@ struct TripDraft: Equatable {
         problem(now: now, calendar: calendar) == nil
     }
 
-    /// The trip to store, nil while the draft has no country. The id of the edited trip is kept.
+    /// The trip to store, nil while the draft has no country. The id and the checklist of the edited trip
+    /// are kept.
     func trip() -> PlannedTrip? {
         guard let countryCode else {
             return nil
@@ -228,7 +262,8 @@ struct TripDraft: Equatable {
             countryCode: countryCode,
             startDate: startDate,
             endDate: max(startDate, endDate),
-            note: note
+            note: note,
+            checklist: checklist
         )
     }
 }
@@ -246,6 +281,23 @@ enum TripPlannerEditing {
             now: now,
             calendar: calendar
         )
+    }
+
+    /// `trips` with the checklist of the trip `id` changed by `change`, sanitized and sorted. Unchanged when
+    /// there is no such trip.
+    static func updatingChecklist(
+        of id: UUID,
+        in trips: [PlannedTrip],
+        now: Date,
+        calendar: Calendar,
+        change: (inout TripChecklistState) -> Void
+    ) -> [PlannedTrip] {
+        guard var trip = trips.first(where: { $0.id == id }) else {
+            return trips
+        }
+
+        change(&trip.checklist)
+        return saving(trip, into: trips, now: now, calendar: calendar)
     }
 
     static func deleting(_ id: UUID, from trips: [PlannedTrip], now: Date, calendar: Calendar) -> [PlannedTrip] {

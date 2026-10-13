@@ -6,7 +6,7 @@ import NomadCore
 struct ArrivalBriefingPresentation {
     struct Row: Identifiable, Equatable {
         enum Kind: Equatable {
-            case time, emergency, embassy, road, power, money, holiday, advisory, rhythm, dataGuard
+            case time, jetLag, emergency, embassy, road, power, money, holiday, advisory, rhythm, dataGuard
         }
 
         let id: String
@@ -49,6 +49,9 @@ struct ArrivalBriefingPresentation {
         var rows: [Row] = []
         if let time = briefing.time {
             rows.append(Self.timeRow(time, now: now, locale: locale))
+        }
+        if let jetLag = briefing.jetLag {
+            rows.append(Self.jetLagRow(jetLag))
         }
         if let emergency = briefing.emergency {
             rows.append(Self.emergencyRow(emergency))
@@ -202,6 +205,22 @@ struct ArrivalBriefingPresentation {
             title: "Time",
             text: [local, time.home?.differenceText].compactMap(\.self).joined(separator: " · "),
             detail: nil,
+            tone: .neutral,
+            flag: nil,
+            isSelectable: false
+        )
+    }
+
+    /// "Jet lag: day 2 of about 5", "Shifted 7 h east" and today's light timing. Neutral: it is guidance,
+    /// not a warning.
+    static func jetLagRow(_ summary: JetLagSummary) -> Row {
+        Row(
+            id: "jetLag",
+            kind: .jetLag,
+            symbolName: "moon.zzz.fill",
+            title: summary.title,
+            text: summary.shiftText,
+            detail: summary.guidance.text,
             tone: .neutral,
             flag: nil,
             isSelectable: false

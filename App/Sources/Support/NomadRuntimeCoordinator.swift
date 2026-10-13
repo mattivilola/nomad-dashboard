@@ -78,6 +78,14 @@ final class NomadRuntimeCoordinator: ObservableObject {
                 self?.refreshLocationIfAuthorized()
             }
         }.store(in: &observations)
+        // `TimeZone.current` is cached until the system zone is reset, so a change (a flight, the Date & Time
+        // settings) would otherwise not be seen. The normal refresh then records the new zone for the jet-lag nudge.
+        NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange).sink { [weak self] _ in
+            Task { @MainActor in
+                NSTimeZone.resetSystemTimeZone()
+                await self?.snapshotStore.refresh()
+            }
+        }.store(in: &observations)
         snapshotStore.start()
         refreshLocationIfAuthorized()
         locationTask = Task { [weak self] in

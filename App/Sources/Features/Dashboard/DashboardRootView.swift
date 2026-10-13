@@ -42,6 +42,7 @@ struct DashboardRootView: View {
                     weatherAvailabilityExplanation: AppRuntimeInfo.weatherAvailabilityExplanation,
                     settings: settingsStore.settings,
                     visitedCountryDays: snapshotStore.visitedCountryDays,
+                    timeZoneShifts: snapshotStore.timeZoneShifts,
                     reopenedArrival: reopenedArrival,
                     changeDataUsage: { settingsStore.settings.dataUsageMode = $0 },
                     openDiary: { openDashboardWindow(.workplaceDiary) },
@@ -530,6 +531,8 @@ struct MenuBarStatusLabel: View {
     let travelProfile: TravelProfile
     /// What the stay heads-ups need: the visited days and the stay settings. Local only.
     let stays: StayInsightInput?
+    /// The recent time zone changes for the jet-lag heads-up. Local only.
+    let timeZoneShifts: [TimeZoneShiftRecord]
 
     var body: some View {
         if showsHeadsUp {
@@ -540,7 +543,8 @@ struct MenuBarStatusLabel: View {
                     now: timeline.date,
                     limit: 1,
                     profile: travelProfile,
-                    stays: stays
+                    stays: stays,
+                    timeZoneShifts: timeZoneShifts
                 ).first)
             }
         } else {
