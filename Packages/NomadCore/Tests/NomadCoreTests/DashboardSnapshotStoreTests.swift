@@ -529,6 +529,41 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func recordsTheEffectiveTimeZoneInTheShiftHistory() async throws {
+        let settingsStore = try AppSettingsStore(defaults: isolatedDefaults())
+        settingsStore.settings.publicIPGeolocationEnabled = false
+        settingsStore.settings.useCurrentLocationForWeather = false
+        let shiftStore = InMemoryTimeZoneShiftStore()
+        let earlier = TimeZoneShiftRecord(
+            date: Date().addingTimeInterval(-20 * 86_400), identifier: "Pacific/Kiritimati", offsetSeconds: 50_400
+        )
+        try await shiftStore.record(earlier)
+
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(timeZoneShiftStore: shiftStore)
+        )
+        await store.refresh(manual: true)
+
+        try await waitUntil {
+            store.timeZoneShifts.count == 2
+        }
+        #expect(store.timeZoneShifts.first == earlier)
+        #expect(store.timeZoneShifts.last?.identifier == TimeZone.current.identifier)
+        #expect(store.timeZoneShifts.last?.offsetSeconds == TimeZone.current.secondsFromGMT())
+
+        // The same zone again adds nothing.
+        await store.refresh(manual: true)
+        #expect(try await shiftStore.loadAll().count == 2)
+
+        store.clearVisitedPlaces()
+        try await waitUntil {
+            store.timeZoneShifts.isEmpty || store.timeZoneShifts.count == 1
+        }
+        #expect(store.timeZoneShifts.first != earlier)
+    }
+
+    @Test
     func refreshSkipsLocationLookupWhenGeolocationIsDisabled() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.publicIPGeolocationEnabled = false
@@ -1699,6 +1734,7 @@ private func makeDependencies(
     visitedPlacesStore: any VisitedPlacesStore = InMemoryVisitedPlacesStore(),
     visitedPlaceEventsStore: any VisitedPlaceEventsStore = InMemoryVisitedPlaceEventsStore(),
     visitedCountryDaysStore: any VisitedCountryDaysStore = InMemoryVisitedCountryDaysStore(),
+    timeZoneShiftStore: any TimeZoneShiftStore = InMemoryTimeZoneShiftStore(),
     historyStore: any MetricHistoryStore = InMemoryHistoryStore(),
     updateCoordinator: any UpdateCoordinator = NoopUpdateCoordinator()
 ) -> DashboardDependencies {
@@ -1727,12 +1763,32 @@ private func makeDependencies(
         visitedPlacesStore: visitedPlacesStore,
         visitedPlaceEventsStore: visitedPlaceEventsStore,
         visitedCountryDaysStore: visitedCountryDaysStore,
+        timeZoneShiftStore: timeZoneShiftStore,
         historyStore: historyStore,
         updateCoordinator: updateCoordinator,
         meteredDataController: MeteredDataController(
             store: MeteredUsageStore(url: FileManager.default.temporaryDirectory.appendingPathComponent("metered-usage-test-\(UUID().uuidString).json"))
         )
     )
+}
+
+private actor InMemoryTimeZoneShiftStore: TimeZoneShiftStore {
+    private var values: [TimeZoneShiftRecord] = []
+
+    func loadAll() async throws -> [TimeZoneShiftRecord] {
+        values
+    }
+
+    func record(_ record: TimeZoneShiftRecord) async throws {
+        if let latest = values.last, latest.identifier == record.identifier, latest.offsetSeconds == record.offsetSeconds {
+            return
+        }
+        values.append(record)
+    }
+
+    func reset() async throws {
+        values = []
+    }
 }
 
 private actor InMemoryHistoryStore: MetricHistoryStore {

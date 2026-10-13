@@ -149,6 +149,15 @@ public protocol VisitedPlaceEventsStore: Sendable {
     func reset() async throws
 }
 
+/// A short local history of the Mac's time zone changes, for the jet-lag nudge.
+public protocol TimeZoneShiftStore: Sendable {
+    /// The kept records, oldest first.
+    func loadAll() async throws -> [TimeZoneShiftRecord]
+    /// Appends `record` unless the latest record already has the same time zone and offset.
+    func record(_ record: TimeZoneShiftRecord) async throws
+    func reset() async throws
+}
+
 public protocol VisitedCountryDaysStore: Sendable {
     func loadAll() async throws -> [VisitedCountryDay]
     func record(_ input: VisitedCountryDayInput) async throws

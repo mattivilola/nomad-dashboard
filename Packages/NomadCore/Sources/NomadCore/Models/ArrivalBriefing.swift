@@ -115,6 +115,9 @@ public struct ArrivalBriefing: Equatable, Sendable {
     /// `DashboardInsightEngine.localRhythmLookAheadDays` days, earliest first. Empty when there are none.
     public let rhythm: [LocalRhythmPeriod]
     public let advisory: Advisory?
+    /// Set when the arrival comes with a time zone shift of 3 h or more that the body clock is still
+    /// catching up with (see `JetLagAdvisor`).
+    public let jetLag: JetLagSummary?
     /// Shown when Data Guard is enabled but not monitoring, as the traveller may have switched SIM.
     public let dataGuardHint: String?
 
@@ -136,6 +139,7 @@ public struct ArrivalBriefing: Equatable, Sendable {
         holiday: Holiday? = nil,
         rhythm: [LocalRhythmPeriod] = [],
         advisory: Advisory? = nil,
+        jetLag: JetLagSummary? = nil,
         dataGuardHint: String? = nil
     ) {
         self.countryCode = countryCode
@@ -149,6 +153,7 @@ public struct ArrivalBriefing: Equatable, Sendable {
         self.holiday = holiday
         self.rhythm = rhythm
         self.advisory = advisory
+        self.jetLag = jetLag
         self.dataGuardHint = dataGuardHint
     }
 }
@@ -317,6 +322,8 @@ public extension ArrivalBriefing {
     ///
     /// - Parameters:
     ///   - homeTimeZoneIdentifier: The traveller's home time zone, for the "home is 2 h ahead" line.
+    ///   - timeZoneShifts: The recent changes of the local time zone (`TimeZoneShiftStore`), for the jet-lag
+    ///     section. Without them there is none.
     ///   - calendar: Decides what "today" and "tomorrow" mean for the holiday and local-rhythm sections.
     ///   - locale: Used for the country and currency names.
     static func make(
@@ -324,6 +331,7 @@ public extension ArrivalBriefing {
         snapshot: DashboardSnapshot,
         settings: AppSettings,
         homeTimeZoneIdentifier: String?,
+        timeZoneShifts: [TimeZoneShiftRecord] = [],
         now: Date,
         calendar: Calendar = .current,
         locale: Locale = .autoupdatingCurrent
@@ -354,6 +362,13 @@ public extension ArrivalBriefing {
                 calendar: calendar
             ),
             advisory: advisorySection(countryCode: code, alerts: snapshot.travelAlerts),
+            jetLag: JetLagAdvisor.summary(
+                history: timeZoneShifts,
+                travelContext: travelContext,
+                now: now,
+                calendar: calendar,
+                locale: locale
+            ),
             dataGuardHint: snapshot.meteredData.isFeatureEnabled && snapshot.meteredData.isMonitoringActive == false
                 ? dataGuardHintText
                 : nil

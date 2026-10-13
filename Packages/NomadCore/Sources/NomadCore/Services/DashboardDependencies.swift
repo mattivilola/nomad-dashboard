@@ -25,6 +25,7 @@ public struct DashboardDependencies: Sendable {
     public let visitedPlacesStore: any VisitedPlacesStore
     public let visitedPlaceEventsStore: any VisitedPlaceEventsStore
     public let visitedCountryDaysStore: any VisitedCountryDaysStore
+    public let timeZoneShiftStore: any TimeZoneShiftStore
     public let historyStore: any MetricHistoryStore
     public let updateCoordinator: any UpdateCoordinator
     public let resourceConditions: any ResourceConditionsReading
@@ -56,6 +57,7 @@ public struct DashboardDependencies: Sendable {
         visitedPlacesStore: any VisitedPlacesStore,
         visitedPlaceEventsStore: any VisitedPlaceEventsStore,
         visitedCountryDaysStore: any VisitedCountryDaysStore,
+        timeZoneShiftStore: any TimeZoneShiftStore,
         historyStore: any MetricHistoryStore,
         updateCoordinator: any UpdateCoordinator,
         resourceConditions: any ResourceConditionsReading = DefaultResourceConditionsReader(),
@@ -86,6 +88,7 @@ public struct DashboardDependencies: Sendable {
         self.visitedPlacesStore = visitedPlacesStore
         self.visitedPlaceEventsStore = visitedPlaceEventsStore
         self.visitedCountryDaysStore = visitedCountryDaysStore
+        self.timeZoneShiftStore = timeZoneShiftStore
         self.historyStore = historyStore
         self.updateCoordinator = updateCoordinator
         self.resourceConditions = resourceConditions
@@ -157,6 +160,9 @@ public struct DashboardDependencies: Sendable {
             ),
             visitedCountryDaysStore: FileVisitedCountryDaysStore(
                 fileURL: applicationSupportDirectory.appendingPathComponent("visited-country-days.json")
+            ),
+            timeZoneShiftStore: FileTimeZoneShiftStore(
+                fileURL: applicationSupportDirectory.appendingPathComponent("time-zone-shifts.json")
             ),
             historyStore: FileMetricHistoryStore(
                 fileURL: applicationSupportDirectory.appendingPathComponent("metric-history.json"),

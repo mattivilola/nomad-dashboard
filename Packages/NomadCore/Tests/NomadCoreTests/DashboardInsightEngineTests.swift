@@ -166,8 +166,16 @@ struct DashboardInsightEngineTests {
             endDate: parisCalendar.date(byAdding: .day, value: 16, to: now)!
         )]
         let stayInput = StayInsightInput(countryDays: stayDays, settings: staySettings, currentCountryCode: "FR")
-        let nomad = DashboardInsightEngine.insights(for: snapshot, now: now, calendar: parisCalendar, limit: 20, stays: stayInput)
+        // A shift of five hours east that began yesterday.
+        let shifts = [
+            TimeZoneShiftRecord(date: now.addingTimeInterval(-10 * 86_400), identifier: "Europe/Paris", offsetSeconds: 7_200),
+            TimeZoneShiftRecord(date: now.addingTimeInterval(-86_400), identifier: "Asia/Bangkok", offsetSeconds: 25_200)
+        ]
+        let nomad = DashboardInsightEngine.insights(
+            for: snapshot, now: now, calendar: parisCalendar, limit: 20, stays: stayInput, timeZoneShifts: shifts
+        )
         #expect(Set(nomad.map(\.kind)) == Set(DashboardInsightKind.allCases).subtracting([.daylight, .localRhythm]))
+        #expect(nomad.first { $0.kind == .jetLag }?.menuBarText == "Jet lag")
         #expect(nomad.first { $0.kind == .upcomingTrip }?.menuBarText == "Trip in 12 d")
         // Same severity ranks by tie-break order: the data cap, then the stay insights, then the advisory.
         let cautionKinds = nomad.filter { $0.severity == .caution }.map(\.kind)

@@ -78,7 +78,7 @@ struct UpcomingTripInsightTests {
 
     @Test
     func theCurrencyIsStillNamedWhenItDoesNotChange() throws {
-        let insight = try #require(insight(trips: [trip("ES", startingIn: 3)], current: "PT"))
+        let insight = try #require(insight(trips: [trip("ES", startingIn: 5)], current: "PT"))
 
         #expect(insight.detail == "Same currency (EUR)")
     }
@@ -202,7 +202,7 @@ struct UpcomingTripInsightTests {
     @Test
     func aLocalPeriodAlreadyOnAtArrivalSaysSo() throws {
         let now = date(2027, 2, 20)
-        let insight = try #require(insight(trips: [trip("SA", startingIn: 3, days: 4, now: now)], now: now))
+        let insight = try #require(insight(trips: [trip("SA", startingIn: 5, days: 4, now: now)], now: now))
 
         #expect(insight.detail == "Ramadan is on during your trip")
     }
@@ -265,5 +265,84 @@ struct UpcomingTripInsightTests {
         #expect(kinds.first == .schengenLimit)
         #expect(kinds.contains(.upcomingTrip))
         #expect(kinds.firstIndex(of: .upcomingTrip)! < kinds.firstIndex(of: .taxResidenceDays) ?? .max)
+    }
+
+    // MARK: - Checklist
+
+    /// Offline suggestions for a trip from France to Morocco with a Finnish passport: the emergency numbers,
+    /// roaming, the consular line, the trip registration, a plug adapter and the dirham.
+    private let moroccoChecklistItemCount = 6
+
+    @Test
+    func openChecklistItemsBecomeTheDetailInTheLastThreeDays() throws {
+        for offset in 0...DashboardInsightEngine.upcomingTripChecklistLeadDays {
+            let insight = try #require(insight(trips: [trip("MA", startingIn: offset)]))
+
+            #expect(insight.detail == "\(moroccoChecklistItemCount) checklist items left")
+            #expect(insight.severity == .info)
+        }
+        #expect(try #require(insight(trips: [trip("MA", startingIn: 4)])).detail == "Currency: Moroccan Dirham (MAD)")
+    }
+
+    @Test
+    func checkedItemsAndTheTravellersOwnItemsAreCounted() throws {
+        var checklist = TripChecklistState(checkedItemIDs: ["cash.MAD", "roaming", "gone.since"])
+        checklist.addCustomItem(title: "Print the booking")
+        checklist.addCustomItem(title: "Buy sunscreen")
+        checklist.customItems[1].isChecked = true
+        var planned = trip("MA", startingIn: 2)
+        planned.checklist = checklist
+
+        // 6 suggestions - 2 checked + 2 own - 1 own checked; the unknown id counts for nothing.
+        #expect(try #require(insight(trips: [planned])).detail == "\(moroccoChecklistItemCount - 2 + 1) checklist items left")
+    }
+
+    @Test
+    func oneOpenItemReadsInTheSingular() throws {
+        var planned = trip("MA", startingIn: 1)
+        planned.checklist = TripChecklistState(checkedItemIDs: [
+            "roaming", "emergency-numbers", "consular-line.FI", "register.FI", "adapter.C-E"
+        ])
+
+        #expect(try #require(insight(trips: [planned])).detail == "1 checklist item left")
+    }
+
+    @Test
+    func aFinishedChecklistFallsBackToTheNextFact() throws {
+        var planned = trip("MA", startingIn: 2)
+        planned.checklist = TripChecklistState(checkedItemIDs: [
+            "roaming", "emergency-numbers", "consular-line.FI", "register.FI", "adapter.C-E", "cash.MAD"
+        ])
+
+        #expect(try #require(insight(trips: [planned])).detail == "Currency: Moroccan Dirham (MAD)")
+    }
+
+    @Test
+    func aBreachOutranksTheChecklistInTheLastDays() throws {
+        let insight = try #require(insight(
+            trips: [trip("ES", startingIn: 2, days: 11)],
+            days: recorded("FR", count: 80, endingOn: today),
+            citizenships: ["US"]
+        ))
+
+        #expect(insight.severity == .caution)
+        #expect(insight.detail?.hasPrefix("Plan exceeds Schengen 90/180 on") == true)
+    }
+
+    @Test
+    func theChecklistOutranksALocalPeriodAndTheRoadInTheLastDays() throws {
+        // Saudi Arabia: Ramadan starts on 8 Feb 2027.
+        let now = date(2027, 2, 5)
+        let ramadan = try #require(insight(trips: [trip("SA", startingIn: 2, days: 20, now: now)], now: now))
+        #expect(ramadan.detail?.hasSuffix("checklist items left") == true)
+
+        let driving = try #require(insight(trips: [trip("GB", startingIn: 2)], current: "FR"))
+        #expect(driving.detail?.hasSuffix("checklist items left") == true)
+    }
+
+    @Test
+    func theChecklistDetailFitsTheHeadsUpWidth() throws {
+        let insight = try #require(insight(trips: [trip("MA", startingIn: 1)]))
+        #expect((insight.detail?.count ?? 0) <= 44)
     }
 }

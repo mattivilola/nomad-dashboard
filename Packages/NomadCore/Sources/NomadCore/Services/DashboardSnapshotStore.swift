@@ -22,6 +22,9 @@ public final class DashboardSnapshotStore: ObservableObject {
     @Published public private(set) var visitedPlaces: [VisitedPlace] = []
     @Published public private(set) var visitedPlaceEvents: [VisitedPlaceEvent] = []
     @Published public private(set) var visitedCountryDays: [VisitedCountryDay] = []
+    /// The last changes of the Mac's local time zone, oldest first; the input of the jet-lag nudge
+    /// (`DashboardInsightEngine.insights(timeZoneShifts:)`).
+    @Published public private(set) var timeZoneShifts: [TimeZoneShiftRecord] = []
     @Published public private(set) var refreshActivity: DashboardRefreshActivity = .idle
 
     public let settingsStore: AppSettingsStore
@@ -53,6 +56,9 @@ public final class DashboardSnapshotStore: ObservableObject {
     private var failureCounts: [DashboardDataSection: Int] = [:]
     private var retryAfter: [DashboardDataSection: Date] = [:]
     private var cachedLocationKey: String?
+    /// The time zone and offset last handed to the shift store, so an unchanged zone costs nothing.
+    private var lastObservedTimeZone: TimeZoneShiftRecord?
+    private var timeZoneRecordTask: Task<Void, Never>?
     private var automaticPlaceCollectionEnabled = false
     @Published public private(set) var sectionActivity: [DashboardDataSection: DashboardSectionActivity] = [:]
     @Published public private(set) var resourcePolicy = DashboardResourcePolicy.normal
@@ -235,6 +241,8 @@ public final class DashboardSnapshotStore: ObservableObject {
             try? await dependencies.visitedPlacesStore.reset()
             try? await dependencies.visitedPlaceEventsStore.reset()
             try? await dependencies.visitedCountryDaysStore.reset()
+            try? await dependencies.timeZoneShiftStore.reset()
+            await loadTimeZoneShifts()
             await loadVisitedPlaces()
             await loadVisitedPlaceEvents()
             await loadVisitedCountryDays()
@@ -382,6 +390,30 @@ public final class DashboardSnapshotStore: ObservableObject {
         let next = draft.snapshot
         if snapshot != next {
             snapshot = next
+            recordTimeZoneIfChanged(in: next.travelContext)
+        }
+    }
+
+    /// Hands the effective local time zone to the shift store when its identifier or offset changed since
+    /// the last look (a daylight saving change is a new offset). Records are written one after the other, in
+    /// the order the changes were seen.
+    private func recordTimeZoneIfChanged(in travelContext: TravelContextSnapshot) {
+        guard let timeZone = travelContext.effectiveTimeZone else {
+            return
+        }
+
+        let record = TimeZoneShiftRecord(date: Date(), timeZone: timeZone)
+        guard lastObservedTimeZone?.identifier != record.identifier || lastObservedTimeZone?.offsetSeconds != record.offsetSeconds else {
+            return
+        }
+
+        lastObservedTimeZone = record
+        let previous = timeZoneRecordTask
+        timeZoneRecordTask = Task { [weak self] in
+            await previous?.value
+            guard let self else { return }
+            try? await dependencies.timeZoneShiftStore.record(record)
+            await loadTimeZoneShifts()
         }
     }
 
@@ -1124,6 +1156,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         await loadVisitedPlaces()
         await loadVisitedPlaceEvents()
         await loadVisitedCountryDays()
+        await loadTimeZoneShifts()
     }
 
     private func applySettingsChange(from previousSettings: AppSettings, to newSettings: AppSettings) async {
@@ -1656,6 +1689,10 @@ public final class DashboardSnapshotStore: ObservableObject {
 
     private func loadVisitedPlaceEvents() async {
         visitedPlaceEvents = await (try? dependencies.visitedPlaceEventsStore.loadAll()) ?? []
+    }
+
+    private func loadTimeZoneShifts() async {
+        timeZoneShifts = await (try? dependencies.timeZoneShiftStore.loadAll()) ?? []
     }
 
     private func loadVisitedCountryDays() async {

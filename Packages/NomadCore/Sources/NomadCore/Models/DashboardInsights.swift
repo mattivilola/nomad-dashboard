@@ -26,6 +26,7 @@ public enum DashboardInsightKind: String, CaseIterable, Sendable {
     case publicHoliday
     case localRhythm
     case upcomingTrip
+    case jetLag
     case fuelNearby
     case daylight
 
@@ -35,7 +36,7 @@ public enum DashboardInsightKind: String, CaseIterable, Sendable {
         case .nomad:
             allCases
         case .roadTrip:
-            [.strongWind, .daylight, .uvIndex, .airQuality, .fuelNearby, .weatherAlert, .dataCap, .stayAllowance, .schengenLimit, .taxResidenceDays, .travelAdvisory, .regionalSecurity, .rainSoon, .publicHoliday, .localRhythm, .upcomingTrip]
+            [.strongWind, .daylight, .uvIndex, .airQuality, .fuelNearby, .weatherAlert, .dataCap, .stayAllowance, .schengenLimit, .taxResidenceDays, .travelAdvisory, .regionalSecurity, .rainSoon, .publicHoliday, .localRhythm, .upcomingTrip, .jetLag]
         }
     }
 }
@@ -104,6 +105,8 @@ public enum DashboardInsightEngine {
     static let localRhythmLookAheadDays = 14
     /// A planned trip becomes a heads-up this many days before it starts.
     static let upcomingTripLookAheadDays = 14
+    /// From this many days before a trip starts, open checklist items become its heads-up detail.
+    static let upcomingTripChecklistLeadDays = 3
     private static let menuBarTextCharacterLimit = 12
     static let daylightCautionInterval: TimeInterval = 60 * 60
     static let daylightInfoInterval: TimeInterval = 120 * 60
@@ -117,7 +120,8 @@ public enum DashboardInsightEngine {
         calendar: Calendar = .current,
         limit: Int = 3,
         profile: TravelProfile = .nomad,
-        stays: StayInsightInput? = nil
+        stays: StayInsightInput? = nil,
+        timeZoneShifts: [TimeZoneShiftRecord] = []
     ) -> [DashboardInsight] {
         guard limit > 0 else {
             return []
@@ -146,6 +150,13 @@ public enum DashboardInsightEngine {
         if let stays {
             candidates.append(contentsOf: upcomingTripInsight(for: stays, now: now, calendar: calendar, locale: locale))
         }
+        candidates.append(contentsOf: jetLagInsight(
+            history: timeZoneShifts,
+            travelContext: snapshot.travelContext,
+            now: now,
+            calendar: calendar,
+            locale: locale
+        ))
         candidates.append(contentsOf: fuelInsight(for: snapshot.fuelPrices, locale: locale))
         if profile == .roadTrip {
             candidates.append(contentsOf: daylightInsight(for: snapshot.travelContext, now: now, locale: locale))
@@ -808,7 +819,13 @@ public enum DashboardInsightEngine {
 
     /// The next planned trip that starts within `upcomingTripLookAheadDays` days (today included), with the
     /// one fact worth knowing first. In order of importance: a plan that breaks the Schengen 90/180 rule,
-    /// a local period during the trip, a change of driving side, the currency.
+    /// open checklist items (only from `upcomingTripChecklistLeadDays` days before the start), a local
+    /// period during the trip, a change of driving side, the currency.
+    ///
+    /// The checklist count is made without the online part of the checklist (holidays and the travel
+    /// advisory): the engine only has the settings, and a heads-up must not depend on a network answer. So
+    /// it counts the suggestions that follow from the bundled data plus the traveller's own open items; the
+    /// checklist itself may list a few more.
     private static func upcomingTripInsight(
         for input: StayInsightInput,
         now: Date,
@@ -853,9 +870,14 @@ public enum DashboardInsightEngine {
         }
         let breach: Date? = if case let .counting(window) = preview.visa.schengen { window.firstExceededOn } else { nil }
         let rhythm = preview.rhythm.first { isFullShutdown($0.period.kind) } ?? preview.rhythm.first
+        let openChecklistItems = startsIn <= upcomingTripChecklistLeadDays
+            ? openChecklistItemCount(for: preview, settings: settings, calendar: calendar, locale: locale)
+            : 0
 
         let detail: String? = if let breach {
             "Plan exceeds Schengen 90/180 on \(breach.formatted(dayStyle))"
+        } else if openChecklistItems > 0 {
+            "\(openChecklistItems) checklist \(openChecklistItems == 1 ? "item" : "items") left"
         } else if let rhythm {
             "\(rhythm.period.shortName) \(rhythm.startsDuringTrip ? "starts mid-trip" : "is on during your trip")"
         } else if let road = preview.road, road.changesFromPreviousCountry {
@@ -876,6 +898,49 @@ public enum DashboardInsightEngine {
             menuBarText: startsIn == 0 ? "Trip today" : "Trip in \(startsIn) d",
             detail: detail.map { truncated($0) },
             relatedCard: .stays
+        )]
+    }
+
+    private static func openChecklistItemCount(
+        for preview: TripPreview,
+        settings: AppSettings,
+        calendar: Calendar,
+        locale: Locale
+    ) -> Int {
+        let items = TripChecklist.items(for: preview, online: nil, settings: settings, calendar: calendar, locale: locale)
+        let progress = TripChecklist.progress(items: items, state: preview.trip.checklist)
+        return progress.total - progress.done
+    }
+
+    // MARK: - Jet lag
+
+    /// Light-timing advice while the body clock catches up with a time zone shift of 3 h or more
+    /// (`JetLagAdvisor`). The advice follows the place in the snapshot, so it also works offline.
+    private static func jetLagInsight(
+        history: [TimeZoneShiftRecord],
+        travelContext: TravelContextSnapshot,
+        now: Date,
+        calendar: Calendar,
+        locale: Locale
+    ) -> [DashboardInsight] {
+        guard let summary = JetLagAdvisor.summary(
+            history: history,
+            travelContext: travelContext,
+            now: now,
+            calendar: calendar,
+            locale: locale
+        ) else {
+            return []
+        }
+
+        return [DashboardInsight(
+            kind: .jetLag,
+            severity: .info,
+            symbolName: "moon.zzz",
+            title: summary.title,
+            menuBarText: "Jet lag",
+            detail: summary.guidance.text,
+            relatedCard: .travelContext
         )]
     }
 

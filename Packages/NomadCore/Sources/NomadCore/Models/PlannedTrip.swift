@@ -20,13 +20,44 @@ public struct PlannedTrip: Codable, Equatable, Hashable, Sendable, Identifiable 
     public var startDate: Date
     public var endDate: Date
     public var note: String?
+    /// The departure checklist progress: which suggested items are done and the traveller's own items.
+    /// Stored locally with the trip, never sent anywhere.
+    public var checklist: TripChecklistState
 
-    public init(id: UUID = UUID(), countryCode: String, startDate: Date, endDate: Date, note: String? = nil) {
+    public init(
+        id: UUID = UUID(),
+        countryCode: String,
+        startDate: Date,
+        endDate: Date,
+        note: String? = nil,
+        checklist: TripChecklistState = TripChecklistState()
+    ) {
         self.id = id
         self.countryCode = countryCode
         self.startDate = startDate
         self.endDate = endDate
         self.note = note
+        self.checklist = checklist
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case countryCode
+        case startDate
+        case endDate
+        case note
+        case checklist
+    }
+
+    /// Trips saved before the checklist existed have no `checklist`; it decodes as empty.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        countryCode = try container.decode(String.self, forKey: .countryCode)
+        startDate = try container.decode(Date.self, forKey: .startDate)
+        endDate = try container.decode(Date.self, forKey: .endDate)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        checklist = (try? container.decodeIfPresent(TripChecklistState.self, forKey: .checklist)) ?? TripChecklistState()
     }
 }
 
@@ -79,7 +110,7 @@ public extension PlannedTrip {
 
 extension PlannedTrip {
     /// The trip with a normalized country code, an end not before the start and within
-    /// `maximumDurationDays`, and a trimmed note; nil when the country code is not a letter pair.
+    /// `maximumDurationDays`, a trimmed note and a sanitized checklist; nil when the country code is not a letter pair.
     func sanitized(calendar: Calendar) -> PlannedTrip? {
         guard let code = AppSettings.normalizedCountryCode(countryCode) else {
             return nil
@@ -98,7 +129,8 @@ extension PlannedTrip {
             countryCode: code,
             startDate: startDate,
             endDate: end,
-            note: trimmedNote.flatMap { $0.isEmpty ? nil : String($0.prefix(Self.maximumNoteLength)) }
+            note: trimmedNote.flatMap { $0.isEmpty ? nil : String($0.prefix(Self.maximumNoteLength)) },
+            checklist: checklist.sanitized()
         )
     }
 
