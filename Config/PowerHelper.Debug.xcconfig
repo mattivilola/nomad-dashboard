@@ -1,0 +1,9 @@
+// Debug configuration of the privileged power helper. Its bundle identifier is the launchd label and the
+// Mach service name; the app's bundle identifier and the signing team are embedded into its Info.plist so
+// it can hold its clients to the app signed by the same team.
+#include "Version.xcconfig"
+#include "Identity.Debug.xcconfig"
+#include? "Signing.debug.local.xcconfig"
+
+PRODUCT_NAME = $(NOMAD_POWER_HELPER_PRODUCT_NAME)
+PRODUCT_BUNDLE_IDENTIFIER = $(NOMAD_POWER_HELPER_LABEL)

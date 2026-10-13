@@ -75,6 +75,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// `maximumPlannedTrips`, sorted by start. Stored locally only; only the destination country code is
     /// ever used to look up public data, never the dates or the user's location.
     public var plannedTrips: [PlannedTrip]
+    /// Whether Keep Awake also keeps the display on. Off lets the display sleep while the Mac keeps running.
+    public var keepAwakeKeepsDisplayOn: Bool
+    /// Whether Keep Awake also keeps the Mac running with the lid closed, through the privileged power helper.
+    public var keepAwakeWhileLidClosed: Bool
 
     public init(
         appearanceMode: AppAppearanceMode = .system,
@@ -127,7 +131,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         arrivalBriefingAcknowledgedCountryCode: String? = nil,
         arrivalBriefingAcknowledgedAt: Date? = nil,
         homeCountryCode: String? = nil,
-        plannedTrips: [PlannedTrip] = []
+        plannedTrips: [PlannedTrip] = [],
+        keepAwakeKeepsDisplayOn: Bool = true,
+        keepAwakeWhileLidClosed: Bool = true
     ) {
         self.appearanceMode = appearanceMode
         self.dataUsageMode = dataUsageMode
@@ -180,6 +186,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.arrivalBriefingAcknowledgedAt = arrivalBriefingAcknowledgedAt
         self.homeCountryCode = homeCountryCode.flatMap(Self.normalizedCountryCode)
         self.plannedTrips = Self.sanitizedPlannedTrips(plannedTrips)
+        self.keepAwakeKeepsDisplayOn = keepAwakeKeepsDisplayOn
+        self.keepAwakeWhileLidClosed = keepAwakeWhileLidClosed
     }
 
     enum CodingKeys: String, CodingKey {
@@ -237,6 +245,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case arrivalBriefingAcknowledgedAt
         case homeCountryCode
         case plannedTrips
+        case keepAwakeKeepsDisplayOn
+        case keepAwakeWhileLidClosed
     }
 
     public init(from decoder: any Decoder) throws {
@@ -332,6 +342,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
             (try? container.decodeIfPresent([LossyDecodable<PlannedTrip>].self, forKey: .plannedTrips))?
                 .compactMap(\.value) ?? []
         )
+        keepAwakeKeepsDisplayOn = try container.decodeIfPresent(Bool.self, forKey: .keepAwakeKeepsDisplayOn) ?? true
+        keepAwakeWhileLidClosed = try container.decodeIfPresent(Bool.self, forKey: .keepAwakeWhileLidClosed) ?? true
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -392,6 +404,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         try container.encodeIfPresent(arrivalBriefingAcknowledgedAt, forKey: .arrivalBriefingAcknowledgedAt)
         try container.encodeIfPresent(homeCountryCode, forKey: .homeCountryCode)
         try container.encode(plannedTrips, forKey: .plannedTrips)
+        try container.encode(keepAwakeKeepsDisplayOn, forKey: .keepAwakeKeepsDisplayOn)
+        try container.encode(keepAwakeWhileLidClosed, forKey: .keepAwakeWhileLidClosed)
     }
 
     /// The most citizenships that can be stored; enough for the dual and triple nationals this is for.

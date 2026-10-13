@@ -1,0 +1,6 @@
+// The bundle identity of the release app and of the privileged power helper that ships inside it.
+// Included by Release.xcconfig and PowerHelper.Release.xcconfig so the identifiers are written down once.
+
+NOMAD_APP_BUNDLE_IDENTIFIER = com.iloapps.NomadDashboard
+NOMAD_POWER_HELPER_LABEL = $(NOMAD_APP_BUNDLE_IDENTIFIER).PowerHelper
+NOMAD_POWER_HELPER_PRODUCT_NAME = NomadDashboardPowerHelper

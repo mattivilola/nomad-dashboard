@@ -1,0 +1,7 @@
+// The bundle identity of the debug app and of the privileged power helper that ships inside it.
+// Included by Debug.xcconfig and PowerHelper.Debug.xcconfig so the identifiers are written down once.
+// The helper's label differs from the release build's, so both can be installed side by side.
+
+NOMAD_APP_BUNDLE_IDENTIFIER = com.iloapps.NomadDashboard.dev
+NOMAD_POWER_HELPER_LABEL = $(NOMAD_APP_BUNDLE_IDENTIFIER).PowerHelper
+NOMAD_POWER_HELPER_PRODUCT_NAME = NomadDashboardPowerHelper

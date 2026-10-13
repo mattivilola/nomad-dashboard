@@ -14,4 +14,17 @@ public enum DurationText {
         default: return "\(hours) h \(remainder) min"
         }
     }
+
+    /// A running clock for a countdown or elapsed time: "4:09" under one hour and "1:05:09" from one hour on.
+    /// Floors to whole seconds and never goes negative.
+    public static func countdown(_ interval: TimeInterval) -> String {
+        let totalSeconds = Int(max(interval, 0).rounded(.down))
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 {
+            return "\(hours):" + String(format: "%02d:%02d", minutes, seconds)
+        }
+        return "\(minutes):" + String(format: "%02d", seconds)
+    }
 }

@@ -19,8 +19,8 @@ if [[ "$DRY_RUN" == "true" ]]; then
 Dry run steps
   1. Archive the app with release signing and Sparkle metadata overrides.
   2. Verify the archive is Developer ID signed and contains the release feed/public key.
-  3. Re-sign the Sparkle components, then the embedded widget extension, then the app (nested code before the code that seals it).
-  4. Verify the signatures, the widget extension's sandbox, App Group and hardened runtime, and the App Group of the app.
+  3. Re-sign the Sparkle components, then the embedded power helper, then the embedded widget extension, then the app (nested code before the code that seals it).
+  4. Verify the signatures, the widget extension's sandbox, App Group and hardened runtime, the App Group of the app, and the power helper's launchd plist, identifier, team and hardened runtime.
   5. Notarize a temporary ZIP submission for the archived app.
   6. Staple the archived app bundle, repackage the final Sparkle ZIP, and create the versioned DMG.
   7. Notarize and staple the DMG.
@@ -97,8 +97,16 @@ resign_widget_extensions() {
   done < <(archive_widget_extensions)
 }
 
+# The privileged power helper is a nested executable, signed before the app that seals it. Its identifier
+# (the launchd label) is preserved so the app's code-signing requirement for it keeps matching.
+resign_power_helper() {
+  [[ -f "$ARCHIVE_POWER_HELPER_PATH" ]] || fail "Archived app does not embed the power helper at Contents/Library/HelperTools/$POWER_HELPER_BINARY_NAME."
+  codesign_item "$ARCHIVE_POWER_HELPER_PATH"
+}
+
 ./scripts/archive-release.sh
 resign_sparkle_components
+resign_power_helper
 resign_widget_extensions
 codesign_item "$ARCHIVE_APP_PATH"
 
@@ -109,6 +117,7 @@ assert_archive_has_no_tankerkonig_api_key
 assert_archive_weatherkit_entitlement
 assert_archive_app_group_entitlement
 assert_archive_widget_extension
+assert_archive_power_helper
 
 rm -f "$TEMP_NOTARY_ZIP" "$FINAL_ZIP_PATH" "$FINAL_DMG_PATH"
 

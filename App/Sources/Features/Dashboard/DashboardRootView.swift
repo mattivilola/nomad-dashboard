@@ -15,6 +15,7 @@ struct DashboardRootView: View {
     @ObservedObject var locationStore: CurrentLocationStore
     @ObservedObject var launchAtLoginController: LaunchAtLoginController
     @ObservedObject var timeTrackingController: ProjectTimeTrackingController
+    @ObservedObject var keepAwakeController: KeepAwakeController
     @ObservedObject var settingsNavigationController: SettingsNavigationController
     let updatesEnabled: Bool
     let analytics: AppAnalytics
@@ -89,6 +90,17 @@ struct DashboardRootView: View {
             },
             openTimeTrackingAction: openTimeTracking,
             openTripPlannerAction: openTripPlanner,
+            keepAwakeSession: keepAwakeController.session,
+            keepAwakeKeepsDisplayOn: settingsStore.settings.keepAwakeKeepsDisplayOn,
+            startKeepAwakeAction: { keepAwakeController.start($0) },
+            stopKeepAwakeAction: { keepAwakeController.stop() },
+            setKeepAwakeKeepsDisplayOnAction: { keepAwakeController.setKeepsDisplayOn($0) },
+            keepAwakeWhileLidClosed: settingsStore.settings.keepAwakeWhileLidClosed,
+            keepAwakeLidClosedState: keepAwakeController.lidClosedState,
+            keepAwakeEndReason: keepAwakeController.lastEndReason,
+            keepAwakeErrorMessage: keepAwakeController.lastErrorMessage,
+            setKeepAwakeWhileLidClosedAction: { keepAwakeController.setKeepsAwakeWhileLidClosed($0) },
+            allowKeepAwakeLidClosedAction: { keepAwakeController.openLidClosedApprovalSettings() },
             copyIPAddressAction: copyIPAddress,
             openVisitedMapAction: openVisitedMap,
             showArrivalBriefingAction: showArrivalBriefing,
@@ -533,6 +545,7 @@ struct MenuBarStatusLabel: View {
     let stays: StayInsightInput?
     /// The recent time zone changes for the jet-lag heads-up. Local only.
     let timeZoneShifts: [TimeZoneShiftRecord]
+    let isKeepingAwake: Bool
 
     var body: some View {
         if showsHeadsUp {
@@ -559,6 +572,11 @@ struct MenuBarStatusLabel: View {
         )
 
         return HStack(spacing: 6) {
+            if isKeepingAwake {
+                Image(systemName: "cup.and.heat.waves.fill")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .accessibilityLabel("Keeping Mac awake")
+            }
             statusIcon(for: presentation)
             if let text = presentation.text {
                 Text(text)

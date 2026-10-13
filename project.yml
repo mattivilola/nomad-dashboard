@@ -46,6 +46,7 @@ targets:
         LSUIElement: true
         NomadAppGroupIdentifier: $(APP_GROUP_IDENTIFIER)
         NomadURLScheme: $(NOMAD_URL_SCHEME)
+        NomadTeamIdentifier: $(DEVELOPMENT_TEAM)
         CFBundleURLTypes:
           - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER)
             CFBundleURLSchemes:
@@ -71,6 +72,48 @@ targets:
       - target: NomadDashboardWidgets
         embed: true
         codeSign: true
+      # The privileged power helper (Keep Awake with the lid closed). SMAppService registers it from here.
+      - target: NomadDashboardPowerHelper
+        link: false
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Library/HelperTools
+    # The helper's launchd plist carries the per-configuration label, so it is generated from the build settings.
+    postCompileScripts:
+      - name: Generate Power Helper launchd plist
+        script: |
+          /bin/zsh "${SRCROOT}/App/PowerHelper/generate-launchd-plist.sh"
+        inputFiles:
+          - $(SRCROOT)/App/PowerHelper/generate-launchd-plist.sh
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Library/LaunchDaemons/$(NOMAD_POWER_HELPER_LABEL).plist
+  NomadDashboardPowerHelper:
+    type: tool
+    platform: macOS
+    configFiles:
+      Debug: Config/PowerHelper.Debug.xcconfig
+      Release: Config/PowerHelper.Release.xcconfig
+    sources:
+      - App/PowerHelper/Sources
+    info:
+      path: App/PowerHelper/Info.plist
+      properties:
+        CFBundleName: Nomad Dashboard Power Helper
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NomadClientBundleIdentifier: $(NOMAD_APP_BUNDLE_IDENTIFIER)
+        NomadClientTeamIdentifier: $(DEVELOPMENT_TEAM)
+    settings:
+      base:
+        INFOPLIST_FILE: App/PowerHelper/Info.plist
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        ENABLE_HARDENED_RUNTIME: YES
+        SKIP_INSTALL: YES
+    dependencies:
+      - package: NomadCore
+        product: NomadPowerHelperKit
   NomadDashboardWidgets:
     type: app-extension
     platform: macOS

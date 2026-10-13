@@ -80,6 +80,36 @@ When adding a new integration, document these answers in the PR or change note:
   Must not ship as a shared secret. The app uses a user-provided key stored
   locally in app settings instead of bundling one shared key.
 
+## Privileged Power Helper
+
+Keep Awake With Lid Closed ships a launchd daemon that runs as root. It is the
+only privileged code in the product, so its attack surface is kept as small as
+possible:
+
+- One operation. The helper only sets and restores the global `SleepDisabled`
+  power setting. It takes no paths, commands or arguments from its client other
+  than an optional end date. It runs `/usr/bin/pmset` by absolute path through
+  `Process`, with fixed arguments and no shell.
+- Code-signing-validated XPC. The Mach service accepts a connection only if the
+  client satisfies `anchor apple generic and identifier "<app bundle id>" and
+  certificate leaf[subject.OU] = "<team id>"`, enforced by
+  `NSXPCListener.setConnectionCodeSigningRequirement`. The team and app
+  identifiers come from the helper's embedded Info.plist; a build without a
+  team refuses every client. The app likewise only talks to a helper signed by
+  the same team under the helper's own identifier.
+- The connection is the session. When the client disconnects, quits or crashes,
+  the helper restores the setting at once. A deadline timer, a battery floor
+  (10% when not charging) and a critical-heat guard end a session on their own.
+- Crash and reboot safe. The helper writes the setting's previous value to a
+  small root-owned journal before changing anything and restores from it at
+  launch. Without a journal it never touches the setting, which respects a
+  user's own `disablesleep` choice.
+- No network, no secrets, no files read from the client. Registration is
+  `SMAppService.daemon`, which the user must approve in System Settings >
+  General > Login Items; the helper is nested in the app bundle, so it is
+  covered by the app's Developer ID signature, hardened runtime and
+  notarization (see `docs/release.md`).
+
 ## Practical Review Standard
 
 If a change adds a new API integration and the implementation path is

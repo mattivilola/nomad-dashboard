@@ -20,6 +20,13 @@ APP_GROUP_ENTITLEMENT_KEY="com.apple.security.application-groups"
 APP_SANDBOX_ENTITLEMENT_KEY="com.apple.security.app-sandbox"
 ARCHIVE_PLUGINS_PATH="$ARCHIVE_APP_PATH/Contents/PlugIns"
 ARCHIVE_WIDGET_PATH="$ARCHIVE_PLUGINS_PATH/$WIDGET_EXTENSION_NAME"
+# The privileged power helper (Keep Awake with the lid closed). Its label is the app's bundle identifier plus
+# ".PowerHelper" (Config/Identity.Release.xcconfig); the launchd plist is named after the label.
+APP_BUNDLE_IDENTIFIER="com.iloapps.NomadDashboard"
+POWER_HELPER_BINARY_NAME="NomadDashboardPowerHelper"
+POWER_HELPER_LABEL="$APP_BUNDLE_IDENTIFIER.PowerHelper"
+ARCHIVE_POWER_HELPER_PATH="$ARCHIVE_APP_PATH/Contents/Library/HelperTools/$POWER_HELPER_BINARY_NAME"
+ARCHIVE_POWER_HELPER_PLIST_PATH="$ARCHIVE_APP_PATH/Contents/Library/LaunchDaemons/$POWER_HELPER_LABEL.plist"
 
 fail() {
   echo "$1" >&2
@@ -347,6 +354,52 @@ assert_archive_widget_extension() {
   signature_details="$(/usr/bin/codesign -dv --verbose=4 "$ARCHIVE_WIDGET_PATH" 2>&1)"
   [[ "$signature_details" != *"Signature=adhoc"* ]] || fail "Widget extension is still ad-hoc signed."
   [[ "$signature_details" == *"(runtime)"* ]] || fail "Widget extension is not signed with the hardened runtime."
+}
+
+# The power helper must be embedded with its launchd plist, signed by the release team with the hardened runtime
+# and a secure timestamp, carry the label SMAppService looks for, and trust only clients of this team.
+assert_archive_power_helper() {
+  local signature_details embedded_team app_team
+
+  [[ -x "$ARCHIVE_POWER_HELPER_PATH" ]] || fail "Archived app does not embed an executable power helper at Contents/Library/HelperTools/$POWER_HELPER_BINARY_NAME."
+  assert_file_exists "$ARCHIVE_POWER_HELPER_PLIST_PATH"
+
+  [[ "$(trimmed_value "$(plist_value "$ARCHIVE_POWER_HELPER_PLIST_PATH" Label)")" == "$POWER_HELPER_LABEL" ]] ||
+    fail "Power helper launchd plist must have Label '$POWER_HELPER_LABEL'."
+  [[ "$(trimmed_value "$(plist_value "$ARCHIVE_POWER_HELPER_PLIST_PATH" BundleProgram)")" == "Contents/Library/HelperTools/$POWER_HELPER_BINARY_NAME" ]] ||
+    fail "Power helper launchd plist must point BundleProgram at Contents/Library/HelperTools/$POWER_HELPER_BINARY_NAME."
+  [[ "$(trimmed_value "$(plist_value "$ARCHIVE_POWER_HELPER_PLIST_PATH" "MachServices:$POWER_HELPER_LABEL")")" == "true" ]] ||
+    fail "Power helper launchd plist must expose the Mach service '$POWER_HELPER_LABEL'."
+  [[ "$(trimmed_value "$(plist_value "$ARCHIVE_POWER_HELPER_PLIST_PATH" AssociatedBundleIdentifiers:0)")" == "$APP_BUNDLE_IDENTIFIER" ]] ||
+    fail "Power helper launchd plist must associate the app '$APP_BUNDLE_IDENTIFIER'."
+
+  signature_details="$(/usr/bin/codesign -dv --verbose=4 "$ARCHIVE_POWER_HELPER_PATH" 2>&1)"
+  [[ "$signature_details" != *"Signature=adhoc"* ]] || fail "Power helper is still ad-hoc signed."
+  [[ "$signature_details" == *"(runtime)"* ]] || fail "Power helper is not signed with the hardened runtime."
+  [[ "$signature_details" == *"Timestamp="* ]] || fail "Power helper is not signed with a secure timestamp."
+  [[ "$signature_details" == *"Identifier=$POWER_HELPER_LABEL"* ]] || fail "Power helper must be signed with the identifier '$POWER_HELPER_LABEL'."
+
+  if [[ -n "${NOMAD_TEAM_ID:-}" ]]; then
+    [[ "$signature_details" == *"TeamIdentifier=$NOMAD_TEAM_ID"* ]] || fail "Power helper is not signed by team $NOMAD_TEAM_ID."
+
+    # The helper only accepts clients of the team named in its embedded Info.plist, and the app names the same team.
+    embedded_team="$(/usr/bin/strings -a "$ARCHIVE_POWER_HELPER_PATH" | grep -A1 '<key>NomadClientTeamIdentifier</key>' | tail -n 1 | sed -E 's/.*<string>(.*)<\/string>.*/\1/')"
+    [[ "$embedded_team" == "$NOMAD_TEAM_ID" ]] || fail "Power helper trusts team '$embedded_team', expected $NOMAD_TEAM_ID."
+    app_team="$(trimmed_value "$(plist_value "$ARCHIVE_APP_PATH/Contents/Info.plist" NomadTeamIdentifier)")"
+    [[ "$app_team" == "$NOMAD_TEAM_ID" ]] || fail "Archived app has NomadTeamIdentifier '$app_team', expected $NOMAD_TEAM_ID."
+  fi
+}
+
+# The power helper's project files; check they are still wired up.
+assert_power_helper_project_configuration() {
+  assert_file_exists "$REPO_ROOT/App/PowerHelper/generate-launchd-plist.sh"
+  assert_file_exists "$REPO_ROOT/Config/PowerHelper.Release.xcconfig"
+  grep -F "NOMAD_APP_BUNDLE_IDENTIFIER = $APP_BUNDLE_IDENTIFIER" "$REPO_ROOT/Config/Identity.Release.xcconfig" >/dev/null ||
+    fail "Config/Identity.Release.xcconfig must set NOMAD_APP_BUNDLE_IDENTIFIER = $APP_BUNDLE_IDENTIFIER."
+  grep -F 'PRODUCT_BUNDLE_IDENTIFIER = $(NOMAD_POWER_HELPER_LABEL)' "$REPO_ROOT/Config/PowerHelper.Release.xcconfig" >/dev/null ||
+    fail "Config/PowerHelper.Release.xcconfig must use the helper label as its bundle identifier."
+  grep -F 'PRODUCT_BUNDLE_IDENTIFIER = $(NOMAD_APP_BUNDLE_IDENTIFIER)' "$REPO_ROOT/Config/Release.xcconfig" >/dev/null ||
+    fail "Config/Release.xcconfig must take its bundle identifier from NOMAD_APP_BUNDLE_IDENTIFIER."
 }
 
 # Every embedded widget extension, for re-signing and checks.

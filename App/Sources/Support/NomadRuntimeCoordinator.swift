@@ -11,6 +11,7 @@ final class NomadRuntimeCoordinator: ObservableObject {
     private let locationStore: CurrentLocationStore
     private let settingsStore: AppSettingsStore
     private let timeTracking: ProjectTimeTrackingController
+    private let keepAwake: KeepAwakeController
     private let nomadsCurrentCity: NomadsCurrentCityController
     private var observations: Set<AnyCancellable> = []
     private var visibleSurfaces: Set<String> = []
@@ -22,6 +23,7 @@ final class NomadRuntimeCoordinator: ObservableObject {
         locationStore: CurrentLocationStore,
         settingsStore: AppSettingsStore,
         timeTracking: ProjectTimeTrackingController,
+        keepAwake: KeepAwakeController,
         life: NomadLifeController,
         nomadsCurrentCity: NomadsCurrentCityController
     ) {
@@ -29,6 +31,7 @@ final class NomadRuntimeCoordinator: ObservableObject {
         self.locationStore = locationStore
         self.settingsStore = settingsStore
         self.timeTracking = timeTracking
+        self.keepAwake = keepAwake
         self.life = life
         self.nomadsCurrentCity = nomadsCurrentCity
         notifications = UserNotificationCenterNomadLifeDelivery()
@@ -73,6 +76,9 @@ final class NomadRuntimeCoordinator: ObservableObject {
         NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification).sink { [weak self] _ in
             Task { @MainActor in await self?.prepareForSleepOrQuit() }
         }.store(in: &observations)
+        NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification).sink { [weak self] _ in
+            Task { @MainActor in self?.keepAwake.refreshLidClosedStatus() }
+        }.store(in: &observations)
         NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification).sink { [weak self] _ in
             Task { @MainActor in self?.snapshotStore.start()
                 self?.refreshLocationIfAuthorized()
@@ -108,9 +114,15 @@ final class NomadRuntimeCoordinator: ObservableObject {
         }
         snapshotStore.setDashboardInterfaceActive(visibleSurfaces.contains("dashboard"))
         timeTracking.setInterfaceActive(!visibleSurfaces.isDisjoint(with: ["dashboard", "time-tracking"]))
+        if visible, surface == "dashboard" {
+            // The user may have just allowed the lid-closed helper in System Settings.
+            keepAwake.refreshLidClosedStatus()
+        }
     }
 
     func quitApplication() {
+        // Sleep must not end Keep Awake (the Mac may still wake), but quitting does.
+        keepAwake.stop()
         Task { @MainActor in
             await prepareForSleepOrQuit()
             NSApp.terminate(nil)

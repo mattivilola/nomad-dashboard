@@ -12,6 +12,10 @@ let package = Package(
             name: "NomadCore",
             targets: ["NomadCore"]
         ),
+        .library(
+            name: "NomadPowerHelperKit",
+            targets: ["NomadPowerHelperKit"]
+        ),
         .executable(
             name: "NomadSourceProbe",
             targets: ["NomadSourceProbe"]
@@ -28,11 +32,16 @@ let package = Package(
         .target(
             name: "NomadCore",
             dependencies: [
+                "NomadPowerHelperKit",
                 .product(name: "TelemetryDeck", package: "SwiftSDK")
             ],
             resources: [
                 .process("Resources")
             ]
+        ),
+        // Shared by the app and the privileged power helper. Keep it tiny and free of other dependencies.
+        .target(
+            name: "NomadPowerHelperKit"
         ),
         .executableTarget(
             name: "NomadSourceProbe",
@@ -45,6 +54,10 @@ let package = Package(
         .testTarget(
             name: "NomadCoreTests",
             dependencies: ["NomadCore"]
+        ),
+        .testTarget(
+            name: "NomadPowerHelperKitTests",
+            dependencies: ["NomadPowerHelperKit"]
         ),
         .testTarget(
             name: "NomadSourceProbeTests",

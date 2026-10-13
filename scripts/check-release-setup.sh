@@ -77,6 +77,7 @@ run_check "Required command: codesign" check_command codesign
 run_check "Required command: hdiutil" check_command hdiutil
 run_check "Required command: ditto" check_command ditto
 run_check "Widget extension project configuration" assert_widget_project_configuration
+run_check "Power helper project configuration" assert_power_helper_project_configuration
 run_check "Signing environment configuration" assert_release_signing_config
 run_check "Developer ID signing identity" assert_signing_identity_available
 run_check "GitHub CLI authentication" assert_github_auth

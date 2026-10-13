@@ -41,6 +41,8 @@
 	<string>Nomad Dashboard uses your location for local weather, travel context, and reading the name of your current Wi‑Fi network for Data Guard hotspot metering.</string>
 	<key>NomadAppGroupIdentifier</key>
 	<string>$(APP_GROUP_IDENTIFIER)</string>
+	<key>NomadTeamIdentifier</key>
+	<string>$(DEVELOPMENT_TEAM)</string>
 	<key>NomadURLScheme</key>
 	<string>$(NOMAD_URL_SCHEME)</string>
 	<key>ReliefWebAppName</key>

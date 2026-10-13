@@ -33,6 +33,17 @@ public struct DashboardPanelView: View {
     private let allocateTimeTrackingAction: (TimeTrackingBucket) -> Void
     private let openTimeTrackingAction: () -> Void
     private let openTripPlannerAction: () -> Void
+    private let keepAwakeSession: KeepAwakeSession?
+    private let keepAwakeKeepsDisplayOn: Bool
+    private let startKeepAwakeAction: (KeepAwakeDuration) -> Void
+    private let stopKeepAwakeAction: () -> Void
+    private let setKeepAwakeKeepsDisplayOnAction: (Bool) -> Void
+    private let keepAwakeWhileLidClosed: Bool
+    private let keepAwakeLidClosedState: KeepAwakeLidClosedState
+    private let keepAwakeEndReason: String?
+    private let keepAwakeErrorMessage: String?
+    private let setKeepAwakeWhileLidClosedAction: (Bool) -> Void
+    private let allowKeepAwakeLidClosedAction: () -> Void
     private let copyIPAddressAction: () -> Void
     private let openVisitedMapAction: () -> Void
     private let showArrivalBriefingAction: (() -> Void)?
@@ -100,6 +111,17 @@ public struct DashboardPanelView: View {
         allocateTimeTrackingAction: @escaping (TimeTrackingBucket) -> Void = { _ in },
         openTimeTrackingAction: @escaping () -> Void = {},
         openTripPlannerAction: @escaping () -> Void = {},
+        keepAwakeSession: KeepAwakeSession? = nil,
+        keepAwakeKeepsDisplayOn: Bool = true,
+        startKeepAwakeAction: @escaping (KeepAwakeDuration) -> Void = { _ in },
+        stopKeepAwakeAction: @escaping () -> Void = {},
+        setKeepAwakeKeepsDisplayOnAction: @escaping (Bool) -> Void = { _ in },
+        keepAwakeWhileLidClosed: Bool = true,
+        keepAwakeLidClosedState: KeepAwakeLidClosedState = .off,
+        keepAwakeEndReason: String? = nil,
+        keepAwakeErrorMessage: String? = nil,
+        setKeepAwakeWhileLidClosedAction: @escaping (Bool) -> Void = { _ in },
+        allowKeepAwakeLidClosedAction: @escaping () -> Void = {},
         copyIPAddressAction: @escaping () -> Void,
         openVisitedMapAction: @escaping () -> Void,
         showArrivalBriefingAction: (() -> Void)? = nil,
@@ -159,6 +181,17 @@ public struct DashboardPanelView: View {
         self.allocateTimeTrackingAction = allocateTimeTrackingAction
         self.openTimeTrackingAction = openTimeTrackingAction
         self.openTripPlannerAction = openTripPlannerAction
+        self.keepAwakeSession = keepAwakeSession
+        self.keepAwakeKeepsDisplayOn = keepAwakeKeepsDisplayOn
+        self.startKeepAwakeAction = startKeepAwakeAction
+        self.stopKeepAwakeAction = stopKeepAwakeAction
+        self.setKeepAwakeKeepsDisplayOnAction = setKeepAwakeKeepsDisplayOnAction
+        self.keepAwakeWhileLidClosed = keepAwakeWhileLidClosed
+        self.keepAwakeLidClosedState = keepAwakeLidClosedState
+        self.keepAwakeEndReason = keepAwakeEndReason
+        self.keepAwakeErrorMessage = keepAwakeErrorMessage
+        self.setKeepAwakeWhileLidClosedAction = setKeepAwakeWhileLidClosedAction
+        self.allowKeepAwakeLidClosedAction = allowKeepAwakeLidClosedAction
         self.copyIPAddressAction = copyIPAddressAction
         self.openVisitedMapAction = openVisitedMapAction
         self.showArrivalBriefingAction = showArrivalBriefingAction
@@ -299,6 +332,8 @@ public struct DashboardPanelView: View {
 
                 VStack(alignment: .trailing, spacing: 4) {
                     HStack(spacing: 8) {
+                        keepAwakeMenu
+
                         HeaderIconButton(
                             systemImage: "arrow.clockwise",
                             title: refreshHeader.buttonTitle,
@@ -318,12 +353,81 @@ public struct DashboardPanelView: View {
                 }
             }
 
+            if let keepAwakeSession {
+                KeepAwakeHeaderPillView(
+                    session: keepAwakeSession,
+                    lidClosedState: keepAwakeLidClosedState,
+                    allowLidClosedAction: allowKeepAwakeLidClosedAction,
+                    stopAction: stopKeepAwakeAction
+                )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             if timeTrackingDashboardState.isEnabled {
                 timeTrackingHeaderPill
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var keepAwakeMenu: some View {
+        let isKeepingAwake = keepAwakeSession != nil
+
+        return Menu {
+            if let keepAwakeNotice = KeepAwakeLidClosedPresentation.menuNotice(
+                endReason: keepAwakeEndReason,
+                errorMessage: keepAwakeErrorMessage
+            ) {
+                Text(keepAwakeNotice)
+                    .disabled(true)
+
+                Divider()
+            }
+
+            if isKeepingAwake {
+                Button("Stop Keeping Awake", systemImage: "stop.fill") {
+                    stopKeepAwakeAction()
+                }
+
+                Divider()
+            }
+
+            Section("Keep Mac Awake") {
+                ForEach(KeepAwakeDuration.allCases) { duration in
+                    Button(duration.title) {
+                        startKeepAwakeAction(duration)
+                    }
+                }
+            }
+
+            Divider()
+
+            Toggle(
+                "Keep Display On",
+                isOn: Binding(
+                    get: { keepAwakeKeepsDisplayOn },
+                    set: { setKeepAwakeKeepsDisplayOnAction($0) }
+                )
+            )
+
+            Toggle(
+                "Keep Awake With Lid Closed",
+                isOn: Binding(
+                    get: { keepAwakeWhileLidClosed },
+                    set: { setKeepAwakeWhileLidClosedAction($0) }
+                )
+            )
+        } label: {
+            HeaderActionIcon(
+                systemImage: isKeepingAwake ? "cup.and.heat.waves.fill" : "cup.and.heat.waves",
+                tint: isKeepingAwake ? NomadTheme.teal : nil
+            )
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Keep Awake")
+        .accessibilityLabel("Keep Awake")
     }
 
     private var travelProfileSelection: Binding<TravelProfile> {
@@ -2359,6 +2463,8 @@ private struct HeaderIconButton: View {
 private struct HeaderActionIcon: View {
     let systemImage: String
     var activity: DashboardRefreshActivity = .idle
+    /// Overrides the idle icon and border colors, for a persistent "on" state such as Keep Awake.
+    var tint: Color?
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 10.0, paused: activity == .idle)) { context in
@@ -2393,7 +2499,7 @@ private struct HeaderActionIcon: View {
     private var foregroundTint: Color {
         switch activity {
         case .idle:
-            NomadTheme.actionIconForeground
+            tint ?? NomadTheme.actionIconForeground
         case .manualInProgress:
             NomadTheme.teal
         case .slowAutomaticInProgress:
@@ -2415,7 +2521,7 @@ private struct HeaderActionIcon: View {
     private var borderTint: Color {
         switch activity {
         case .idle:
-            NomadTheme.actionIconBorder
+            tint?.opacity(0.42) ?? NomadTheme.actionIconBorder
         case .manualInProgress:
             NomadTheme.teal.opacity(0.42)
         case .slowAutomaticInProgress:

@@ -12,6 +12,7 @@ struct NomadDashboardApp: App {
     @StateObject private var locationStore: CurrentLocationStore
     @StateObject private var launchAtLoginController: LaunchAtLoginController
     @StateObject private var timeTrackingController: ProjectTimeTrackingController
+    @StateObject private var keepAwakeController: KeepAwakeController
     @StateObject private var settingsNavigationController: SettingsNavigationController
     @StateObject private var lifeController: NomadLifeController
     @StateObject private var runtimeCoordinator: NomadRuntimeCoordinator
@@ -56,6 +57,7 @@ struct NomadDashboardApp: App {
                 fileURL: applicationSupportDirectory.appendingPathComponent("time-tracking-ledger.json")
             )
         )
+        let keepAwakeController = KeepAwakeController(settingsStore: settingsStore, lidClosed: PowerHelperClient())
         let analyticsContext = AnalyticsContext(
             appID: AppRuntimeInfo.telemetryDeckAppID,
             appName: AppRuntimeInfo.appName,
@@ -98,11 +100,13 @@ struct NomadDashboardApp: App {
             locationStore: locationStore,
             settingsStore: settingsStore,
             timeTracking: timeTrackingController,
+            keepAwake: keepAwakeController,
             life: lifeController,
             nomadsCurrentCity: nomadsCurrentCity
         ))
         _launchAtLoginController = StateObject(wrappedValue: launchAtLoginController)
         _timeTrackingController = StateObject(wrappedValue: timeTrackingController)
+        _keepAwakeController = StateObject(wrappedValue: keepAwakeController)
         _settingsNavigationController = StateObject(wrappedValue: SettingsNavigationController())
         self.analytics = analytics
         analytics.recordAppLaunch()
@@ -121,6 +125,7 @@ struct NomadDashboardApp: App {
                 locationStore: locationStore,
                 launchAtLoginController: launchAtLoginController,
                 timeTrackingController: timeTrackingController,
+                keepAwakeController: keepAwakeController,
                 settingsNavigationController: settingsNavigationController,
                 updatesEnabled: UpdateFeatureConfiguration.isEnabled,
                 analytics: analytics
@@ -137,7 +142,8 @@ struct NomadDashboardApp: App {
                     settings: settingsStore.settings,
                     currentCountryCode: snapshotStore.snapshot.currentCountryCode
                 ),
-                timeZoneShifts: snapshotStore.timeZoneShifts
+                timeZoneShifts: snapshotStore.timeZoneShifts,
+                isKeepingAwake: keepAwakeController.isActive
             )
         }
         .menuBarExtraStyle(.window)

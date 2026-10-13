@@ -6,7 +6,7 @@ Use it to describe what Nomad Dashboard currently does, who each capability help
 
 ## Product-Level Summary
 
-Nomad Dashboard is a native macOS menu bar app that aggregates travel-relevant and work-relevant signals into one compact dashboard. Its current shipped scope covers connectivity, power, travel context, weather, local project time tracking, and several optional travel-aware modules: local price-level context, a Your Embassy card with the consular line and nearest embassy for your citizenship, a Stays & Visas card that counts days against visa allowances, the Schengen 90/180 rule and tax-residence thresholds, a one-time arrival briefing in each new country, a Trip Planner that previews a planned trip and what it does to your Schengen and stay counts, local rhythm notes such as Ramadan, and UV and air quality in the weather card. Siri and Shortcuts actions and desktop widgets bring the emergency number, verdict, embassy line and daylight outside the menu bar.
+Nomad Dashboard is a native macOS menu bar app that aggregates travel-relevant and work-relevant signals into one compact dashboard. Its current shipped scope covers connectivity, power, travel context, weather, local project time tracking, a Keep Awake timer for long builds and transfers, and several optional travel-aware modules: local price-level context, a Your Embassy card with the consular line and nearest embassy for your citizenship, a Stays & Visas card that counts days against visa allowances, the Schengen 90/180 rule and tax-residence thresholds, a one-time arrival briefing in each new country, a Trip Planner that previews a planned trip and what it does to your Schengen and stay counts, local rhythm notes such as Ramadan, and UV and air quality in the weather card. Siri and Shortcuts actions and desktop widgets bring the emergency number, verdict, embassy line and daylight outside the menu bar.
 
 ## Connectivity And Internet Readiness
 
@@ -730,6 +730,45 @@ Users can capture and assign work time with less friction by using the dashboard
 - this is not a timesheet approval, invoicing, or multi-device sync system
 - exact time is stored; quarter-hour rounding is not applied in the current version
 
+## Keep Awake
+
+### What it does
+
+- Keeps the Mac awake for a chosen time from a cup icon in the dashboard header: 15 minutes, 30 minutes, 1 hour, 2 hours, 4 hours, 8 hours, or until the user stops it
+- Shows a compact row under the header while it runs, with the time left (or the time elapsed when it runs until stopped) and a stop button
+- Stops by itself when the time is up, or at any moment from the pill or the header menu
+- Choosing another duration while it runs replaces the running one
+- Optional Keep Display On switch in the same menu (on by default); turn it off to let the display sleep or lock while builds, downloads and remote sessions keep running
+- Shows a small cup icon next to the menu bar status while it is on
+- Keeps the Mac running with the lid closed as well ("Keep Awake With Lid Closed", on by default), so a build or download carries on while the MacBook is shut in a bag; the pill shows a laptop icon while this is active
+- Ends the whole session by itself when the battery reaches 10% without charging or when the Mac becomes critically hot, and says why in the Keep Awake menu
+
+### Who it helps
+
+- developers and IT workers running long builds, downloads, backups or remote sessions on the road
+- anyone who needs the Mac to stay awake during a presentation, a call or a long transfer without changing system settings
+
+### Practical benefit
+
+One click from the menu bar keeps the Mac awake for exactly as long as needed, then returns it to normal sleep behavior without a setting to remember to switch back.
+
+### Dependencies or setup
+
+- no Settings page; the saved choices are the Keep Display On and Keep Awake With Lid Closed preferences
+- with the lid open it uses a standard macOS power assertion, which needs no administrator rights and no password prompt; macOS releases it automatically if Nomad Dashboard quits or exits
+- lid-closed mode needs a one-time approval: the first time, Nomad Dashboard registers a small background helper and the pill offers "Allow Lid Closed", which opens System Settings > General > Login Items where the user switches the helper on; no password is typed into Nomad Dashboard
+- the helper does exactly one thing, turning the Mac's "stay awake even with the lid closed" setting on while a Keep Awake session runs and off again afterwards; it is signed with the same developer certificate as the app and only talks to the app
+- the helper puts sleep back when the session ends, when Nomad Dashboard quits or crashes, and after a restart, so the Mac does not stay awake by accident; a user who had that setting on themselves keeps it
+- until the helper is approved, or when the helper is unavailable (for example in an unsigned developer build), Keep Awake still works with the lid open and the pill says lid-closed mode is off
+
+### Limitations
+
+- a MacBook shut in a bag with the lid closed gets warm and drains the battery; the session therefore ends at 10% battery (when not charging) or on critical heat, and the user should not leave a running laptop in a closed, unventilated space
+- lid-closed mode keeps the Mac running, not the display; with the lid closed the display is off
+- a running session is not restored after a restart or relaunch of the app
+- if the Mac sleeps anyway, a timed session that has run out ends when the Mac wakes
+- lid-closed mode is not available while the helper has not been approved in Login Items or if the user removes it there
+
 ## Settings, Layout Customization, Updates, And Launch At Login
 
 ### What it does
@@ -793,7 +832,7 @@ These are safe high-level claims for the landing page:
 - native macOS menu bar app
 - built for digital nomads, remote workers, and traveling developers
 - connection, power, weather, and travel context in one place
-- optional travel-aware tools plus local project time tracking, surf spot forecast, and visited places
+- optional travel-aware tools plus local project time tracking, a Keep Awake timer, surf spot forecast, and visited places
 - free and open source
 - direct download outside the Mac App Store
 - provided as-is

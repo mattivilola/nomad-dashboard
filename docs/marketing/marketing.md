@@ -99,6 +99,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Checking UV and air quality in the weather card before you plan the day outside
 - Tracking visited places locally on the Mac, with yearly travel paths, chronological stop logs, and country-day summaries by year and month
 - Automatically seeing the current or nearest listed city, then browsing visual destination cards by country, monthly budget, and city internet estimates, with attributed Nomads.com ratings and meetup links
+- Keeping the Mac awake for 15 minutes up to 8 hours (or until you stop it) during long builds, downloads and remote sessions, with a countdown in the header, and optionally with the lid closed so a build carries on while the MacBook is in the bag (a one-time approval in Login Items; it ends by itself at 10% battery or critical heat)
 - Tracking awake work time locally on the Mac, then assigning it from the dashboard with a compact Allocate menu, interruption counts, and focus-adjusted day, week, and month summaries
 - Optionally collecting stationary workplace visits from authorized device location, reviewing a local work diary, and comparing current and home time
 - Keeping all of the above in a compact menu bar workflow instead of a full-size monitoring dashboard, with hidden background refreshes slowed to protect battery life
@@ -171,6 +172,7 @@ Marketing copy can safely say:
 - Destination photos use Nomads.com's supplied image service while the explorer is open; prominent source credits link directly to Nomads.com and its city pages, alongside a Join Nomads.com action. This is an independent app, not an affiliated Nomads.com product
 - Local price level uses official public datasets (Eurostat for 36 European countries, with the United Kingdom's overall level) and can stay limited to country fallback data where exact local sources are not available
 - Project time tracking stays local to the Mac and can be turned off entirely
+- Keep Awake stays on the Mac: it uses a standard macOS power assertion, sends nothing anywhere, and saves only the Keep Display On and lid-closed preferences. The optional lid-closed mode uses a small signed background helper that you approve once in System Settings; it only switches the Mac's stay-awake-with-lid-closed setting and restores it afterwards
 - The optional work diary uses authorized device location only, keeps entries local, and never uses IP address or VPN state to identify a venue
 - Quiet connection alerts are opt-in, respect quiet hours and cooldowns, and do not include location or IP address
 - Siri and Shortcuts answers and the desktop widgets are built on the Mac from what the app already knows; the widgets read a small file kept on the Mac that holds no IP address or coordinates, and nothing is sent anywhere for them. A widget is visible on screen, so it shows your place, emergency number, consular line and any stay or Schengen heads-up to anyone who can see your desktop

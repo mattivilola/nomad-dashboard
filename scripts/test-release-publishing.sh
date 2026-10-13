@@ -26,7 +26,7 @@ assert_contains() {
 bootstrap_repo() {
   local repo_path="$1"
 
-  mkdir -p "$repo_path/scripts" "$repo_path/Config" "$repo_path/App/Widgets"
+  mkdir -p "$repo_path/scripts" "$repo_path/Config" "$repo_path/App/Widgets" "$repo_path/App/PowerHelper"
   cp "$REPO_ROOT/scripts/release-common.sh" "$repo_path/scripts/release-common.sh"
   cp "$REPO_ROOT/scripts/release-preflight.sh" "$repo_path/scripts/release-preflight.sh"
   cp "$REPO_ROOT/scripts/sign-and-notarize.sh" "$repo_path/scripts/sign-and-notarize.sh"
@@ -38,6 +38,9 @@ bootstrap_repo() {
   cp "$REPO_ROOT/App/Widgets/NomadDashboardWidgets.entitlements" "$repo_path/App/Widgets/NomadDashboardWidgets.entitlements"
   cp "$REPO_ROOT/Config/Release.xcconfig" "$repo_path/Config/Release.xcconfig"
   cp "$REPO_ROOT/Config/Widgets.Release.xcconfig" "$repo_path/Config/Widgets.Release.xcconfig"
+  cp "$REPO_ROOT/Config/Identity.Release.xcconfig" "$repo_path/Config/Identity.Release.xcconfig"
+  cp "$REPO_ROOT/Config/PowerHelper.Release.xcconfig" "$repo_path/Config/PowerHelper.Release.xcconfig"
+  cp "$REPO_ROOT/App/PowerHelper/generate-launchd-plist.sh" "$repo_path/App/PowerHelper/generate-launchd-plist.sh"
 
   cat > "$repo_path/Config/Version.xcconfig" <<'EOF'
 MARKETING_VERSION = 0.1.6
