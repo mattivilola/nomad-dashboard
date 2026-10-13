@@ -51,59 +51,19 @@ struct ArrivalBriefingPresentation {
             rows.append(Self.timeRow(time, now: now, locale: locale))
         }
         if let emergency = briefing.emergency {
-            rows.append(Row(
-                id: "emergency",
-                kind: .emergency,
-                symbolName: "phone.arrow.up.right.fill",
-                title: "Emergency",
-                text: emergency.general,
-                detail: emergency.othersText,
-                tone: .neutral,
-                flag: nil,
-                isSelectable: true
-            ))
+            rows.append(Self.emergencyRow(emergency))
         }
         if let embassy = briefing.embassy, let row = Self.embassyRow(embassy, locale: locale) {
             rows.append(row)
         }
         if let road = briefing.road {
-            rows.append(Row(
-                id: "road",
-                kind: .road,
-                symbolName: "car.fill",
-                title: "Driving",
-                text: road.text,
-                detail: nil,
-                tone: road.changesFromPreviousCountry ? .caution : .neutral,
-                flag: road.changesFromPreviousCountry ? Self.changedFlag : nil,
-                isSelectable: false
-            ))
+            rows.append(Self.roadRow(road))
         }
         if let power = briefing.power {
-            rows.append(Row(
-                id: "power",
-                kind: .power,
-                symbolName: "powerplug.fill",
-                title: "Power",
-                text: Self.powerText(power.electricity),
-                detail: nil,
-                tone: .neutral,
-                flag: power.differsFromPreviousCountry ? Self.changedFlag : nil,
-                isSelectable: false
-            ))
+            rows.append(Self.powerRow(power))
         }
         if let money = briefing.money {
-            rows.append(Row(
-                id: "money",
-                kind: .money,
-                symbolName: "banknote.fill",
-                title: "Currency",
-                text: money.currencyName.map { "\($0) (\(money.currencyCode))" } ?? money.currencyCode,
-                detail: nil,
-                tone: .neutral,
-                flag: money.changesFromPreviousCountry ? Self.changedFlag : nil,
-                isSelectable: false
-            ))
+            rows.append(Self.moneyRow(money))
         }
         if let holiday = briefing.holiday {
             rows.append(Row(
@@ -119,17 +79,7 @@ struct ArrivalBriefingPresentation {
             ))
         }
         if let advisory = briefing.advisory {
-            rows.append(Row(
-                id: "advisory",
-                kind: .advisory,
-                symbolName: "exclamationmark.triangle.fill",
-                title: "Travel advisory",
-                text: advisory.summary,
-                detail: advisory.sourceName,
-                tone: SummaryTileTone(severity: advisory.severity),
-                flag: nil,
-                isSelectable: false
-            ))
+            rows.append(Self.advisoryRow(summary: advisory.summary, sourceName: advisory.sourceName, severity: advisory.severity))
         }
         for period in briefing.rhythm {
             let model = LocalRhythmRowModel(period: period, now: now, calendar: calendar, locale: locale)
@@ -169,6 +119,76 @@ struct ArrivalBriefingPresentation {
     }
 
     // MARK: Rows
+
+    static func emergencyRow(_ emergency: EmergencyNumbers) -> Row {
+        Row(
+            id: "emergency",
+            kind: .emergency,
+            symbolName: "phone.arrow.up.right.fill",
+            title: "Emergency",
+            text: emergency.general,
+            detail: emergency.othersText,
+            tone: .neutral,
+            flag: nil,
+            isSelectable: true
+        )
+    }
+
+    static func roadRow(_ road: ArrivalBriefing.Road) -> Row {
+        Row(
+            id: "road",
+            kind: .road,
+            symbolName: "car.fill",
+            title: "Driving",
+            text: road.text,
+            detail: nil,
+            tone: road.changesFromPreviousCountry ? .caution : .neutral,
+            flag: road.changesFromPreviousCountry ? changedFlag : nil,
+            isSelectable: false
+        )
+    }
+
+    static func powerRow(_ power: ArrivalBriefing.Power) -> Row {
+        Row(
+            id: "power",
+            kind: .power,
+            symbolName: "powerplug.fill",
+            title: "Power",
+            text: powerText(power.electricity),
+            detail: nil,
+            tone: .neutral,
+            flag: power.differsFromPreviousCountry ? changedFlag : nil,
+            isSelectable: false
+        )
+    }
+
+    static func moneyRow(_ money: ArrivalBriefing.Money) -> Row {
+        Row(
+            id: "money",
+            kind: .money,
+            symbolName: "banknote.fill",
+            title: "Currency",
+            text: money.currencyName.map { "\($0) (\(money.currencyCode))" } ?? money.currencyCode,
+            detail: nil,
+            tone: .neutral,
+            flag: money.changesFromPreviousCountry ? changedFlag : nil,
+            isSelectable: false
+        )
+    }
+
+    static func advisoryRow(summary: String, sourceName: String, severity: TravelAlertSeverity) -> Row {
+        Row(
+            id: "advisory",
+            kind: .advisory,
+            symbolName: "exclamationmark.triangle.fill",
+            title: "Travel advisory",
+            text: summary,
+            detail: sourceName,
+            tone: SummaryTileTone(severity: severity),
+            flag: nil,
+            isSelectable: false
+        )
+    }
 
     /// "Local 10:42 (UTC+0) · Home (Helsinki) is 2 h ahead".
     private static func timeRow(_ time: ArrivalBriefing.Time, now: Date, locale: Locale) -> Row {

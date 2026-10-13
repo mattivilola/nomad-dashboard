@@ -620,6 +620,198 @@ struct DashboardSnapshotStoreTests {
     }
 
     @Test
+    func changingTheHomeCountryOrCitizenshipRefreshesLocalInfoImmediately() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.localInfoEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let localInfoProvider = RecordingHomeCountryLocalInfoProvider()
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(localInfoProvider: localInfoProvider, historyStore: InMemoryHistoryStore())
+        )
+
+        await store.refresh(manual: true)
+        let initial = await localInfoProvider.requestedHomeCountryCodes()
+        #expect(initial.isEmpty == false)
+        #expect(initial.allSatisfy { $0 == nil })
+
+        settingsStore.settings.citizenshipCountryCodes = ["FI"]
+        try await waitUntil(timeout: .seconds(3)) { await localInfoProvider.requestedHomeCountryCodes().last == "FI" }
+        try await waitUntil(timeout: .seconds(3)) { store.refreshActivity == .idle }
+
+        settingsStore.settings.homeCountryCode = "SE"
+        try await waitUntil(timeout: .seconds(3)) { await localInfoProvider.requestedHomeCountryCodes().last == "SE" }
+        try await waitUntil(timeout: .seconds(3)) { store.refreshActivity == .idle }
+
+        settingsStore.settings.homeCountryCode = nil
+        try await waitUntil(timeout: .seconds(3)) { await localInfoProvider.requestedHomeCountryCodes().last == "FI" }
+    }
+
+    @Test
+    func aSettingChangedMidRefreshGetsAFollowUpRefreshWithTheNewSettings() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.localInfoEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+        settingsStore.settings.homeCountryCode = "FI"
+
+        let localInfoProvider = RecordingHomeCountryLocalInfoProvider()
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(
+                throughputMonitor: SlowThroughputMonitor(),
+                localInfoProvider: localInfoProvider,
+                historyStore: InMemoryHistoryStore()
+            )
+        )
+
+        let running = Task { await store.refresh(manual: true) }
+        try await waitUntil { await localInfoProvider.requestedHomeCountryCodes().count == 1 }
+
+        // The refresh is still collecting local metrics (the slow monitor) when the setting changes.
+        settingsStore.settings.homeCountryCode = "SE"
+        await running.value
+        try await waitUntil(timeout: .seconds(3)) { store.refreshActivity == .idle }
+
+        #expect(await localInfoProvider.requestedHomeCountryCodes() == ["FI", "SE"])
+    }
+
+    @Test
+    func severalQuickSettingChangesShareOneFollowUpRefresh() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.localInfoEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let localInfoProvider = RecordingHomeCountryLocalInfoProvider()
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(
+                throughputMonitor: SlowThroughputMonitor(),
+                localInfoProvider: localInfoProvider,
+                historyStore: InMemoryHistoryStore()
+            )
+        )
+
+        let running = Task { await store.refresh(manual: true) }
+        try await waitUntil { await localInfoProvider.requestedHomeCountryCodes().count == 1 }
+
+        settingsStore.settings.homeCountryCode = "SE"
+        try await Task.sleep(for: .milliseconds(5))
+        settingsStore.settings.homeCountryCode = "NO"
+        try await Task.sleep(for: .milliseconds(5))
+        settingsStore.settings.homeCountryCode = "DK"
+        await running.value
+        try await waitUntil(timeout: .seconds(3)) { store.refreshActivity == .idle }
+        try await Task.sleep(for: .milliseconds(200))
+
+        let requested = await localInfoProvider.requestedHomeCountryCodes()
+        #expect(requested.count == 2)
+        #expect(requested.last == "DK")
+    }
+
+    @Test
+    func aTimerRefreshDuringARunningRefreshJoinsItWithoutAnotherFetch() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.localInfoEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+        settingsStore.settings.refreshIntervalSeconds = 60
+
+        let throughputMonitor = SlowThroughputMonitor()
+        let localInfoProvider = RecordingHomeCountryLocalInfoProvider()
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(
+                throughputMonitor: throughputMonitor,
+                localInfoProvider: localInfoProvider,
+                historyStore: InMemoryHistoryStore()
+            )
+        )
+
+        let running = Task { await store.refresh(manual: true) }
+        try await waitUntil { await localInfoProvider.requestedHomeCountryCodes().count == 1 }
+
+        // The periodic loop ticks while the refresh is still collecting local metrics.
+        store.start()
+        await running.value
+        try await waitUntil(timeout: .seconds(3)) { store.refreshActivity == .idle }
+        try await Task.sleep(for: .milliseconds(200))
+        store.stop()
+
+        #expect(await throughputMonitor.callCount() == 1)
+        #expect(await localInfoProvider.requestedHomeCountryCodes().count == 1)
+    }
+
+    @Test
+    func aManualRefreshDuringAnAutomaticRefreshGetsAForcedFollowUp() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        settingsStore.settings.localInfoEnabled = true
+        settingsStore.settings.useCurrentLocationForWeather = false
+
+        let localInfoProvider = RecordingHomeCountryLocalInfoProvider()
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(
+                throughputMonitor: SlowThroughputMonitor(),
+                localInfoProvider: localInfoProvider,
+                historyStore: InMemoryHistoryStore()
+            )
+        )
+
+        let automatic = Task { await store.refresh(manual: false) }
+        try await waitUntil { await localInfoProvider.requestedHomeCountryCodes().count == 1 }
+        let manual = Task { await store.refresh(manual: true) }
+        await automatic.value
+        await manual.value
+        try await waitUntil(timeout: .seconds(3)) { store.refreshActivity == .idle }
+
+        #expect(await localInfoProvider.requestedHomeCountryCodes().count == 2)
+    }
+
+    @Test
+    func tripPreviewOnlineAsksTheServiceWithTheCurrentSettingsAndPolicy() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let online = TripPreviewOnline(holidays: [], advisory: nil, fetchedAt: Date(timeIntervalSince1970: 1_791_806_400))
+        let store = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(
+                tripPreviewService: FixedTripPreviewService(result: online),
+                historyStore: InMemoryHistoryStore()
+            )
+        )
+        let trip = PlannedTrip(
+            countryCode: "MA",
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_500_000)
+        )
+
+        #expect(await store.tripPreviewOnline(for: trip) == online)
+    }
+
+    @Test
+    func priceLevelIndicesAreNilWhenTheSourceFails() async throws {
+        let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let indices: [LocalPriceIndicatorKind: Double] = [.overall: 80, .groceries: 70]
+        let working = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(
+                priceLevelIndexProvider: FixedPriceLevelIndexProvider(indices: ["PT": indices]),
+                historyStore: InMemoryHistoryStore()
+            )
+        )
+        let failing = DashboardSnapshotStore(
+            settingsStore: settingsStore,
+            dependencies: makeDependencies(
+                priceLevelIndexProvider: FixedPriceLevelIndexProvider(failing: true),
+                historyStore: InMemoryHistoryStore()
+            )
+        )
+
+        #expect(await working.priceLevelIndices(forCountryCode: "PT") == indices)
+        #expect(await working.priceLevelIndices(forCountryCode: "MA") == [:])
+        #expect(await failing.priceLevelIndices(forCountryCode: "PT") == nil)
+    }
+
+    @Test
     func refreshUpdatesLocalPriceProviderConfigurationWhenHUDTokenChanges() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         settingsStore.settings.localInfoEnabled = true
@@ -1503,6 +1695,7 @@ private func makeDependencies(
     travelWeatherAlertsProvider: any TravelWeatherAlertsProvider = FixedTravelWeatherAlertsProvider(),
     regionalSecurityProvider: any RegionalSecurityProvider = FixedRegionalSecurityProvider(),
     tripPreviewService: any TripPreviewService = FixedTripPreviewService(),
+    priceLevelIndexProvider: any PriceLevelIndexProvider = FixedPriceLevelIndexProvider(),
     visitedPlacesStore: any VisitedPlacesStore = InMemoryVisitedPlacesStore(),
     visitedPlaceEventsStore: any VisitedPlaceEventsStore = InMemoryVisitedPlaceEventsStore(),
     visitedCountryDaysStore: any VisitedCountryDaysStore = InMemoryVisitedCountryDaysStore(),
@@ -1530,6 +1723,7 @@ private func makeDependencies(
         travelWeatherAlertsProvider: travelWeatherAlertsProvider,
         regionalSecurityProvider: regionalSecurityProvider,
         tripPreviewService: tripPreviewService,
+        priceLevelIndexProvider: priceLevelIndexProvider,
         visitedPlacesStore: visitedPlacesStore,
         visitedPlaceEventsStore: visitedPlaceEventsStore,
         visitedCountryDaysStore: visitedCountryDaysStore,
@@ -2006,6 +2200,47 @@ private struct FixedLocalPriceLevelProvider: LocalPriceLevelProvider {
             detail: "Country fallback snapshot.",
             note: nil
         )
+    }
+}
+
+private struct FixedPriceLevelIndexProvider: PriceLevelIndexProvider {
+    var indices: [String: [LocalPriceIndicatorKind: Double]] = [:]
+    var failing = false
+
+    func indices(forCountryCode countryCode: String) async throws -> [LocalPriceIndicatorKind: Double] {
+        if failing {
+            throw ProviderError.missingCountryCode
+        }
+        return indices[countryCode] ?? [:]
+    }
+}
+
+/// Records the home country of every local info request.
+private actor RecordingHomeCountryLocalInfoProvider: LocalInfoProvider {
+    private var homeCountryCodes: [String?] = []
+
+    func info(for request: LocalInfoRequest, forceRefresh: Bool) async throws -> LocalInfoSnapshot {
+        homeCountryCodes.append(request.homeCountryCode)
+        return LocalInfoSnapshot(
+            status: .partial,
+            locality: request.locality,
+            administrativeRegion: request.administrativeRegion,
+            countryCode: request.countryCode,
+            countryName: request.countryName,
+            timeZoneIdentifier: request.timeZoneIdentifier,
+            subdivisionCode: nil,
+            publicHolidayStatus: LocalHolidayStatus(state: .unavailable, currentPeriod: nil, nextPeriod: nil, note: nil),
+            schoolHolidayStatus: nil,
+            localPriceLevel: nil,
+            sources: [],
+            fetchedAt: .now,
+            detail: nil,
+            note: nil
+        )
+    }
+
+    func requestedHomeCountryCodes() -> [String?] {
+        homeCountryCodes
     }
 }
 

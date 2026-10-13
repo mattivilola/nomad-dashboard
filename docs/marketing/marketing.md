@@ -6,7 +6,7 @@ Nomad Dashboard is a native macOS menu bar app for digital nomads, remote worker
 
 ## Positioning
 
-Nomad Dashboard turns a MacBook into a compact travel instrument panel. It keeps the signals that matter close at hand in the menu bar: connection quality, internet reachability, power state, travel context, weather, local project time tracking, and optional travel-oriented tools such as alerts, local price-level context, nearby fuel prices, emergency hospitals, your embassy and consular line, surf conditions, visited places, and a local work diary. The most useful answers also reach beyond the menu bar: Siri and Shortcuts actions ("What's the emergency number in Nomad Dashboard") and desktop widgets for the verdict, the emergency number and consular line, and daylight.
+Nomad Dashboard turns a MacBook into a compact travel instrument panel. It keeps the signals that matter close at hand in the menu bar: connection quality, internet reachability, power state, travel context, weather, local project time tracking, and optional travel-oriented tools such as alerts, local price-level context, nearby fuel prices, emergency hospitals, your embassy and consular line, a trip planner with a visa what-if, surf conditions, visited places, and a local work diary. The most useful answers also reach beyond the menu bar: Siri and Shortcuts actions ("What's the emergency number in Nomad Dashboard", "When is my next trip in Nomad Dashboard") and desktop widgets for the verdict, the emergency number and consular line, and daylight.
 
 The product should be positioned as:
 
@@ -89,12 +89,13 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Confirming public IP, device location, network-detected location, time zone, Wi-Fi context, and VPN state
 - Reviewing current weather, wind, and the upcoming unified forecast before moving between locations
 - Surfacing optional travel alerts and regional context while on the move
-- Checking local holiday timing, city context, and whether local prices feel cheap, medium, or expensive before settling in
+- Checking local holiday timing, city context, and whether local prices feel cheap, medium, or expensive before settling in, including how they compare with your home country across 36 European countries
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
 - Knowing whom to call and where to go abroad: your foreign ministry's consular emergency line and the nearest embassy or consulate of your country (or, when yours is not represented, the nearest EU or Nordic mission that can help), bundled offline and kept in Saved essentials
 - Switching to the Road trip & RV profile for a weather, fuel, emergency-care, and power-first dashboard, and keeping the local emergency numbers available offline in Saved essentials
 - Knowing how many days are left on a visa or in the Schengen area, and how many days you have spent in each country this year, counted locally from your own visited days
 - Getting a short "Welcome to Morocco" briefing on arrival: local time, emergency numbers, your embassy, driving side, plugs, currency and any local holiday or Ramadan-style rhythm
+- Planning a trip ahead: the emergency numbers, your embassy, plugs, holidays and Ramadan-style periods for the destination, and what the trip does to your Schengen days and stay limits, before you book
 - Checking UV and air quality in the weather card before you plan the day outside
 - Tracking visited places locally on the Mac, with yearly travel paths, chronological stop logs, and country-day summaries by year and month
 - Automatically seeing the current or nearest listed city, then browsing visual destination cards by country, monthly budget, and city internet estimates, with attributed Nomads.com ratings and meetup links
@@ -161,11 +162,12 @@ Marketing copy can safely say:
 - Some features use device location only when enabled
 - External IP location display can be turned off
 - Several travel modules are optional
-- Stay, Schengen and tax-day counts are computed on the Mac from locally saved visited days; they are a convenience, not tax or legal advice
+- Planned trips and your home country stay on the Mac; looking up holidays and the travel advisory for a trip sends only the destination's country code, never your dates or location, and the price comparison with home sends only the home and destination country codes to Eurostat
+- Stay, Schengen and tax-day counts, and the what-if for a planned trip, are computed on the Mac from locally saved visited days; they are a convenience, not tax or legal advice
 - Air quality sends only a location rounded to about 11 km to Open-Meteo, and only while weather location is on; it has its own switch
 - Explore Cities can follow the current city using existing dashboard context; matching happens locally and only a matched city slug is sent for details. It saves found and no-match results and waits for a different city before checking again. The feature can be turned off; coordinates and local travel history are not shared
 - Destination photos use Nomads.com's supplied image service while the explorer is open; prominent source credits link directly to Nomads.com and its city pages, alongside a Join Nomads.com action. This is an independent app, not an affiliated Nomads.com product
-- Local price level uses official public datasets and can stay limited to country fallback data where exact local sources are not available
+- Local price level uses official public datasets (Eurostat for 36 European countries, with the United Kingdom's overall level) and can stay limited to country fallback data where exact local sources are not available
 - Project time tracking stays local to the Mac and can be turned off entirely
 - The optional work diary uses authorized device location only, keeps entries local, and never uses IP address or VPN state to identify a venue
 - Quiet connection alerts are opt-in, respect quiet hours and cooldowns, and do not include location or IP address

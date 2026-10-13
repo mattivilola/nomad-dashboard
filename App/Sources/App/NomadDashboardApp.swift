@@ -206,6 +206,19 @@ struct NomadDashboardApp: App {
         .defaultSize(width: 1_100, height: 760)
         .handlesExternalEvents(matching: [])
 
+        Window("Trip Planner", id: "trip-planner") {
+            TripPlannerView(
+                settingsStore: settingsStore,
+                snapshotStore: snapshotStore,
+                homeTimeZoneIdentifier: lifeController.preferences.homeTimeZoneIdentifier,
+                openURLAction: ExternalActions.openWebURL,
+                copyTextAction: ExternalActions.copyText
+            )
+            .modifier(SceneAppearanceSync(settingsStore: settingsStore))
+        }
+        .defaultSize(width: 900, height: 640)
+        .handlesExternalEvents(matching: [])
+
         Window("Time Tracking", id: "time-tracking") {
             TimeTrackingWindowView(
                 settingsStore: settingsStore,

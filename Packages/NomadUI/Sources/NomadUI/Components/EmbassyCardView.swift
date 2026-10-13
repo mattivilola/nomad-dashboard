@@ -117,7 +117,7 @@ struct EmbassySectionView: View {
 }
 
 /// The tile background shared by the card's rows, matching the Emergency Care rows.
-private struct EmbassyRowBackground: ViewModifier {
+struct EmbassyRowBackground: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(10)
@@ -132,14 +132,14 @@ private struct EmbassyRowBackground: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
     func embassyRowBackground() -> some View {
         modifier(EmbassyRowBackground())
     }
 }
 
 /// The foreign ministry's consular line. The number is selectable and can be copied.
-private struct EmbassyHotlineRow: View {
+struct EmbassyHotlineRow: View {
     let hotline: EmbassyCardPresentation.Hotline
     let isCompact: Bool
     let copyAction: () -> Void
@@ -192,7 +192,7 @@ private struct EmbassyHotlineRow: View {
 }
 
 /// One mission. The whole row opens Apple Maps; the trailing menu holds the secondary actions.
-private struct EmbassyMissionRowView: View {
+struct EmbassyMissionRowView: View {
     let mission: EmbassyCardPresentation.MissionRow
     let isCompact: Bool
     let openURLAction: (URL) -> Void
@@ -340,7 +340,7 @@ private struct EmbassyMissionRowView: View {
 }
 
 /// A short explanation inside the card, such as the EU fallback notice.
-private struct EmbassyNoticeRow: View {
+struct EmbassyNoticeRow: View {
     let systemImage: String
     let text: String
 
@@ -365,7 +365,7 @@ private struct EmbassyNoticeRow: View {
 }
 
 /// The ministry's trip-registration service and its list of missions, as inline buttons.
-private struct EmbassyLinkRow: View {
+struct EmbassyLinkRow: View {
     let group: EmbassyCardPresentation.LinkGroup
     let showsCountryName: Bool
     let openURLAction: (URL) -> Void

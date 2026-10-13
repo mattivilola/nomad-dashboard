@@ -78,6 +78,12 @@ public protocol PublicHolidayProvider: Sendable {
     ) async throws -> [HolidayPeriodSnapshot]
 }
 
+public protocol PriceLevelIndexProvider: Sendable {
+    /// Eurostat price-level indices (EU27 = 100) for one country, keyed by category. Empty, never an error,
+    /// for a country the source does not cover. Only the country code is sent.
+    func indices(forCountryCode countryCode: String) async throws -> [LocalPriceIndicatorKind: Double]
+}
+
 public protocol TripPreviewService: Sendable {
     /// The network-backed parts of a trip preview. Only the trip's destination country code is sent; the
     /// dates and the user's location never are. Nil when neither part is available. Offline, or in Low Data

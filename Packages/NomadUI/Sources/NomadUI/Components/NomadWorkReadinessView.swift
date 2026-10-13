@@ -17,6 +17,7 @@ public struct NomadWorkReadinessView: View {
     let openPreferences: () -> Void
     let openOfflineEssentials: () -> Void
     let openExploreCities: () -> Void
+    let openTripPlanner: () -> Void
     let acknowledgeArrival: (String) -> Void
     let startDataGuardMonitoring: () -> Void
 
@@ -37,6 +38,7 @@ public struct NomadWorkReadinessView: View {
         openPreferences: @escaping () -> Void,
         openOfflineEssentials: @escaping () -> Void,
         openExploreCities: @escaping () -> Void = {},
+        openTripPlanner: @escaping () -> Void = {},
         acknowledgeArrival: @escaping (String) -> Void = { _ in },
         startDataGuardMonitoring: @escaping () -> Void = {}
     ) {
@@ -54,6 +56,7 @@ public struct NomadWorkReadinessView: View {
         self.openPreferences = openPreferences
         self.openOfflineEssentials = openOfflineEssentials
         self.openExploreCities = openExploreCities
+        self.openTripPlanner = openTripPlanner
         self.acknowledgeArrival = acknowledgeArrival
         self.startDataGuardMonitoring = startDataGuardMonitoring
     }
@@ -370,12 +373,14 @@ public struct NomadWorkReadinessView: View {
             Label(isOffline ? "Offline essentials" : "Saved essentials", systemImage: "tray.and.arrow.down")
         }
         let explore = Button(action: openExploreCities) { Label("Explore cities", systemImage: "globe.europe.africa") }
+        let trips = Button(action: openTripPlanner) { Label("Plan a trip", systemImage: "airplane.departure") }
 
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: 14) {
                 workplaces
                 essentials
                 explore
+                trips
                 Spacer(minLength: 0)
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -386,7 +391,11 @@ public struct NomadWorkReadinessView: View {
                     essentials
                     Spacer(minLength: 0)
                 }
-                explore
+                HStack(spacing: 14) {
+                    explore
+                    trips
+                    Spacer(minLength: 0)
+                }
             }
         }
         .buttonStyle(.plain)

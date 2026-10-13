@@ -80,10 +80,19 @@ struct StaysCardPresentation {
         let emptyText: String?
     }
 
+    /// The next planned trip, as one line under the card's tiles.
+    struct NextTrip: Equatable {
+        /// "Next trip: Morocco in 12 days · 14 days".
+        let text: String
+        /// "Plan exceeds Schengen 90/180 on 30 Oct", set when the planned trips break the limit.
+        let warning: String?
+    }
+
     static let taxCountryLimit = 5
 
     static let taxFooter = "Based on days Nomad recorded on this Mac · not tax or legal advice"
     static let reviewDaysTitle = "Review days"
+    static let tripPlannerTitle = "Trip Planner"
     static let citizenshipActionTitle = "Set citizenship"
     static let citizenshipHint = "Set your citizenship to check if this applies"
     static let schengenExemptReason = "no limit for EU/EEA/Swiss citizens"
@@ -98,6 +107,8 @@ struct StaysCardPresentation {
     let allowance: Allowance?
     let schengen: Schengen?
     let taxYear: TaxYear?
+    /// Nil when no trip is planned that has not started yet.
+    let nextTrip: NextTrip?
     /// One line for the collapsed card.
     let summary: String
     let summaryHelp: String
@@ -117,6 +128,7 @@ struct StaysCardPresentation {
             allowance = nil
             schengen = nil
             taxYear = nil
+            nextTrip = nil
             summary = "Off"
             summaryHelp = "Off"
             return
@@ -165,6 +177,15 @@ struct StaysCardPresentation {
             )
             : nil
 
+        nextTrip = Self.nextTrip(
+            settings: settings,
+            calculator: calculator,
+            now: now,
+            calendar: calendar,
+            locale: locale,
+            dayText: dayText
+        )
+
         let tones = [allowance?.tone, schengen?.tone] + (taxYear?.countries.map(\.tone) ?? [])
         let urgent = tones.compactMap(\.self).max { $0.urgency < $1.urgency } ?? .neutral
         badge = Self.badge(
@@ -192,7 +213,7 @@ struct StaysCardPresentation {
         return code
     }
 
-    private static func dayCount(_ count: Int) -> String {
+    static func dayCount(_ count: Int) -> String {
         count == 1 ? "1 day" : "\(count) days"
     }
 
@@ -204,7 +225,7 @@ struct StaysCardPresentation {
         return "Includes \(dayCount(days)) without a record, counted as spent here"
     }
 
-    private static func tone(daysLeft: Int, isOver: Bool) -> SummaryTileTone {
+    static func tone(daysLeft: Int, isOver: Bool) -> SummaryTileTone {
         if isOver || daysLeft <= StayWarningThresholds.attentionDays {
             return .attention
         }
@@ -316,6 +337,39 @@ struct StaysCardPresentation {
             countries: Array(countries),
             unrecordedText: days.unrecordedDays > 0 ? "Unrecorded days this year: \(days.unrecordedDays)" : nil,
             emptyText: countries.isEmpty ? "No days recorded yet this year" : nil
+        )
+    }
+
+    // MARK: Next trip
+
+    /// The earliest planned trip that starts today or later, and whether the whole plan breaks the Schengen
+    /// 90/180 rule on that trip. Planned trips are local to the Mac like the recorded days.
+    private static func nextTrip(
+        settings: AppSettings,
+        calculator: StayCalculator,
+        now: Date,
+        calendar: Calendar,
+        locale: Locale,
+        dayText: (Date) -> String
+    ) -> NextTrip? {
+        // The stored trips are sorted by start.
+        guard let trip = settings.plannedTrips.first(where: { $0.daysUntilStart(now: now, calendar: calendar) >= 0 }) else {
+            return nil
+        }
+
+        let startsIn = trip.daysUntilStart(now: now, calendar: calendar)
+        let when = switch startsIn {
+        case 0: "today"
+        case 1: "tomorrow"
+        default: "in \(startsIn) days"
+        }
+        let name = CountryNames.displayName(forCode: trip.countryCode, locale: locale)
+
+        let outlook = calculator.outlook(for: trip, among: settings.plannedTrips, settings: settings)
+        let breach: Date? = if case let .counting(window) = outlook.schengen { window.firstExceededOn } else { nil }
+        return NextTrip(
+            text: "Next trip: \(name) \(when) · \(dayCount(trip.dayCount(calendar: calendar)))",
+            warning: breach.map { "Plan exceeds Schengen \(SchengenArea.maximumStayDays)/\(SchengenArea.windowDays) on \(dayText($0))" }
         )
     }
 

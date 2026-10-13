@@ -14,6 +14,8 @@ struct StaysSectionView: View {
     let openSettingsAction: () -> Void
     /// Opens the Visited Map, where recorded days can be corrected.
     let reviewDaysAction: () -> Void
+    /// Opens the Trip Planner window.
+    var openTripPlannerAction: () -> Void = {}
 
     private var isCompact: Bool {
         widthMode == .narrow
@@ -34,6 +36,7 @@ struct StaysSectionView: View {
                     allowanceTile
                     schengenTile
                     taxYearTile
+                    nextTripTile
                 }
             } else {
                 WeatherEmptyState(
@@ -145,6 +148,37 @@ struct StaysSectionView: View {
         }
     }
 
+    // MARK: Next trip
+
+    @ViewBuilder
+    private var nextTripTile: some View {
+        if let nextTrip = presentation.nextTrip {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .center, spacing: 8) {
+                    Label(nextTrip.text, systemImage: "airplane.departure")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(NomadTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer(minLength: 4)
+
+                    Button(StaysCardPresentation.tripPlannerTitle, action: openTripPlannerAction)
+                        .buttonStyle(.dashboardInline(isCompact: true))
+                        .help("Open the Trip Planner")
+                }
+
+                if let warning = nextTrip.warning {
+                    Text(warning)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(NomadTheme.coral)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .staysTile()
+            .accessibilityElement(children: .combine)
+        }
+    }
+
     // MARK: Tax year
 
     @ViewBuilder
@@ -232,7 +266,7 @@ extension SummaryTileTone {
     }
 }
 
-private extension SummaryTileTone {
+extension SummaryTileTone {
     var textTint: Color {
         statusTint(neutral: NomadTheme.secondaryText)
     }

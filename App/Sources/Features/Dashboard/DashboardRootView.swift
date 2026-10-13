@@ -48,6 +48,7 @@ struct DashboardRootView: View {
                     openPreferences: openHomeTimeZoneSettings,
                     openOfflineEssentials: { showsOfflineEssentials = true },
                     openExploreCities: { openDashboardWindow(.exploreCities) },
+                    openTripPlanner: openTripPlanner,
                     acknowledgeArrival: acknowledgeArrivalBriefing,
                     startDataGuardMonitoring: { snapshotStore.setManualMeteredSessionEnabled(true) }
                 )
@@ -86,6 +87,7 @@ struct DashboardRootView: View {
                 }
             },
             openTimeTrackingAction: openTimeTracking,
+            openTripPlannerAction: openTripPlanner,
             copyIPAddressAction: copyIPAddress,
             openVisitedMapAction: openVisitedMap,
             showArrivalBriefingAction: showArrivalBriefing,
@@ -165,18 +167,11 @@ struct DashboardRootView: View {
     }
 
     private func copyText(_ text: String) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        ExternalActions.copyText(text)
     }
 
-    /// Opens a web link from the bundled embassy data (Apple Maps, a mission or ministry website).
     private func openExternalURL(_ url: URL) {
-        guard url.scheme == "https" || url.scheme == "http" else {
-            return
-        }
-
-        NSWorkspace.shared.open(url)
+        ExternalActions.openWebURL(url)
     }
 
     private func openNetworkSettings() {
@@ -260,6 +255,10 @@ struct DashboardRootView: View {
 
     private func openTimeTracking() {
         openDashboardWindow(.timeTracking)
+    }
+
+    private func openTripPlanner() {
+        openDashboardWindow(.tripPlanner)
     }
 
     private func openFuelStationMapPreview(_ station: FuelStationMapDestination) {

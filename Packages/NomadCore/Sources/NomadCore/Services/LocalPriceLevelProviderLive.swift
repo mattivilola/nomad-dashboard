@@ -1,7 +1,7 @@
 import CoreLocation
 import Foundation
 
-public actor LiveLocalPriceLevelProvider: LocalPriceLevelProvider, LocalPriceLevelProviderConfigurationUpdating {
+public actor LiveLocalPriceLevelProvider: LocalPriceLevelProvider, PriceLevelIndexProvider, LocalPriceLevelProviderConfigurationUpdating {
     private let session: URLSession
     private let ttl: TimeInterval
     private let indexTTL: TimeInterval

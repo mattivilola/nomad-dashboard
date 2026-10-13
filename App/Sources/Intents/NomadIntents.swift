@@ -79,6 +79,23 @@ struct DaylightIntent: AppIntent {
     }
 }
 
+struct UpcomingTripIntent: AppIntent {
+    static let title: LocalizedStringResource = "Next Trip"
+    static let description = IntentDescription(
+        "Tells you when your next planned trip starts and how long it is.",
+        categoryName: "Dashboard"
+    )
+    static let openAppWhenRun = false
+
+    @Dependency private var settingsStore: AppSettingsStore
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
+        let sentence = IntentAnswers.upcomingTrip(settingsStore: settingsStore)
+        return .result(value: sentence, dialog: "\(sentence)")
+    }
+}
+
 struct SetTravelProfileIntent: AppIntent {
     static let title: LocalizedStringResource = "Set Travel Profile"
     static let description = IntentDescription(
@@ -145,6 +162,15 @@ struct NomadShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Daylight",
             systemImageName: "sunset.fill"
+        )
+        AppShortcut(
+            intent: UpcomingTripIntent(),
+            phrases: [
+                "When is my next trip in \(.applicationName)",
+                "What's my next trip in \(.applicationName)"
+            ],
+            shortTitle: "Next Trip",
+            systemImageName: "airplane.departure"
         )
         AppShortcut(
             intent: SetTravelProfileIntent(),

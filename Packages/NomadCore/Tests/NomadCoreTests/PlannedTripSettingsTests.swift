@@ -190,12 +190,30 @@ struct PlannedTripSettingsTests {
 
     @Test
     func tripsThatEndedMoreThanThirtyDaysAgoAreDropped() {
+        // A fixed clock and one calendar for building and checking, so the boundary does not depend on the
+        // time of day or the machine's time zone.
+        let now = calendar.date(from: DateComponents(year: 2_026, month: 10, day: 12, hour: 12))!
+        func trip(_ code: String, startingIn offset: Int) -> PlannedTrip {
+            let start = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now))!
+            return PlannedTrip(countryCode: code, startDate: start, endDate: calendar.date(byAdding: .day, value: 4, to: start)!)
+        }
         // A five-day trip that started 35 days ago ended 31 days ago; one that started 34 days ago ended 30 days ago.
         let tooOld = trip("ES", startingIn: -35)
         let justKept = trip("PT", startingIn: -34)
         let ongoing = trip("MA", startingIn: -2)
 
-        #expect(AppSettings(plannedTrips: [tooOld, justKept, ongoing]).plannedTrips == [justKept, ongoing])
+        let sanitized = AppSettings.sanitizedPlannedTrips([tooOld, justKept, ongoing], now: now, calendar: calendar)
+
+        #expect(sanitized == [justKept, ongoing])
+    }
+
+    @Test
+    func initializingSettingsDropsOldTripsAwayFromTheBoundary() {
+        // Far enough from the 30-day boundary that no time zone can change the outcome.
+        let tooOld = trip("ES", startingIn: -60)
+        let kept = trip("PT", startingIn: -10)
+
+        #expect(AppSettings(plannedTrips: [tooOld, kept]).plannedTrips == [kept])
     }
 
     @Test

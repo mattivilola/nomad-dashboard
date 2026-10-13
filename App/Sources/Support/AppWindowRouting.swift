@@ -8,6 +8,7 @@ enum AppWindowDestination: String {
     case about
     case visitedMap = "visited-map"
     case timeTracking = "time-tracking"
+    case tripPlanner = "trip-planner"
 
     var title: String {
         switch self {
@@ -21,6 +22,8 @@ enum AppWindowDestination: String {
             "Visited Map"
         case .timeTracking:
             "Time Tracking"
+        case .tripPlanner:
+            "Trip Planner"
         }
     }
 }

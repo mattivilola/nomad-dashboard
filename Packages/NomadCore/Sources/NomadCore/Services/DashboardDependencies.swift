@@ -21,6 +21,7 @@ public struct DashboardDependencies: Sendable {
     public let travelWeatherAlertsProvider: any TravelWeatherAlertsProvider
     public let regionalSecurityProvider: any RegionalSecurityProvider
     public let tripPreviewService: any TripPreviewService
+    public let priceLevelIndexProvider: any PriceLevelIndexProvider
     public let visitedPlacesStore: any VisitedPlacesStore
     public let visitedPlaceEventsStore: any VisitedPlaceEventsStore
     public let visitedCountryDaysStore: any VisitedCountryDaysStore
@@ -51,6 +52,7 @@ public struct DashboardDependencies: Sendable {
         travelWeatherAlertsProvider: any TravelWeatherAlertsProvider,
         regionalSecurityProvider: any RegionalSecurityProvider,
         tripPreviewService: any TripPreviewService,
+        priceLevelIndexProvider: any PriceLevelIndexProvider,
         visitedPlacesStore: any VisitedPlacesStore,
         visitedPlaceEventsStore: any VisitedPlaceEventsStore,
         visitedCountryDaysStore: any VisitedCountryDaysStore,
@@ -80,6 +82,7 @@ public struct DashboardDependencies: Sendable {
         self.travelWeatherAlertsProvider = travelWeatherAlertsProvider
         self.regionalSecurityProvider = regionalSecurityProvider
         self.tripPreviewService = tripPreviewService
+        self.priceLevelIndexProvider = priceLevelIndexProvider
         self.visitedPlacesStore = visitedPlacesStore
         self.visitedPlaceEventsStore = visitedPlaceEventsStore
         self.visitedCountryDaysStore = visitedCountryDaysStore
@@ -145,6 +148,7 @@ public struct DashboardDependencies: Sendable {
                 holidayProvider: localInfoProvider,
                 advisoryProvider: travelAdvisoryProvider
             ),
+            priceLevelIndexProvider: localPriceLevelProvider,
             visitedPlacesStore: FileVisitedPlacesStore(
                 fileURL: applicationSupportDirectory.appendingPathComponent("visited-places.json")
             ),

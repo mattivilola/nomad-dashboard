@@ -394,6 +394,90 @@ public enum QuickAnswers {
         return DaylightAnswer(outlook: outlook, phase: phase, remaining: remaining, sentence: sentence)
     }
 
+    // MARK: - Upcoming trip
+
+    public struct UpcomingTripAnswer: Equatable, Sendable {
+        public enum State: Equatable, Sendable {
+            /// No planned trip is ahead and none is on.
+            case noTrip
+            /// A trip starts today or later.
+            case upcoming
+            /// A trip is on now and no later one is planned.
+            case ongoing
+        }
+
+        public let state: State
+        /// The trip the answer is about; nil when there is none.
+        public let trip: PlannedTrip?
+        public let countryName: String?
+        /// Days until the trip starts (0 on the day); nil unless the trip is upcoming.
+        public let daysUntilStart: Int?
+        public let sentence: String
+    }
+
+    /// When the next planned trip starts, or the one that is on now. Planned trips are local to the Mac and
+    /// only read from the settings here, so nothing is looked up.
+    public static func upcomingTrip(
+        settings: AppSettings,
+        now: Date,
+        calendar: Calendar = .current,
+        locale: Locale = .current
+    ) -> UpcomingTripAnswer {
+        let trips = settings.plannedTrips.sorted(by: PlannedTrip.isOrderedBefore)
+        let upcoming = trips.first { $0.daysUntilStart(now: now, calendar: calendar) >= 0 }
+        let ongoing = trips.first { $0.isOngoing(now: now, calendar: calendar) }
+        let dayStyle = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
+            .day().month(.wide)
+        let name = { (trip: PlannedTrip) in
+            spokenCountryName(
+                CountryNames.displayName(forCode: trip.countryCode, locale: locale),
+                code: trip.countryCode,
+                locale: locale
+            )
+        }
+
+        if let trip = upcoming {
+            let startsIn = trip.daysUntilStart(now: now, calendar: calendar)
+            let days = trip.dayCount(calendar: calendar)
+            let length = days == 1 ? "1 day" : "\(days) days"
+            let first = trip.firstDay(calendar: calendar).formatted(dayStyle)
+            let last = trip.lastDay(calendar: calendar).formatted(dayStyle)
+            let when = switch startsIn {
+            case 0: "starts today"
+            case 1: "starts tomorrow"
+            default: "is in \(startsIn) days"
+            }
+            let span = days == 1 ? "It's on \(first), 1 day." : "It runs from \(first) to \(last), \(length)."
+            return UpcomingTripAnswer(
+                state: .upcoming,
+                trip: trip,
+                countryName: CountryNames.displayName(forCode: trip.countryCode, locale: locale),
+                daysUntilStart: startsIn,
+                sentence: "Your next trip, to \(name(trip)), \(when). \(span)"
+            )
+        }
+
+        if let trip = ongoing {
+            let endsToday = trip.daysSinceEnd(now: now, calendar: calendar) == 0
+            let end = endsToday ? "It ends today." : "It ends on \(trip.lastDay(calendar: calendar).formatted(dayStyle))."
+            return UpcomingTripAnswer(
+                state: .ongoing,
+                trip: trip,
+                countryName: CountryNames.displayName(forCode: trip.countryCode, locale: locale),
+                daysUntilStart: nil,
+                sentence: "You're on your trip to \(name(trip)) right now. \(end)"
+            )
+        }
+
+        return UpcomingTripAnswer(
+            state: .noTrip,
+            trip: nil,
+            countryName: nil,
+            daysUntilStart: nil,
+            sentence: "You have no trips planned. You can plan one in the Nomad Dashboard Trip Planner."
+        )
+    }
+
     // MARK: - Shared wording
 
     /// "Rabat, Morocco", "Morocco" or nil when the place is not known.

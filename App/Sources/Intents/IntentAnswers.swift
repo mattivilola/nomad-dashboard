@@ -26,6 +26,11 @@ enum IntentAnswers {
         return QuickAnswers.nearestEmbassy(snapshot: snapshot, settings: settingsStore.settings).sentence
     }
 
+    /// Planned trips live in the settings, so nothing is waited for or looked up.
+    static func upcomingTrip(settingsStore: AppSettingsStore) -> String {
+        QuickAnswers.upcomingTrip(settings: settingsStore.settings, now: .now).sentence
+    }
+
     static func daylight(snapshotStore: DashboardSnapshotStore) async -> String {
         let snapshot = await IntentSnapshotReader.snapshot(from: snapshotStore) { $0.knowsDaylightLocation }
         return QuickAnswers.daylight(snapshot: snapshot, now: .now).sentence

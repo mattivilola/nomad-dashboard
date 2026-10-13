@@ -11,6 +11,7 @@ struct GeneralSettingsPage: View {
 
     @State private var showingTimeZonePicker = false
     @State private var showingCitizenshipPicker = false
+    @State private var showingHomeCountryPicker = false
 
     var body: some View {
         SettingsPageForm(page: .general, navigationController: navigationController) {
@@ -27,6 +28,11 @@ struct GeneralSettingsPage: View {
         }
         .sheet(isPresented: $showingCitizenshipPicker) {
             CitizenshipCountryPicker(chosen: citizenshipCodes, onSelect: addCitizenship)
+        }
+        .sheet(isPresented: $showingHomeCountryPicker) {
+            CitizenshipCountryPicker(title: HomeCountrySettingsPresentation.pickerTitle, chosen: []) { code in
+                settingsStore.settings.homeCountryCode = code
+            }
         }
     }
 
@@ -89,8 +95,25 @@ struct GeneralSettingsPage: View {
             Text(lifeController.timeZones.relativeDayDescription)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            LabeledContent(HomeCountrySettingsPresentation.title) {
+                Button(
+                    HomeCountrySettingsPresentation.valueText(
+                        homeCountryCode: settingsStore.settings.homeCountryCode,
+                        citizenships: citizenshipCodes
+                    )
+                ) { showingHomeCountryPicker = true }
+            }
+
+            if HomeCountrySettingsPresentation.canReset(homeCountryCode: settingsStore.settings.homeCountryCode) {
+                Button(HomeCountrySettingsPresentation.resetTitle) {
+                    settingsStore.settings.homeCountryCode = nil
+                }
+            }
         } header: {
             Text("Home")
+        } footer: {
+            SettingsFooter(HomeCountrySettingsPresentation.footer)
         }
     }
 

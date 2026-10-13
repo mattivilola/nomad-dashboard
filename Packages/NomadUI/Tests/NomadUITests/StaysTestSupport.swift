@@ -33,3 +33,35 @@ enum StaysTestSupport {
         (0..<count).map { day(endingOffset + $0, code) }
     }
 }
+
+extension StaysTestSupport {
+    /// A day of `calendar` at noon.
+    static func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
+    }
+
+    /// A trip from one day to another, both included.
+    static func trip(
+        _ code: String = "MA",
+        from start: (Int, Int, Int),
+        to end: (Int, Int, Int),
+        note: String? = nil,
+        id: UUID = UUID()
+    ) -> PlannedTrip {
+        PlannedTrip(
+            id: id,
+            countryCode: code,
+            startDate: date(start.0, start.1, start.2),
+            endDate: date(end.0, end.1, end.2),
+            note: note
+        )
+    }
+
+    /// Settings with the trips stored as given. The initializer would drop trips that ended long before the
+    /// real current date, which makes tests that use fixed dates age badly.
+    static func settings(trips: [PlannedTrip], citizenships: [String] = ["FI"], home: String? = nil) -> AppSettings {
+        var settings = AppSettings(citizenshipCountryCodes: citizenships, homeCountryCode: home)
+        settings.plannedTrips = trips
+        return settings
+    }
+}

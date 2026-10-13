@@ -95,9 +95,10 @@ struct ArrivalBriefingCardView: View {
     }
 }
 
-private struct ArrivalBriefingRowView: View {
+/// One briefing row; the Trip Planner shows the same rows for a destination.
+struct ArrivalBriefingRowView: View {
     let row: ArrivalBriefingPresentation.Row
-    let startDataGuardMonitoring: () -> Void
+    var startDataGuardMonitoring: () -> Void = {}
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {

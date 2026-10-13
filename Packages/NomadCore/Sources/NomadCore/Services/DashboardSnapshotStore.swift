@@ -39,6 +39,12 @@ public final class DashboardSnapshotStore: ObservableObject {
     private var initializationTask: Task<Void, Never>?
     private var cacheSaveTask: Task<Void, Never>?
     private var settingsRefreshTask: Task<Void, Never>?
+    /// Set when a settings change or a manual refresh asks for a refresh while one is already running. That
+    /// run started with the old settings (or without forcing the sources), so exactly one forced follow-up
+    /// runs after it, however many requests arrived meanwhile.
+    private var hasPendingRefresh = false
+    /// The follow-up refresh for `hasPendingRefresh`. Everyone waiting on the running refresh waits on it too.
+    private var followUpRefreshTask: Task<Void, Never>?
     private var refreshGeneration = 0
     private var activeManualRequests = 0
     private var activeAutomaticSlowRequests = 0
@@ -86,6 +92,7 @@ public final class DashboardSnapshotStore: ObservableObject {
         localRefreshTask?.cancel()
         cacheSaveTask?.cancel()
         settingsRefreshTask?.cancel()
+        followUpRefreshTask?.cancel()
     }
 
     public func start() {
@@ -110,6 +117,9 @@ public final class DashboardSnapshotStore: ObservableObject {
         refreshTask = nil
         localRefreshTask?.cancel()
         localRefreshTask = nil
+        hasPendingRefresh = false
+        followUpRefreshTask?.cancel()
+        followUpRefreshTask = nil
         invalidateExternalRefresh()
         Task { await flushPersistence() }
     }
@@ -174,6 +184,28 @@ public final class DashboardSnapshotStore: ObservableObject {
         await loadVisitedCountryDays()
     }
 
+    /// The holidays and the travel advisory for a planned trip, from the trip preview service. Only the trip's
+    /// destination country code leaves the Mac. Offline or in Low Data mode it answers from what is saved.
+    public func tripPreviewOnline(
+        for trip: PlannedTrip,
+        forceRefresh: Bool = false,
+        calendar: Calendar = .current
+    ) async -> TripPreviewOnline? {
+        await dependencies.tripPreviewService.online(
+            for: trip,
+            settings: settingsStore.settings,
+            policy: resourcePolicy,
+            forceRefresh: forceRefresh,
+            calendar: calendar
+        )
+    }
+
+    /// Eurostat price-level indices for one country, or nil when they could not be loaded (offline, or the
+    /// source failed). Empty for a country the source does not cover. Only the country code is sent.
+    public func priceLevelIndices(forCountryCode countryCode: String) async -> [LocalPriceIndicatorKind: Double]? {
+        try? await dependencies.priceLevelIndexProvider.indices(forCountryCode: countryCode)
+    }
+
     public var visitedPlaceSummary: VisitedPlaceSummary {
         visitedPlaces.visitedPlaceSummary
     }
@@ -217,7 +249,20 @@ public final class DashboardSnapshotStore: ObservableObject {
     }
 
     /// Explicit refresh waits for completion; the periodic local sampler never waits for remote cards.
+    ///
+    /// An automatic refresh that finds one already running joins it. A manual refresh joins it too, but also
+    /// asks for one forced follow-up run, because the running one may not have forced the sources.
     public func refresh(manual: Bool = false) async {
+        await refresh(manual: manual, afterSettingsChange: false)
+    }
+
+    /// - Parameters:
+    ///   - afterSettingsChange: The request comes from a settings change. When a refresh is already running
+    ///     it started with the old settings, so this request waits for it and then the follow-up refresh runs
+    ///     with the latest settings (all such requests share that one follow-up).
+    ///   - isFollowUp: The call is the follow-up itself, which only joins a running refresh. Requests that
+    ///     arrive meanwhile are picked up by the follow-up's own loop.
+    private func refresh(manual: Bool, afterSettingsChange: Bool, isFollowUp: Bool = false) async {
         let showsSlowActivity = !manual && shouldRefreshSlowMetrics(now: Date(), interval: effectiveSlowRefreshInterval(for: settingsStore.settings))
         if manual {
             activeManualRequests += 1
@@ -237,9 +282,22 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
         await initializationTask?.value
         guard !Task.isCancelled else { return }
-        if let localRefreshTask {
-            await localRefreshTask.value
+        if let running = localRefreshTask {
+            guard !isFollowUp else {
+                await running.value
+                await externalRefreshTask?.value
+                clearLocalRefreshTask(ifRunning: running)
+                return
+            }
+            // A forced external refresh that is already running makes a plain manual request redundant; a
+            // settings change never is, because that run used the old settings.
+            if afterSettingsChange || (manual && !externalRefreshIsManual) {
+                hasPendingRefresh = true
+            }
+            await running.value
             await externalRefreshTask?.value
+            clearLocalRefreshTask(ifRunning: running)
+            await runFollowUpRefreshIfPending()
             return
         }
         updateResourcePolicy()
@@ -247,6 +305,25 @@ public final class DashboardSnapshotStore: ObservableObject {
         updateRefreshActivity()
         await refreshLocalMetrics()
         await external?.value
+    }
+
+    /// Runs the single follow-up refresh that the requests made during the last run asked for. A caller that
+    /// finds it already running waits for it instead of starting another.
+    private func runFollowUpRefreshIfPending() async {
+        if followUpRefreshTask == nil {
+            guard hasPendingRefresh, !Task.isCancelled else { return }
+            followUpRefreshTask = Task { [weak self] in
+                while let self, hasPendingRefresh, !Task.isCancelled {
+                    hasPendingRefresh = false
+                    await refresh(manual: true, afterSettingsChange: false, isFollowUp: true)
+                }
+            }
+        }
+        guard let followUp = followUpRefreshTask else { return }
+        await withTaskCancellationHandler { await followUp.value } onCancel: { followUp.cancel() }
+        if followUpRefreshTask == followUp {
+            followUpRefreshTask = nil
+        }
     }
 
     public func refresh(section: DashboardDataSection) async {
@@ -319,7 +396,15 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
         localRefreshTask = task
         await withTaskCancellationHandler { await task.value } onCancel: { task.cancel() }
-        localRefreshTask = nil
+        clearLocalRefreshTask(ifRunning: task)
+    }
+
+    /// Whoever is done waiting first clears the finished run, so the follow-up never joins it. A run started
+    /// meanwhile (after `stop()`, or by the follow-up itself) is left alone.
+    private func clearLocalRefreshTask(ifRunning task: Task<Void, Never>) {
+        if localRefreshTask == task {
+            localRefreshTask = nil
+        }
     }
 
     private func recordLatency(_ sample: LatencySample) async {
@@ -1100,6 +1185,13 @@ public final class DashboardSnapshotStore: ObservableObject {
             needsManualRefresh = true
         }
 
+        // The price comparison with home is part of the local info; a new home shows without waiting.
+        if previousSettings.homeCountryCode != newSettings.homeCountryCode
+            || previousSettings.citizenshipCountryCodes != newSettings.citizenshipCountryCodes
+        {
+            needsManualRefresh = true
+        }
+
         if previousSettings.surfSpotName != newSettings.surfSpotName
             || previousSettings.surfSpotLatitude != newSettings.surfSpotLatitude
             || previousSettings.surfSpotLongitude != newSettings.surfSpotLongitude
@@ -1152,7 +1244,7 @@ public final class DashboardSnapshotStore: ObservableObject {
 
     private func performScheduledSettingsRefresh() async {
         settingsRefreshTask = nil
-        await refresh(manual: true)
+        await refresh(manual: true, afterSettingsChange: true)
     }
 
     private func sanitizeDisabledSections() {

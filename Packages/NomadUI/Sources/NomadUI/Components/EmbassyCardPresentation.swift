@@ -217,7 +217,7 @@ struct EmbassyCardPresentation {
 
     // MARK: - Hotlines
 
-    private static func hotlines(for codes: [String], locale: Locale) -> [Hotline] {
+    static func hotlines(for codes: [String], locale: Locale) -> [Hotline] {
         codes.compactMap { code in
             guard let contacts = ConsularContactsDirectory.contacts(forCitizenship: code) else {
                 return nil
@@ -277,9 +277,24 @@ struct EmbassyCardPresentation {
         noticeReason: EmbassyLookup.FallbackReason?,
         locale: Locale
     ) -> MissionRow {
+        let reason = lookup?.fallbackReason(for: match.mission)
+        return row(
+            for: match,
+            isFallback: lookup != nil,
+            reasonCaption: reason.flatMap { $0 == noticeReason ? nil : reasonCaption($0) },
+            locale: locale
+        )
+    }
+
+    /// One mission row. A fallback mission names the state that runs it, since it is not the user's own.
+    static func row(
+        for match: DiplomaticMissionMatch,
+        isFallback: Bool,
+        reasonCaption: String?,
+        locale: Locale
+    ) -> MissionRow {
         let mission = match.mission
         let place = mission.city?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-        let isFallback = lookup != nil
         let locationText = if isFallback {
             [CountryNames.displayName(forCode: mission.sendingCountry, locale: locale), place]
                 .compactMap(\.self)
@@ -288,14 +303,13 @@ struct EmbassyCardPresentation {
             place ?? ""
         }
 
-        let reason = lookup?.fallbackReason(for: mission)
         return MissionRow(
             id: mission.id,
             name: mission.name,
             kindTitle: mission.kind.title,
             locationText: locationText,
             distanceText: distanceText(kilometers: match.distanceKilometers, isApproximate: mission.isApproximateLocation),
-            reasonCaption: reason.flatMap { $0 == noticeReason ? nil : reasonCaption($0) },
+            reasonCaption: reasonCaption,
             mapsURL: EmbassyMapsLink.url(for: mission),
             websiteURL: mission.websiteURL,
             address: mission.address?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
@@ -317,12 +331,12 @@ struct EmbassyCardPresentation {
 
     // MARK: - Fallback wording
 
-    private static func noMissionSentence(citizenships: [String], host: String, locale: Locale) -> String {
+    static func noMissionSentence(citizenships: [String], host: String, locale: Locale) -> String {
         let verb = citizenships.count == 1 ? "has" : "have"
         return "\(CitizenshipSettingsPresentation.countryList(citizenships, locale: locale)) \(verb) no mission listed in \(host)"
     }
 
-    private static func fallbackNotice(
+    static func fallbackNotice(
         _ reason: EmbassyLookup.FallbackReason,
         citizenships: [String],
         host: String,
@@ -353,7 +367,7 @@ struct EmbassyCardPresentation {
 
     // MARK: - Links and footer
 
-    private static func links(for codes: [String], locale: Locale) -> [LinkGroup] {
+    static func links(for codes: [String], locale: Locale) -> [LinkGroup] {
         codes.compactMap { code in
             guard let contacts = ConsularContactsDirectory.contacts(forCitizenship: code) else {
                 return nil
@@ -377,7 +391,7 @@ struct EmbassyCardPresentation {
     }
 
     /// "Locations: Wikidata (CC0) · updated 5 Oct 2026 · Check details on the official site before you go".
-    private static func footer(for index: DiplomaticMissionIndex, locale: Locale) -> String {
+    static func footer(for index: DiplomaticMissionIndex, locale: Locale) -> String {
         var parts = ["Locations: \(index.source ?? DiplomaticMissionDataset.wikidataSource)"]
         if let generatedAt = index.generatedAt, generatedAt.isEmpty == false {
             parts.append("updated \(formattedDate(generatedAt, locale: locale))")

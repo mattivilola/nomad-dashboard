@@ -6,7 +6,7 @@ Use it to describe what Nomad Dashboard currently does, who each capability help
 
 ## Product-Level Summary
 
-Nomad Dashboard is a native macOS menu bar app that aggregates travel-relevant and work-relevant signals into one compact dashboard. Its current shipped scope covers connectivity, power, travel context, weather, local project time tracking, and several optional travel-aware modules: local price-level context, a Your Embassy card with the consular line and nearest embassy for your citizenship, a Stays & Visas card that counts days against visa allowances, the Schengen 90/180 rule and tax-residence thresholds, a one-time arrival briefing in each new country, local rhythm notes such as Ramadan, and UV and air quality in the weather card. Siri and Shortcuts actions and desktop widgets bring the emergency number, verdict, embassy line and daylight outside the menu bar.
+Nomad Dashboard is a native macOS menu bar app that aggregates travel-relevant and work-relevant signals into one compact dashboard. Its current shipped scope covers connectivity, power, travel context, weather, local project time tracking, and several optional travel-aware modules: local price-level context, a Your Embassy card with the consular line and nearest embassy for your citizenship, a Stays & Visas card that counts days against visa allowances, the Schengen 90/180 rule and tax-residence thresholds, a one-time arrival briefing in each new country, a Trip Planner that previews a planned trip and what it does to your Schengen and stay counts, local rhythm notes such as Ramadan, and UV and air quality in the weather card. Siri and Shortcuts actions and desktop widgets bring the emergency number, verdict, embassy line and daylight outside the menu bar.
 
 ## Connectivity And Internet Readiness
 
@@ -109,11 +109,11 @@ Users can see whether the MacBook is draining normally, charging properly, or li
 - Shows four vital tiles: Internet (latency, throughput, network name), Power (charge and time left or time to full), Data Guard usage against its cap (or VPN status when Data Guard is off), and Weather (current temperature and condition with today's low and high; imminent rain and strong wind are reported by the heads-up items instead)
 - Colors tile values by status (teal good, sand caution, coral attention) instead of by metric type
 - Tapping a tile scrolls the dashboard to the related card
-- Lists at most three ranked heads-up items below the tiles when something needs attention: a data cap nearing or reaching its limit, a visa allowance, the Schengen 90-day limit or a tax-residence day count nearing its limit, a travel advisory, weather alert, or regional security signal, strong wind, rain within six hours, high UV, poor air quality, a public holiday within three days, a local rhythm such as Ramadan or Lunar New Year, and cheapest nearby fuel
+- Lists at most three ranked heads-up items below the tiles when something needs attention: a data cap nearing or reaching its limit, a visa allowance, the Schengen 90-day limit or a tax-residence day count nearing its limit, a travel advisory, weather alert, or regional security signal, strong wind, rain within six hours, high UV, poor air quality, a public holiday within three days, a local rhythm such as Ramadan or Lunar New Year, a planned trip starting within 14 days (with a Schengen warning when the plan breaks the limit), and cheapest nearby fuel
 - Adds a daylight heads-up on the Road trip & RV profile, so you can finish driving before dark: within two hours of sunset it shows the sunset time and the daylight left (a caution in the last hour) with when civil twilight ends, and once it is properly dark it shows when the sun rises again; nothing is shown at midday or in polar day and polar night
 - Tapping a heads-up item jumps to the card that explains it; the list disappears when there is nothing to flag
 - Opens with a one-time "Welcome to Morocco" arrival briefing above the verdict strip on the day you arrive in a new country; see Arrival Briefing
-- Puts Workplaces, Saved essentials, and Explore cities in a single row of links
+- Puts Workplaces, Saved essentials, Explore cities, and Plan a trip in a single row of links (it wraps to two rows when the panel is narrow)
 - Offline essentials (Saved essentials) lead with the local emergency numbers for the current country, bundled with the app so they are available without a connection, followed by the saved weather, fuel, hospital, and alert summaries
 - Offline essentials format temperatures and fuel prices the same way as the dashboard cards
 
@@ -261,6 +261,7 @@ Users can notice higher-level advisory or environmental signals without doing a 
 - Shows next public holiday with free public data as a date and countdown with the holiday name beneath it
 - Shows school holiday context as a date range with the break name, only when a confident local or regional match is available
 - Reuses official country-level Eurostat price indices for European meal-out, groceries, and overall local cost context as one "Prices vs EU" row (overall level plus the meal, grocery, and overall difference)
+- Compares those price levels with your home country: under the "Prices vs EU" row, one plain line per category such as "Groceries ~30% cheaper than Finland" or "Meals out ~15% pricier than Finland" ("about the same" within 3%), with the caption "Compared with Finland (your home)"; cheaper and pricier are shown in neutral text, not as good or bad
 - Can show a US 1-bedroom rent benchmark from HUD USER when the user adds a HUD API token
 - Keeps source attribution visible for holidays and price signals
 - Adds a **Local rhythm** section for periods that change daily life where you are, shown while they are on or start within 14 days: Ramadan and both Eids, Lunar New Year, Holy Week, Yom Kippur, Songkran, Golden Week, Nyepi (only in Bali), Diwali and Ferragosto; each shows the name, the dates (with "expected; may shift a day" where the moon decides) and a short practical note about opening hours, traffic and what to plan
@@ -280,7 +281,8 @@ Users can get a quick sense of local holiday timing, place context, and price pr
 - public holiday context works from resolved country context
 - local rhythm dates are calculated on the Mac from the current country and need no network request
 - school holiday context depends on confident regional matching and upstream coverage
-- Europe price-level signals work from location context and official Eurostat data
+- Europe price-level signals work from location context and official Eurostat data, for 36 European countries: the 27 EU countries plus Albania, Bosnia and Herzegovina, Switzerland, Iceland, Montenegro, North Macedonia, Norway, Serbia and Türkiye; the United Kingdom is covered for the overall level only
+- the comparison with home needs a home country: set one under Settings, General, Home, or it follows your first citizenship; it is left out when you are in your home country or when Eurostat has no data for either country
 - US 1-bedroom rent requires a user-supplied HUD USER API token
 - US rent benchmarks use current location to resolve the county through the US Census Geocoder
 
@@ -289,8 +291,9 @@ Users can get a quick sense of local holiday timing, place context, and price pr
 - school holiday coverage is best-effort and varies by country and subdivision support
 - public holiday freshness and regional precision depend on upstream providers
 - Europe currently uses country-level fallback data, not city-level venue prices
+- price levels are annual Eurostat figures, so the comparison with home shows the broad gap between two countries, not today's prices or a city's
 - US v1 currently focuses on the HUD 1-bedroom rent benchmark rather than a full meal-and-groceries set
-- countries outside Europe and the United States are not supported in v1
+- countries outside the 36 European countries (and the United Kingdom's overall level) and the United States are not supported in v1
 - local rhythm covers a short list of countries and periods; the dates of moon-based periods can shift by about a day, and regional practice differs, so check locally
 
 ## Explore Cities
@@ -426,6 +429,7 @@ The right consular phone number and the nearest embassy are one glance away, in 
 - Shows an optional allowance per country (for example a 90-day visa or entry stamp): a progress bar and "67 of 90 days · leave by 3 Mar", sand with 14 days or fewer left and coral with 3 or fewer or after an overstay
 - Counts the Schengen 90/180 rule: "61 of 90 days used (rolling 180 days) · leave by 14 Mar" for non-EU citizens while in Schengen, "no limit for EU/EEA/Swiss citizens" for citizens of those countries, and the counts with a prompt to set your citizenship when none is set
 - Lists this year's top five countries with their days against the tax-residence threshold (183 days by default, 30 to 365), plus the unrecorded days this year and a Review days button that opens the Visited Map where days can be corrected
+- Shows your next planned trip as one line ("Next trip: Morocco in 12 days · 14 days") with a Trip Planner button, and warns in coral with the date ("Plan exceeds Schengen 90/180 on 30 Oct") when your planned trips would break the Schengen limit
 - Adds heads-up items and optional menu bar text for a nearing allowance, the Schengen limit and a nearing tax-residence count; the same items reach the `Dashboard Status` Siri and Shortcuts answer and the Glance widget
 - Settings, Stays & Visas holds the Schengen counter switch, the stay allowances (country and days, 1 to 365), the tax-residence switch and threshold, and a pointer to the Visited Map and the visited places setting
 
@@ -474,18 +478,56 @@ You see how many days are left before a limit, and the date to leave by, without
 - it appears when a stay in a new country began within the last three days and the day before it was recorded in another country within 30 days; a first run or a long gap is not treated as an arrival
 - everything comes from data already on the dashboard or bundled with the app, and a section is left out rather than guessed when data is missing
 
+## Trip Planner
+
+### What it does
+
+- Adds a Trip Planner window (header menu, the Plan a trip link on the overview, or the Trip Planner button on the Stays & Visas card) with your planned trips on the left and a preview of the selected one on the right; up to 20 trips, each with a country, start and end date and an optional note of up to 200 characters
+- Lists each trip with the country, the dates and "in 12 days", "tomorrow", "today", "now" or "ended"; trips that ended more than 30 days ago are dropped
+- Adds and edits a trip in a sheet (searchable country list, two date pickers, note), with a confirmed Delete; the Add trip button is disabled, with a note, once the list is full
+- Previews the trip at once from data bundled with the app, so it works offline: the header ("Morocco · 12 – 25 Jan 2027 · 14 days (13 nights) · in 92 days"), the time difference from home, the emergency numbers (selectable), your embassy (up to five of your own missions ranked by kind with Apple Maps, website and copy-address actions, the EU or Nordic fallback with an explanation when your state has none there, your foreign ministry's consular line, and All missions and travel-registration links), the driving side, plugs and voltage, and the currency, with a Changed chip where they differ from the country you are in now
+- Shows local periods that overlap the trip, such as Ramadan or Lunar New Year, with their dates, what to expect and whether they start or end mid-trip
+- Loads public holidays on the days of the trip and the current travel advisory for the destination after the preview, with a progress line, the time they were saved, and "Not available offline" (or in Low Data mode) when nothing is saved; a refresh button checks again
+- Compares prices with home (Eurostat price levels, annual): one neutral line per category such as "Groceries ~30% cheaper than Finland", left out when no comparison is possible
+- Shows a visa what-if: how the trip changes the Schengen count ("Peak 76 of 90 days on 24 Jan" with a bar, and in coral "Exceeds 90/180 on 30 Oct" when it would, or "no limit for EU/EEA/Swiss citizens"), your stay allowance for the country ("14 of 90 days", coral with the last permitted day when the trip is longer), and the days in the destination this calendar year against the tax-residence threshold ("Morocco 2027: 14 planned + 0 recorded days of 183")
+- Adds an upcoming-trip heads-up in the 14 days before a trip starts (see Glance Overview) and a Next Trip Siri and Shortcuts action
+- Adds a Home country setting under Settings, General, Home that defaults to your first citizenship and can be set to any country; it decides what trips and local prices are compared with
+
+### Who it helps
+
+- travelers and nomads who want to know what a trip means for their Schengen days and stay limits before they book
+- anyone who wants the emergency numbers, embassy, plugs and the local calendar for a destination in one place ahead of the trip
+
+### Practical benefit
+
+You see what to expect and what a trip does to your counts before you commit to it, without opening a visa calculator, an embassy list and a holiday calendar.
+
+### Dependencies or setup
+
+- the preview works offline from bundled data; holidays and the advisory need a connection (the advisory also needs travel advisories switched on in Safety)
+- the embassy section needs a citizenship; the time comparison needs a home time zone; the prices need a home country (or a first citizenship) and a country Eurostat covers
+- the visa what-if follows the Schengen, allowance and tax-residence settings under Stays & Visas and uses the days Nomad recorded on this Mac
+
+### Limitations
+
+- planned days count from today on and are added to the recorded days; the plan does not fill gaps in or contradict what was recorded
+- the Schengen, allowance and tax-residence results are a convenience, not tax, immigration or legal advice; check official sources
+- price levels are annual country-level figures; the embassy list comes from community-maintained bundled data and can be incomplete
+- the advisory is the destination country's advisory from the advisory source and may be missing or out of date
+
 ## Siri And Shortcuts
 
 ### What it does
 
-- Adds five Siri and Shortcuts actions (App Intents) that need no window and do not bring the app to the front: `Emergency Number`, `Dashboard Status`, `Nearest Embassy`, `Daylight` and `Set Travel Profile`
+- Adds six Siri and Shortcuts actions (App Intents) that need no window and do not bring the app to the front: `Emergency Number`, `Dashboard Status`, `Nearest Embassy`, `Daylight`, `Next Trip` and `Set Travel Profile`
 - Each action answers in a short natural sentence that Siri speaks, Shortcuts shows, and an automation can use as text
 - `Emergency Number` gives the emergency number for the country you are in, then the police, ambulance, fire and rural police numbers where the bundled table lists them, or says clearly that the country is not known or not verified yet
 - `Dashboard Status` gives the overall verdict (Ready, Caution, Attention) with its reason and your top heads-up for the selected travel profile, including a nearing stay allowance, the Schengen limit or a tax-residence count
 - `Nearest Embassy` gives your nearest embassy or consulate with distance and your foreign ministry's consular line, the EU or Nordic fallback when your country has no mission there, or "Set your citizenship in Nomad Dashboard settings" when no citizenship is chosen
 - `Daylight` gives sunset and the daylight left, or when it gets light again, with midnight sun and polar night handled
+- `Next Trip` says when your next planned trip starts, its dates and length, or the trip that is on now, or that no trip is planned; it reads your planned trips on the Mac and looks nothing up
 - `Set Travel Profile` switches between Nomad and Road trip & RV; the card order follows only when it had not been customized
-- Siri phrases include the app name, for example "What's the emergency number in Nomad Dashboard", "How am I doing in Nomad Dashboard", "When is sunset in Nomad Dashboard", "Switch Nomad Dashboard to Road trip & RV"; all actions also appear in the Shortcuts app for automations
+- Siri phrases include the app name, for example "What's the emergency number in Nomad Dashboard", "How am I doing in Nomad Dashboard", "When is sunset in Nomad Dashboard", "When is my next trip in Nomad Dashboard", "Switch Nomad Dashboard to Road trip & RV"; all actions also appear in the Shortcuts app for automations
 
 ### Who it helps
 
@@ -680,8 +722,9 @@ Users can capture and assign work time with less friction by using the dashboard
 - Keeps the dashboard clean by default: the per-card width and drag controls only appear after choosing `Customize Layout` from the header menu, with an inline hint and a `Done` button while customizing
 - Moves the appearance toggle into the header menu
 - Supports settings for weather, travel modules, analytics, and location-aware features
+- Lets you choose a home country under General, Home (the first citizenship until you pick one) for comparing prices and time with home; it is stored only on the Mac
 - Lets you choose up to three citizenships under General, Citizenship (a searchable country list); the choice is stored only on the Mac and is used only for the Your Embassy card and Offline essentials
-- Organizes Settings into a sidebar of pages, each a grouped form like macOS System Settings: **General** (travel profile, home time zone, citizenship, appearance and startup, menu bar, dashboard layout), **Weather & Local** (weather, air quality, surf spot, Local Info, fuel prices), **Safety** (travel alerts, emergency care, your embassy, arrival briefing), **Stays & Visas** (Schengen counter, stay allowances, tax-residence days, visited-days data), **Connection & Data** (data usage, Data Guard, quiet connection alerts), **Work** (project time tracking, workplace diary), **Privacy & Location** (location, external IP location, Wi-Fi names, visited places, analytics), and **Advanced** (refresh and history, fuel diagnostics, about)
+- Organizes Settings into a sidebar of pages, each a grouped form like macOS System Settings: **General** (travel profile, home time zone, home country, citizenship, appearance and startup, menu bar, dashboard layout), **Weather & Local** (weather, air quality, surf spot, Local Info, fuel prices), **Safety** (travel alerts, emergency care, your embassy, arrival briefing), **Stays & Visas** (Schengen counter, stay allowances, tax-residence days, visited-days data), **Connection & Data** (data usage, Data Guard, quiet connection alerts), **Work** (project time tracking, workplace diary), **Privacy & Location** (location, external IP location, Wi-Fi names, visited places, analytics), and **Advanced** (refresh and history, fuel diagnostics, about)
 - Puts each privacy and data-source note next to the setting it describes instead of in one long paragraph
 - Opens Settings on the right group from the dashboard (for example the clock's preferences button opens the home time zone, and a turned-off card's setup button opens that feature's setting) and remembers the last page while the app is running
 - Supports direct-distribution update plumbing with Sparkle in release builds
@@ -711,6 +754,7 @@ Users can shape the dashboard around their needs instead of accepting a rigid on
 - Nearby fuel prices are region-dependent, and Germany requires the user to provide a Tankerkonig API key.
 - Some travel alerts are optional and disabled by default.
 - Your Embassy needs a citizenship chosen in Settings; its embassy data is bundled with the app, community maintained and can be incomplete.
+- Planned trips and the home country are stored only on the Mac; the Trip Planner's stay results are a convenience, not tax or legal advice.
 - Project time tracking is local-only and requires the user to enable it.
 - External IP geolocation is approximate.
 - Upstream data freshness and availability depend on external providers.

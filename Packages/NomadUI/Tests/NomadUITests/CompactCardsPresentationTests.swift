@@ -395,7 +395,8 @@ struct LocalInfoCompactRowsTests {
         publicHoliday: LocalHolidayStatus,
         schoolHoliday: LocalHolidayStatus? = nil,
         prices: LocalPriceLevelSnapshot? = nil,
-        detail: String? = nil
+        detail: String? = nil,
+        locale: Locale = .current
     ) -> LocalInfoSectionPresentation {
         var settings = AppSettings()
         settings.localInfoEnabled = true
@@ -433,7 +434,8 @@ struct LocalInfoCompactRowsTests {
             snapshot: snapshot,
             locationStatusDetail: nil,
             now: now,
-            calendar: calendar
+            calendar: calendar,
+            locale: locale
         )
     }
 
@@ -541,6 +543,104 @@ struct LocalInfoCompactRowsTests {
 
         #expect(row.value == "High")
         #expect(row.detail == "Meals Above Avg")
+    }
+
+    private func eurostatPrices(
+        homeComparison: [PriceLevelDifference]?,
+        homeCountryCode: String?
+    ) -> LocalPriceLevelSnapshot {
+        LocalPriceLevelSnapshot(
+            status: .ready,
+            summaryBand: .medium,
+            countryCode: "PT",
+            countryName: "Portugal",
+            rows: [
+                priceRow(.mealOut, value: "Moderate", detail: "ignored", difference: -4),
+                priceRow(.groceries, value: "Moderate", detail: "ignored", difference: 3),
+                priceRow(.overall, value: "Below Avg", detail: "ignored", difference: -1)
+            ],
+            sources: [],
+            fetchedAt: .now,
+            detail: nil,
+            note: nil,
+            homeComparison: homeComparison,
+            homeCountryCode: homeCountryCode
+        )
+    }
+
+    @Test
+    func pricesRowComparesWithHomeOnePlainLinePerCategory() throws {
+        let prices = eurostatPrices(
+            homeComparison: [
+                PriceLevelDifference(kind: .mealOut, percentDifference: -22),
+                PriceLevelDifference(kind: .groceries, percentDifference: -30),
+                PriceLevelDifference(kind: .overall, percentDifference: 2)
+            ],
+            homeCountryCode: "FI"
+        )
+        let result = presentation(
+            publicHoliday: upcoming("Labour Day", from: date(10, 24)),
+            prices: prices,
+            locale: Locale(identifier: "en_GB")
+        )
+        let comparison = try #require(result.rows.first { $0.id == "prices-vs-eu" }?.homeComparison)
+
+        #expect(comparison.lines == [
+            "Meals out ~22% cheaper than Finland",
+            "Groceries ~30% cheaper than Finland",
+            "Overall about the same as Finland"
+        ])
+        #expect(comparison.caption == "Compared with Finland (your home)")
+    }
+
+    @Test
+    func pricesRowKeepsItsEUComparisonBesideTheHomeComparison() throws {
+        let prices = eurostatPrices(
+            homeComparison: [PriceLevelDifference(kind: .overall, percentDifference: 15)],
+            homeCountryCode: "FI"
+        )
+        let result = presentation(publicHoliday: upcoming("Labour Day", from: date(10, 24)), prices: prices)
+        let row = try #require(result.rows.first { $0.id == "prices-vs-eu" })
+
+        #expect(row.title == "Prices vs EU")
+        #expect(row.detail == "Meals \u{2212}4% · Groceries +3% · Overall ≈ EU")
+        #expect(row.homeComparison?.lines == ["Overall ~15% pricier than \(CountryNames.displayName(forCode: "FI"))"])
+    }
+
+    @Test
+    func pricesRowHasNoHomeComparisonWithoutOne() throws {
+        let withoutHome = presentation(
+            publicHoliday: upcoming("Labour Day", from: date(10, 24)),
+            prices: eurostatPrices(homeComparison: nil, homeCountryCode: nil)
+        )
+        let emptyComparison = presentation(
+            publicHoliday: upcoming("Labour Day", from: date(10, 24)),
+            prices: eurostatPrices(homeComparison: [], homeCountryCode: "FI")
+        )
+        let missingCountry = presentation(
+            publicHoliday: upcoming("Labour Day", from: date(10, 24)),
+            prices: eurostatPrices(
+                homeComparison: [PriceLevelDifference(kind: .overall, percentDifference: 15)],
+                homeCountryCode: nil
+            )
+        )
+
+        #expect(try #require(withoutHome.rows.first { $0.id == "prices-vs-eu" }).homeComparison == nil)
+        #expect(try #require(emptyComparison.rows.first { $0.id == "prices-vs-eu" }).homeComparison == nil)
+        #expect(try #require(missingCountry.rows.first { $0.id == "prices-vs-eu" }).homeComparison == nil)
+    }
+
+    @Test
+    func theHomeComparisonOnlyBelongsToThePricesRow() {
+        let result = presentation(
+            publicHoliday: upcoming("Labour Day", from: date(10, 24)),
+            prices: eurostatPrices(
+                homeComparison: [PriceLevelDifference(kind: .overall, percentDifference: 15)],
+                homeCountryCode: "FI"
+            )
+        )
+
+        #expect(result.rows.filter { $0.homeComparison != nil }.map(\.id) == ["prices-vs-eu"])
     }
 
     @Test

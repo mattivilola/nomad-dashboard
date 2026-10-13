@@ -32,6 +32,7 @@ public struct DashboardPanelView: View {
     private let reportTimeTrackingInterruptionAction: () -> Void
     private let allocateTimeTrackingAction: (TimeTrackingBucket) -> Void
     private let openTimeTrackingAction: () -> Void
+    private let openTripPlannerAction: () -> Void
     private let copyIPAddressAction: () -> Void
     private let openVisitedMapAction: () -> Void
     private let showArrivalBriefingAction: (() -> Void)?
@@ -98,6 +99,7 @@ public struct DashboardPanelView: View {
         reportTimeTrackingInterruptionAction: @escaping () -> Void = {},
         allocateTimeTrackingAction: @escaping (TimeTrackingBucket) -> Void = { _ in },
         openTimeTrackingAction: @escaping () -> Void = {},
+        openTripPlannerAction: @escaping () -> Void = {},
         copyIPAddressAction: @escaping () -> Void,
         openVisitedMapAction: @escaping () -> Void,
         showArrivalBriefingAction: (() -> Void)? = nil,
@@ -156,6 +158,7 @@ public struct DashboardPanelView: View {
         self.reportTimeTrackingInterruptionAction = reportTimeTrackingInterruptionAction
         self.allocateTimeTrackingAction = allocateTimeTrackingAction
         self.openTimeTrackingAction = openTimeTrackingAction
+        self.openTripPlannerAction = openTripPlannerAction
         self.copyIPAddressAction = copyIPAddressAction
         self.openVisitedMapAction = openVisitedMapAction
         self.showArrivalBriefingAction = showArrivalBriefingAction
@@ -342,6 +345,10 @@ public struct DashboardPanelView: View {
 
             Button("Open Time Tracking", systemImage: "clock.badge.checkmark") {
                 openTimeTrackingAction()
+            }
+
+            Button("Trip Planner", systemImage: "airplane.departure") {
+                openTripPlannerAction()
             }
 
             Button("Open Network Settings", systemImage: "gearshape.2") {
@@ -1316,7 +1323,8 @@ public struct DashboardPanelView: View {
             collapse: collapse(for: .stays),
             openCitizenshipSettingsAction: { openSettingsForCard(.embassy) },
             openSettingsAction: { openSettingsForCard(.stays) },
-            reviewDaysAction: openVisitedMapAction
+            reviewDaysAction: openVisitedMapAction,
+            openTripPlannerAction: openTripPlannerAction
         )
     }
 
@@ -3529,24 +3537,49 @@ private struct LocalInfoRowView: View {
     let isCompact: Bool
 
     var body: some View {
-        Group {
-            if isCompact {
-                VStack(alignment: .leading, spacing: 3) {
-                    titleText
-                    answer(alignment: .leading)
-                }
-            } else {
-                HStack(alignment: .top, spacing: 12) {
-                    titleText
+        VStack(alignment: .leading, spacing: 6) {
+            Group {
+                if isCompact {
+                    VStack(alignment: .leading, spacing: 3) {
+                        titleText
+                        answer(alignment: .leading)
+                    }
+                } else {
+                    HStack(alignment: .top, spacing: 12) {
+                        titleText
 
-                    Spacer(minLength: 12)
+                        Spacer(minLength: 12)
 
-                    answer(alignment: .trailing)
+                        answer(alignment: .trailing)
+                    }
                 }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .help(ifPresent: row.help)
+
+            if let comparison = row.homeComparison {
+                homeComparison(comparison)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .help(ifPresent: row.help)
+    }
+
+    private func homeComparison(_ comparison: LocalInfoRowModel.HomeComparison) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(comparison.lines, id: \.self) { line in
+                Text(line)
+                    .font(.caption)
+                    .foregroundStyle(NomadTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(comparison.caption)
+                .font(.caption2)
+                .foregroundStyle(NomadTheme.tertiaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
     private var titleText: some View {
@@ -5215,6 +5248,30 @@ struct LocalInfoRowModel: Identifiable {
     let help: String?
     /// Whether the value can be selected and copied (phone numbers).
     let isValueSelectable: Bool
+    /// Lines under the row that compare the answer with the user's home country; nil when there is none.
+    let homeComparison: HomeComparison?
+
+    /// "Groceries ~30% cheaper than Finland" per category, with where the comparison comes from. Neutral text:
+    /// cheaper or pricier is information, not a status.
+    struct HomeComparison: Equatable {
+        let lines: [String]
+        /// "Compared with Finland (your home)".
+        let caption: String
+
+        /// Nil when the snapshot has no comparison with a home country.
+        init?(level: LocalPriceLevelSnapshot, locale: Locale) {
+            guard let differences = level.homeComparison, differences.isEmpty == false,
+                  let homeCountryCode = level.homeCountryCode
+            else {
+                return nil
+            }
+
+            lines = differences.map {
+                PriceLevelComparison.text(for: $0, homeCountryCode: homeCountryCode, locale: locale)
+            }
+            caption = "Compared with \(CountryNames.displayName(forCode: homeCountryCode, locale: locale)) (your home)"
+        }
+    }
 
     init(
         id: String,
@@ -5223,7 +5280,8 @@ struct LocalInfoRowModel: Identifiable {
         detail: String,
         badge: PillBadge? = nil,
         help: String? = nil,
-        isValueSelectable: Bool = false
+        isValueSelectable: Bool = false,
+        homeComparison: HomeComparison? = nil
     ) {
         self.id = id
         self.title = title
@@ -5232,6 +5290,7 @@ struct LocalInfoRowModel: Identifiable {
         self.badge = badge
         self.help = help
         self.isValueSelectable = isValueSelectable
+        self.homeComparison = homeComparison
     }
 
     /// A single price indicator that stands on its own (the US HUD 1-bedroom rent benchmark).
@@ -5243,6 +5302,7 @@ struct LocalInfoRowModel: Identifiable {
         badge = nil
         help = row.source.name
         isValueSelectable = false
+        homeComparison = nil
     }
 }
 
@@ -5320,7 +5380,7 @@ struct LocalInfoSectionPresentation {
         }
 
         if let localPriceLevel = localInfo.localPriceLevel {
-            builtRows.append(contentsOf: Self.priceRows(from: localPriceLevel))
+            builtRows.append(contentsOf: Self.priceRows(from: localPriceLevel, locale: locale))
         }
 
         rows = builtRows
@@ -5478,7 +5538,7 @@ struct LocalInfoSectionPresentation {
     /// The Eurostat indicators (meals, groceries, overall) collapse into one "Prices vs EU" row:
     /// the overall level word as the answer and the three deltas as the detail. Any other
     /// indicator (the US 1-bedroom rent benchmark) keeps its own value/detail row.
-    private static func priceRows(from level: LocalPriceLevelSnapshot) -> [LocalInfoRowModel] {
+    static func priceRows(from level: LocalPriceLevelSnapshot, locale: Locale) -> [LocalInfoRowModel] {
         let comparison: [(label: String, kind: LocalPriceIndicatorKind)] = [
             ("Meals", .mealOut),
             ("Groceries", .groceries),
@@ -5501,7 +5561,8 @@ struct LocalInfoSectionPresentation {
                     detail: comparisonRows
                         .map { "\($0.label) \(relativeDeltaText($0.row))" }
                         .joined(separator: " · "),
-                    help: "\(first.precision.displayName) · \(first.source.name)"
+                    help: "\(first.precision.displayName) · \(first.source.name)",
+                    homeComparison: LocalInfoRowModel.HomeComparison(level: level, locale: locale)
                 )
             )
         }
