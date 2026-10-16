@@ -399,7 +399,7 @@ struct DashboardSnapshotStoreTests {
     func overlappingRefreshesShareCurrentWorkWithoutForcedFollowUp() async throws {
         let settingsStore = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         let throughputMonitor = GatedThroughputMonitor()
-        let publicIPProvider = RecordingPublicIPProvider()
+        let publicIPProvider = GatedPublicIPProvider()
         let dependencies = makeDependencies(
             throughputMonitor: throughputMonitor,
             publicIPProvider: publicIPProvider,
@@ -414,14 +414,19 @@ struct DashboardSnapshotStoreTests {
 
         await throughputMonitor.waitForCall(1)
 
+        let (joins, continuation) = AsyncStream<Void>.makeStream()
+        store.refreshJoinObserver = { continuation.yield() }
+        defer { continuation.finish() }
         let overlappingRefreshes = [
             Task { await store.refresh(manual: false) },
             Task { await store.refresh(manual: true) },
             Task { await store.refresh(manual: true) }
         ]
-        await letMainActorTasksRunToTheirFirstSuspension()
+        await waitForRefreshJoins(joins, count: overlappingRefreshes.count)
 
+        // Both phases remain in flight until every overlapping request has joined.
         await throughputMonitor.release()
+        await publicIPProvider.release()
         await firstRefresh.value
         for task in overlappingRefreshes {
             await task.value
@@ -798,8 +803,11 @@ struct DashboardSnapshotStoreTests {
         await throughputMonitor.waitForCall(1)
 
         // The periodic loop ticks while the refresh is still collecting local metrics.
+        let (joins, continuation) = AsyncStream<Void>.makeStream()
+        store.refreshJoinObserver = { continuation.yield() }
+        defer { continuation.finish() }
         store.start()
-        await letMainActorTasksRunToTheirFirstSuspension()
+        await waitForRefreshJoins(joins, count: 1)
         await throughputMonitor.release()
         await running.value
         await waitForIdle(store)
@@ -1785,11 +1793,17 @@ struct DashboardSnapshotStoreTests {
         await waitForIdle(store, sourceLocation: sourceLocation)
     }
 
-    /// Main actor tasks run in the order they were started. Yielding therefore lets every task a test started
-    /// just before run until it first suspends, which for a refresh that joins a running one is when it has
-    /// joined.
-    private func letMainActorTasksRunToTheirFirstSuspension() async {
-        await Task.yield()
+    /// Waits for explicit join acknowledgements while the original refresh is held open.
+    private func waitForRefreshJoins(_ joins: AsyncStream<Void>, count: Int) async {
+        await hangGuard("\(count) refresh requests to join the running refresh") {
+            var joined = 0
+            for await _ in joins {
+                joined += 1
+                if joined == count {
+                    return
+                }
+            }
+        }
     }
 }
 
@@ -2323,6 +2337,25 @@ private struct FixedVPNProvider: VPNStatusProvider {
 private struct FixedPublicIPProvider: PublicIPProvider {
     func currentIP(forceRefresh: Bool) async throws -> PublicIPSnapshot {
         PublicIPSnapshot(address: "198.51.100.12", provider: "test", fetchedAt: .now)
+    }
+}
+
+private final class GatedPublicIPProvider: PublicIPProvider, Sendable {
+    private let calls = CallRecorder<Void>()
+    private let gate = Gate(isOpen: false)
+
+    func currentIP(forceRefresh: Bool) async throws -> PublicIPSnapshot {
+        await calls.record(())
+        await gate.pass()
+        return try await FixedPublicIPProvider().currentIP(forceRefresh: forceRefresh)
+    }
+
+    func callCount() async -> Int {
+        await calls.values.count
+    }
+
+    func release() async {
+        await gate.open()
     }
 }
 

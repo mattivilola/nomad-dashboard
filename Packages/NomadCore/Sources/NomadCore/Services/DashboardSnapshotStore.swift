@@ -46,6 +46,8 @@ public final class DashboardSnapshotStore: ObservableObject {
     /// `waitForSettingsChangesToRegister()`.
     private var settingsChangesInFlight = 0
     private var settingsRegistrationWaiters: [AsyncStream<Void>.Continuation] = []
+    /// Test seam: signals when a caller actually joins a refresh already in flight.
+    var refreshJoinObserver: (@MainActor () -> Void)?
     /// Set when a settings change or a manual refresh asks for a refresh while one is already running. That
     /// run started with the old settings (or without forcing the sources), so exactly one forced follow-up
     /// runs after it, however many requests arrived meanwhile.
@@ -306,6 +308,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             if afterSettingsChange || (manual && !externalRefreshIsManual) {
                 hasPendingRefresh = true
             }
+            refreshJoinObserver?()
             await running.value
             await externalRefreshTask?.value
             clearLocalRefreshTask(ifRunning: running)
@@ -423,6 +426,7 @@ public final class DashboardSnapshotStore: ObservableObject {
 
     private func refreshLocalMetrics() async {
         if let localRefreshTask {
+            refreshJoinObserver?()
             await localRefreshTask.value
             return
         }
