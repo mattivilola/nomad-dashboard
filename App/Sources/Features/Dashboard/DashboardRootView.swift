@@ -45,7 +45,11 @@ struct DashboardRootView: View {
                     visitedCountryDays: snapshotStore.visitedCountryDays,
                     timeZoneShifts: snapshotStore.timeZoneShifts,
                     reopenedArrival: reopenedArrival,
-                    changeDataUsage: { settingsStore.settings.dataUsageMode = $0 },
+                    changeDataUsage: { [settingsStore] mode in
+                        Task { @MainActor in
+                            settingsStore.settings.dataUsageMode = mode
+                        }
+                    },
                     openDiary: { openDashboardWindow(.workplaceDiary) },
                     openPreferences: openHomeTimeZoneSettings,
                     openOfflineEssentials: { showsOfflineEssentials = true },
