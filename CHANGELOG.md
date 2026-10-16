@@ -17,7 +17,7 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- _Nothing yet_
+- Keep Awake now attempts lid-closed helper registration when macOS initially cannot find the service, instead of incorrectly reporting that the helper is missing and skipping setup.
 
 
 ## [0.21.0] - 2026-10-13

@@ -760,6 +760,7 @@ One click from the menu bar keeps the Mac awake for exactly as long as needed, t
 - the helper does exactly one thing, turning the Mac's "stay awake even with the lid closed" setting on while a Keep Awake session runs and off again afterwards; it is signed with the same developer certificate as the app and only talks to the app
 - the helper puts sleep back when the session ends, when Nomad Dashboard quits or crashes, and after a restart, so the Mac does not stay awake by accident; a user who had that setting on themselves keeps it
 - until the helper is approved, or when the helper is unavailable (for example in an unsigned developer build), Keep Awake still works with the lid open and the pill says lid-closed mode is off
+- the first lid-closed session attempts helper registration even when macOS initially reports the service as not found; an install or registration failure shows macOS's actual error instead of assuming the helper is missing
 
 ### Limitations
 

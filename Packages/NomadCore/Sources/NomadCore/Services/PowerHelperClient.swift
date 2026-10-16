@@ -43,6 +43,15 @@ public protocol LidClosedSleepControlling: AnyObject {
     func openApprovalSettings()
 }
 
+/// The registration boundary, kept separate so tests never register a real root daemon.
+@MainActor
+protocol PowerHelperServiceManaging {
+    var status: SMAppService.Status { get }
+    func register() throws
+}
+
+extension SMAppService: PowerHelperServiceManaging {}
+
 /// The app's side of the privileged power helper: registers the launchd daemon (`SMAppService`) and talks to it
 /// over one XPC connection that lives as long as the session, because the helper ends a session when its
 /// owner disconnects.
@@ -52,19 +61,32 @@ public final class PowerHelperClient: LidClosedSleepControlling {
 
     private let helperLabel: String
     private let teamIdentifier: String
-    private let service: SMAppService
+    private let service: any PowerHelperServiceManaging
     private var connection: NSXPCConnection?
 
     /// - Parameters:
     ///   - appBundleIdentifier: The app's bundle identifier; the helper's label is derived from it.
     ///   - teamIdentifier: The team the app and helper are signed with. Without one there is nothing to trust.
-    public init(
+    public convenience init(
         appBundleIdentifier: String? = Bundle.main.bundleIdentifier,
         teamIdentifier: String? = Bundle.main.object(forInfoDictionaryKey: "NomadTeamIdentifier") as? String
     ) {
+        let label = NomadPowerHelperIdentity.label(appBundleIdentifier: appBundleIdentifier ?? "")
+        self.init(
+            appBundleIdentifier: appBundleIdentifier,
+            teamIdentifier: teamIdentifier,
+            service: SMAppService.daemon(plistName: NomadPowerHelperIdentity.launchdPlistName(label: label))
+        )
+    }
+
+    init(
+        appBundleIdentifier: String?,
+        teamIdentifier: String?,
+        service: any PowerHelperServiceManaging
+    ) {
         helperLabel = NomadPowerHelperIdentity.label(appBundleIdentifier: appBundleIdentifier ?? "")
         self.teamIdentifier = teamIdentifier ?? ""
-        service = SMAppService.daemon(plistName: NomadPowerHelperIdentity.launchdPlistName(label: helperLabel))
+        self.service = service
     }
 
     public var status: LidClosedHelperStatus {
@@ -76,10 +98,11 @@ public final class PowerHelperClient: LidClosedSleepControlling {
             return .enabled
         case .requiresApproval:
             return .requiresApproval
-        case .notRegistered:
+        case .notRegistered, .notFound:
+            // A service lookup is not a bundle-content check. In particular, a new helper can be
+            // absent from Service Management until register() submits its bundled plist. Let that
+            // call validate the install and report its real error instead of skipping registration.
             return .notRegistered
-        case .notFound:
-            return .unavailable("This build doesn't include the lid-closed helper.")
         @unknown default:
             return .unavailable("The lid-closed helper is in an unknown state.")
         }
@@ -100,7 +123,11 @@ public final class PowerHelperClient: LidClosedSleepControlling {
             }
             return afterwards
         }
-        return status
+        let afterwards = status
+        if afterwards == .notRegistered {
+            return .unavailable("macOS couldn't find the lid-closed helper after registration. Quit and reopen Nomad Dashboard, then try again.")
+        }
+        return afterwards
     }
 
     public func begin(endsAt: Date?) async throws {
