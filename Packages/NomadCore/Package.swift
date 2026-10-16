@@ -49,7 +49,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "NomadMissionDatasetBuilder",
-            dependencies: ["NomadCore"]
+            dependencies: ["NomadCore"],
+            // This target has several files and an @main entry point in main.swift. Older SwiftPM
+            // versions otherwise treat that filename as a script and reject the @main declaration.
+            swiftSettings: [.unsafeFlags(["-parse-as-library"])]
         ),
         .testTarget(
             name: "NomadCoreTests",
