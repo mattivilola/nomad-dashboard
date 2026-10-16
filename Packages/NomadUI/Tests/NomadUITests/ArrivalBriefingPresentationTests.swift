@@ -30,7 +30,7 @@ struct ArrivalBriefingPresentationTests {
         )
     }
 
-    private func row(_ kind: ArrivalBriefingPresentation.Row.Kind, in presentation: ArrivalBriefingPresentation) -> ArrivalBriefingPresentation.Row? {
+    private func findRow(_ kind: ArrivalBriefingPresentation.Row.Kind, in presentation: ArrivalBriefingPresentation) -> ArrivalBriefingPresentation.Row? {
         presentation.rows.first { $0.kind == kind }
     }
 
@@ -59,7 +59,7 @@ struct ArrivalBriefingPresentationTests {
             utcOffsetSeconds: 0,
             home: .init(timeZoneIdentifier: "Europe/Helsinki", cityName: "Helsinki", offsetFromLocalSeconds: 7_200)
         )
-        let row = try #require(row(.time, in: presentation(ArrivalBriefing(countryCode: "MA", countryName: "Morocco", time: time))))
+        let row = try #require(findRow(.time, in: presentation(ArrivalBriefing(countryCode: "MA", countryName: "Morocco", time: time))))
 
         #expect(row.text == "Local 12:00 (UTC+0) · Home (Helsinki) is 2 h ahead")
     }
@@ -77,7 +77,7 @@ struct ArrivalBriefingPresentationTests {
         )
         let time = ArrivalBriefing.Time(timeZoneIdentifier: "UTC", utcOffsetSeconds: 0, home: nil)
         let result = presentation(ArrivalBriefing(countryCode: "MA", countryName: "Morocco", time: time, emergency: morocco, jetLag: summary))
-        let row = try #require(row(.jetLag, in: result))
+        let row = try #require(findRow(.jetLag, in: result))
 
         #expect(row.title == "Jet lag: day 2 of about 5")
         #expect(row.text == "Shifted 7 h east")
@@ -92,12 +92,12 @@ struct ArrivalBriefingPresentationTests {
     func withoutJetLagThereIsNoRowForIt() {
         let result = presentation(ArrivalBriefing(countryCode: "MA", countryName: "Morocco", emergency: morocco))
 
-        #expect(row(.jetLag, in: result) == nil)
+        #expect(findRow(.jetLag, in: result) == nil)
     }
 
     @Test
     func emergencyNumbersAreSelectableAndListTheOthers() throws {
-        let row = try #require(row(.emergency, in: presentation(ArrivalBriefing(countryCode: "MA", countryName: "Morocco", emergency: morocco))))
+        let row = try #require(findRow(.emergency, in: presentation(ArrivalBriefing(countryCode: "MA", countryName: "Morocco", emergency: morocco))))
 
         #expect(row.text == "177")
         #expect(row.detail == morocco.othersText)
@@ -112,7 +112,7 @@ struct ArrivalBriefingPresentationTests {
                 countryName: "United Kingdom",
                 road: .init(side: .left, changesFromPreviousCountry: changes)
             )
-            return try #require(row(.road, in: presentation(briefing)))
+            return try #require(findRow(.road, in: presentation(briefing)))
         }
 
         let changed = try road(changes: true)
@@ -138,10 +138,10 @@ struct ArrivalBriefingPresentationTests {
         )
         let result = presentation(briefing)
 
-        #expect(row(.power, in: result)?.text == "Plug C, E · 220 V · 50 Hz")
-        #expect(row(.power, in: result)?.flag == "Changed")
-        #expect(row(.money, in: result)?.text == "Moroccan Dirham (MAD)")
-        #expect(row(.money, in: result)?.flag == "Changed")
+        #expect(findRow(.power, in: result)?.text == "Plug C, E · 220 V · 50 Hz")
+        #expect(findRow(.power, in: result)?.flag == "Changed")
+        #expect(findRow(.money, in: result)?.text == "Moroccan Dirham (MAD)")
+        #expect(findRow(.money, in: result)?.flag == "Changed")
     }
 
     @Test
@@ -151,7 +151,7 @@ struct ArrivalBriefingPresentationTests {
             countryName: "Morocco",
             money: .init(currencyCode: "MAD", currencyName: nil, changesFromPreviousCountry: false)
         )
-        let money = try #require(row(.money, in: presentation(briefing)))
+        let money = try #require(findRow(.money, in: presentation(briefing)))
 
         #expect(money.text == "MAD")
         #expect(money.flag == nil)
@@ -168,18 +168,18 @@ struct ArrivalBriefingPresentationTests {
         )
         let result = presentation(briefing)
 
-        #expect(row(.holiday, in: result)?.text == "Throne Day tomorrow")
-        let advisory = try #require(row(.advisory, in: result))
+        #expect(findRow(.holiday, in: result)?.text == "Throne Day tomorrow")
+        let advisory = try #require(findRow(.advisory, in: result))
         #expect(advisory.tone == .attention)
         #expect(advisory.detail == "Smartraveller")
-        #expect(row(.dataGuard, in: result)?.text == ArrivalBriefing.dataGuardHintText)
+        #expect(findRow(.dataGuard, in: result)?.text == ArrivalBriefing.dataGuardHintText)
         #expect(ArrivalBriefingPresentation.startMonitoringTitle == "Start monitoring")
     }
 
     @Test
     func rhythmPeriodsShowNameDatesAndGuidance() throws {
         let briefing = ArrivalBriefing(countryCode: "MA", countryName: "Morocco", rhythm: [period(.ramadan)])
-        let rhythm = try #require(row(.rhythm, in: presentation(briefing)))
+        let rhythm = try #require(findRow(.rhythm, in: presentation(briefing)))
 
         #expect(rhythm.title == "Ramadan")
         #expect(rhythm.text == "12 Oct – 10 Nov (expected; may shift a day)")
@@ -209,7 +209,7 @@ struct ArrivalBriefingPresentationTests {
                 consularContacts: ConsularContacts(ministryName: "Ministry for Foreign Affairs of Finland", emergencyPhone: "+358 9 1605 5555")
             )
         )
-        let embassy = try #require(row(.embassy, in: presentation(briefing)))
+        let embassy = try #require(findRow(.embassy, in: presentation(briefing)))
 
         #expect(embassy.text == "Embassy of Finland, Rabat")
         #expect(embassy.detail == "Ministry for Foreign Affairs +358 9 1605 5555")

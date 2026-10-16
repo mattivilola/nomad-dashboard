@@ -347,9 +347,11 @@ struct QuickAnswersDaylightTests {
         let outlook = try outlook(at: now)
         let sunset = try #require(outlook.sunset)
         let answer = QuickAnswers.daylight(snapshot: helsinki, now: sunset.addingTimeInterval(-(2 * 3_600 + 10 * 60)), locale: locale)
+        let expectedRemaining: TimeInterval = 2 * 3_600 + 10 * 60
+        let actualRemaining = answer.remaining ?? 0
 
         #expect(answer.phase == .daylight(sunset: sunset))
-        #expect(abs((answer.remaining ?? 0) - (2 * 3_600 + 10 * 60)) < 0.001)
+        #expect(abs(actualRemaining - expectedRemaining) < 0.001)
         #expect(answer.sentence == "Sunset is at \(outlook.clockTime(sunset, locale: locale)). You have 2 h 10 min of daylight left.")
     }
 
