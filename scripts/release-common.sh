@@ -307,17 +307,21 @@ assert_archive_weatherkit_entitlement() {
 
 # The entitlements a code signature carries, as an XML plist on stdout.
 signed_entitlements_xml() {
-  local path="$1"
+  local bundle_path="$1"
 
-  /usr/bin/codesign -d --entitlements :- "$path" 2>/dev/null
+  /usr/bin/codesign -d --entitlements :- "$bundle_path" 2>/dev/null
 }
 
 # The first App Group in a signed bundle's entitlements, empty when there is none.
 signed_app_group() {
-  local path="$1"
+  local bundle_path="$1"
+  local app_group
 
-  signed_entitlements_xml "$path" |
-    /usr/bin/plutil -extract "${APP_GROUP_ENTITLEMENT_KEY//./\\.}.0" raw -o - - 2>/dev/null || true
+  # Some macOS versions print plutil failures on stdout. Never mistake a failed extraction's
+  # diagnostic for an entitlement value; the caller must see an empty group and reject it.
+  app_group="$(signed_entitlements_xml "$bundle_path" |
+    /usr/bin/plutil -extract "${APP_GROUP_ENTITLEMENT_KEY//./\\.}.0" raw -o - - 2>/dev/null)" || return 0
+  printf '%s\n' "$app_group"
 }
 
 assert_archive_app_group_entitlement() {

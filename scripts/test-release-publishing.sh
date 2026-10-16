@@ -20,7 +20,7 @@ assert_contains() {
   local needle="$2"
   local description="$3"
 
-  printf '%s' "$haystack" | grep -F "$needle" >/dev/null || fail "$description"
+  printf '%s' "$haystack" | grep -F "$needle" >/dev/null || fail "$description. Actual output: $haystack"
 }
 
 bootstrap_repo() {
