@@ -134,7 +134,7 @@ private struct Observer {
         var instant: Date?
 
         for _ in 0..<3 {
-            guard case .degrees(let angle) = hourAngle(zenith: zenith, at: parameters) else {
+            guard case let .degrees(angle) = hourAngle(zenith: zenith, at: parameters) else {
                 break
             }
             let minutes = 720 - 4 * (longitude + (rising ? angle : -angle)) - parameters.equationOfTime
@@ -228,7 +228,7 @@ public struct DaylightReference: Equatable, Sendable {
     /// (The snapshot's time zone follows the device location only, so an IP-only location needs its own.)
     public init?(travelContext: TravelContextSnapshot) {
         guard let source = [travelContext.deviceLocation, travelContext.location]
-            .compactMap({ $0 })
+            .compactMap(\.self)
             .first(where: { $0.latitude != nil && $0.longitude != nil }),
             let latitude = source.latitude,
             let longitude = source.longitude,

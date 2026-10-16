@@ -360,7 +360,7 @@ public struct DashboardPanelView: View {
                     allowLidClosedAction: allowKeepAwakeLidClosedAction,
                     stopAction: stopKeepAwakeAction
                 )
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if timeTrackingDashboardState.isEnabled {
@@ -5762,7 +5762,7 @@ struct EmergencyCareSectionPresentation {
 
         guard let emergencyCare = snapshot.emergencyCare else {
             badge = PillBadge(title: "Checking", symbolName: "cross.case.fill", tint: NomadTheme.secondaryText)
-            self.subtitle = withNumber("Looking for nearby hospitals")
+            subtitle = withNumber("Looking for nearby hospitals")
             rows = []
             emptyTitle = "Checking Emergency Care"
             emptySystemImage = "cross.case.fill"
@@ -5774,7 +5774,7 @@ struct EmergencyCareSectionPresentation {
         switch emergencyCare.status {
         case .ready:
             badge = PillBadge(title: "Nearby", symbolName: "cross.case.fill", tint: NomadTheme.teal)
-            self.subtitle = withNumber("Within \(Int(emergencyCare.searchRadiusKilometers)) km")
+            subtitle = withNumber("Within \(Int(emergencyCare.searchRadiusKilometers)) km")
             rows = emergencyCare.hospitals.map { hospital in
                 EmergencyHospitalRowModel(
                     id: hospital.id,
@@ -5798,7 +5798,7 @@ struct EmergencyCareSectionPresentation {
             emptyActionTitle = nil
         case .locationRequired:
             badge = PillBadge(title: "Location Needed", symbolName: "location.slash.fill", tint: NomadTheme.sand)
-            self.subtitle = withNumber("Precise location is required")
+            subtitle = withNumber("Precise location is required")
             rows = []
             emptyTitle = "Current Location Needed"
             emptySystemImage = "location.slash.fill"
@@ -5806,7 +5806,7 @@ struct EmergencyCareSectionPresentation {
             emptyActionTitle = "Open Settings"
         case .unavailable:
             badge = PillBadge(title: "Unavailable", symbolName: "wifi.exclamationmark", tint: NomadTheme.primaryText)
-            self.subtitle = withNumber(emergencyCare.sourceName)
+            subtitle = withNumber(emergencyCare.sourceName)
             rows = []
             emptyTitle = "Emergency Care Unavailable"
             emptySystemImage = "wifi.exclamationmark"
@@ -5814,7 +5814,7 @@ struct EmergencyCareSectionPresentation {
             emptyActionTitle = nil
         case .noHospitalsFound:
             badge = PillBadge(title: "No Matches", symbolName: "mappin.slash", tint: NomadTheme.primaryText)
-            self.subtitle = withNumber("Within \(Int(emergencyCare.searchRadiusKilometers)) km")
+            subtitle = withNumber("Within \(Int(emergencyCare.searchRadiusKilometers)) km")
             rows = []
             emptyTitle = "No Nearby Hospitals"
             emptySystemImage = "mappin.slash"

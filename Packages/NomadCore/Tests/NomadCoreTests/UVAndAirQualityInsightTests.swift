@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct UVAndAirQualityInsightTests {
     // MARK: - UV index
@@ -207,7 +207,7 @@ struct UVAndAirQualityInsightTests {
     }
 
     @Test
-    func currentPoorAirQualityWinsOverTheForecastWarning() throws {
+    func currentPoorAirQualityWinsOverTheForecastWarning() {
         let snapshot = airQuality(aqi: 65, main: .pm10, slots: [aqiSlot(hours: 3, aqi: 90)])
         let all = insights(airQuality: snapshot)
         #expect(all.count == 1)

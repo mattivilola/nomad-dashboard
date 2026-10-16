@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct MeteredDataTests {
     @Test func byteDeltaIgnoresCounterReset() {
@@ -55,7 +55,7 @@ struct MeteredDataTests {
         #expect(policy.reason?.contains("Data cap reached") == true)
     }
 
-    @Test func meteredControllerStartsSessionOnExpensivePath() async throws {
+    @Test func meteredControllerStartsSessionOnExpensivePath() async {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("metered-\(UUID().uuidString).json")
         let store = MeteredUsageStore(url: url)
         let counterReader = FixedDetailedInterfaceCounterReader(

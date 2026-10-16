@@ -90,7 +90,7 @@ struct ConsularContactsTests {
     @Test
     func everyURLUsesHTTPS() {
         for (code, contacts) in Self.allContacts() {
-            let urls = [contacts.travelRegistrationURL, contacts.missionsDirectoryURL].compactMap { $0 }
+            let urls = [contacts.travelRegistrationURL, contacts.missionsDirectoryURL].compactMap(\.self)
             for url in urls {
                 #expect(url.scheme == "https", "\(code) has a non-https URL: \(url)")
                 #expect(url.host?.isEmpty == false, "\(code) has a URL without a host: \(url)")

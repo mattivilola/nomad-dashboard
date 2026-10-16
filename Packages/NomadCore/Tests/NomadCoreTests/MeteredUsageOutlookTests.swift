@@ -54,8 +54,8 @@ struct MeteredUsageOutlookTests {
     @Test
     func calendarMonthResetsAtTheStartOfNextMonth() throws {
         let calendar = utcCalendar
-        let midMonth = try #require(calendar.date(from: DateComponents(year: 2026, month: 3, day: 14, hour: 9)))
-        let expected = try #require(calendar.date(from: DateComponents(year: 2026, month: 4, day: 1)))
+        let midMonth = try #require(calendar.date(from: DateComponents(year: 2_026, month: 3, day: 14, hour: 9)))
+        let expected = try #require(calendar.date(from: DateComponents(year: 2_026, month: 4, day: 1)))
         let snapshot = makeSnapshot(billingPeriod: .calendarMonth, periodBytes: gigabyte, capBytes: 5 * gigabyte)
 
         #expect(MeteredUsageOutlook(snapshot: snapshot, now: midMonth, calendar: calendar).resetsAt == expected)
@@ -64,8 +64,8 @@ struct MeteredUsageOutlookTests {
     @Test
     func calendarMonthResetRollsOverTheYear() throws {
         let calendar = utcCalendar
-        let december = try #require(calendar.date(from: DateComponents(year: 2026, month: 12, day: 31, hour: 23)))
-        let expected = try #require(calendar.date(from: DateComponents(year: 2027, month: 1, day: 1)))
+        let december = try #require(calendar.date(from: DateComponents(year: 2_026, month: 12, day: 31, hour: 23)))
+        let expected = try #require(calendar.date(from: DateComponents(year: 2_027, month: 1, day: 1)))
         let snapshot = makeSnapshot(billingPeriod: .calendarMonth, periodBytes: gigabyte, capBytes: 5 * gigabyte)
 
         #expect(MeteredUsageOutlook(snapshot: snapshot, now: december, calendar: calendar).resetsAt == expected)

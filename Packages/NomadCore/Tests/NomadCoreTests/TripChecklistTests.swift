@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct TripChecklistTests {
     private let now = Date(timeIntervalSince1970: 1_791_806_400) // 2026-10-12 14:00 Paris
@@ -61,7 +61,7 @@ struct TripChecklistTests {
 
     @Test
     func aTripToMoroccoGetsTheExpectedItemsWithStableIDs() throws {
-        let list = items(trip("MA", (2026, 11, 1), (2026, 11, 10)))
+        let list = items(trip("MA", (2_026, 11, 1), (2_026, 11, 10)))
 
         #expect(try #require(item("adapter.C-E", in: list)).title == "Pack a plug adapter for type C/E (220 V)")
         #expect(try #require(item("cash.MAD", in: list)).title == "Get some Moroccan Dirham (MAD)")
@@ -80,13 +80,13 @@ struct TripChecklistTests {
 
     @Test
     func theIDsAreTheSameWhenTheListIsMadeAgain() {
-        let trip = trip("MA", (2026, 11, 1), (2026, 11, 10))
+        let trip = trip("MA", (2_026, 11, 1), (2_026, 11, 10))
         #expect(items(trip).map(\.id) == items(trip).map(\.id))
     }
 
     @Test
     func itemsAreOrderedByGroupThenByKind() {
-        let list = items(trip("MA", (2026, 11, 1), (2026, 11, 10)))
+        let list = items(trip("MA", (2_026, 11, 1), (2_026, 11, 10)))
         let groups = TripChecklistGroup.allCases
         let positions = list.map { groups.firstIndex(of: $0.group)! }
 
@@ -99,31 +99,31 @@ struct TripChecklistTests {
     @Test
     func theAdapterAndCashFollowTheCountryYouAreInOrHome() {
         // Spain to Portugal: same plugs and currency as the current country, and as Finland at home.
-        let list = items(trip("PT", (2026, 11, 1), (2026, 11, 10)))
+        let list = items(trip("PT", (2_026, 11, 1), (2_026, 11, 10)))
         #expect(list.contains { $0.kind == .adapter } == false)
         #expect(list.contains { $0.kind == .cash } == false)
 
         // Home is Britain: Spain's plugs are not the same as home's even though the current country matches.
         let british = settings(citizenships: ["GB"], trips: [])
-        let fromHome = items(trip("ES", (2026, 11, 1), (2026, 11, 10)), current: "ES", settings: british)
+        let fromHome = items(trip("ES", (2_026, 11, 1), (2_026, 11, 10)), current: "ES", settings: british)
         #expect(fromHome.contains { $0.id == "adapter.C-F" })
         #expect(fromHome.contains { $0.id == "cash.EUR" })
 
         // Nothing known about where you are or home: nothing to compare with.
-        let unknown = items(trip("ES", (2026, 11, 1), (2026, 11, 10)), current: nil, settings: settings(citizenships: []))
+        let unknown = items(trip("ES", (2_026, 11, 1), (2_026, 11, 10)), current: nil, settings: settings(citizenships: []))
         #expect(unknown.contains { $0.kind == .adapter || $0.kind == .cash } == false)
     }
 
     @Test
     func drivingOnTheOtherSideAddsAnItem() throws {
-        let list = items(trip("GB", (2026, 11, 1), (2026, 11, 10)))
+        let list = items(trip("GB", (2_026, 11, 1), (2_026, 11, 10)))
         let driving = try #require(item("driving.left", in: list))
 
         #expect(driving.title == "Drive on the left — check rental and insurance")
-        #expect(items(trip("PT", (2026, 11, 1), (2026, 11, 10))).contains { $0.kind == .driving } == false)
+        #expect(items(trip("PT", (2_026, 11, 1), (2_026, 11, 10))).contains { $0.kind == .driving } == false)
         // Compared with home when the current country drives on the same side.
         let britishHome = items(
-            trip("ES", (2026, 11, 1), (2026, 11, 10)), current: "FR",
+            trip("ES", (2_026, 11, 1), (2_026, 11, 10)), current: "FR",
             settings: settings(citizenships: ["GB"])
         )
         #expect(britishHome.contains { $0.id == "driving.right" })
@@ -131,18 +131,18 @@ struct TripChecklistTests {
 
     @Test
     func noRoamingItemInTheHomeCountry() {
-        let list = items(trip("FI", (2026, 11, 1), (2026, 11, 10)), current: "FI")
+        let list = items(trip("FI", (2_026, 11, 1), (2_026, 11, 10)), current: "FI")
         #expect(list.contains { $0.kind == .roaming } == false)
     }
 
     @Test
     func registrationAndConsularLineNeedTheCitizenshipsData() {
         // No citizenship, no consular help; the destination being the home country is the same.
-        let none = items(trip("MA", (2026, 11, 1), (2026, 11, 10)), settings: settings(citizenships: []))
+        let none = items(trip("MA", (2_026, 11, 1), (2_026, 11, 10)), settings: settings(citizenships: []))
         #expect(none.contains { $0.kind == .registerTrip || $0.kind == .consularLine } == false)
 
         // Iceland publishes a hotline but has no registration service.
-        let iceland = items(trip("MA", (2026, 11, 1), (2026, 11, 10)), settings: settings(citizenships: ["IS"]))
+        let iceland = items(trip("MA", (2_026, 11, 1), (2_026, 11, 10)), settings: settings(citizenships: ["IS"]))
         #expect(iceland.contains { $0.id == "consular-line.IS" })
         #expect(iceland.contains { $0.kind == .registerTrip } == false)
     }
@@ -157,7 +157,7 @@ struct TripChecklistTests {
                 country: "FR", countryCode: "FR", source: .deviceLocation, isInferred: false
             )
         }
-        let spain = trip("ES", (2026, 10, 20), (2026, 10, 30))
+        let spain = trip("ES", (2_026, 10, 20), (2_026, 10, 30))
         let list = items(
             spain,
             current: "FR",
@@ -172,7 +172,7 @@ struct TripChecklistTests {
         #expect(allowance.detail == "Your allowance is 8 days, 3 days short of the trip")
         #expect(breach.group == .documents)
 
-        let within = items(trip("ES", (2026, 10, 20), (2026, 10, 25)), current: "FR", settings: settings(citizenships: ["US"], allowances: ["ES": 30]), days: days)
+        let within = items(trip("ES", (2_026, 10, 20), (2_026, 10, 25)), current: "FR", settings: settings(citizenships: ["US"], allowances: ["ES": 30]), days: days)
         #expect(within.contains { $0.kind == .visaSchengen } == false)
         #expect(item("visa.allowance.ES", in: within)?.detail == "Your allowance is 30 days")
     }
@@ -180,7 +180,7 @@ struct TripChecklistTests {
     @Test
     func aLocalPeriodDuringTheTripSaysWhichDayItStarts() throws {
         // Ramadan 2027 begins on 8 Feb: the fifth day of a trip from 4 Feb.
-        let list = items(trip("MA", (2027, 2, 4), (2027, 2, 14)))
+        let list = items(trip("MA", (2_027, 2, 4), (2_027, 2, 14)))
         let ramadan = try #require(list.first { $0.kind == .rhythm })
 
         #expect(ramadan.id == "rhythm.ramadan")
@@ -188,15 +188,15 @@ struct TripChecklistTests {
         #expect(ramadan.detail?.isEmpty == false)
         #expect(ramadan.group == .onArrival)
 
-        let alreadyOn = try #require(items(trip("MA", (2027, 2, 12), (2027, 2, 14))).first { $0.kind == .rhythm })
+        let alreadyOn = try #require(items(trip("MA", (2_027, 2, 12), (2_027, 2, 14))).first { $0.kind == .rhythm })
         #expect(alreadyOn.title == "Ramadan is on during your trip")
     }
 
     @Test
     func onlinePartsAddHolidaysAndTheAdvisory() throws {
         let holidays = [
-            HolidayPeriodSnapshot(name: "Amazigh New Year", startDate: day(2027, 1, 14), endDate: day(2027, 1, 14)),
-            HolidayPeriodSnapshot(name: "Eid break", startDate: day(2027, 1, 20), endDate: day(2027, 1, 22))
+            HolidayPeriodSnapshot(name: "Amazigh New Year", startDate: day(2_027, 1, 14), endDate: day(2_027, 1, 14)),
+            HolidayPeriodSnapshot(name: "Eid break", startDate: day(2_027, 1, 20), endDate: day(2_027, 1, 22))
         ]
         let advisory = TravelAlertSignalSnapshot(
             kind: .advisory, severity: .caution, title: "Morocco", summary: "Exercise a high degree of caution.",
@@ -204,7 +204,7 @@ struct TripChecklistTests {
             updatedAt: now, affectedCountryCodes: ["MA"]
         )
         let online = TripPreviewOnline(holidays: holidays.reversed(), advisory: advisory, fetchedAt: now)
-        let list = items(trip("MA", (2027, 1, 10), (2027, 1, 25)), online: online)
+        let list = items(trip("MA", (2_027, 1, 10), (2_027, 1, 25)), online: online)
 
         let first = try #require(item("holiday.2027-01-14", in: list))
         #expect(first.title == "Public holiday Jan 14 (Amazigh New Year) — shops may close")
@@ -221,8 +221,8 @@ struct TripChecklistTests {
             kind: .advisory, severity: .info, title: "Spain", summary: "Normal precautions.",
             sourceName: "Smartraveller", sourceURL: nil, updatedAt: now, affectedCountryCodes: ["ES"]
         )
-        let offline = items(trip("MA", (2027, 1, 10), (2027, 1, 25)), online: nil)
-        let calmList = items(trip("MA", (2027, 1, 10), (2027, 1, 25)), online: TripPreviewOnline(holidays: nil, advisory: calm, fetchedAt: now))
+        let offline = items(trip("MA", (2_027, 1, 10), (2_027, 1, 25)), online: nil)
+        let calmList = items(trip("MA", (2_027, 1, 10), (2_027, 1, 25)), online: TripPreviewOnline(holidays: nil, advisory: calm, fetchedAt: now))
 
         #expect(offline.contains { $0.kind == .advisory || $0.kind == .holiday } == false)
         #expect(calmList.contains { $0.kind == .advisory || $0.kind == .holiday } == false)
@@ -230,9 +230,9 @@ struct TripChecklistTests {
 
     @Test
     func holidaysAreCappedSoALongTripDoesNotBuryTheList() {
-        let holidays = (1...9).map { HolidayPeriodSnapshot(name: "Day \($0)", startDate: day(2027, $0, 5), endDate: day(2027, $0, 5)) }
+        let holidays = (1...9).map { HolidayPeriodSnapshot(name: "Day \($0)", startDate: day(2_027, $0, 5), endDate: day(2_027, $0, 5)) }
         let list = items(
-            trip("MA", (2027, 1, 1), (2027, 12, 31)),
+            trip("MA", (2_027, 1, 1), (2_027, 12, 31)),
             online: TripPreviewOnline(holidays: holidays, advisory: nil, fetchedAt: now)
         )
 
@@ -244,7 +244,7 @@ struct TripChecklistTests {
 
     @Test
     func progressCountsSuggestedAndCustomItems() {
-        let list = items(trip("MA", (2026, 11, 1), (2026, 11, 10)))
+        let list = items(trip("MA", (2_026, 11, 1), (2_026, 11, 10)))
         var state = TripChecklistState()
         #expect(TripChecklist.progress(items: list, state: state) == (0, list.count))
 
@@ -268,7 +268,7 @@ struct TripChecklistTests {
     func theChecklistRoundTripsWithTheTrip() throws {
         var state = TripChecklistState(checkedItemIDs: ["cash.MAD", "roaming"])
         state.addCustomItem(title: "Print the booking")
-        let trip = PlannedTrip(countryCode: "MA", startDate: day(2026, 11, 1), endDate: day(2026, 11, 10), checklist: state)
+        let trip = PlannedTrip(countryCode: "MA", startDate: day(2_026, 11, 1), endDate: day(2_026, 11, 10), checklist: state)
 
         let decoded = try JSONDecoder().decode(PlannedTrip.self, from: JSONEncoder().encode(trip))
 
@@ -310,7 +310,7 @@ struct TripChecklistTests {
         ] + (0..<40).map { TripChecklistCustomItem(title: "Item \($0)") }
         let ids = Set((0..<150).map { "id.\($0)" } + [""])
         let trip = PlannedTrip(
-            countryCode: "ma", startDate: day(2026, 11, 1), endDate: day(2026, 11, 10),
+            countryCode: "ma", startDate: day(2_026, 11, 1), endDate: day(2_026, 11, 10),
             checklist: TripChecklistState(checkedItemIDs: ids, customItems: custom)
         )
 
@@ -364,7 +364,7 @@ struct TripChecklistTests {
     func settingsKeepTheChecklistThroughCoding() throws {
         var state = TripChecklistState(checkedItemIDs: ["roaming"])
         state.addCustomItem(title: "Print the booking")
-        let trip = PlannedTrip(countryCode: "MA", startDate: day(2026, 11, 1), endDate: day(2026, 11, 10), checklist: state)
+        let trip = PlannedTrip(countryCode: "MA", startDate: day(2_026, 11, 1), endDate: day(2_026, 11, 10), checklist: state)
         let settings = AppSettings(plannedTrips: [trip])
 
         let decoded = try JSONDecoder().decode(AppSettings.self, from: JSONEncoder().encode(settings))

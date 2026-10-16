@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct TripPreviewTests {
     private let now = Date(timeIntervalSince1970: 1_791_806_400) // 2026-10-12 14:00 Paris
@@ -47,7 +47,7 @@ struct TripPreviewTests {
 
     @Test
     func composesEverythingAvailableOfflineForATrip() throws {
-        let trip = trip("MA", (2026, 11, 1), (2026, 11, 10))
+        let trip = trip("MA", (2_026, 11, 1), (2_026, 11, 10))
         let preview = preview(trip)
 
         #expect(preview.trip == trip)
@@ -70,8 +70,8 @@ struct TripPreviewTests {
     @Test
     func theTimeDifferenceIsMeasuredOnTheFirstDayOfTheTrip() throws {
         // Dubai is UTC+4 all year; Helsinki is UTC+3 in July and UTC+2 in January.
-        let summer = try #require(preview(trip("AE", (2027, 7, 10), (2027, 7, 20))).timeDifference)
-        let winter = try #require(preview(trip("AE", (2027, 1, 10), (2027, 1, 20))).timeDifference)
+        let summer = try #require(preview(trip("AE", (2_027, 7, 10), (2_027, 7, 20))).timeDifference)
+        let winter = try #require(preview(trip("AE", (2_027, 1, 10), (2_027, 1, 20))).timeDifference)
 
         #expect(summer.text == "Home (Helsinki) is 1 h behind")
         #expect(winter.text == "Home (Helsinki) is 2 h behind")
@@ -79,26 +79,26 @@ struct TripPreviewTests {
 
     @Test
     func noHomeTimeZoneMeansNoTimeDifference() {
-        #expect(preview(trip("MA", (2026, 11, 1), (2026, 11, 10)), home: nil).timeDifference == nil)
+        #expect(preview(trip("MA", (2_026, 11, 1), (2_026, 11, 10)), home: nil).timeDifference == nil)
     }
 
     @Test
     func theScheduleFollowsTheCalendarDaysAroundToday() {
-        let ongoing = preview(trip("MA", (2026, 10, 10), (2026, 10, 14))).schedule
+        let ongoing = preview(trip("MA", (2_026, 10, 10), (2_026, 10, 14))).schedule
         #expect(ongoing == TripPreview.Schedule(dayCount: 5, nightCount: 4, daysUntilStart: -2, daysSinceEnd: -2))
         #expect(ongoing.isOngoing && ongoing.isUpcoming == false && ongoing.hasEnded == false)
 
-        let today = preview(trip("MA", (2026, 10, 12), (2026, 10, 12))).schedule
+        let today = preview(trip("MA", (2_026, 10, 12), (2_026, 10, 12))).schedule
         #expect(today.dayCount == 1 && today.nightCount == 0 && today.daysUntilStart == 0)
         #expect(today.isOngoing)
 
-        let over = preview(trip("MA", (2026, 10, 1), (2026, 10, 5))).schedule
+        let over = preview(trip("MA", (2_026, 10, 1), (2_026, 10, 5))).schedule
         #expect(over.hasEnded && over.isOngoing == false)
     }
 
     @Test
     func anUnknownCountryKeepsTheCodeAndOmitsTheSections() {
-        let preview = preview(trip("ZZ", (2026, 11, 1), (2026, 11, 10)), citizenships: [])
+        let preview = preview(trip("ZZ", (2_026, 11, 1), (2_026, 11, 10)), citizenships: [])
 
         #expect(preview.countryName == "ZZ")
         #expect(preview.emergency == nil)
@@ -112,8 +112,8 @@ struct TripPreviewTests {
     // MARK: - Changes compared with the current country
 
     @Test
-    func driveSideVoltagePlugsAndCurrencyChangesAreFlaggedAgainstTheCurrentCountry() throws {
-        let britain = preview(trip("GB", (2026, 11, 1), (2026, 11, 10)), current: "FR")
+    func driveSideVoltagePlugsAndCurrencyChangesAreFlaggedAgainstTheCurrentCountry() {
+        let britain = preview(trip("GB", (2_026, 11, 1), (2_026, 11, 10)), current: "FR")
 
         #expect(britain.road == ArrivalBriefing.Road(side: .left, changesFromPreviousCountry: true))
         #expect(britain.road?.text == "Drive on the left")
@@ -122,12 +122,12 @@ struct TripPreviewTests {
         #expect(britain.money?.currencyCode == "GBP")
         #expect(britain.money?.changesFromPreviousCountry == true)
 
-        let sameAsHere = preview(trip("GB", (2026, 11, 1), (2026, 11, 10)), current: "GB")
+        let sameAsHere = preview(trip("GB", (2_026, 11, 1), (2_026, 11, 10)), current: "GB")
         #expect(sameAsHere.road?.changesFromPreviousCountry == false)
         #expect(sameAsHere.power?.differsFromPreviousCountry == false)
         #expect(sameAsHere.money?.changesFromPreviousCountry == false)
 
-        let unknownHere = preview(trip("GB", (2026, 11, 1), (2026, 11, 10)), current: nil)
+        let unknownHere = preview(trip("GB", (2_026, 11, 1), (2_026, 11, 10)), current: nil)
         #expect(unknownHere.road?.changesFromPreviousCountry == false)
         #expect(unknownHere.power?.differsFromPreviousCountry == false)
         #expect(unknownHere.money?.changesFromPreviousCountry == false)
@@ -136,7 +136,7 @@ struct TripPreviewTests {
 
     @Test
     func theEurozoneKeepsTheCurrency() {
-        let portugal = preview(trip("PT", (2026, 11, 1), (2026, 11, 10)), current: "ES")
+        let portugal = preview(trip("PT", (2_026, 11, 1), (2_026, 11, 10)), current: "ES")
 
         #expect(portugal.money?.currencyCode == "EUR")
         #expect(portugal.money?.changesFromPreviousCountry == false)
@@ -146,7 +146,7 @@ struct TripPreviewTests {
 
     @Test
     func yourOwnMissionsAreListedBestKindFirstWithoutDistances() throws {
-        let embassy = try #require(preview(trip("MA", (2026, 11, 1), (2026, 11, 10)), citizenships: ["FI"]).embassy)
+        let embassy = try #require(preview(trip("MA", (2_026, 11, 1), (2_026, 11, 10)), citizenships: ["FI"]).embassy)
 
         #expect(embassy.citizenshipCode == "FI")
         #expect(embassy.ownMissions.isEmpty == false)
@@ -172,7 +172,7 @@ struct TripPreviewTests {
                 && ["SE", "DK", "NO", "IS"].contains { DiplomaticMissionDirectory.missions(of: $0, in: host).isEmpty == false }
         })
 
-        let embassy = try #require(preview(trip(host, (2026, 11, 1), (2026, 11, 10)), citizenships: ["FI"]).embassy)
+        let embassy = try #require(preview(trip(host, (2_026, 11, 1), (2_026, 11, 10)), citizenships: ["FI"]).embassy)
 
         #expect(embassy.ownMissions.isEmpty)
         #expect(embassy.fallbackMissions.isEmpty == false)
@@ -182,7 +182,7 @@ struct TripPreviewTests {
 
     @Test
     func theHotlineStaysWhenNoMissionIsKnown() throws {
-        let embassy = try #require(preview(trip("ZZ", (2026, 11, 1), (2026, 11, 10)), citizenships: ["FI"]).embassy)
+        let embassy = try #require(preview(trip("ZZ", (2_026, 11, 1), (2_026, 11, 10)), citizenships: ["FI"]).embassy)
 
         #expect(embassy.ownMissions.isEmpty && embassy.fallbackMissions.isEmpty)
         #expect(embassy.consularContacts != nil)
@@ -190,9 +190,9 @@ struct TripPreviewTests {
 
     @Test
     func noEmbassySectionWithoutCitizenshipOrAtHome() {
-        #expect(preview(trip("MA", (2026, 11, 1), (2026, 11, 10)), citizenships: []).embassy == nil)
-        #expect(preview(trip("MA", (2026, 11, 1), (2026, 11, 10)), citizenships: ["MA"]).embassy == nil)
-        #expect(preview(trip("MA", (2026, 11, 1), (2026, 11, 10)), citizenships: ["MA", "FI"]).embassy?.citizenshipCode == "FI")
+        #expect(preview(trip("MA", (2_026, 11, 1), (2_026, 11, 10)), citizenships: []).embassy == nil)
+        #expect(preview(trip("MA", (2_026, 11, 1), (2_026, 11, 10)), citizenships: ["MA"]).embassy == nil)
+        #expect(preview(trip("MA", (2_026, 11, 1), (2_026, 11, 10)), citizenships: ["MA", "FI"]).embassy?.citizenshipCode == "FI")
     }
 
     // MARK: - Local rhythm
@@ -200,7 +200,7 @@ struct TripPreviewTests {
     @Test
     func rhythmPeriodsOverlappingTheTripCarryWhereTheyFall() throws {
         // Saudi Arabia 1-10 Mar 2027: Ramadan is 8 Feb - 8 Mar and Eid al-Fitr starts on 9 Mar.
-        let preview = preview(trip("SA", (2027, 3, 1), (2027, 3, 10)))
+        let preview = preview(trip("SA", (2_027, 3, 1), (2_027, 3, 10)))
 
         #expect(preview.rhythm.map(\.period.kind) == [.ramadan, .eidAlFitr])
         let ramadan = try #require(preview.rhythm.first)
@@ -214,7 +214,7 @@ struct TripPreviewTests {
 
     @Test
     func aPeriodThatStartsMidTripIsFlaggedAsSuch() throws {
-        let ramadan = try #require(preview(trip("SA", (2027, 2, 1), (2027, 2, 20))).rhythm.first)
+        let ramadan = try #require(preview(trip("SA", (2_027, 2, 1), (2_027, 2, 20))).rhythm.first)
 
         #expect(ramadan.period.kind == .ramadan)
         #expect(ramadan.startsDuringTrip)
@@ -223,22 +223,22 @@ struct TripPreviewTests {
 
     @Test
     func aTripToBaliKeepsNyepiBecauseThereIsNoRegion() {
-        let preview = preview(trip("ID", (2027, 3, 5), (2027, 3, 12)))
+        let preview = preview(trip("ID", (2_027, 3, 5), (2_027, 3, 12)))
 
         #expect(preview.rhythm.map(\.period.kind).contains(.nyepi))
     }
 
     @Test
     func aTripOutsideEveryPeriodHasNoRhythm() {
-        #expect(preview(trip("SA", (2026, 11, 1), (2026, 11, 10))).rhythm.isEmpty)
+        #expect(preview(trip("SA", (2_026, 11, 1), (2_026, 11, 10))).rhythm.isEmpty)
     }
 
     // MARK: - Visa what-if
 
     @Test
     func theVisaOutlookAppliesAllPlannedTripsAndTheRecordedDays() throws {
-        let november = trip("FR", (2026, 11, 1), (2026, 11, 30))
-        let december = trip("IT", (2026, 12, 20), (2027, 1, 20))
+        let november = trip("FR", (2_026, 11, 1), (2_026, 11, 30))
+        let december = trip("IT", (2_026, 12, 20), (2_027, 1, 20))
         var settings = AppSettings(citizenshipCountryCodes: ["US"], stayAllowances: ["IT": 30])
         settings.plannedTrips = [november, december]
 
@@ -257,17 +257,17 @@ struct TripPreviewTests {
         #expect(window.usedDaysBeforeTrip == 30)
         #expect(window.peakUsedDays == 62)
         #expect(preview.visa.allowance?.overstayDays == 2)
-        #expect(preview.visa.taxYears.map(\.year) == [2026, 2027])
+        #expect(preview.visa.taxYears.map(\.year) == [2_026, 2_027])
     }
 
     @Test
     func anExemptCitizenIsMarkedExempt() {
-        #expect(preview(trip("ES", (2026, 11, 1), (2026, 11, 10)), citizenships: ["FI"]).visa.schengen == .exempt)
+        #expect(preview(trip("ES", (2_026, 11, 1), (2_026, 11, 10)), citizenships: ["FI"]).visa.schengen == .exempt)
     }
 
     @Test
     func theLiveCountryCountsTodayInTheVisaOutlook() throws {
-        let today = trip("FR", (2026, 10, 12), (2026, 10, 14))
+        let today = trip("FR", (2_026, 10, 12), (2_026, 10, 14))
 
         let window = try #require(preview(today, citizenships: ["US"], current: "FR").visa.schengen?.window)
 

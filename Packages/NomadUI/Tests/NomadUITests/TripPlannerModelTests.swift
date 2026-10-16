@@ -1,7 +1,7 @@
 import Foundation
 import NomadCore
-import Testing
 @testable import NomadUI
+import Testing
 
 /// Counts the lookups a model makes, so the tests can see what it asks the network for.
 @MainActor
@@ -106,7 +106,7 @@ struct TripPlannerModelTests {
 
         await model.waitForLoads()
 
-        #expect(model.onlineState == .loaded(try #require(services.online)))
+        #expect(try model.onlineState == .loaded(#require(services.online)))
         #expect(model.presentation?.online.holidays.first?.text == "None during your trip")
     }
 
@@ -289,7 +289,7 @@ struct TripPlannerModelTests {
         let trips = (0..<AppSettings.maximumPlannedTrips).map { offset in
             Support.trip(from: (2_027, 1, 1 + offset), to: (2_027, 1, 1 + offset))
         }
-        let model = makeModel(store: try makeStore(trips: trips), services: RecordingServices())
+        let model = try makeModel(store: makeStore(trips: trips), services: RecordingServices())
 
         #expect(model.canAddTrip == false)
         model.beginAdding()
@@ -306,7 +306,7 @@ struct TripPlannerModelTests {
         let trips = (0..<AppSettings.maximumPlannedTrips).map { offset in
             Support.trip(from: (2_027, 1, 1 + offset), to: (2_027, 1, 1 + offset))
         }
-        let model = makeModel(store: try makeStore(trips: trips), services: RecordingServices())
+        let model = try makeModel(store: makeStore(trips: trips), services: RecordingServices())
         model.beginEditing(trips[3].id)
         var draft = try #require(model.editor?.draft)
         draft.note = "Edited"
@@ -487,7 +487,7 @@ struct TripPlannerModelTests {
     @Test
     func aTripStartingSoonWithItemsLeftIsSandInTheList() throws {
         let soon = Support.trip(from: (2_026, 10, 14), to: (2_026, 10, 20))
-        let model = makeModel(store: try makeStore(trips: [soon]), services: RecordingServices())
+        let model = try makeModel(store: makeStore(trips: [soon]), services: RecordingServices())
 
         #expect(model.listRows.first?.checklistTone == .caution)
     }
@@ -509,7 +509,7 @@ struct TripPlannerModelTests {
     @Test
     func theResourcePolicyDecidesTheUnavailableWording() async throws {
         let offline = DashboardResourcePolicy(mode: .automatic, conditions: ResourceConditions(pathAvailable: false))
-        let model = makeModel(store: try makeStore(trips: [morocco]), services: RecordingServices(), policy: offline)
+        let model = try makeModel(store: makeStore(trips: [morocco]), services: RecordingServices(), policy: offline)
 
         await model.waitForLoads()
 

@@ -421,7 +421,7 @@ struct EmbassyCardPresentationTests {
     @Test
     func invalidCoordinatesFallBackToANameOnlySearch() throws {
         let broken = Self.mission("X", sending: "FI", name: "Embassy of Finland", latitude: 999, longitude: 0, approximate: false)
-        let items = queryItems(try #require(EmbassyMapsLink.url(for: broken)))
+        let items = try queryItems(#require(EmbassyMapsLink.url(for: broken)))
 
         #expect(items["q"] == "Embassy of Finland")
         #expect(items["ll"] == nil)

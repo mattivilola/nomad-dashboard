@@ -327,8 +327,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         )
         schengenCounterEnabled = try container.decodeIfPresent(Bool.self, forKey: .schengenCounterEnabled) ?? true
         taxResidenceDaysEnabled = try container.decodeIfPresent(Bool.self, forKey: .taxResidenceDaysEnabled) ?? true
-        taxResidenceThresholdDays = Self.sanitizedTaxResidenceThreshold(
-            try container.decodeIfPresent(Int.self, forKey: .taxResidenceThresholdDays) ?? Self.defaultTaxResidenceThresholdDays
+        taxResidenceThresholdDays = try Self.sanitizedTaxResidenceThreshold(
+            container.decodeIfPresent(Int.self, forKey: .taxResidenceThresholdDays) ?? Self.defaultTaxResidenceThresholdDays
         )
         arrivalBriefingEnabled = try container.decodeIfPresent(Bool.self, forKey: .arrivalBriefingEnabled) ?? true
         arrivalBriefingAcknowledgedCountryCode = try container

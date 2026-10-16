@@ -262,20 +262,8 @@ struct TripPreviewView: View {
 private struct TripTile<Content: View, Accessory: View>: View {
     let title: String
     let systemImage: String
-    let accessory: () -> Accessory
-    let content: () -> Content
-
-    init(
-        title: String,
-        systemImage: String,
-        @ViewBuilder accessory: @escaping () -> Accessory,
-        @ViewBuilder content: @escaping () -> Content
-    ) {
-        self.title = title
-        self.systemImage = systemImage
-        self.accessory = accessory
-        self.content = content
-    }
+    @ViewBuilder let accessory: () -> Accessory
+    @ViewBuilder let content: () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

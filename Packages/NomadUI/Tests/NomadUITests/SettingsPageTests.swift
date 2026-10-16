@@ -1,6 +1,6 @@
 import NomadCore
-import Testing
 @testable import NomadUI
+import Testing
 
 struct SettingsPageTests {
     @Test

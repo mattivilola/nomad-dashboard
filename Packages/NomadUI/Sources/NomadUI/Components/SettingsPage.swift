@@ -11,7 +11,9 @@ public enum SettingsPage: String, CaseIterable, Identifiable, Sendable {
     case privacyAndLocation
     case advanced
 
-    public var id: String { rawValue }
+    public var id: String {
+        rawValue
+    }
 
     public var title: String {
         switch self {
@@ -71,9 +73,9 @@ public enum SettingsFocusTarget: String, CaseIterable, Sendable {
     }
 }
 
-extension DashboardCardID {
+public extension DashboardCardID {
     /// The Settings group that switches this card's feature on, or nil when the card has no setting of its own.
-    public var settingsFocusTarget: SettingsFocusTarget? {
+    var settingsFocusTarget: SettingsFocusTarget? {
         switch self {
         case .meteredData: .dataGuard
         case .timeTracking: .timeTracking

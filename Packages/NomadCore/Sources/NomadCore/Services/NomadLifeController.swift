@@ -201,7 +201,7 @@ public final class NomadLifeController: ObservableObject {
         let metered = snapshot.meteredData
         guard metered.isFeatureEnabled, metered.isMonitoringActive else { return }
         switch metered.capAlertSignal {
-        case .warning(let percent):
+        case let .warning(percent):
             enqueue(.dataCapWarning, now: now, title: "Data cap \(percent)% used", body: meteredCapAlertBody(for: metered))
         case .reached:
             enqueue(.dataCapReached, now: now, title: "Data cap reached", body: meteredCapAlertBody(for: metered))

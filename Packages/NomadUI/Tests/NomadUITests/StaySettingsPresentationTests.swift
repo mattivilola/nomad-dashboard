@@ -1,7 +1,7 @@
 import Foundation
 import NomadCore
-import Testing
 @testable import NomadUI
+import Testing
 
 struct StaySettingsPresentationTests {
     private let locale = Locale(identifier: "en_GB")

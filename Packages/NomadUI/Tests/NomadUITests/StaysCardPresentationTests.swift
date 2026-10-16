@@ -1,7 +1,7 @@
 import Foundation
 import NomadCore
-import Testing
 @testable import NomadUI
+import Testing
 
 struct StaysCardPresentationTests {
     private typealias Support = StaysTestSupport
@@ -155,7 +155,7 @@ struct StaysCardPresentationTests {
     }
 
     @Test
-    func schengenGetsUrgentOnlyWhileInSchengen() throws {
+    func schengenGetsUrgentOnlyWhileInSchengen() {
         let settings = AppSettings(citizenshipCountryCodes: ["US"])
         let inside = card(days: Support.run(80, "ES"), current: "ES", settings: settings)
         let outside = card(days: Support.run(80, "ES", endingOffset: 1), current: "MA", settings: settings)

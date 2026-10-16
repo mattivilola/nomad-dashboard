@@ -43,7 +43,10 @@ public enum DashboardInsightKind: String, CaseIterable, Sendable {
 
 public struct DashboardInsight: Identifiable, Equatable, Sendable {
     public let kind: DashboardInsightKind
-    public var id: DashboardInsightKind { kind }
+    public var id: DashboardInsightKind {
+        kind
+    }
+
     public let severity: DashboardInsightSeverity
     public let symbolName: String
     public let title: String
@@ -417,11 +420,10 @@ public enum DashboardInsightEngine {
         }
 
         let timeText = peak.date.map { "around \(timeString($0, calendar: calendar, locale: locale))" } ?? "now"
-        let detail: String
-        if let degrees = peak.degrees {
-            detail = "From \(TravelUnitFormatting.compassDirection(degrees)) \(timeText)"
+        let detail: String = if let degrees = peak.degrees {
+            "From \(TravelUnitFormatting.compassDirection(degrees)) \(timeText)"
         } else {
-            detail = timeText.prefix(1).uppercased() + timeText.dropFirst()
+            timeText.prefix(1).uppercased() + timeText.dropFirst()
         }
 
         let speedText = String(format: "%.0f", peak.speed)
@@ -514,7 +516,7 @@ public enum DashboardInsightEngine {
             let today = reference.solarDay(on: now)
             return today.isPolarDay || today.isPolarNight ? nil : today.sunset
         }
-        // Without a location to compute the sunset, fall back to the rest of the calendar day.
+        /// Without a location to compute the sunset, fall back to the rest of the calendar day.
         func isDaylight(_ date: Date) -> Bool {
             if let sunset {
                 return date < sunset
@@ -667,7 +669,7 @@ public enum DashboardInsightEngine {
 
         let today = calendar.startOfDay(for: now)
         let upcoming: [(period: HolidayPeriodSnapshot, offset: Int)] = [status.currentPeriod, status.nextPeriod]
-            .compactMap { $0 }
+            .compactMap(\.self)
             .compactMap { period in
                 let start = calendar.startOfDay(for: period.startDate)
                 let end = calendar.startOfDay(for: period.endDate)
@@ -868,7 +870,11 @@ public enum DashboardInsightEngine {
         case 1: "tomorrow"
         default: "in \(startsIn) days"
         }
-        let breach: Date? = if case let .counting(window) = preview.visa.schengen { window.firstExceededOn } else { nil }
+        let breach: Date? = if case let .counting(window) = preview.visa.schengen {
+            window.firstExceededOn
+        } else {
+            nil
+        }
         let rhythm = preview.rhythm.first { isFullShutdown($0.period.kind) } ?? preview.rhythm.first
         let openChecklistItems = startsIn <= upcomingTripChecklistLeadDays
             ? openChecklistItemCount(for: preview, settings: settings, calendar: calendar, locale: locale)
@@ -979,7 +985,7 @@ public enum DashboardInsightEngine {
     private static func fuelInsight(for fuelPrices: FuelPriceSnapshot?, locale: Locale) -> [DashboardInsight] {
         // The snapshot only carries the best station per fuel type; diesel leads, matching the fuel card's row order.
         guard let fuelPrices, fuelPrices.status == .ready,
-              let station = [fuelPrices.diesel, fuelPrices.gasoline].compactMap({ $0 }).first
+              let station = [fuelPrices.diesel, fuelPrices.gasoline].compactMap(\.self).first
         else {
             return []
         }

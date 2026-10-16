@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct CountryNamesTests {
     private let english = Locale(identifier: "en_US")

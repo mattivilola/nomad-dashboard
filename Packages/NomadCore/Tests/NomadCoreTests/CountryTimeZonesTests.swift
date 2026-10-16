@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct CountryTimeZonesTests {
     private let winter = Date(timeIntervalSince1970: 1_768_478_400) // 2026-01-15 12:00 UTC

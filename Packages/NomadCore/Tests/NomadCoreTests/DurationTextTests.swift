@@ -1,5 +1,5 @@
-import Testing
 @testable import NomadCore
+import Testing
 
 struct DurationTextTests {
     @Test

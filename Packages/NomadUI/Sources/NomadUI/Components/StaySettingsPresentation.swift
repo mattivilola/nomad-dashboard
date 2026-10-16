@@ -59,7 +59,9 @@ public enum StaySettingsPresentation {
         public let countryName: String
         public let days: Int
 
-        public var id: String { countryCode }
+        public var id: String {
+            countryCode
+        }
     }
 
     /// The allowances sorted by country name in the user's language.

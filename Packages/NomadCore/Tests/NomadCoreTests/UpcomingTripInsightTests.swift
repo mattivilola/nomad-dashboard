@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct UpcomingTripInsightTests {
     private let today = Date(timeIntervalSince1970: 1_791_806_400) // 2026-10-12 14:00 Paris
@@ -176,7 +176,7 @@ struct UpcomingTripInsightTests {
     @Test
     func aBreachOutranksALocalPeriodDuringTheTrip() throws {
         // Spring 2027: Holy Week (Palm Sunday 21 Mar) falls in a trip to Spain that also breaks the limit.
-        let now = date(2027, 3, 10)
+        let now = date(2_027, 3, 10)
         let insight = try #require(insight(
             trips: [trip("ES", startingIn: 10, days: 11, now: now)],
             days: recorded("FR", count: 80, endingOn: now),
@@ -191,7 +191,7 @@ struct UpcomingTripInsightTests {
     @Test
     func aLocalPeriodThatStartsMidTripBeatsTheRoadAndTheCurrency() throws {
         // Saudi Arabia: Ramadan starts on 8 Feb 2027.
-        let now = date(2027, 1, 25)
+        let now = date(2_027, 1, 25)
         let insight = try #require(insight(trips: [trip("SA", startingIn: 7, days: 20, now: now)], now: now))
 
         #expect(insight.severity == .info)
@@ -201,7 +201,7 @@ struct UpcomingTripInsightTests {
 
     @Test
     func aLocalPeriodAlreadyOnAtArrivalSaysSo() throws {
-        let now = date(2027, 2, 20)
+        let now = date(2_027, 2, 20)
         let insight = try #require(insight(trips: [trip("SA", startingIn: 5, days: 4, now: now)], now: now))
 
         #expect(insight.detail == "Ramadan is on during your trip")
@@ -210,7 +210,7 @@ struct UpcomingTripInsightTests {
     @Test
     func aFullShutdownBeatsAnEarlierPeriodOfTheSameTrip() throws {
         // Indonesia 1-15 Mar 2027: Ramadan is already on, Nyepi (8 Mar) shuts Bali down for a day.
-        let now = date(2027, 2, 25)
+        let now = date(2_027, 2, 25)
         let insight = try #require(insight(trips: [trip("ID", startingIn: 4, days: 15, now: now)], now: now))
 
         #expect(insight.detail == "Nyepi starts mid-trip")
@@ -226,7 +226,7 @@ struct UpcomingTripInsightTests {
     @Test
     func theLiveCountryCountsInThePlan() throws {
         // 89 recorded days in France plus today in Spain make 90; the trip then starts on the 91st day, 14 Oct.
-        let history = recorded("FR", count: 89, endingOn: calendar.date(byAdding: .day, value: -1, to: today)!)
+        let history = try recorded("FR", count: 89, endingOn: #require(calendar.date(byAdding: .day, value: -1, to: today)))
         let insight = try #require(insight(
             trips: [trip("ES", startingIn: 2, days: 2)],
             days: history,
@@ -264,7 +264,7 @@ struct UpcomingTripInsightTests {
         // Schengen has 10 days left (caution), the trip adds a caution of its own and the tax count is info.
         #expect(kinds.first == .schengenLimit)
         #expect(kinds.contains(.upcomingTrip))
-        #expect(kinds.firstIndex(of: .upcomingTrip)! < kinds.firstIndex(of: .taxResidenceDays) ?? .max)
+        #expect(try #require(kinds.firstIndex(of: .upcomingTrip)) < kinds.firstIndex(of: .taxResidenceDays) ?? .max)
     }
 
     // MARK: - Checklist
@@ -332,7 +332,7 @@ struct UpcomingTripInsightTests {
     @Test
     func theChecklistOutranksALocalPeriodAndTheRoadInTheLastDays() throws {
         // Saudi Arabia: Ramadan starts on 8 Feb 2027.
-        let now = date(2027, 2, 5)
+        let now = date(2_027, 2, 5)
         let ramadan = try #require(insight(trips: [trip("SA", startingIn: 2, days: 20, now: now)], now: now))
         #expect(ramadan.detail?.hasSuffix("checklist items left") == true)
 

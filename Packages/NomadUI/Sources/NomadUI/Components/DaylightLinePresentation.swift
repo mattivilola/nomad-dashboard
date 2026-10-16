@@ -8,7 +8,9 @@ struct DaylightLinePresentation: Equatable {
         let symbolName: String
         let text: String
 
-        var id: String { symbolName }
+        var id: String {
+            symbolName
+        }
     }
 
     let segments: [Segment]
@@ -28,7 +30,7 @@ struct DaylightLinePresentation: Equatable {
             segments = [
                 day.sunrise.map { Segment(symbolName: "sunrise", text: "Sunrise \(reference.clockTime($0, locale: locale))") },
                 day.sunset.map { Segment(symbolName: "sunset", text: "Sunset \(reference.clockTime($0, locale: locale))") }
-            ].compactMap { $0 }
+            ].compactMap(\.self)
         }
 
         guard segments.isEmpty == false else {

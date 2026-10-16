@@ -239,13 +239,12 @@ struct StaysCardPresentation {
         dayText: (Date) -> String,
         isToday: (Date) -> Bool
     ) -> Allowance {
-        let deadline: String
-        if status.overstayDays > 0 {
-            deadline = "\(dayCount(status.overstayDays)) over · ended \(dayText(status.lastPermittedDay))"
+        let deadline = if status.overstayDays > 0 {
+            "\(dayCount(status.overstayDays)) over · ended \(dayText(status.lastPermittedDay))"
         } else if isToday(status.lastPermittedDay) {
-            deadline = "last day today"
+            "last day today"
         } else {
-            deadline = "leave by \(dayText(status.lastPermittedDay))"
+            "leave by \(dayText(status.lastPermittedDay))"
         }
 
         return Allowance(
@@ -366,7 +365,11 @@ struct StaysCardPresentation {
         let name = CountryNames.displayName(forCode: trip.countryCode, locale: locale)
 
         let outlook = calculator.outlook(for: trip, among: settings.plannedTrips, settings: settings)
-        let breach: Date? = if case let .counting(window) = outlook.schengen { window.firstExceededOn } else { nil }
+        let breach: Date? = if case let .counting(window) = outlook.schengen {
+            window.firstExceededOn
+        } else {
+            nil
+        }
         return NextTrip(
             text: "Next trip: \(name) \(when) · \(dayCount(trip.dayCount(calendar: calendar)))",
             warning: breach.map { "Plan exceeds Schengen \(SchengenArea.maximumStayDays)/\(SchengenArea.windowDays) on \(dayText($0))" }
@@ -437,9 +440,9 @@ struct StaysCardPresentation {
     }
 }
 
-extension SummaryTileTone {
+private extension SummaryTileTone {
     /// Ranks the tones that carry a status: attention over caution over everything else.
-    fileprivate var urgency: Int {
+    var urgency: Int {
         switch self {
         case .attention, .critical: 2
         case .caution: 1

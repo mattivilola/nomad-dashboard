@@ -10,6 +10,7 @@ import Foundation
 // Verified 2026-10
 //
 // MARK: Date sources
+
 //
 //  - Ramadan, Eid al-Fitr, Eid al-Adha: `Calendar(identifier: .islamicUmmAlQura)`. Ramadan is all of
 //    month 9, Eid al-Fitr is Shawwal 1-3, Eid al-Adha is Dhu al-Hijjah 10-13. Cross-checked against the
@@ -57,6 +58,7 @@ import Foundation
 //    gazette marks Deepavali as provisional, so it is not listed.
 //
 // MARK: Country applicability
+
 //
 //  - Ramadan and both Eids: countries where the month is publicly observed and shapes opening hours.
 //    Muslim-majority countries with secular daytime life (AZ, UZ, KZ, XK, AL, BA) are left out because a
@@ -231,21 +233,23 @@ public enum LocalRhythmCalendar {
                 )
             }
             .sorted { lhs, rhs in
-                if lhs.start != rhs.start { return lhs.start < rhs.start }
+                if lhs.start != rhs.start {
+                    return lhs.start < rhs.start
+                }
                 let order = LocalRhythmKind.allCases
                 return (order.firstIndex(of: lhs.kind) ?? 0) < (order.firstIndex(of: rhs.kind) ?? 0)
             }
     }
 }
 
-extension LocalRhythmCalendar {
+public extension LocalRhythmCalendar {
     /// `periods(forCountryCode:around:lookaheadDays:calendar:)` for the traveller's own location.
     ///
     /// Nyepi only applies to Bali, not to the rest of Indonesia, so it is dropped when the device (or
     /// else the IP) location names a region other than Bali. It is kept when the region is unknown, as
     /// its title and guidance say "Bali" themselves. A location that belongs to another country than
     /// `countryCode` (a refresh that lags behind a border crossing) says nothing about the region.
-    public static func periods(
+    static func periods(
         forCountryCode countryCode: String?,
         travelContext: TravelContextSnapshot,
         around now: Date,
@@ -268,7 +272,7 @@ private extension TravelContextSnapshot {
     func regionName(inCountry countryCode: String?) -> String? {
         let country = countryCode?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         return [deviceLocation, location].lazy
-            .compactMap { $0 }
+            .compactMap(\.self)
             .filter { location in
                 let locationCountry = location.countryCode?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
                 return locationCountry.map { $0.isEmpty || $0 == country } ?? true
@@ -303,24 +307,24 @@ private struct CivilDate: Equatable, Sendable {
     /// Julian day number (Fliegel and Van Flandern).
     var dayNumber: Int {
         let a = (month - 14) / 12
-        return (1461 * (year + 4800 + a)) / 4
+        return (1_461 * (year + 4_800 + a)) / 4
             + (367 * (month - 2 - 12 * a)) / 12
-            - (3 * ((year + 4900 + a) / 100)) / 4
-            + day - 32075
+            - (3 * ((year + 4_900 + a) / 100)) / 4
+            + day - 32_075
     }
 
     init(dayNumber: Int) {
-        var l = dayNumber + 68569
-        let n = (4 * l) / 146097
-        l -= (146097 * n + 3) / 4
-        let i = (4000 * (l + 1)) / 1461001
-        l = l - (1461 * i) / 4 + 31
-        let j = (80 * l) / 2447
-        let d = l - (2447 * j) / 80
+        var l = dayNumber + 68_569
+        let n = (4 * l) / 146_097
+        l -= (146_097 * n + 3) / 4
+        let i = (4_000 * (l + 1)) / 1_461_001
+        l = l - (1_461 * i) / 4 + 31
+        let j = (80 * l) / 2_447
+        let d = l - (2_447 * j) / 80
         l = j / 11
-        self.year = 100 * (n - 49) + i + l
-        self.month = j + 2 - 12 * l
-        self.day = d
+        year = 100 * (n - 49) + i + l
+        month = j + 2 - 12 * l
+        day = d
     }
 
     func adding(days: Int) -> CivilDate {
@@ -475,8 +479,8 @@ private enum RhythmRules {
 
     /// Nyepi dates with an official decree (SKB 3 Menteri). Never extrapolated.
     static let nyepiDates: [Int: MonthDay] = [
-        2026: MonthDay(month: 3, day: 19),
-        2027: MonthDay(month: 3, day: 8)
+        2_026: MonthDay(month: 3, day: 19),
+        2_027: MonthDay(month: 3, day: 8)
     ]
 
     // MARK: Diwali
@@ -493,13 +497,13 @@ private enum RhythmRules {
 
     /// Lakshmi Puja (the main day of Diwali) in India.
     static let indiaDiwaliDates: [Int: MonthDay] = [
-        2026: MonthDay(month: 11, day: 8),
-        2027: MonthDay(month: 10, day: 29),
-        2028: MonthDay(month: 10, day: 17),
-        2029: MonthDay(month: 11, day: 5),
-        2030: MonthDay(month: 10, day: 26),
-        2031: MonthDay(month: 11, day: 14),
-        2032: MonthDay(month: 11, day: 2)
+        2_026: MonthDay(month: 11, day: 8),
+        2_027: MonthDay(month: 10, day: 29),
+        2_028: MonthDay(month: 10, day: 17),
+        2_029: MonthDay(month: 11, day: 5),
+        2_030: MonthDay(month: 10, day: 26),
+        2_031: MonthDay(month: 11, day: 14),
+        2_032: MonthDay(month: 11, day: 2)
     ]
 
     static let publicHolidayDiwaliGuidance = "A public holiday: offices and banks close, while malls, restaurants and public transport mostly keep running. Hindu temples and Indian neighbourhoods are festive and crowded."
@@ -520,8 +524,8 @@ private enum RhythmRules {
             confidence: .expected,
             guidance: "Offices and banks close for a few days, houses and streets are lit with lamps, and there are firecrackers and groups singing from door to door. Travel in and out of Kathmandu is busy.",
             dates: [
-                2026: MonthDay(month: 11, day: 8),
-                2027: MonthDay(month: 10, day: 29)
+                2_026: MonthDay(month: 11, day: 8),
+                2_027: MonthDay(month: 10, day: 29)
             ]
         ),
         "SG": DiwaliRule(
@@ -531,8 +535,8 @@ private enum RhythmRules {
             confidence: .computed,
             guidance: publicHolidayDiwaliGuidance,
             dates: [
-                2026: MonthDay(month: 11, day: 8),
-                2027: MonthDay(month: 10, day: 28)
+                2_026: MonthDay(month: 11, day: 8),
+                2_027: MonthDay(month: 10, day: 28)
             ]
         ),
         "MY": DiwaliRule(
@@ -542,7 +546,7 @@ private enum RhythmRules {
             confidence: .computed,
             guidance: publicHolidayDiwaliGuidance,
             dates: [
-                2026: MonthDay(month: 11, day: 8)
+                2_026: MonthDay(month: 11, day: 8)
             ]
         )
     ]
@@ -591,7 +595,7 @@ private enum RhythmRules {
         for year in years {
             switch country {
             case "IL":
-                if let day = civilDate(in: hebrew, year: year + 3761, month: 1, day: 10) {
+                if let day = civilDate(in: hebrew, year: year + 3_761, month: 1, day: 10) {
                     spans.append(RhythmSpan(
                         kind: .yomKippur, name: "Yom Kippur", first: day, dayCount: 1,
                         confidence: .computed, guidance: yomKippurGuidance
@@ -642,7 +646,8 @@ private enum RhythmRules {
         var spans: [RhythmSpan] = []
         for hijriYear in hijriYears {
             if let first = civilDate(in: islamic, year: hijriYear, month: 9, day: 1),
-               let shawwal = civilDate(in: islamic, year: hijriYear, month: 10, day: 1) {
+               let shawwal = civilDate(in: islamic, year: hijriYear, month: 10, day: 1)
+            {
                 spans.append(RhythmSpan(
                     kind: .ramadan, name: "Ramadan", first: first,
                     dayCount: shawwal.dayNumber - first.dayNumber,

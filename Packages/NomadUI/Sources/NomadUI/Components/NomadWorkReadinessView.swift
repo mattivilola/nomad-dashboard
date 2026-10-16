@@ -309,7 +309,7 @@ public struct NomadWorkReadinessView: View {
                 stays: stayInsightInput,
                 timeZoneShifts: timeZoneShifts
             )
-                .map(GlanceHeadsUpRowPresentation.init(insight:))
+            .map(GlanceHeadsUpRowPresentation.init(insight:))
 
             if rows.isEmpty == false {
                 VStack(alignment: .leading, spacing: 2) {

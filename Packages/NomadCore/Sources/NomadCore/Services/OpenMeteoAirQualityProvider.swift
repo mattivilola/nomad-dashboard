@@ -107,7 +107,7 @@ public actor LiveOpenMeteoAirQualityProvider: AirQualityProvider {
         now: Date
     ) throws -> AirQualitySnapshot {
         // Outside the model's coverage Open-Meteo answers with nulls; there is nothing useful to show then.
-        guard let current = response.current, let currentAQI = current.europeanAQI.flatMap(Self.wholeIndex) else {
+        guard let current = response.current, let currentAQI = current.europeanAQI.flatMap(wholeIndex) else {
             throw ProviderError.invalidResponse
         }
 

@@ -1,7 +1,7 @@
 import Foundation
 import NomadCore
-import Testing
 @testable import NomadUI
+import Testing
 
 struct TripMapPresentationTests {
     private typealias Support = StaysTestSupport
@@ -227,6 +227,6 @@ struct TripMapPresentationTests {
         let withMission = try #require(map(preview(own: [mission("A", latitude: 34.05, longitude: -6.84)])))
 
         #expect(Set([morocco.identity, portugal.identity, withMission.identity]).count == 3)
-        #expect(morocco.identity == (try #require(map(preview()))).identity)
+        #expect(try morocco.identity == #require(map(preview())).identity)
     }
 }

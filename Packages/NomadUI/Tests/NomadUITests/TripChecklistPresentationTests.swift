@@ -1,7 +1,7 @@
 import Foundation
 import NomadCore
-import Testing
 @testable import NomadUI
+import Testing
 
 struct TripChecklistPresentationTests {
     private typealias Support = StaysTestSupport
@@ -106,11 +106,11 @@ struct TripChecklistPresentationTests {
     }
 
     @Test
-    func ownItemsCountTowardsTheProgress() {
+    func ownItemsCountTowardsTheProgress() throws {
         var state = TripChecklistState()
         state.addCustomItem(title: "Print the booking")
         let second = state.addCustomItem(title: "Buy sunscreen")
-        state.setCustomItemChecked(true, id: second!.id)
+        try state.setCustomItemChecked(true, id: #require(second?.id))
 
         let result = presentation(morocco(checklist: state))
         let plain = presentation(morocco())

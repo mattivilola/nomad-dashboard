@@ -444,7 +444,7 @@ private final class EurostatStub: @unchecked Sendable {
 private final class EurostatStubURLProtocol: URLProtocol, @unchecked Sendable {
     static let idHeader = "X-Eurostat-Stub"
     private static let lock = NSLock()
-    nonisolated(unsafe) private static var handlers: [String: @Sendable (URLRequest) -> Data?] = [:]
+    private nonisolated(unsafe) static var handlers: [String: @Sendable (URLRequest) -> Data?] = [:]
 
     static func register(id: String, handler: @escaping @Sendable (URLRequest) -> Data?) {
         lock.lock()

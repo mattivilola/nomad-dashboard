@@ -1,7 +1,7 @@
 import Foundation
 import NomadCore
-import Testing
 @testable import NomadUI
+import Testing
 
 struct ArrivalBriefingPresentationTests {
     private typealias Support = StaysTestSupport
@@ -13,8 +13,8 @@ struct ArrivalBriefingPresentationTests {
             kind: kind,
             name: "Ramadan",
             countryCode: "MA",
-            start: Support.calendar.date(from: DateComponents(year: 2026, month: 10, day: 12))!,
-            end: Support.calendar.date(from: DateComponents(year: 2026, month: 11, day: 10, hour: 23, minute: 59))!,
+            start: Support.calendar.date(from: DateComponents(year: 2_026, month: 10, day: 12))!,
+            end: Support.calendar.date(from: DateComponents(year: 2_026, month: 11, day: 10, hour: 23, minute: 59))!,
             confidence: confidence,
             guidance: "Shops keep shorter hours."
         )
@@ -126,7 +126,7 @@ struct ArrivalBriefingPresentationTests {
     }
 
     @Test
-    func powerAndCurrencyCarryAChangeFlag() throws {
+    func powerAndCurrencyCarryAChangeFlag() {
         let briefing = ArrivalBriefing(
             countryCode: "MA",
             countryName: "Morocco",

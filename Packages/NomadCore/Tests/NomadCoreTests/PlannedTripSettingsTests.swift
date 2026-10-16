@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct PlannedTripSettingsTests {
     private static let legacyPayload = """
@@ -151,8 +151,8 @@ struct PlannedTripSettingsTests {
     }
 
     @Test
-    func theEndIsNeverBeforeTheStart() {
-        let start = calendar.date(byAdding: .day, value: 5, to: today)!
+    func theEndIsNeverBeforeTheStart() throws {
+        let start = try #require(calendar.date(byAdding: .day, value: 5, to: today))
         let backwards = PlannedTrip(countryCode: "MA", startDate: start, endDate: start.addingTimeInterval(-10 * 86_400))
 
         let sanitized = AppSettings(plannedTrips: [backwards]).plannedTrips
@@ -163,12 +163,12 @@ struct PlannedTripSettingsTests {
     }
 
     @Test
-    func aTripCannotBeLongerThanTheMaximum() {
-        let start = calendar.date(byAdding: .day, value: 5, to: today)!
-        let endless = PlannedTrip(
+    func aTripCannotBeLongerThanTheMaximum() throws {
+        let start = try #require(calendar.date(byAdding: .day, value: 5, to: today))
+        let endless = try PlannedTrip(
             countryCode: "TH",
             startDate: start,
-            endDate: calendar.date(byAdding: .year, value: 20, to: start)!
+            endDate: #require(calendar.date(byAdding: .year, value: 20, to: start))
         )
 
         let sanitized = AppSettings.sanitizedPlannedTrips([endless], now: today, calendar: calendar)
@@ -185,14 +185,14 @@ struct PlannedTripSettingsTests {
 
         #expect(sanitized.count == AppSettings.maximumPlannedTrips)
         #expect(sanitized.count == 20)
-        #expect(sanitized == trips.sorted(by: PlannedTrip.isOrderedBefore).prefix(20).map { $0 })
+        #expect(sanitized == trips.sorted(by: PlannedTrip.isOrderedBefore).prefix(20).map(\.self))
     }
 
     @Test
-    func tripsThatEndedMoreThanThirtyDaysAgoAreDropped() {
+    func tripsThatEndedMoreThanThirtyDaysAgoAreDropped() throws {
         // A fixed clock and one calendar for building and checking, so the boundary does not depend on the
         // time of day or the machine's time zone.
-        let now = calendar.date(from: DateComponents(year: 2_026, month: 10, day: 12, hour: 12))!
+        let now = try #require(calendar.date(from: DateComponents(year: 2_026, month: 10, day: 12, hour: 12)))
         func trip(_ code: String, startingIn offset: Int) -> PlannedTrip {
             let start = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now))!
             return PlannedTrip(countryCode: code, startDate: start, endDate: calendar.date(byAdding: .day, value: 4, to: start)!)
@@ -217,9 +217,9 @@ struct PlannedTripSettingsTests {
     }
 
     @Test
-    func retentionFollowsTheGivenNowAndCalendar() {
+    func retentionFollowsTheGivenNowAndCalendar() throws {
         let old = trip("ES", startingIn: -200)
-        let now = calendar.date(byAdding: .day, value: -190, to: today)!
+        let now = try #require(calendar.date(byAdding: .day, value: -190, to: today))
 
         #expect(AppSettings.sanitizedPlannedTrips([old], now: now, calendar: calendar) == [old])
         #expect(AppSettings.sanitizedPlannedTrips([old], now: today, calendar: calendar).isEmpty)
@@ -248,21 +248,21 @@ struct PlannedTripSettingsTests {
     // MARK: - Calendar days
 
     @Test
-    func daysAreInclusiveAndFollowTheCalendar() {
-        let start = calendar.date(from: DateComponents(year: 2026, month: 12, day: 28, hour: 23, minute: 30))!
-        let end = calendar.date(from: DateComponents(year: 2027, month: 1, day: 3, hour: 1))!
+    func daysAreInclusiveAndFollowTheCalendar() throws {
+        let start = try #require(calendar.date(from: DateComponents(year: 2_026, month: 12, day: 28, hour: 23, minute: 30)))
+        let end = try #require(calendar.date(from: DateComponents(year: 2_027, month: 1, day: 3, hour: 1)))
         let trip = PlannedTrip(countryCode: "MA", startDate: start, endDate: end)
 
         #expect(trip.dayCount(calendar: calendar) == 7)
         #expect(trip.nightCount(calendar: calendar) == 6)
 
-        let before = calendar.date(from: DateComponents(year: 2026, month: 12, day: 20, hour: 9))!
+        let before = try #require(calendar.date(from: DateComponents(year: 2_026, month: 12, day: 20, hour: 9)))
         #expect(trip.daysUntilStart(now: before, calendar: calendar) == 8)
         #expect(trip.isOngoing(now: before, calendar: calendar) == false)
-        let during = calendar.date(from: DateComponents(year: 2027, month: 1, day: 1, hour: 9))!
+        let during = try #require(calendar.date(from: DateComponents(year: 2_027, month: 1, day: 1, hour: 9)))
         #expect(trip.daysUntilStart(now: during, calendar: calendar) == -4)
         #expect(trip.isOngoing(now: during, calendar: calendar))
-        let after = calendar.date(from: DateComponents(year: 2027, month: 1, day: 4, hour: 9))!
+        let after = try #require(calendar.date(from: DateComponents(year: 2_027, month: 1, day: 4, hour: 9)))
         #expect(trip.daysSinceEnd(now: after, calendar: calendar) == 1)
         #expect(trip.isOngoing(now: after, calendar: calendar) == false)
     }

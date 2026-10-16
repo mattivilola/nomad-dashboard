@@ -5,7 +5,7 @@ import NomadCore
 // location-led header, the verdict strip, the clocks line and the vital tiles.
 // Views stay thin and everything here is unit tested.
 
-extension Optional where Wrapped == String {
+extension String? {
     /// The trimmed string, or `nil` when it is missing or blank.
     var trimmedNonEmpty: String? {
         self?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
@@ -204,15 +204,14 @@ struct GlanceVitalTilePresentation: Equatable, Identifiable {
             "Waiting"
         }
 
-        let secondary: String
-        if isOffline == false, let throughput = snapshot.network.throughput {
-            secondary = String(
+        let secondary: String = if isOffline == false, let throughput = snapshot.network.throughput {
+            String(
                 format: "%.1f ↓ · %.1f ↑ Mbps",
                 throughput.downloadMegabitsPerSecond,
                 throughput.uploadMegabitsPerSecond
             )
         } else {
-            secondary = health.reason
+            health.reason
         }
 
         return GlanceVitalTilePresentation(
@@ -232,7 +231,7 @@ struct GlanceVitalTilePresentation: Equatable, Identifiable {
     static func power(snapshot: DashboardSnapshot) -> GlanceVitalTilePresentation {
         let power = snapshot.power.snapshot
         let metrics = PowerMetricsPresentation(snapshot: power)
-        let symbolName: String = switch power?.state {
+        let symbolName = switch power?.state {
         case .charging: "battery.100percent.bolt"
         case .charged: "powerplug.fill"
         case .battery: "battery.50percent"
@@ -326,7 +325,7 @@ struct GlanceVitalTilePresentation: Equatable, Identifiable {
         now: Date = .now
     ) -> GlanceVitalTilePresentation {
         guard let weather = snapshot.weather else {
-            let reason: String = if weatherAvailabilityExplanation != nil {
+            let reason = if weatherAvailabilityExplanation != nil {
                 "WeatherKit unavailable"
             } else if snapshot.appState.issues.contains(.weatherLocationRequired) {
                 "Location needed"

@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 /// A service that has nothing to add; for tests that build dashboard dependencies.
 struct FixedTripPreviewService: TripPreviewService {
@@ -18,7 +18,7 @@ struct FixedTripPreviewService: TripPreviewService {
 }
 
 struct TripPreviewServiceTests {
-    // 2026-10-12 12:00 UTC.
+    /// 2026-10-12 12:00 UTC.
     private let now = Date(timeIntervalSince1970: 1_791_806_400)
 
     private var calendar: Calendar {
@@ -64,16 +64,16 @@ struct TripPreviewServiceTests {
     @Test
     func keepsOnlyTheHolidaysOnDaysOfTheTripInOrderAndFetchesAdvisoryForTheDestinationAlone() async throws {
         let holidays = StubHolidayProvider(years: [
-            2026: [
-                holiday("Revolution Day", day(2026, 11, 6)),
-                holiday("Independence Day", day(2026, 11, 18)),
-                holiday("Before", day(2026, 10, 30)),
-                holiday("After", day(2026, 11, 20))
+            2_026: [
+                holiday("Revolution Day", day(2_026, 11, 6)),
+                holiday("Independence Day", day(2_026, 11, 18)),
+                holiday("Before", day(2_026, 10, 30)),
+                holiday("After", day(2_026, 11, 20))
             ]
         ])
         let advisories = StubAdvisoryProvider()
         let service = makeService(holidays: holidays, advisories: advisories)
-        let trip = trip(from: day(2026, 11, 1), to: day(2026, 11, 18))
+        let trip = trip(from: day(2_026, 11, 1), to: day(2_026, 11, 18))
 
         let online = try #require(await service.online(
             for: trip, settings: AppSettings(), policy: normal, forceRefresh: false, calendar: calendar
@@ -82,34 +82,34 @@ struct TripPreviewServiceTests {
         #expect(online.holidays?.map(\.name) == ["Revolution Day", "Independence Day"])
         #expect(online.advisory?.severity == .caution)
         #expect(online.fetchedAt == now)
-        #expect(await holidays.requests == [HolidayRequest(country: "MA", year: 2026, zone: "Europe/Helsinki")])
+        #expect(await holidays.requests == [HolidayRequest(country: "MA", year: 2_026, zone: "Europe/Helsinki")])
         #expect(await advisories.requests == [AdvisoryRequest(countries: ["MA"], primary: "MA")])
     }
 
     @Test
     func aTripOverTheNewYearAsksForBothYears() async throws {
         let holidays = StubHolidayProvider(years: [
-            2026: [holiday("Christmas", day(2026, 12, 25))],
-            2027: [holiday("New Year", day(2027, 1, 1)), holiday("Epiphany", day(2027, 1, 6))]
+            2_026: [holiday("Christmas", day(2_026, 12, 25))],
+            2_027: [holiday("New Year", day(2_027, 1, 1)), holiday("Epiphany", day(2_027, 1, 6))]
         ])
         let service = makeService(holidays: holidays)
 
         let online = try #require(await service.online(
-            for: trip("PT", from: day(2026, 12, 20), to: day(2027, 1, 3)),
+            for: trip("PT", from: day(2_026, 12, 20), to: day(2_027, 1, 3)),
             settings: AppSettings(), policy: normal, forceRefresh: false, calendar: calendar
         ))
 
         #expect(online.holidays?.map(\.name) == ["Christmas", "New Year"])
-        #expect(Set(await holidays.requests.map(\.year)) == [2026, 2027])
-        #expect(Set(await holidays.requests.map(\.country)) == ["PT"])
+        #expect(await Set(holidays.requests.map(\.year)) == [2_026, 2_027])
+        #expect(await Set(holidays.requests.map(\.country)) == ["PT"])
     }
 
     @Test
     func aTripWithoutHolidaysHasAnEmptyListNotAMissingOne() async throws {
-        let service = makeService(holidays: StubHolidayProvider(years: [2026: []]))
+        let service = makeService(holidays: StubHolidayProvider(years: [2_026: []]))
 
         let online = try #require(await service.online(
-            for: trip(from: day(2026, 11, 1), to: day(2026, 11, 5)),
+            for: trip(from: day(2_026, 11, 1), to: day(2_026, 11, 5)),
             settings: AppSettings(), policy: normal, forceRefresh: false, calendar: calendar
         ))
 
@@ -119,10 +119,10 @@ struct TripPreviewServiceTests {
     @Test
     func theAdvisoryIsLeftOutWhenTheUserTurnedAdvisoriesOff() async throws {
         let advisories = StubAdvisoryProvider()
-        let service = makeService(holidays: StubHolidayProvider(years: [2026: []]), advisories: advisories)
+        let service = makeService(holidays: StubHolidayProvider(years: [2_026: []]), advisories: advisories)
 
         let online = try #require(await service.online(
-            for: trip(from: day(2026, 11, 1), to: day(2026, 11, 5)),
+            for: trip(from: day(2_026, 11, 1), to: day(2_026, 11, 5)),
             settings: AppSettings(travelAdvisoryEnabled: false), policy: normal, forceRefresh: false, calendar: calendar
         ))
 
@@ -136,7 +136,7 @@ struct TripPreviewServiceTests {
         let service = makeService(holidays: holidays)
 
         let online = await service.online(
-            for: trip("Morocco", from: day(2026, 11, 1), to: day(2026, 11, 5)),
+            for: trip("Morocco", from: day(2_026, 11, 1), to: day(2_026, 11, 5)),
             settings: AppSettings(), policy: normal, forceRefresh: false, calendar: calendar
         )
 
@@ -154,7 +154,7 @@ struct TripPreviewServiceTests {
         )
 
         let online = try #require(await service.online(
-            for: trip(from: day(2026, 11, 1), to: day(2026, 11, 5)),
+            for: trip(from: day(2_026, 11, 1), to: day(2_026, 11, 5)),
             settings: AppSettings(), policy: normal, forceRefresh: false, calendar: calendar
         ))
 
@@ -170,7 +170,7 @@ struct TripPreviewServiceTests {
         )
 
         let online = await service.online(
-            for: trip(from: day(2026, 11, 1), to: day(2026, 11, 5)),
+            for: trip(from: day(2_026, 11, 1), to: day(2_026, 11, 5)),
             settings: AppSettings(), policy: normal, forceRefresh: false, calendar: calendar
         )
 
@@ -179,11 +179,11 @@ struct TripPreviewServiceTests {
 
     @Test
     func aSavedAnswerCoversAFailedRefresh() async throws {
-        let holidays = StubHolidayProvider(years: [2026: [holiday("Revolution Day", day(2026, 11, 6))]])
+        let holidays = StubHolidayProvider(years: [2_026: [holiday("Revolution Day", day(2_026, 11, 6))]])
         let advisories = StubAdvisoryProvider()
         let clock = TestClock(now)
         let service = makeService(holidays: holidays, advisories: advisories, clock: clock)
-        let trip = trip(from: day(2026, 11, 1), to: day(2026, 11, 8))
+        let trip = trip(from: day(2_026, 11, 1), to: day(2_026, 11, 8))
         _ = await service.online(for: trip, settings: AppSettings(), policy: normal, forceRefresh: false, calendar: calendar)
 
         await holidays.fail(with: ProviderError.invalidResponse)
@@ -203,11 +203,11 @@ struct TripPreviewServiceTests {
 
     @Test
     func aFreshSavedAnswerIsNotRequestedAgainUnlessRefreshed() async {
-        let holidays = StubHolidayProvider(years: [2026: []])
+        let holidays = StubHolidayProvider(years: [2_026: []])
         let advisories = StubAdvisoryProvider()
         let clock = TestClock(now)
         let service = makeService(holidays: holidays, advisories: advisories, clock: clock)
-        let trip = trip(from: day(2026, 11, 1), to: day(2026, 11, 8))
+        let trip = trip(from: day(2_026, 11, 1), to: day(2_026, 11, 8))
 
         _ = await service.online(for: trip, settings: AppSettings(), policy: normal, forceRefresh: false, calendar: calendar)
         clock.now = now.addingTimeInterval(3_600)
@@ -230,10 +230,10 @@ struct TripPreviewServiceTests {
     @Test
     func offlineAndLowDataNeverRequestAndFallBackToWhatIsSaved() async throws {
         for policy in [offline, lowData] {
-            let holidays = StubHolidayProvider(years: [2026: [holiday("Revolution Day", day(2026, 11, 6))]])
+            let holidays = StubHolidayProvider(years: [2_026: [holiday("Revolution Day", day(2_026, 11, 6))]])
             let advisories = StubAdvisoryProvider()
             let service = makeService(holidays: holidays, advisories: advisories)
-            let trip = trip(from: day(2026, 11, 1), to: day(2026, 11, 8))
+            let trip = trip(from: day(2_026, 11, 1), to: day(2_026, 11, 8))
 
             let nothingSaved = await service.online(
                 for: trip, settings: AppSettings(), policy: policy, forceRefresh: true, calendar: calendar
@@ -255,7 +255,7 @@ struct TripPreviewServiceTests {
     }
 
     @Test
-    func reducedBackgroundWorkLimitsTheRequestsInFlightToOne() async throws {
+    func reducedBackgroundWorkLimitsTheRequestsInFlightToOne() async {
         let policy = DashboardResourcePolicy(
             mode: .standard,
             conditions: ResourceConditions(isLowPowerModeEnabled: true)
@@ -263,12 +263,12 @@ struct TripPreviewServiceTests {
         #expect(policy.reducesBackgroundWork)
         #expect(policy.isLowData == false)
         let flights = FlightGroup()
-        let holidays = StubHolidayProvider(years: [2026: [], 2027: []], delay: .milliseconds(30), flights: flights)
+        let holidays = StubHolidayProvider(years: [2_026: [], 2_027: []], delay: .milliseconds(30), flights: flights)
         let advisories = StubAdvisoryProvider(delay: .milliseconds(30), flights: flights)
         let service = makeService(holidays: holidays, advisories: advisories)
 
         let online = await service.online(
-            for: trip(from: day(2026, 12, 28), to: day(2027, 1, 3)),
+            for: trip(from: day(2_026, 12, 28), to: day(2_027, 1, 3)),
             settings: AppSettings(), policy: policy, forceRefresh: false, calendar: calendar
         )
 
@@ -308,7 +308,7 @@ struct TripHolidaySourceTests {
         let service = LiveTripPreviewService(holidayProvider: info, advisoryProvider: StubAdvisoryProvider())
 
         let online = try #require(await service.online(
-            for: PlannedTrip(countryCode: "MA", startDate: day(2026, 11, 1), endDate: day(2026, 11, 30)),
+            for: PlannedTrip(countryCode: "MA", startDate: day(2_026, 11, 1), endDate: day(2_026, 11, 30)),
             settings: AppSettings(), policy: .normal, forceRefresh: false, calendar: calendar
         ))
 
@@ -324,7 +324,7 @@ struct TripHolidaySourceTests {
         let info = LiveLocalInfoProvider(session: session, localPriceLevelProvider: UnusedPriceProvider())
 
         await #expect(throws: ProviderError.self) {
-            try await info.publicHolidays(inCountry: "ZZ", year: 2026, timeZone: .gmt, forceRefresh: true)
+            try await info.publicHolidays(inCountry: "ZZ", year: 2_026, timeZone: .gmt, forceRefresh: true)
         }
     }
 }

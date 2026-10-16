@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct JetLagTests {
     private let now = Date(timeIntervalSince1970: 1_791_806_400) // 2026-10-12 14:00 Paris (UTC+2)
@@ -204,8 +204,8 @@ struct JetLagTests {
     @Test
     func daysCountOnTheCalendarNotIn24HourBlocks() throws {
         // Arrived at 23:00 last night: this morning is already day 2.
-        let lastNight = calendar.date(from: DateComponents(year: 2026, month: 10, day: 11, hour: 23))!
-        let thisMorning = calendar.date(from: DateComponents(year: 2026, month: 10, day: 12, hour: 7))!
+        let lastNight = try #require(calendar.date(from: DateComponents(year: 2_026, month: 10, day: 11, hour: 23)))
+        let thisMorning = try #require(calendar.date(from: DateComponents(year: 2_026, month: 10, day: 12, hour: 7)))
         let assessment = try #require(assess([
             record("Europe/Paris", 2, ago: 10 * day),
             TimeZoneShiftRecord(date: lastNight, identifier: "Asia/Bangkok", offsetSeconds: 25_200)
@@ -241,13 +241,13 @@ struct JetLagTests {
         #expect(window.end == sunset)
         #expect(window.duration == 2.5 * hour)
         #expect(guidance.dimLightsAfter == nil)
-        #expect(paris.clockTime(try #require(guidance.avoidLightBefore), locale: locale) == "8:00")
+        #expect(try paris.clockTime(#require(guidance.avoidLightBefore), locale: locale) == "8:00")
         #expect(guidance.text.hasPrefix("Get afternoon light "))
         #expect(guidance.text.hasSuffix(" · avoid bright light before 8:00"))
     }
 
     @Test
-    func guidanceWithoutCoordinatesOrASunriseStillSaysWhatToDo() {
+    func guidanceWithoutCoordinatesOrASunriseStillSaysWhatToDo() throws {
         let east = JetLagAssessment(direction: .east, shiftHours: 5, shiftedAt: now, dayNumber: 2, adjustmentDays: 5)
         let west = JetLagAssessment(direction: .west, shiftHours: 5, shiftedAt: now, dayNumber: 2, adjustmentDays: 3)
 
@@ -256,7 +256,7 @@ struct JetLagTests {
         #expect(noLocation.text.hasPrefix("Get bright morning light · dim lights after "))
 
         // Svalbard in midsummer: the sun does not set.
-        let midnightSun = DaylightReference(latitude: 78.2, longitude: 15.6, timeZone: TimeZone(identifier: "Arctic/Longyearbyen")!)
+        let midnightSun = try DaylightReference(latitude: 78.2, longitude: 15.6, timeZone: #require(TimeZone(identifier: "Arctic/Longyearbyen")))
         let june = Date(timeIntervalSince1970: 1_781_524_800)
         let polar = JetLagAdvisor.guidance(for: west, reference: midnightSun, now: june, locale: locale)
         #expect(polar.seekLight == nil)

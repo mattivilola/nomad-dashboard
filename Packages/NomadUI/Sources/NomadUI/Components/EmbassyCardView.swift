@@ -93,7 +93,6 @@ struct EmbassySectionView: View {
         }
     }
 
-    @ViewBuilder
     private var linkRows: some View {
         ForEach(presentation.links) { group in
             EmbassyLinkRow(

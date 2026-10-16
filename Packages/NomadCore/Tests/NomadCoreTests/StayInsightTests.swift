@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct StayInsightTests {
     // MARK: - Stay allowance
@@ -9,7 +9,7 @@ struct StayInsightTests {
     @Test
     func allowanceWithTwoWeeksOrLessLeftIsACaution() throws {
         let insight = try #require(stayInsights(
-            days: run(2026, 7, 27, through: (2026, 10, 12), "MA"),
+            days: run(2_026, 7, 27, through: (2_026, 10, 12), "MA"),
             settings: AppSettings(stayAllowances: ["MA": 90]),
             current: "MA"
         ).first)
@@ -59,7 +59,7 @@ struct StayInsightTests {
 
     @Test
     func theLiveCountryCoversATodayThatIsNotRecordedYet() throws {
-        let throughYesterday = trailingDays(80, "MA").filter { $0.day != stamp(2026, 10, 12) }
+        let throughYesterday = trailingDays(80, "MA").filter { $0.day != stamp(2_026, 10, 12) }
         let insight = try #require(stayInsights(
             days: throughYesterday,
             settings: AppSettings(stayAllowances: ["MA": 90]),
@@ -121,7 +121,7 @@ struct StayInsightTests {
             current: "FR"
         ).isEmpty)
         // Not in Schengen today: there is nothing to leave.
-        let abroad = trailingDays(85, "FR").filter { $0.day != stamp(2026, 10, 12) } + [stay(2026, 10, 12, "GB")]
+        let abroad = trailingDays(85, "FR").filter { $0.day != stamp(2_026, 10, 12) } + [stay(2_026, 10, 12, "GB")]
         #expect(stayInsights(days: abroad, settings: AppSettings(citizenshipCountryCodes: ["US"]), current: "GB").isEmpty)
     }
 
@@ -168,7 +168,7 @@ struct StayInsightTests {
 
     @Test
     func taxResidenceIsAboutTheCurrentCountryThisYearOnly() {
-        let spainLastYear = run(2025, 1, 1, through: (2025, 12, 31), "ES")
+        let spainLastYear = run(2_025, 1, 1, through: (2_025, 12, 31), "ES")
         let spainEarlier = yearStart(count: 170, "ES")
         let settings = AppSettings()
 
@@ -255,15 +255,15 @@ struct StayInsightTests {
         let today = calendar.startOfDay(for: now)
         let start = calendar.date(byAdding: .day, value: -(count - 1), to: today)!
         let parts = calendar.dateComponents([.year, .month, .day], from: start)
-        return run(parts.year!, parts.month!, parts.day!, through: (2026, 10, 12), code)
+        return run(parts.year!, parts.month!, parts.day!, through: (2_026, 10, 12), code)
     }
 
     /// The first `count` days of 2026.
     private func yearStart(count: Int, _ code: String) -> [VisitedCountryDay] {
-        let start = calendar.startOfDay(for: calendar.date(from: DateComponents(year: 2026, month: 1, day: 1))!)
+        let start = calendar.startOfDay(for: calendar.date(from: DateComponents(year: 2_026, month: 1, day: 1))!)
         let end = calendar.date(byAdding: .day, value: count - 1, to: start)!
         let parts = calendar.dateComponents([.year, .month, .day], from: end)
-        return run(2026, 1, 1, through: (parts.year!, parts.month!, parts.day!), code)
+        return run(2_026, 1, 1, through: (parts.year!, parts.month!, parts.day!), code)
     }
 
     private func run(_ year: Int, _ month: Int, _ day: Int, through end: (Int, Int, Int), _ code: String) -> [VisitedCountryDay] {

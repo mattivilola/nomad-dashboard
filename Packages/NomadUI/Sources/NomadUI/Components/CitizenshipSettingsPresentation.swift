@@ -8,7 +8,9 @@ public struct CitizenshipCountry: Identifiable, Equatable, Sendable {
     /// Name in the user's language.
     public let name: String
 
-    public var id: String { code }
+    public var id: String {
+        code
+    }
 
     public init(code: String, name: String) {
         self.code = code

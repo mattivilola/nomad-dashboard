@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct StayRulesTests {
     // MARK: - Schengen membership
@@ -39,37 +39,37 @@ struct StayRulesTests {
     // makes the 90th day 2026-10-29.
     @Test
     func countsDaysInTheWindowAndFindsTheLastPermittedDay() throws {
-        let days = run(2026, 8, 1, through: (2026, 10, 12), "FR")
+        let days = run(2_026, 8, 1, through: (2_026, 10, 12), "FR")
         let allowance = try #require(schengen(days, now: today, citizenships: ["US"]).allowance)
 
         #expect(schengen(days, now: today, citizenships: ["US"]) == .counting(allowance))
         #expect(allowance.usedDays == 73)
         #expect(allowance.remainingDays == 17)
-        #expect(allowance.mustLeaveBy == startOfDay(2026, 10, 29))
-        #expect(allowance.windowStart == startOfDay(2026, 4, 16))
+        #expect(allowance.mustLeaveBy == startOfDay(2_026, 10, 29))
+        #expect(allowance.windowStart == startOfDay(2_026, 4, 16))
     }
 
     // Reference: FR 2026-07-15 ... 2026-10-12 is 17 + 31 + 30 + 12 = 90 days: exactly 90 used, 0 left,
     // and today is the last permitted day.
     @Test
     func exactlyNinetyDaysLeavesNothingAndTodayIsTheLastDay() throws {
-        let days = run(2026, 7, 15, through: (2026, 10, 12), "FR")
+        let days = run(2_026, 7, 15, through: (2_026, 10, 12), "FR")
         let allowance = try #require(schengen(days, now: today, citizenships: ["US"]).allowance)
 
         #expect(allowance.usedDays == 90)
         #expect(allowance.remainingDays == 0)
-        #expect(allowance.mustLeaveBy == startOfDay(2026, 10, 12))
+        #expect(allowance.mustLeaveBy == startOfDay(2_026, 10, 12))
     }
 
     // Reference: 95 days (2026-07-10 ... 2026-10-12) is an overstay of 5: used 95, remaining clamped to 0.
     @Test
     func anOverstayReportsTheRealCountAndNoRemainingDays() throws {
-        let days = run(2026, 7, 10, through: (2026, 10, 12), "ES")
+        let days = run(2_026, 7, 10, through: (2_026, 10, 12), "ES")
         let allowance = try #require(schengen(days, now: today, citizenships: ["US"]).allowance)
 
         #expect(allowance.usedDays == 95)
         #expect(allowance.remainingDays == 0)
-        #expect(allowance.mustLeaveBy == startOfDay(2026, 10, 12))
+        #expect(allowance.mustLeaveBy == startOfDay(2_026, 10, 12))
     }
 
     // Reference: FR 2026-01-01 ... 2026-03-31 is 90 days. On 2026-06-29 the window [2026-01-01, 2026-06-29]
@@ -77,19 +77,19 @@ struct StayRulesTests {
     // of it is gone. Outside Schengen there is no leave-by date.
     @Test
     func theWindowSlidesOneDayAtATime() throws {
-        let days = run(2026, 1, 1, through: (2026, 3, 31), "FR") + run(2026, 4, 1, through: (2026, 9, 29), "GB")
+        let days = run(2_026, 1, 1, through: (2_026, 3, 31), "FR") + run(2_026, 4, 1, through: (2_026, 9, 29), "GB")
 
-        let onLastFullDay = try #require(schengen(days, now: at(2026, 6, 29), citizenships: ["US"]).allowance)
+        let onLastFullDay = try #require(schengen(days, now: at(2_026, 6, 29), citizenships: ["US"]).allowance)
         #expect(onLastFullDay.usedDays == 90)
-        #expect(onLastFullDay.windowStart == startOfDay(2026, 1, 1))
+        #expect(onLastFullDay.windowStart == startOfDay(2_026, 1, 1))
         #expect(onLastFullDay.mustLeaveBy == nil)
 
-        let nextDay = try #require(schengen(days, now: at(2026, 6, 30), citizenships: ["US"]).allowance)
+        let nextDay = try #require(schengen(days, now: at(2_026, 6, 30), citizenships: ["US"]).allowance)
         #expect(nextDay.usedDays == 89)
         #expect(nextDay.remainingDays == 1)
-        #expect(nextDay.windowStart == startOfDay(2026, 1, 2))
+        #expect(nextDay.windowStart == startOfDay(2_026, 1, 2))
 
-        let later = try #require(schengen(days, now: at(2026, 9, 29), citizenships: ["US"]).allowance)
+        let later = try #require(schengen(days, now: at(2_026, 9, 29), citizenships: ["US"]).allowance)
         #expect(later.usedDays == 0)
         #expect(later.remainingDays == 90)
     }
@@ -100,28 +100,28 @@ struct StayRulesTests {
     // 2026-09-17 (a naive 90 - 69 = 21 days would say 2026-07-20).
     @Test
     func leaveByAccountsForOldDaysSlidingOutOfTheWindow() throws {
-        let days = run(2026, 1, 1, through: (2026, 2, 28), "FR")
-            + run(2026, 3, 1, through: (2026, 6, 19), "GB")
-            + run(2026, 6, 20, through: (2026, 6, 29), "FR")
-        let allowance = try #require(schengen(days, now: at(2026, 6, 29), citizenships: ["US"]).allowance)
+        let days = run(2_026, 1, 1, through: (2_026, 2, 28), "FR")
+            + run(2_026, 3, 1, through: (2_026, 6, 19), "GB")
+            + run(2_026, 6, 20, through: (2_026, 6, 29), "FR")
+        let allowance = try #require(schengen(days, now: at(2_026, 6, 29), citizenships: ["US"]).allowance)
 
         #expect(allowance.usedDays == 69)
         #expect(allowance.remainingDays == 21)
-        #expect(allowance.mustLeaveBy == startOfDay(2026, 9, 17))
+        #expect(allowance.mustLeaveBy == startOfDay(2_026, 9, 17))
     }
 
     // Reference: FR 2026-06-01 ... 06-30 (30), GB 07-01 ... 08-31 (62 days outside), FR 09-01 ... 10-12 (42):
     // used 72, the days outside do not count, 18 left, last permitted day 2026-10-30.
     @Test
     func reEntryAfterDaysOutsideOnlyCountsSchengenDays() throws {
-        let days = run(2026, 6, 1, through: (2026, 6, 30), "FR")
-            + run(2026, 7, 1, through: (2026, 8, 31), "GB")
-            + run(2026, 9, 1, through: (2026, 10, 12), "FR")
+        let days = run(2_026, 6, 1, through: (2_026, 6, 30), "FR")
+            + run(2_026, 7, 1, through: (2_026, 8, 31), "GB")
+            + run(2_026, 9, 1, through: (2_026, 10, 12), "FR")
         let allowance = try #require(schengen(days, now: today, citizenships: ["US"]).allowance)
 
         #expect(allowance.usedDays == 72)
         #expect(allowance.remainingDays == 18)
-        #expect(allowance.mustLeaveBy == startOfDay(2026, 10, 30))
+        #expect(allowance.mustLeaveBy == startOfDay(2_026, 10, 30))
     }
 
     // Reference: GB 10-01 ... 10-10, with 10-10 also recorded in FR (a border day), FR 10-11 ... 10-12.
@@ -129,25 +129,25 @@ struct StayRulesTests {
     // 2026-10-10 is 10 days and the FR stay then is 1 day, so the border day belongs to both.
     @Test
     func aBorderDayWithTwoCountriesCountsForBoth() throws {
-        let days = run(2026, 10, 1, through: (2026, 10, 10), "GB")
-            + [visit(2026, 10, 10, "FR")]
-            + run(2026, 10, 11, through: (2026, 10, 12), "FR")
+        let days = run(2_026, 10, 1, through: (2_026, 10, 10), "GB")
+            + [visit(2_026, 10, 10, "FR")]
+            + run(2_026, 10, 11, through: (2_026, 10, 12), "FR")
 
         let allowance = try #require(schengen(days, now: today, citizenships: ["US"]).allowance)
         #expect(allowance.usedDays == 3)
 
-        let onBorderDay = StayCalculator(days: days, now: at(2026, 10, 10), calendar: calendar)
+        let onBorderDay = StayCalculator(days: days, now: at(2_026, 10, 10), calendar: calendar)
         #expect(onBorderDay.currentStay(in: "GB")?.dayCount == 10)
         #expect(onBorderDay.currentStay(in: "FR")?.dayCount == 1)
 
         // A day recorded twice in the same country is still one day.
-        let duplicated = run(2026, 10, 10, through: (2026, 10, 12), "FR") + [visit(2026, 10, 12, "FR"), visit(2026, 10, 12, "GB")]
+        let duplicated = run(2_026, 10, 10, through: (2_026, 10, 12), "FR") + [visit(2_026, 10, 12, "FR"), visit(2_026, 10, 12, "GB")]
         #expect(try #require(schengen(duplicated, now: today, citizenships: ["US"]).allowance).usedDays == 3)
     }
 
     @Test
     func exemptCitizenshipsAreNeverCounted() {
-        let days = run(2026, 6, 1, through: (2026, 10, 12), "FR")
+        let days = run(2_026, 6, 1, through: (2_026, 10, 12), "FR")
 
         #expect(schengen(days, now: today, citizenships: ["FI"]) == .exempt)
         #expect(schengen(days, now: today, citizenships: ["US", "NO"]) == .exempt)
@@ -157,8 +157,8 @@ struct StayRulesTests {
     }
 
     @Test
-    func withoutACitizenshipTheCountsAreStillProvided() throws {
-        let days = run(2026, 8, 1, through: (2026, 10, 12), "FR")
+    func withoutACitizenshipTheCountsAreStillProvided() {
+        let days = run(2_026, 8, 1, through: (2_026, 10, 12), "FR")
         let status = schengen(days, now: today, citizenships: [])
 
         guard case let .unknownCitizenship(allowance) = status else {
@@ -167,18 +167,18 @@ struct StayRulesTests {
         }
         #expect(allowance.usedDays == 73)
         #expect(allowance.remainingDays == 17)
-        #expect(allowance.mustLeaveBy == startOfDay(2026, 10, 29))
+        #expect(allowance.mustLeaveBy == startOfDay(2_026, 10, 29))
         #expect(schengen(days, now: today, citizenships: ["US"]).allowance == allowance)
     }
 
     @Test
     func inferredAndManualDaysCountLikeObservedOnes() throws {
         let days = [
-            visit(2026, 10, 8, "DE", inferred: true),
-            visit(2026, 10, 9, "DE", inferred: true),
-            visit(2026, 10, 10, "DE", manual: true),
-            visit(2026, 10, 11, "DE"),
-            visit(2026, 10, 12, "DE")
+            visit(2_026, 10, 8, "DE", inferred: true),
+            visit(2_026, 10, 9, "DE", inferred: true),
+            visit(2_026, 10, 10, "DE", manual: true),
+            visit(2_026, 10, 11, "DE"),
+            visit(2_026, 10, 12, "DE")
         ]
         let allowance = try #require(schengen(days, now: today, citizenships: ["US"]).allowance)
 
@@ -189,10 +189,10 @@ struct StayRulesTests {
     @Test
     func daysWithoutACountryCodeAndFutureDaysAreIgnored() throws {
         let days = [
-            VisitedCountryDay(day: stamp(2026, 10, 11), country: "Atlantis", countryCode: nil, source: .deviceLocation, isInferred: false),
-            visit(2026, 10, 12, "FR"),
-            visit(2026, 10, 13, "FR"),
-            visit(2026, 10, 14, "FR")
+            VisitedCountryDay(day: stamp(2_026, 10, 11), country: "Atlantis", countryCode: nil, source: .deviceLocation, isInferred: false),
+            visit(2_026, 10, 12, "FR"),
+            visit(2_026, 10, 13, "FR"),
+            visit(2_026, 10, 14, "FR")
         ]
         let allowance = try #require(schengen(days, now: today, citizenships: ["US"]).allowance)
 
@@ -204,14 +204,14 @@ struct StayRulesTests {
     // 23:30: 7 days used and 7-day stay, 83 left, last day 2027-01-17, window starts 2026-04-30 (CEST).
     @Test
     func daylightSavingEndDoesNotLoseOrAddADay() throws {
-        let days = run(2026, 10, 20, through: (2026, 10, 26), "DE")
-        let now = at(2026, 10, 26, hour: 23, minute: 30)
+        let days = run(2_026, 10, 20, through: (2_026, 10, 26), "DE")
+        let now = at(2_026, 10, 26, hour: 23, minute: 30)
         let allowance = try #require(schengen(days, now: now, citizenships: ["US"]).allowance)
 
         #expect(allowance.usedDays == 7)
         #expect(allowance.remainingDays == 83)
-        #expect(allowance.mustLeaveBy == startOfDay(2027, 1, 17))
-        #expect(allowance.windowStart == startOfDay(2026, 4, 30))
+        #expect(allowance.mustLeaveBy == startOfDay(2_027, 1, 17))
+        #expect(allowance.windowStart == startOfDay(2_026, 4, 30))
         #expect(StayCalculator(days: days, now: now, calendar: calendar).currentStay(in: "DE")?.dayCount == 7)
     }
 
@@ -219,25 +219,25 @@ struct StayRulesTests {
     // 2026-03-29 00:30 (the day in Paris, still the previous UTC day): 3 days, last day 2026-06-24.
     @Test
     func daylightSavingStartAndLateNightLocalTimeStayOnTheLocalDay() throws {
-        let days = run(2026, 3, 27, through: (2026, 3, 29), "ES")
-        let now = at(2026, 3, 29, hour: 0, minute: 30)
+        let days = run(2_026, 3, 27, through: (2_026, 3, 29), "ES")
+        let now = at(2_026, 3, 29, hour: 0, minute: 30)
         let allowance = try #require(schengen(days, now: now, citizenships: ["US"]).allowance)
 
         #expect(allowance.usedDays == 3)
-        #expect(allowance.mustLeaveBy == startOfDay(2026, 6, 24))
-        #expect(StayCalculator(days: days, now: now, calendar: calendar).currentStay(in: "ES")?.startDay == stamp(2026, 3, 27))
+        #expect(allowance.mustLeaveBy == startOfDay(2_026, 6, 24))
+        #expect(StayCalculator(days: days, now: now, calendar: calendar).currentStay(in: "ES")?.startDay == stamp(2_026, 3, 27))
     }
 
     // MARK: - Current stay
 
     @Test
     func aStayIsTheUnbrokenRunEndingToday() throws {
-        let days = run(2026, 9, 20, through: (2026, 9, 30), "FR") + run(2026, 10, 1, through: (2026, 10, 12), "DE")
+        let days = run(2_026, 9, 20, through: (2_026, 9, 30), "FR") + run(2_026, 10, 1, through: (2_026, 10, 12), "DE")
         let stay = try #require(StayCalculator(days: days, now: today, calendar: calendar).currentStay(in: "DE"))
 
         #expect(stay.countryCode == "DE")
-        #expect(stay.startDay == stamp(2026, 10, 1))
-        #expect(stay.startDate == startOfDay(2026, 10, 1))
+        #expect(stay.startDay == stamp(2_026, 10, 1))
+        #expect(stay.startDate == startOfDay(2_026, 10, 1))
         #expect(stay.dayCount == 12)
         #expect(stay.unrecordedGapDays == 0)
         #expect(StayCalculator(days: days, now: today, calendar: calendar).currentStay(in: "FR") == nil)
@@ -247,75 +247,75 @@ struct StayRulesTests {
 
     @Test
     func aSingleUnrecordedDayIsBridgedAndReported() throws {
-        let days = run(2026, 10, 1, through: (2026, 10, 5), "DE") + run(2026, 10, 7, through: (2026, 10, 12), "DE")
+        let days = run(2_026, 10, 1, through: (2_026, 10, 5), "DE") + run(2_026, 10, 7, through: (2_026, 10, 12), "DE")
         let stay = try #require(StayCalculator(days: days, now: today, calendar: calendar).currentStay(in: "DE"))
 
-        #expect(stay.startDay == stamp(2026, 10, 1))
+        #expect(stay.startDay == stamp(2_026, 10, 1))
         #expect(stay.dayCount == 12)
         #expect(stay.unrecordedGapDays == 1)
     }
 
     @Test
     func twoUnrecordedDaysInARowEndTheStay() throws {
-        let days = run(2026, 10, 1, through: (2026, 10, 5), "DE") + run(2026, 10, 8, through: (2026, 10, 12), "DE")
+        let days = run(2_026, 10, 1, through: (2_026, 10, 5), "DE") + run(2_026, 10, 8, through: (2_026, 10, 12), "DE")
         let stay = try #require(StayCalculator(days: days, now: today, calendar: calendar).currentStay(in: "DE"))
 
-        #expect(stay.startDay == stamp(2026, 10, 8))
+        #expect(stay.startDay == stamp(2_026, 10, 8))
         #expect(stay.dayCount == 5)
         #expect(stay.unrecordedGapDays == 0)
     }
 
     @Test
     func aDayInAnotherCountryEndsTheStayEvenWithoutAGap() throws {
-        let days = run(2026, 10, 1, through: (2026, 10, 5), "DE") + [visit(2026, 10, 6, "TR")] + run(2026, 10, 7, through: (2026, 10, 12), "DE")
+        let days = run(2_026, 10, 1, through: (2_026, 10, 5), "DE") + [visit(2_026, 10, 6, "TR")] + run(2_026, 10, 7, through: (2_026, 10, 12), "DE")
         let stay = try #require(StayCalculator(days: days, now: today, calendar: calendar).currentStay(in: "DE"))
 
-        #expect(stay.startDay == stamp(2026, 10, 7))
+        #expect(stay.startDay == stamp(2_026, 10, 7))
         #expect(stay.dayCount == 6)
     }
 
     @Test
     func todayMayBeTheOneUnrecordedDayButNotTwo() throws {
-        let throughYesterday = run(2026, 10, 1, through: (2026, 10, 11), "DE")
+        let throughYesterday = run(2_026, 10, 1, through: (2_026, 10, 11), "DE")
         let stay = try #require(StayCalculator(days: throughYesterday, now: today, calendar: calendar).currentStay(in: "DE"))
         #expect(stay.dayCount == 12)
         #expect(stay.unrecordedGapDays == 1)
 
-        let throughTwoDaysAgo = run(2026, 10, 1, through: (2026, 10, 10), "DE")
+        let throughTwoDaysAgo = run(2_026, 10, 1, through: (2_026, 10, 10), "DE")
         #expect(StayCalculator(days: throughTwoDaysAgo, now: today, calendar: calendar).currentStay(in: "DE") == nil)
     }
 
     @Test
     func theLiveCountryStandsInForAnUnrecordedToday() throws {
-        let throughYesterday = run(2026, 10, 1, through: (2026, 10, 11), "DE")
+        let throughYesterday = run(2_026, 10, 1, through: (2_026, 10, 11), "DE")
         let live = StayCalculator(days: throughYesterday, now: today, calendar: calendar, liveCountryCode: "de")
         let stay = try #require(live.currentStay(in: "DE"))
         #expect(stay.dayCount == 12)
         #expect(stay.unrecordedGapDays == 0)
         #expect(live.schengenStatus(citizenships: ["US"]).allowance?.usedDays == 12)
-        #expect(live.taxYearDays(year: 2026).days(inCountry: "DE") == 12)
+        #expect(live.taxYearDays(year: 2_026).days(inCountry: "DE") == 12)
 
         // A record for today wins over the live country.
-        let recorded = StayCalculator(days: throughYesterday + [visit(2026, 10, 12, "TR")], now: today, calendar: calendar, liveCountryCode: "DE")
+        let recorded = StayCalculator(days: throughYesterday + [visit(2_026, 10, 12, "TR")], now: today, calendar: calendar, liveCountryCode: "DE")
         #expect(recorded.currentStay(in: "DE") == nil)
         #expect(recorded.currentStay(in: "TR")?.dayCount == 1)
     }
 
     // MARK: - Calendar year
 
-    // Reference for 2026 on 2026-10-12 (285 days elapsed): ES 01-01 ... 06-30 (181), PT 07-01 ... 08-31 without
-    // 08-15 (61), ES 09-01 ... 10-12 (42), plus PT also recorded on the border day 10-01. ES 223, PT 62,
-    // unrecorded 1 (08-15), so the order is ES then PT.
+    /// Reference for 2026 on 2026-10-12 (285 days elapsed): ES 01-01 ... 06-30 (181), PT 07-01 ... 08-31 without
+    /// 08-15 (61), ES 09-01 ... 10-12 (42), plus PT also recorded on the border day 10-01. ES 223, PT 62,
+    /// unrecorded 1 (08-15), so the order is ES then PT.
     @Test
     func taxYearCountsDaysPerCountryAndUnrecordedDays() {
-        let days = run(2026, 1, 1, through: (2026, 6, 30), "ES")
-            + run(2026, 7, 1, through: (2026, 8, 14), "PT")
-            + run(2026, 8, 16, through: (2026, 8, 31), "PT")
-            + run(2026, 9, 1, through: (2026, 10, 12), "ES")
-            + [visit(2026, 10, 1, "PT")]
-        let summary = StayCalculator(days: days, now: today, calendar: calendar).taxYearDays(year: 2026)
+        let days = run(2_026, 1, 1, through: (2_026, 6, 30), "ES")
+            + run(2_026, 7, 1, through: (2_026, 8, 14), "PT")
+            + run(2_026, 8, 16, through: (2_026, 8, 31), "PT")
+            + run(2_026, 9, 1, through: (2_026, 10, 12), "ES")
+            + [visit(2_026, 10, 1, "PT")]
+        let summary = StayCalculator(days: days, now: today, calendar: calendar).taxYearDays(year: 2_026)
 
-        #expect(summary.year == 2026)
+        #expect(summary.year == 2_026)
         #expect(summary.countries.map(\.countryCode) == ["ES", "PT"])
         #expect(summary.countries.map(\.days) == [223, 62])
         #expect(summary.unrecordedDays == 1)
@@ -328,35 +328,35 @@ struct StayRulesTests {
     // 0 unrecorded. 2027 has not started: nothing, nothing unrecorded.
     @Test
     func taxYearHandlesPastLeapAndFutureYears() {
-        let days = run(2024, 1, 1, through: (2024, 12, 31), "IT")
-            + run(2025, 12, 30, through: (2025, 12, 31), "FR")
-            + [visit(2026, 10, 12, "FR")]
+        let days = run(2_024, 1, 1, through: (2_024, 12, 31), "IT")
+            + run(2_025, 12, 30, through: (2_025, 12, 31), "FR")
+            + [visit(2_026, 10, 12, "FR")]
         let calculator = StayCalculator(days: days, now: today, calendar: calendar)
 
-        let leap = calculator.taxYearDays(year: 2024)
+        let leap = calculator.taxYearDays(year: 2_024)
         #expect(leap.countries.map(\.days) == [366])
         #expect(leap.unrecordedDays == 0)
 
-        let past = calculator.taxYearDays(year: 2025)
+        let past = calculator.taxYearDays(year: 2_025)
         #expect(past.countries.map(\.days) == [2])
         #expect(past.unrecordedDays == 363)
 
-        let future = calculator.taxYearDays(year: 2027)
+        let future = calculator.taxYearDays(year: 2_027)
         #expect(future.countries.isEmpty)
         #expect(future.unrecordedDays == 0)
 
         // Today is day 285 of 2026 and the only recorded day.
-        #expect(calculator.taxYearDays(year: 2026).unrecordedDays == 284)
+        #expect(calculator.taxYearDays(year: 2_026).unrecordedDays == 284)
     }
 
     @Test
     func taxYearGroupsCountriesWithoutACodeByNameAndBreaksTiesByName() {
         let days = [
-            VisitedCountryDay(day: stamp(2026, 10, 10), country: "Atlantis", countryCode: nil, source: .deviceLocation, isInferred: false),
-            VisitedCountryDay(day: stamp(2026, 10, 11), country: "atlantis", countryCode: nil, source: .deviceLocation, isInferred: false),
-            visit(2026, 10, 12, "FR")
+            VisitedCountryDay(day: stamp(2_026, 10, 10), country: "Atlantis", countryCode: nil, source: .deviceLocation, isInferred: false),
+            VisitedCountryDay(day: stamp(2_026, 10, 11), country: "atlantis", countryCode: nil, source: .deviceLocation, isInferred: false),
+            visit(2_026, 10, 12, "FR")
         ]
-        let summary = StayCalculator(days: days, now: today, calendar: calendar).taxYearDays(year: 2026)
+        let summary = StayCalculator(days: days, now: today, calendar: calendar).taxYearDays(year: 2_026)
 
         #expect(summary.countries.count == 2)
         #expect(summary.countries.first?.days == 2)
@@ -369,47 +369,47 @@ struct StayRulesTests {
     // the last permitted day is 2026-10-19.
     @Test
     func allowanceCountsFromTheArrivalDay() throws {
-        let days = run(2026, 7, 22, through: (2026, 10, 12), "MA")
+        let days = run(2_026, 7, 22, through: (2_026, 10, 12), "MA")
         let status = try #require(allowance(days, now: today, country: "MA", allowanceDays: 90))
 
         #expect(status.usedDays == 83)
         #expect(status.remainingDays == 7)
         #expect(status.overstayDays == 0)
-        #expect(status.lastPermittedDay == startOfDay(2026, 10, 19))
-        #expect(status.stay.startDay == stamp(2026, 7, 22))
+        #expect(status.lastPermittedDay == startOfDay(2_026, 10, 19))
+        #expect(status.stay.startDay == stamp(2_026, 7, 22))
     }
 
     // Reference: arriving 2026-01-01 with 90 days, the 90th day is 2026-03-31; on 03-15 (day 74) 16 are left.
     @Test
     func theArrivalDayIsDayOneOfTheAllowance() throws {
-        let days = run(2026, 1, 1, through: (2026, 3, 15), "MA")
-        let status = try #require(allowance(days, now: at(2026, 3, 15), country: "MA", allowanceDays: 90))
+        let days = run(2_026, 1, 1, through: (2_026, 3, 15), "MA")
+        let status = try #require(allowance(days, now: at(2_026, 3, 15), country: "MA", allowanceDays: 90))
 
         #expect(status.usedDays == 74)
         #expect(status.remainingDays == 16)
-        #expect(status.lastPermittedDay == startOfDay(2026, 3, 31))
+        #expect(status.lastPermittedDay == startOfDay(2_026, 3, 31))
     }
 
     // Reference: MA 2026-07-14 ... 10-12 is 91 days: 1 day over a 90-day allowance, which ended 2026-10-11.
     @Test
     func anExceededAllowanceReportsTheOverstay() throws {
-        let days = run(2026, 7, 14, through: (2026, 10, 12), "MA")
+        let days = run(2_026, 7, 14, through: (2_026, 10, 12), "MA")
         let status = try #require(allowance(days, now: today, country: "MA", allowanceDays: 90))
 
         #expect(status.usedDays == 91)
         #expect(status.remainingDays == 0)
         #expect(status.overstayDays == 1)
-        #expect(status.lastPermittedDay == startOfDay(2026, 10, 11))
+        #expect(status.lastPermittedDay == startOfDay(2_026, 10, 11))
 
-        let lastDay = try #require(allowance(run(2026, 7, 15, through: (2026, 10, 12), "MA"), now: today, country: "MA", allowanceDays: 90))
+        let lastDay = try #require(allowance(run(2_026, 7, 15, through: (2_026, 10, 12), "MA"), now: today, country: "MA", allowanceDays: 90))
         #expect(lastDay.remainingDays == 0)
         #expect(lastDay.overstayDays == 0)
-        #expect(lastDay.lastPermittedDay == startOfDay(2026, 10, 12))
+        #expect(lastDay.lastPermittedDay == startOfDay(2_026, 10, 12))
     }
 
     @Test
     func noAllowanceStatusWithoutAStayOrAPositiveAllowance() {
-        let days = run(2026, 7, 22, through: (2026, 10, 12), "MA")
+        let days = run(2_026, 7, 22, through: (2_026, 10, 12), "MA")
 
         #expect(allowance(days, now: today, country: "ES", allowanceDays: 90) == nil)
         #expect(allowance(days, now: today, country: "MA", allowanceDays: 0) == nil)
@@ -427,7 +427,7 @@ struct StayRulesTests {
 
     /// 2026-10-12 14:00 Paris.
     private var today: Date {
-        at(2026, 10, 12)
+        at(2_026, 10, 12)
     }
 
     private func at(_ year: Int, _ month: Int, _ day: Int, hour: Int = 14, minute: Int = 0) -> Date {

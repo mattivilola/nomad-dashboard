@@ -42,8 +42,8 @@ struct SparklinePresentation: Equatable {
         else {
             kind = .collecting
             samples = []
-            self.minimum = nil
-            self.maximum = nil
+            minimum = nil
+            maximum = nil
             latest = sorted.last?.value
             timeSpan = nil
             helpText = placeholder

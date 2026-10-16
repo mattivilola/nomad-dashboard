@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct TravelReferenceDataTests {
     private let allRegions = Locale.Region.isoRegions.map(\.identifier)
@@ -43,7 +43,7 @@ struct TravelReferenceDataTests {
 
     @Test
     func theFiftyFourLeftDrivingUnMembersAreAllOnTheList() {
-        let unMembers: Set<String> = [
+        let unMembers: Set = [
             "BW", "KE", "LS", "MW", "MU", "MZ", "NA", "SC", "SZ", "TZ", "UG", "ZA", "ZM", "ZW",
             "AG", "BS", "BB", "DM", "GD", "GY", "JM", "KN", "LC", "VC", "SR", "TT",
             "BD", "BT", "BN", "IN", "ID", "JP", "LK", "MV", "MY", "NP", "PK", "SG", "TH", "TL", "CY",
@@ -91,7 +91,7 @@ struct TravelReferenceDataTests {
 
     @Test
     func everyEmergencyDirectoryCountryHasElectricityExceptTheUnverifiedOnes() {
-        let unverified: Set<String> = ["BR", "JP"]
+        let unverified: Set = ["BR", "JP"]
         for code in allRegions where EmergencyNumberDirectory.numbers(forCountryCode: code) != nil {
             if unverified.contains(code) {
                 #expect(TravelReferenceData.electricity(forCountryCode: code) == nil)

@@ -1,9 +1,9 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct ArrivalBriefingTests {
-    // 2026-10-12 12:00 UTC, a Monday.
+    /// 2026-10-12 12:00 UTC, a Monday.
     private let now = Date(timeIntervalSince1970: 1_791_806_400)
     // 2026-06-15 12:00 UTC: Madrid is UTC+2, Casablanca UTC+1 and Helsinki UTC+3. Morocco's clock
     // follows the OS tz database (which moves it to UTC+0 in autumn 2026), so the time assertions
@@ -41,7 +41,7 @@ struct ArrivalBriefingTests {
 
         #expect(event.countryCode == "MA")
         #expect(event.previousCountryCode == "ES")
-        #expect(event.arrivedOn == VisitedCountryDayStamp(year: 2026, month: 10, day: 12))
+        #expect(event.arrivedOn == VisitedCountryDayStamp(year: 2_026, month: 10, day: 12))
     }
 
     @Test
@@ -121,7 +121,7 @@ struct ArrivalBriefingTests {
     }
 
     @Test
-    func opening2DaysAfterCrossingStillShowsUntilAcknowledged() throws {
+    func opening2DaysAfterCrossingStillShowsUntilAcknowledged() {
         let days = crossing(daysSinceCrossing: 2)
         #expect(detect(days: days, current: "MA") != nil)
 
@@ -257,7 +257,7 @@ struct ArrivalBriefingTests {
     }
 
     @Test
-    func sectionsDescribingChangesAreCalmWhenNothingChanged() throws {
+    func sectionsDescribingChangesAreCalmWhenNothingChanged() {
         // Portugal to Spain: same side, same currency, same plugs, same supply.
         let briefing = ArrivalBriefing.make(
             event: ArrivalEvent(countryCode: "ES", previousCountryCode: "PT", arrivedOn: stamp(0)),
@@ -277,7 +277,7 @@ struct ArrivalBriefingTests {
     // MARK: - Time
 
     @Test
-    func timeComparesWithHomeAheadBehindAndSame() throws {
+    func timeComparesWithHomeAheadBehindAndSame() {
         func home(_ identifier: String?) -> ArrivalBriefing.Time? {
             makeBriefing(snapshot: moroccoSnapshot(), home: identifier, at: summer).time
         }
@@ -304,7 +304,7 @@ struct ArrivalBriefingTests {
     }
 
     @Test
-    func timeZoneFollowsTheDaylightReferenceOrder() throws {
+    func timeZoneFollowsTheDaylightReferenceOrder() {
         // The device location's own zone wins over the snapshot's zone, as on the daylight card.
         let device = location("MA", timeZone: "Africa/Casablanca", latitude: 33.57, longitude: -7.59)
         let snapshot = makeSnapshot(countryCode: "MA", timeZone: "Europe/Madrid", deviceLocation: device)
@@ -399,7 +399,7 @@ struct ArrivalBriefingTests {
     // MARK: - Road and power
 
     @Test
-    func drivingSideChangeIsFlagged() throws {
+    func drivingSideChangeIsFlagged() {
         let briefing = ArrivalBriefing.make(
             event: ArrivalEvent(countryCode: "GB", previousCountryCode: "FR", arrivedOn: stamp(0)),
             snapshot: makeSnapshot(countryCode: "GB", timeZone: "Europe/London"),
@@ -419,7 +419,7 @@ struct ArrivalBriefingTests {
     }
 
     @Test
-    func unknownPreviousCountryDataNeverFlagsAChange() throws {
+    func unknownPreviousCountryDataNeverFlagsAChange() {
         let briefing = ArrivalBriefing.make(
             event: ArrivalEvent(countryCode: "GB", previousCountryCode: "ZZ", arrivedOn: stamp(0)),
             snapshot: makeSnapshot(countryCode: "GB", timeZone: "Europe/London"),
@@ -455,7 +455,7 @@ struct ArrivalBriefingTests {
     // MARK: - Holiday
 
     @Test
-    func holidayTodayOrTomorrowIsIncluded() throws {
+    func holidayTodayOrTomorrowIsIncluded() {
         let today = makeBriefing(snapshot: moroccoSnapshot(holiday: holiday(dayOffset: 0, name: "Green March")))
         #expect(today.holiday == ArrivalBriefing.Holiday(name: "Green March", daysFromToday: 0))
 
@@ -479,13 +479,13 @@ struct ArrivalBriefingTests {
     }
 
     @Test
-    func holidayUsesTheInjectedCalendarDay() {
+    func holidayUsesTheInjectedCalendarDay() throws {
         // 23:00 UTC on the eve of a holiday that starts at UTC midnight: tomorrow in UTC, but already
         // the holiday itself in Auckland (UTC+13 in October). The injected calendar decides.
         let snapshot = moroccoSnapshot(holiday: holiday(dayOffset: 0, name: "Green March"))
         let evening = now.addingTimeInterval(-13 * 3_600)
         var auckland = calendar
-        auckland.timeZone = TimeZone(identifier: "Pacific/Auckland")!
+        auckland.timeZone = try #require(TimeZone(identifier: "Pacific/Auckland"))
 
         func daysFromToday(using calendar: Calendar) -> Int? {
             ArrivalBriefing.make(
@@ -509,20 +509,20 @@ struct ArrivalBriefingTests {
 
     @Test
     func rhythmListsThePeriodsOnNowOrStartingWithinFourteenDays() throws {
-        let during = try #require(rhythmBriefing(country: "MA", on: 2027, 2, 19).rhythm.first)
+        let during = try #require(rhythmBriefing(country: "MA", on: 2_027, 2, 19).rhythm.first)
         #expect(during.kind == .ramadan)
         #expect(during.countryCode == "MA")
 
-        #expect(rhythmKinds(country: "MA", on: 2027, 1, 25) == [.ramadan]) // starts in 14 days
-        #expect(rhythmKinds(country: "MA", on: 2027, 1, 24).isEmpty) // 15 days
-        #expect(rhythmKinds(country: "MA", on: 2026, 10, 12).isEmpty)
-        #expect(rhythmKinds(country: "ES", on: 2027, 2, 19).isEmpty)
+        #expect(rhythmKinds(country: "MA", on: 2_027, 1, 25) == [.ramadan]) // starts in 14 days
+        #expect(rhythmKinds(country: "MA", on: 2_027, 1, 24).isEmpty) // 15 days
+        #expect(rhythmKinds(country: "MA", on: 2_026, 10, 12).isEmpty)
+        #expect(rhythmKinds(country: "ES", on: 2_027, 2, 19).isEmpty)
     }
 
     @Test
     func rhythmIsEarliestFirstAndFollowsTheArrivalCountryNotTheSnapshot() {
         // The snapshot still describes Morocco while the traveller has just arrived in Saudi Arabia.
-        let lagging = rhythmBriefing(country: "SA", on: 2027, 3, 7, snapshot: moroccoSnapshot())
+        let lagging = rhythmBriefing(country: "SA", on: 2_027, 3, 7, snapshot: moroccoSnapshot())
         #expect(lagging.rhythm.map(\.kind) == [.ramadan, .eidAlFitr])
         #expect(lagging.rhythm.allSatisfy { $0.countryCode == "SA" })
     }
@@ -530,7 +530,7 @@ struct ArrivalBriefingTests {
     @Test
     func nyepiIsOnlyListedForBaliOrAnUnknownRegion() {
         func kinds(_ deviceLocation: IPLocationSnapshot?) -> [LocalRhythmKind] {
-            rhythmKinds(country: "ID", on: 2027, 3, 5, snapshot: makeSnapshot(
+            rhythmKinds(country: "ID", on: 2_027, 3, 5, snapshot: makeSnapshot(
                 countryCode: "ID", timeZone: "Asia/Makassar", deviceLocation: deviceLocation
             ))
         }
@@ -593,7 +593,7 @@ struct ArrivalBriefingTests {
     // MARK: - Preview fixture
 
     @Test
-    func previewSnapshotComposesWithoutCrashingAndKeepsSectionsOptional() throws {
+    func previewSnapshotComposesWithoutCrashingAndKeepsSectionsOptional() {
         let briefing = ArrivalBriefing.make(
             event: ArrivalEvent(countryCode: "ES", previousCountryCode: "FR", arrivedOn: stamp(0)),
             snapshot: .preview,

@@ -1,7 +1,7 @@
 import Foundation
 import NomadCore
-import Testing
 @testable import NomadUI
+import Testing
 
 struct StaysNextTripTests {
     private typealias Support = StaysTestSupport

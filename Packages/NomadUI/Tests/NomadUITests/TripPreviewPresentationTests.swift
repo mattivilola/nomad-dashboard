@@ -1,7 +1,7 @@
 import Foundation
 import NomadCore
-import Testing
 @testable import NomadUI
+import Testing
 
 struct TripPreviewPresentationTests {
     private typealias Support = StaysTestSupport
@@ -244,7 +244,7 @@ struct TripPreviewPresentationTests {
     }
 
     @Test
-    func aMultiDayHolidayIsARange() throws {
+    func aMultiDayHolidayIsARange() {
         let holiday = HolidayPeriodSnapshot(name: "Eid", startDate: Support.date(2_027, 1, 20), endDate: Support.date(2_027, 1, 22))
         let result = presentation(preview(morocco), online: .loaded(online(holidays: [holiday])))
 
@@ -252,7 +252,7 @@ struct TripPreviewPresentationTests {
     }
 
     @Test
-    func noHolidaysSaysSoAndMissingHolidaysSayUnavailable() throws {
+    func noHolidaysSaysSoAndMissingHolidaysSayUnavailable() {
         let none = presentation(preview(morocco), online: .loaded(online(holidays: [])))
         let missing = presentation(preview(morocco), online: .loaded(online(holidays: nil)), policy: Self.offline)
 

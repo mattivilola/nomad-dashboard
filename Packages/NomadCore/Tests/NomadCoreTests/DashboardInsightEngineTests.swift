@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 struct DashboardInsightEngineTests {
     // MARK: - General
@@ -160,10 +160,10 @@ struct DashboardInsightEngineTests {
             return VisitedCountryDay(day: stamp, country: "France", countryCode: "FR", source: .deviceLocation, isInferred: false)
         }
         var staySettings = AppSettings(citizenshipCountryCodes: ["US"], stayAllowances: ["FR": 92], taxResidenceThresholdDays: 90)
-        staySettings.plannedTrips = [PlannedTrip(
+        staySettings.plannedTrips = try [PlannedTrip(
             countryCode: "GB",
-            startDate: parisCalendar.date(byAdding: .day, value: 12, to: now)!,
-            endDate: parisCalendar.date(byAdding: .day, value: 16, to: now)!
+            startDate: #require(parisCalendar.date(byAdding: .day, value: 12, to: now)),
+            endDate: #require(parisCalendar.date(byAdding: .day, value: 16, to: now))
         )]
         let stayInput = StayInsightInput(countryDays: stayDays, settings: staySettings, currentCountryCode: "FR")
         // A shift of five hours east that began yesterday.
@@ -195,7 +195,7 @@ struct DashboardInsightEngineTests {
         // The local-rhythm heads-up needs a country with a period around the date, which 2026-10-12 has none for.
         let rhythm = DashboardInsightEngine.insights(
             for: makeSnapshot(deviceLocation: rhythmLocation("CN")),
-            now: date(2027, 1, 30, 12, 0), calendar: parisCalendar, limit: 20
+            now: date(2_027, 1, 30, 12, 0), calendar: parisCalendar, limit: 20
         )
         #expect(rhythm.map(\.kind) == [.localRhythm])
         #expect((nomad + evening + dark + rhythm).allSatisfy { $0.menuBarText.isEmpty == false && $0.menuBarText.count <= 13 })
@@ -555,19 +555,19 @@ struct DashboardInsightEngineTests {
         let snapshot = makeSnapshot(localInfo: makeLocalInfo(currentPeriod: holidayDay))
 
         // 00:30 and 23:30 Paris time on the holiday are both "today".
-        let earlyMorning = date(2026, 10, 12, 0, 30)
-        let lateEvening = date(2026, 10, 12, 23, 30)
+        let earlyMorning = date(2_026, 10, 12, 0, 30)
+        let lateEvening = date(2_026, 10, 12, 23, 30)
         #expect(try #require(DashboardInsightEngine.insights(for: snapshot, now: earlyMorning, calendar: parisCalendar).first).title == "Public holiday today")
         #expect(try #require(DashboardInsightEngine.insights(for: snapshot, now: lateEvening, calendar: parisCalendar).first).title == "Public holiday today")
 
         // 23:30 the evening before the holiday is "tomorrow" in Paris.
-        let eveningBefore = date(2026, 10, 11, 23, 30)
+        let eveningBefore = date(2_026, 10, 11, 23, 30)
         #expect(try #require(DashboardInsightEngine.insights(for: snapshot, now: eveningBefore, calendar: parisCalendar).first).title == "Public holiday tomorrow")
 
         // The holiday period starts at Paris midnight, which is the previous afternoon in Los Angeles, so a
         // Los Angeles calendar sees the same instants on a different civil day. The injected calendar decides.
         var losAngeles = parisCalendar
-        losAngeles.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        losAngeles.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
         let laInsight = try #require(DashboardInsightEngine.insights(for: snapshot, now: earlyMorning, calendar: losAngeles).first)
         #expect(laInsight.title == "Public holiday today")
     }
@@ -587,7 +587,7 @@ struct DashboardInsightEngineTests {
 
     @Test
     func multiDayCurrentPeriodCountsAsToday() {
-        let period = HolidayPeriodSnapshot(name: "Long weekend", startDate: date(2026, 10, 10, 0, 0), endDate: date(2026, 10, 13, 0, 0))
+        let period = HolidayPeriodSnapshot(name: "Long weekend", startDate: date(2_026, 10, 10, 0, 0), endDate: date(2_026, 10, 13, 0, 0))
         let snapshot = makeSnapshot(localInfo: makeLocalInfo(currentPeriod: period))
 
         #expect(insights(snapshot).first?.title == "Public holiday today")
@@ -714,7 +714,7 @@ struct DashboardInsightEngineTests {
     func daylightStaysDarkAfterMidnightUntilTodaysSunrise() throws {
         let sunrise = try #require(parisSun.sunrise)
         let snapshot = makeSnapshot(deviceLocation: parisLocation)
-        let afterMidnight = date(2026, 10, 12, 1, 30)
+        let afterMidnight = date(2_026, 10, 12, 1, 30)
 
         let insight = try #require(roadTripInsights(snapshot, at: afterMidnight).first)
         #expect(insight.title == "Dark until \(clock(sunrise))")
@@ -747,7 +747,7 @@ struct DashboardInsightEngineTests {
     func daylightFormatsTimesInTheLocationsTimeZoneNotTheCalendars() throws {
         // Lisbon is an hour behind the Paris calendar used for formatting everywhere else in this file.
         let lisbon = location(latitude: 38.7223, longitude: -9.1393, timeZone: "Europe/Lisbon")
-        let lisbonZone = TimeZone(identifier: "Europe/Lisbon")!
+        let lisbonZone = try #require(TimeZone(identifier: "Europe/Lisbon"))
         let sunSet = DaylightReference(latitude: 38.7223, longitude: -9.1393, timeZone: lisbonZone).solarDay(on: now)
         let sunset = try #require(sunSet.sunset)
 
@@ -760,7 +760,7 @@ struct DashboardInsightEngineTests {
     func daylightUsesTheIPLocationsOwnTimeZoneWhenOnlyIPIsKnown() throws {
         // The snapshot time zone follows the Mac when there is no device location; the IP location knows better.
         let sydney = location(latitude: -33.8688, longitude: 151.2093, timeZone: "Australia/Sydney")
-        let zone = TimeZone(identifier: "Australia/Sydney")!
+        let zone = try #require(TimeZone(identifier: "Australia/Sydney"))
         let sunset = try #require(DaylightReference(latitude: -33.8688, longitude: 151.2093, timeZone: zone).solarDay(on: now).sunset)
         let snapshot = makeSnapshot(ipLocation: sydney, timeZoneIdentifier: "Europe/Paris")
         let insight = try #require(roadTripInsights(snapshot, at: sunset.addingTimeInterval(-30 * 60)).first)
@@ -785,7 +785,7 @@ struct DashboardInsightEngineTests {
     func daylightWithoutCivilDuskOmitsTheDetailAndNeverReportsDark() throws {
         // At 64 N near midsummer the sun sets but civil twilight never ends.
         let highNorth = location(latitude: 64.0, longitude: 25.0, timeZone: "Europe/Helsinki")
-        let zone = TimeZone(identifier: "Europe/Helsinki")!
+        let zone = try #require(TimeZone(identifier: "Europe/Helsinki"))
         let reference = DaylightReference(latitude: 64.0, longitude: 25.0, timeZone: zone)
         let june = Date(timeIntervalSince1970: 1_782_043_200) // 2026-06-21 12:00 UTC
         let day = reference.solarDay(on: june)
@@ -819,7 +819,7 @@ struct DashboardInsightEngineTests {
 
     @Test
     func upcomingPeriodIsAnInfoWithTheDaysUntilItStarts() throws {
-        let insight = try #require(rhythmInsight("SA", 2027, 2, 3))
+        let insight = try #require(rhythmInsight("SA", 2_027, 2, 3))
 
         #expect(insight.kind == .localRhythm)
         #expect(insight.severity == .info)
@@ -829,23 +829,23 @@ struct DashboardInsightEngineTests {
         #expect(insight.symbolName == "calendar.badge.clock")
         #expect(insight.relatedCard == .localInfo)
 
-        #expect(try #require(rhythmInsight("SA", 2027, 2, 7)).title == "Ramadan starts tomorrow")
+        #expect(try #require(rhythmInsight("SA", 2_027, 2, 7)).title == "Ramadan starts tomorrow")
     }
 
     @Test
     func upcomingDetailIsTheStartDateWhenTheDateIsNotExpectedToShift() throws {
-        let songkran = try #require(rhythmInsight("TH", 2027, 4, 1))
+        let songkran = try #require(rhythmInsight("TH", 2_027, 4, 1))
         #expect(songkran.title == "Songkran starts in 12 days")
         #expect(songkran.detail == "From 13 Apr")
         #expect(songkran.severity == .info)
 
         // A computed (not moon-sighted) date also reads "From".
-        #expect(try #require(rhythmInsight("IL", 2027, 10, 8)).detail == "From 11 Oct")
+        #expect(try #require(rhythmInsight("IL", 2_027, 10, 8)).detail == "From 11 Oct")
     }
 
     @Test
     func activePeriodCountsTheDaysAndUsesTheFirstSentenceOfTheGuidance() throws {
-        let insight = try #require(rhythmInsight("SA", 2027, 2, 19))
+        let insight = try #require(rhythmInsight("SA", 2_027, 2, 19))
 
         #expect(insight.severity == .info)
         #expect(insight.title == "Ramadan · day 12 of 29")
@@ -855,96 +855,96 @@ struct DashboardInsightEngineTests {
         #expect(detail.hasSuffix("…"))
         #expect(detail.count <= 44)
 
-        #expect(try #require(rhythmInsight("SA", 2027, 2, 8)).title == "Ramadan · day 1 of 29")
-        #expect(try #require(rhythmInsight("SA", 2027, 3, 8)).title == "Ramadan · day 29 of 29")
-        #expect(try #require(rhythmInsight("SA", 2027, 3, 9)).title == "Eid al-Fitr · until 11 Mar")
+        #expect(try #require(rhythmInsight("SA", 2_027, 2, 8)).title == "Ramadan · day 1 of 29")
+        #expect(try #require(rhythmInsight("SA", 2_027, 3, 8)).title == "Ramadan · day 29 of 29")
+        #expect(try #require(rhythmInsight("SA", 2_027, 3, 9)).title == "Eid al-Fitr · until 11 Mar")
     }
 
     @Test
     func shortPeriodsNameTheirLastDayAndSingleDaysSayToday() throws {
-        let songkran = try #require(rhythmInsight("TH", 2027, 4, 14))
+        let songkran = try #require(rhythmInsight("TH", 2_027, 4, 14))
         #expect(songkran.title == "Songkran · until 15 Apr")
         #expect(songkran.detail == "Thailand's New Year is a national holiday w…")
         #expect(songkran.menuBarText == "Songkran")
 
-        #expect(try #require(rhythmInsight("IT", 2027, 8, 15)).title == "Ferragosto today")
+        #expect(try #require(rhythmInsight("IT", 2_027, 8, 15)).title == "Ferragosto today")
     }
 
     @Test
     func anActivePeriodOutranksAnUpcomingOne() throws {
         // Ramadan is on its 28th day and Eid al-Fitr starts in two days.
-        #expect(try #require(rhythmInsight("SA", 2027, 3, 7)).title == "Ramadan · day 28 of 29")
+        #expect(try #require(rhythmInsight("SA", 2_027, 3, 7)).title == "Ramadan · day 28 of 29")
         // Without an active period the soonest upcoming one is reported.
-        #expect(try #require(rhythmInsight("TH", 2027, 4, 1)).title == "Songkran starts in 12 days")
+        #expect(try #require(rhythmInsight("TH", 2_027, 4, 1)).title == "Songkran starts in 12 days")
     }
 
     @Test
     func theWindowIsFourteenDays() throws {
-        #expect(try #require(rhythmInsight("SA", 2027, 1, 25)).title == "Ramadan starts in 14 days")
-        #expect(rhythmInsight("SA", 2027, 1, 24) == nil)
-        #expect(rhythmInsight("SA", 2027, 3, 10) != nil) // Eid al-Fitr, 9-11 Mar
-        #expect(rhythmInsight("SA", 2027, 3, 12) == nil)
+        #expect(try #require(rhythmInsight("SA", 2_027, 1, 25)).title == "Ramadan starts in 14 days")
+        #expect(rhythmInsight("SA", 2_027, 1, 24) == nil)
+        #expect(rhythmInsight("SA", 2_027, 3, 10) != nil) // Eid al-Fitr, 9-11 Mar
+        #expect(rhythmInsight("SA", 2_027, 3, 12) == nil)
     }
 
     @Test
     func noCountryOrAnUncoveredCountryProducesNothing() {
-        #expect(rhythmInsight(device: nil, on: date(2027, 2, 19, 12, 0)) == nil)
-        #expect(rhythmInsight("FR", 2027, 2, 19) == nil)
+        #expect(rhythmInsight(device: nil, on: date(2_027, 2, 19, 12, 0)) == nil)
+        #expect(rhythmInsight("FR", 2_027, 2, 19) == nil)
     }
 
     @Test
-    func theCountryFallsBackToIPLocationAndLocalInfo() throws {
-        let day = date(2027, 2, 19, 12, 0)
+    func theCountryFallsBackToIPLocationAndLocalInfo() {
+        let day = date(2_027, 2, 19, 12, 0)
         #expect(rhythmInsight(device: nil, ip: rhythmLocation("SA"), on: day)?.title == "Ramadan · day 12 of 29")
         #expect(rhythmInsight(device: rhythmLocation("SA"), ip: rhythmLocation("TH"), on: day)?.title == "Ramadan · day 12 of 29")
     }
 
     @Test
     func fullShutdownsAreACautionTheDayBeforeAndOnTheDay() throws {
-        let tomorrow = try #require(rhythmInsight("IL", 2027, 10, 10))
+        let tomorrow = try #require(rhythmInsight("IL", 2_027, 10, 10))
         #expect(tomorrow.severity == .caution)
         #expect(tomorrow.title == "Yom Kippur tomorrow: country stops for 25 h")
         #expect(tomorrow.detail == "From 11 Oct")
         #expect(tomorrow.menuBarText == "Yom Kippur")
 
-        let today = try #require(rhythmInsight("IL", 2027, 10, 11))
+        let today = try #require(rhythmInsight("IL", 2_027, 10, 11))
         #expect(today.severity == .caution)
         #expect(today.title == "Yom Kippur today: country stops for 25 h")
         #expect(today.detail == "Starts the evening before")
 
         // Two days ahead it is an ordinary heads-up, and it is gone the day after.
-        let early = try #require(rhythmInsight("IL", 2027, 10, 9))
+        let early = try #require(rhythmInsight("IL", 2_027, 10, 9))
         #expect(early.severity == .info)
         #expect(early.title == "Yom Kippur starts in 2 days")
-        #expect(rhythmInsight("IL", 2027, 10, 12) == nil)
+        #expect(rhythmInsight("IL", 2_027, 10, 12) == nil)
     }
 
     @Test
     func nyepiIsACautionWhenLocatedInBaliOrWhenTheRegionIsUnknown() throws {
         for device in [rhythmLocation("ID", region: "Bali"), rhythmLocation("ID", region: "Provinsi Bali"), rhythmLocation("ID")] {
-            let tomorrow = try #require(rhythmInsight(device: device, on: date(2027, 3, 7, 12, 0)))
+            let tomorrow = try #require(rhythmInsight(device: device, on: date(2_027, 3, 7, 12, 0)))
             #expect(tomorrow.severity == .caution)
             #expect(tomorrow.title == "Nyepi tomorrow: Bali shuts down for 24 h")
             #expect(tomorrow.menuBarText == "Nyepi")
 
-            let today = try #require(rhythmInsight(device: device, on: date(2027, 3, 8, 12, 0)))
+            let today = try #require(rhythmInsight(device: device, on: date(2_027, 3, 8, 12, 0)))
             #expect(today.severity == .caution)
             #expect(today.title == "Nyepi today: Bali shuts down for 24 h")
         }
     }
 
     @Test
-    func nyepiOutranksARunningRamadanInIndonesia() throws {
+    func nyepiOutranksARunningRamadanInIndonesia() {
         // Ramadan is on its last day on Nyepi, but the shutdown is what the traveller must plan for.
-        let day = date(2027, 3, 8, 12, 0)
+        let day = date(2_027, 3, 8, 12, 0)
         #expect(rhythmInsight(device: rhythmLocation("ID", region: "Bali"), on: day)?.kind == .localRhythm)
         #expect(rhythmInsight(device: rhythmLocation("ID", region: "Bali"), on: day)?.title.hasPrefix("Nyepi") == true)
-        #expect(rhythmInsight(device: rhythmLocation("ID", region: "Bali"), on: date(2027, 3, 6, 12, 0))?.title == "Ramadan · day 27 of 29")
+        #expect(rhythmInsight(device: rhythmLocation("ID", region: "Bali"), on: date(2_027, 3, 6, 12, 0))?.title == "Ramadan · day 27 of 29")
     }
 
     @Test
     func nyepiIsDroppedOutsideBali() throws {
-        let day = date(2027, 3, 7, 12, 0)
+        let day = date(2_027, 3, 7, 12, 0)
         for region in ["Jakarta", "Special Region of Yogyakarta", "Balikpapan"] {
             // Only Ramadan (on its 28th day) is left.
             let insight = try #require(rhythmInsight(device: rhythmLocation("ID", region: region), on: day))
@@ -954,8 +954,8 @@ struct DashboardInsightEngineTests {
     }
 
     @Test
-    func nyepiRegionComesFromTheDeviceThenTheIPLocation() throws {
-        let day = date(2027, 3, 7, 12, 0)
+    func nyepiRegionComesFromTheDeviceThenTheIPLocation() {
+        let day = date(2_027, 3, 7, 12, 0)
         // IP region alone decides when the device has none (or a blank region).
         #expect(rhythmInsight(device: nil, ip: rhythmLocation("ID", region: "Bali"), on: day)?.severity == .caution)
         #expect(rhythmInsight(device: nil, ip: rhythmLocation("ID", region: "Jakarta"), on: day)?.severity == .info)
@@ -968,14 +968,14 @@ struct DashboardInsightEngineTests {
     @Test
     func localRhythmRanksRightAfterThePublicHoliday() {
         // Public holiday tomorrow, Ramadan day 1 and diesel nearby are all info.
-        let tomorrow = date(2027, 2, 9, 0, 0)
+        let tomorrow = date(2_027, 2, 9, 0, 0)
         let snapshot = makeSnapshot(
             localInfo: makeLocalInfo(nextPeriod: HolidayPeriodSnapshot(name: "Armistice", startDate: tomorrow, endDate: tomorrow)),
             fuel: makeFuel(diesel: station(.diesel)),
             deviceLocation: rhythmLocation("SA")
         )
 
-        let kinds = DashboardInsightEngine.insights(for: snapshot, now: date(2027, 2, 8, 12, 0), calendar: parisCalendar, limit: 20).map(\.kind)
+        let kinds = DashboardInsightEngine.insights(for: snapshot, now: date(2_027, 2, 8, 12, 0), calendar: parisCalendar, limit: 20).map(\.kind)
         #expect(kinds == [.publicHoliday, .localRhythm, .fuelNearby])
     }
 
@@ -990,7 +990,7 @@ struct DashboardInsightEngineTests {
         for country in countries {
             // A weekly sweep with a two-week window sees every period of the year.
             for week in 0..<53 {
-                let day = parisCalendar.date(byAdding: .day, value: week * 7, to: date(2027, 1, 1, 12, 0))!
+                let day = parisCalendar.date(byAdding: .day, value: week * 7, to: date(2_027, 1, 1, 12, 0))!
                 guard let insight = DashboardInsightEngine.insights(
                     for: makeSnapshot(deviceLocation: rhythmLocation(country)), now: day, calendar: parisCalendar, limit: 20
                 ).first(where: { $0.kind == .localRhythm }) else {
@@ -1008,11 +1008,11 @@ struct DashboardInsightEngineTests {
     @Test
     func longPeriodNamesFallBackToACompactMenuBarText() throws {
         // "Spring Festival", "Lunar New Year" and "Settimana Santa" are longer than the menu bar allows.
-        #expect(try #require(rhythmInsight("CN", 2027, 1, 30)).title == "Spring Festival starts in 6 days")
-        #expect(try #require(rhythmInsight("CN", 2027, 1, 30)).menuBarText == "New Year")
-        #expect(try #require(rhythmInsight("HK", 2027, 1, 30)).menuBarText == "New Year")
-        #expect(try #require(rhythmInsight("IT", 2027, 3, 20)).menuBarText == "Holy Week")
-        #expect(try #require(rhythmInsight("VN", 2027, 1, 30)).menuBarText == "Tết")
+        #expect(try #require(rhythmInsight("CN", 2_027, 1, 30)).title == "Spring Festival starts in 6 days")
+        #expect(try #require(rhythmInsight("CN", 2_027, 1, 30)).menuBarText == "New Year")
+        #expect(try #require(rhythmInsight("HK", 2_027, 1, 30)).menuBarText == "New Year")
+        #expect(try #require(rhythmInsight("IT", 2_027, 3, 20)).menuBarText == "Holy Week")
+        #expect(try #require(rhythmInsight("VN", 2_027, 1, 30)).menuBarText == "Tết")
     }
 
     // MARK: - Fixtures

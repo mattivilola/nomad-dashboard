@@ -63,6 +63,7 @@ public final class PowerHelperClient: LidClosedSleepControlling {
     private let teamIdentifier: String
     private let service: any PowerHelperServiceManaging
     private var connection: NSXPCConnection?
+    private var connectionID: UUID?
 
     /// - Parameters:
     ///   - appBundleIdentifier: The app's bundle identifier; the helper's label is derived from it.
@@ -149,6 +150,7 @@ public final class PowerHelperClient: LidClosedSleepControlling {
         // Closing the connection is what ends a session for good, even if the polite request never arrives.
         defer {
             self.connection = nil
+            connectionID = nil
             connection.invalidate()
         }
         guard let proxy = try? makeProxy(existing: connection) else {
@@ -198,12 +200,17 @@ public final class PowerHelperClient: LidClosedSleepControlling {
         }
         newConnection.setCodeSigningRequirement(requirement)
 
-        let dropped: @Sendable () -> Void = { [weak self, weak newConnection] in
+        // Older SDKs do not mark NSXPCConnection as Sendable. Carry a value identifying this
+        // connection across the callback boundary and only touch the connection on the main actor.
+        let connectionID = UUID()
+        self.connectionID = connectionID
+        let dropped: @Sendable () -> Void = { [weak self] in
             Task { @MainActor in
-                guard let self, let newConnection, self.connection === newConnection else {
+                guard let self, self.connectionID == connectionID, self.connection != nil else {
                     return
                 }
                 self.connection = nil
+                self.connectionID = nil
                 self.eventHandler?(.connectionLost)
             }
         }

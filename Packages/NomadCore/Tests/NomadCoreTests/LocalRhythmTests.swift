@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import NomadCore
+import Testing
 
 /// Reference dates (all checked on 2026-10-12):
 /// - Umm al-Qura (Ramadan, Eid al-Fitr, Eid al-Adha): the AlAdhan.com tables
@@ -80,37 +80,37 @@ struct LocalRhythmTests {
             Self.period(kind, in: Self.periods(country, year, month, day))?.shortName
         }
 
-        #expect(shortName("VN", 2027, 2, 1, .lunarNewYear) == "Tết")
-        #expect(shortName("ID", 2027, 3, 8, .nyepi) == "Nyepi")
-        #expect(shortName("TH", 2027, 4, 14, .songkran) == "Songkran")
-        #expect(shortName("CN", 2027, 2, 1, .lunarNewYear) == "Spring Festival")
-        #expect(shortName("SG", 2027, 2, 1, .lunarNewYear) == "Lunar New Year")
-        #expect(shortName("SA", 2027, 2, 19, .ramadan) == "Ramadan")
+        #expect(shortName("VN", 2_027, 2, 1, .lunarNewYear) == "Tết")
+        #expect(shortName("ID", 2_027, 3, 8, .nyepi) == "Nyepi")
+        #expect(shortName("TH", 2_027, 4, 14, .songkran) == "Songkran")
+        #expect(shortName("CN", 2_027, 2, 1, .lunarNewYear) == "Spring Festival")
+        #expect(shortName("SG", 2_027, 2, 1, .lunarNewYear) == "Lunar New Year")
+        #expect(shortName("SA", 2_027, 2, 19, .ramadan) == "Ramadan")
     }
 
     // MARK: - Ramadan and the Eids
 
     @Test
     func ramadanDates() {
-        expectSpan(Self.period(.ramadan, in: Self.periods("SA", 2026, 3, 1)), from: (2026, 2, 18), to: (2026, 3, 19))
-        expectSpan(Self.period(.ramadan, in: Self.periods("SA", 2027, 2, 20)), from: (2027, 2, 8), to: (2027, 3, 8))
+        expectSpan(Self.period(.ramadan, in: Self.periods("SA", 2_026, 3, 1)), from: (2_026, 2, 18), to: (2_026, 3, 19))
+        expectSpan(Self.period(.ramadan, in: Self.periods("SA", 2_027, 2, 20)), from: (2_027, 2, 8), to: (2_027, 3, 8))
     }
 
     @Test
     func eidAlFitrDates() {
-        expectSpan(Self.period(.eidAlFitr, in: Self.periods("SA", 2026, 3, 21)), from: (2026, 3, 20), to: (2026, 3, 22))
-        expectSpan(Self.period(.eidAlFitr, in: Self.periods("SA", 2027, 3, 10)), from: (2027, 3, 9), to: (2027, 3, 11))
+        expectSpan(Self.period(.eidAlFitr, in: Self.periods("SA", 2_026, 3, 21)), from: (2_026, 3, 20), to: (2_026, 3, 22))
+        expectSpan(Self.period(.eidAlFitr, in: Self.periods("SA", 2_027, 3, 10)), from: (2_027, 3, 9), to: (2_027, 3, 11))
     }
 
     @Test
     func eidAlAdhaDates() {
-        expectSpan(Self.period(.eidAlAdha, in: Self.periods("SA", 2026, 5, 28)), from: (2026, 5, 27), to: (2026, 5, 30))
-        expectSpan(Self.period(.eidAlAdha, in: Self.periods("SA", 2027, 5, 17)), from: (2027, 5, 16), to: (2027, 5, 19))
+        expectSpan(Self.period(.eidAlAdha, in: Self.periods("SA", 2_026, 5, 28)), from: (2_026, 5, 27), to: (2_026, 5, 30))
+        expectSpan(Self.period(.eidAlAdha, in: Self.periods("SA", 2_027, 5, 17)), from: (2_027, 5, 16), to: (2_027, 5, 19))
     }
 
     @Test
     func islamicPeriodsAreExpectedDates() {
-        let periods = Self.periods("MA", 2027, 2, 20, lookahead: 120)
+        let periods = Self.periods("MA", 2_027, 2, 20, lookahead: 120)
         for kind in [LocalRhythmKind.ramadan, .eidAlFitr, .eidAlAdha] {
             #expect(Self.period(kind, in: periods)?.confidence == .expected)
         }
@@ -119,18 +119,18 @@ struct LocalRhythmTests {
     @Test
     func ramadanStartingInTheNextHijriYearIsFound() {
         // 1 Ramadan 1449 falls in January 2028, in a different Hijri and Gregorian year than 2027.
-        let ramadan = Self.period(.ramadan, in: Self.periods("SA", 2027, 12, 25, lookahead: 60))
+        let ramadan = Self.period(.ramadan, in: Self.periods("SA", 2_027, 12, 25, lookahead: 60))
         let start = ramadan?.start
         let parts = start.map { Self.calendar().dateComponents([.year, .month], from: $0) }
-        #expect(parts?.year == 2028)
+        #expect(parts?.year == 2_028)
         #expect(parts?.month == 1)
     }
 
     @Test
     func ramadanGuidanceDiffersBetweenCountries() throws {
-        let saudi = try #require(Self.period(.ramadan, in: Self.periods("SA", 2027, 2, 10)))
-        let turkey = try #require(Self.period(.ramadan, in: Self.periods("TR", 2027, 2, 10)))
-        let indonesia = try #require(Self.period(.ramadan, in: Self.periods("ID", 2027, 2, 10)))
+        let saudi = try #require(Self.period(.ramadan, in: Self.periods("SA", 2_027, 2, 10)))
+        let turkey = try #require(Self.period(.ramadan, in: Self.periods("TR", 2_027, 2, 10)))
+        let indonesia = try #require(Self.period(.ramadan, in: Self.periods("ID", 2_027, 2, 10)))
         #expect(saudi.guidance.contains("Avoid eating, drinking or smoking in public"))
         #expect(turkey.guidance != saudi.guidance)
         #expect(turkey.guidance.contains("most restaurants and cafés in cities and tourist areas stay open"))
@@ -142,59 +142,59 @@ struct LocalRhythmTests {
 
     @Test
     func lunarNewYearDatesInSingapore() {
-        expectSpan(Self.period(.lunarNewYear, in: Self.periods("SG", 2026, 2, 10)), from: (2026, 2, 17), to: (2026, 2, 18))
-        expectSpan(Self.period(.lunarNewYear, in: Self.periods("SG", 2027, 2, 1)), from: (2027, 2, 6), to: (2027, 2, 7))
+        expectSpan(Self.period(.lunarNewYear, in: Self.periods("SG", 2_026, 2, 10)), from: (2_026, 2, 17), to: (2_026, 2, 18))
+        expectSpan(Self.period(.lunarNewYear, in: Self.periods("SG", 2_027, 2, 1)), from: (2_027, 2, 6), to: (2_027, 2, 7))
     }
 
     @Test
     func lunarNewYearSpansPerCountry() {
         // New Year's Day 17 Feb 2026 and 6 Feb 2027; spans are offsets from it (see the file header).
         let expectations: [(String, (Int, Int, Int), (Int, Int, Int))] = [
-            ("CN", (2026, 2, 16), (2026, 2, 23)),
-            ("TW", (2026, 2, 15), (2026, 2, 19)),
-            ("VN", (2026, 2, 16), (2026, 2, 20)),
-            ("KR", (2026, 2, 16), (2026, 2, 18)),
-            ("SG", (2026, 2, 17), (2026, 2, 18)),
-            ("MY", (2026, 2, 17), (2026, 2, 18)),
-            ("HK", (2026, 2, 17), (2026, 2, 19)),
-            ("MO", (2026, 2, 17), (2026, 2, 19))
+            ("CN", (2_026, 2, 16), (2_026, 2, 23)),
+            ("TW", (2_026, 2, 15), (2_026, 2, 19)),
+            ("VN", (2_026, 2, 16), (2_026, 2, 20)),
+            ("KR", (2_026, 2, 16), (2_026, 2, 18)),
+            ("SG", (2_026, 2, 17), (2_026, 2, 18)),
+            ("MY", (2_026, 2, 17), (2_026, 2, 18)),
+            ("HK", (2_026, 2, 17), (2_026, 2, 19)),
+            ("MO", (2_026, 2, 17), (2_026, 2, 19))
         ]
         for (country, from, to) in expectations {
-            expectSpan(Self.period(.lunarNewYear, in: Self.periods(country, 2026, 2, 12)), from: from, to: to)
+            expectSpan(Self.period(.lunarNewYear, in: Self.periods(country, 2_026, 2, 12)), from: from, to: to)
         }
     }
 
     @Test
     func lunarNewYear2027InChinaStartsOnTheEve() {
-        expectSpan(Self.period(.lunarNewYear, in: Self.periods("CN", 2027, 2, 1)), from: (2027, 2, 5), to: (2027, 2, 12))
+        expectSpan(Self.period(.lunarNewYear, in: Self.periods("CN", 2_027, 2, 1)), from: (2_027, 2, 5), to: (2_027, 2, 12))
     }
 
     @Test
     func lunarNewYearNamesAreLocalised() {
-        #expect(Self.period(.lunarNewYear, in: Self.periods("VN", 2026, 2, 12))?.name == "Tết (Lunar New Year)")
-        #expect(Self.period(.lunarNewYear, in: Self.periods("KR", 2026, 2, 12))?.name == "Seollal (Lunar New Year)")
-        #expect(Self.period(.lunarNewYear, in: Self.periods("CN", 2026, 2, 12))?.name == "Spring Festival (Lunar New Year)")
-        #expect(Self.period(.lunarNewYear, in: Self.periods("SG", 2026, 2, 12))?.name == "Lunar New Year")
+        #expect(Self.period(.lunarNewYear, in: Self.periods("VN", 2_026, 2, 12))?.name == "Tết (Lunar New Year)")
+        #expect(Self.period(.lunarNewYear, in: Self.periods("KR", 2_026, 2, 12))?.name == "Seollal (Lunar New Year)")
+        #expect(Self.period(.lunarNewYear, in: Self.periods("CN", 2_026, 2, 12))?.name == "Spring Festival (Lunar New Year)")
+        #expect(Self.period(.lunarNewYear, in: Self.periods("SG", 2_026, 2, 12))?.name == "Lunar New Year")
     }
 
     @Test
     func lunarNewYearInJanuaryOfTheNextYearIsFound() {
         // Lunar New Year 2028 is 26 Jan, so the eve (25 Jan) is within 14 days of 20 Jan but the year differs from 2027.
-        let found = Self.period(.lunarNewYear, in: Self.periods("CN", 2028, 1, 20))
-        expectSpan(found, from: (2028, 1, 25), to: (2028, 2, 1))
-        #expect(Self.period(.lunarNewYear, in: Self.periods("CN", 2027, 12, 20, lookahead: 60))?.start == found?.start)
+        let found = Self.period(.lunarNewYear, in: Self.periods("CN", 2_028, 1, 20))
+        expectSpan(found, from: (2_028, 1, 25), to: (2_028, 2, 1))
+        #expect(Self.period(.lunarNewYear, in: Self.periods("CN", 2_027, 12, 20, lookahead: 60))?.start == found?.start)
     }
 
     // MARK: - Holy Week
 
     @Test
     func holyWeekDates() {
-        expectSpan(Self.period(.holyWeek, in: Self.periods("ES", 2026, 3, 25)), from: (2026, 3, 29), to: (2026, 4, 5))
-        expectSpan(Self.period(.holyWeek, in: Self.periods("ES", 2027, 3, 15)), from: (2027, 3, 21), to: (2027, 3, 28))
+        expectSpan(Self.period(.holyWeek, in: Self.periods("ES", 2_026, 3, 25)), from: (2_026, 3, 29), to: (2_026, 4, 5))
+        expectSpan(Self.period(.holyWeek, in: Self.periods("ES", 2_027, 3, 15)), from: (2_027, 3, 21), to: (2_027, 3, 28))
     }
 
     @Test(arguments: [
-        (2024, 3, 31), (2025, 4, 20), (2026, 4, 5), (2027, 3, 28), (2028, 4, 16), (2029, 4, 1), (2030, 4, 21)
+        (2_024, 3, 31), (2_025, 4, 20), (2_026, 4, 5), (2_027, 3, 28), (2_028, 4, 16), (2_029, 4, 1), (2_030, 4, 21)
     ])
     func easterSundayIsTheLastDayOfHolyWeek(year: Int, month: Int, day: Int) {
         let calendar = Self.calendar()
@@ -206,10 +206,10 @@ struct LocalRhythmTests {
 
     @Test
     func holyWeekNamesAndGuidance() throws {
-        #expect(Self.period(.holyWeek, in: Self.periods("ES", 2027, 3, 21))?.name == "Semana Santa (Holy Week)")
-        #expect(Self.period(.holyWeek, in: Self.periods("IT", 2027, 3, 21))?.name == "Settimana Santa (Holy Week)")
-        let mexico = try #require(Self.period(.holyWeek, in: Self.periods("MX", 2027, 3, 21)))
-        let spain = try #require(Self.period(.holyWeek, in: Self.periods("ES", 2027, 3, 21)))
+        #expect(Self.period(.holyWeek, in: Self.periods("ES", 2_027, 3, 21))?.name == "Semana Santa (Holy Week)")
+        #expect(Self.period(.holyWeek, in: Self.periods("IT", 2_027, 3, 21))?.name == "Settimana Santa (Holy Week)")
+        let mexico = try #require(Self.period(.holyWeek, in: Self.periods("MX", 2_027, 3, 21)))
+        let spain = try #require(Self.period(.holyWeek, in: Self.periods("ES", 2_027, 3, 21)))
         #expect(mexico.guidance != spain.guidance)
     }
 
@@ -217,76 +217,76 @@ struct LocalRhythmTests {
 
     @Test
     func yomKippurDates() {
-        expectSpan(Self.period(.yomKippur, in: Self.periods("IL", 2026, 9, 20)), from: (2026, 9, 21), to: (2026, 9, 21))
-        expectSpan(Self.period(.yomKippur, in: Self.periods("IL", 2027, 10, 11)), from: (2027, 10, 11), to: (2027, 10, 11))
-        #expect(Self.period(.yomKippur, in: Self.periods("IL", 2027, 10, 1))?.guidance.hasPrefix("Starts the evening before.") == true)
+        expectSpan(Self.period(.yomKippur, in: Self.periods("IL", 2_026, 9, 20)), from: (2_026, 9, 21), to: (2_026, 9, 21))
+        expectSpan(Self.period(.yomKippur, in: Self.periods("IL", 2_027, 10, 11)), from: (2_027, 10, 11), to: (2_027, 10, 11))
+        #expect(Self.period(.yomKippur, in: Self.periods("IL", 2_027, 10, 1))?.guidance.hasPrefix("Starts the evening before.") == true)
     }
 
     @Test
     func fixedDates() {
-        for year in [2026, 2027] {
+        for year in [2_026, 2_027] {
             expectSpan(Self.period(.songkran, in: Self.periods("TH", year, 4, 10)), from: (year, 4, 13), to: (year, 4, 15))
             expectSpan(Self.period(.goldenWeek, in: Self.periods("JP", year, 4, 20)), from: (year, 4, 29), to: (year, 5, 5))
             expectSpan(Self.period(.ferragosto, in: Self.periods("IT", year, 8, 10)), from: (year, 8, 15), to: (year, 8, 15))
         }
-        #expect(Self.period(.songkran, in: Self.periods("TH", 2026, 4, 10))?.confidence == .fixed)
-        #expect(Self.period(.ferragosto, in: Self.periods("IT", 2026, 8, 10))?.guidance.contains("mid-August") == true)
+        #expect(Self.period(.songkran, in: Self.periods("TH", 2_026, 4, 10))?.confidence == .fixed)
+        #expect(Self.period(.ferragosto, in: Self.periods("IT", 2_026, 8, 10))?.guidance.contains("mid-August") == true)
     }
 
     @Test
     func goldenWeekIsActiveWhileItRuns() {
-        let periods = Self.periods("JP", 2026, 5, 3, lookahead: 0)
-        expectSpan(Self.period(.goldenWeek, in: periods), from: (2026, 4, 29), to: (2026, 5, 5))
+        let periods = Self.periods("JP", 2_026, 5, 3, lookahead: 0)
+        expectSpan(Self.period(.goldenWeek, in: periods), from: (2_026, 4, 29), to: (2_026, 5, 5))
     }
 
     // MARK: - Tables: Nyepi and Diwali
 
     @Test
     func nyepiDates() {
-        expectSpan(Self.period(.nyepi, in: Self.periods("ID", 2026, 3, 10)), from: (2026, 3, 19), to: (2026, 3, 19))
-        expectSpan(Self.period(.nyepi, in: Self.periods("ID", 2027, 3, 1)), from: (2027, 3, 8), to: (2027, 3, 8))
-        #expect(Self.period(.nyepi, in: Self.periods("ID", 2027, 3, 1))?.guidance.contains("airport") == true)
+        expectSpan(Self.period(.nyepi, in: Self.periods("ID", 2_026, 3, 10)), from: (2_026, 3, 19), to: (2_026, 3, 19))
+        expectSpan(Self.period(.nyepi, in: Self.periods("ID", 2_027, 3, 1)), from: (2_027, 3, 8), to: (2_027, 3, 8))
+        #expect(Self.period(.nyepi, in: Self.periods("ID", 2_027, 3, 1))?.guidance.contains("airport") == true)
     }
 
     @Test
     func diwaliDatesInIndia() {
         // Lakshmi Puja 8 Nov 2026 and 29 Oct 2027; the period runs from the day before to the day after.
-        expectSpan(Self.period(.diwali, in: Self.periods("IN", 2026, 11, 1)), from: (2026, 11, 7), to: (2026, 11, 9))
-        expectSpan(Self.period(.diwali, in: Self.periods("IN", 2027, 10, 20)), from: (2027, 10, 28), to: (2027, 10, 30))
-        #expect(Self.period(.diwali, in: Self.periods("IN", 2026, 11, 1))?.confidence == .expected)
+        expectSpan(Self.period(.diwali, in: Self.periods("IN", 2_026, 11, 1)), from: (2_026, 11, 7), to: (2_026, 11, 9))
+        expectSpan(Self.period(.diwali, in: Self.periods("IN", 2_027, 10, 20)), from: (2_027, 10, 28), to: (2_027, 10, 30))
+        #expect(Self.period(.diwali, in: Self.periods("IN", 2_026, 11, 1))?.confidence == .expected)
     }
 
     @Test
     func diwaliDatesInOtherCountries() {
-        expectSpan(Self.period(.diwali, in: Self.periods("SG", 2026, 11, 1)), from: (2026, 11, 8), to: (2026, 11, 8))
-        expectSpan(Self.period(.diwali, in: Self.periods("SG", 2027, 10, 20)), from: (2027, 10, 28), to: (2027, 10, 28))
-        expectSpan(Self.period(.diwali, in: Self.periods("MY", 2026, 11, 1)), from: (2026, 11, 8), to: (2026, 11, 8))
-        expectSpan(Self.period(.diwali, in: Self.periods("NP", 2026, 11, 1)), from: (2026, 11, 8), to: (2026, 11, 10))
-        #expect(Self.period(.diwali, in: Self.periods("NP", 2026, 11, 1))?.name == "Tihar (Festival of Lights)")
+        expectSpan(Self.period(.diwali, in: Self.periods("SG", 2_026, 11, 1)), from: (2_026, 11, 8), to: (2_026, 11, 8))
+        expectSpan(Self.period(.diwali, in: Self.periods("SG", 2_027, 10, 20)), from: (2_027, 10, 28), to: (2_027, 10, 28))
+        expectSpan(Self.period(.diwali, in: Self.periods("MY", 2_026, 11, 1)), from: (2_026, 11, 8), to: (2_026, 11, 8))
+        expectSpan(Self.period(.diwali, in: Self.periods("NP", 2_026, 11, 1)), from: (2_026, 11, 8), to: (2_026, 11, 10))
+        #expect(Self.period(.diwali, in: Self.periods("NP", 2_026, 11, 1))?.name == "Tihar (Festival of Lights)")
     }
 
     @Test
     func tableYearsOutsideTheTableReturnNothing() {
         // Nyepi has a decree for 2026 and 2027 only.
-        for (year, month) in [(2025, 3), (2028, 3), (2029, 3), (2030, 3)] {
+        for (year, month) in [(2_025, 3), (2_028, 3), (2_029, 3), (2_030, 3)] {
             let periods = Self.periods("ID", year, month, 1, lookahead: 60)
             #expect(Self.period(.nyepi, in: periods) == nil, "Nyepi \(year)")
         }
         // India is tabled for 2026-2032 only.
-        for (year, month) in [(2025, 10), (2033, 10), (2033, 11)] {
+        for (year, month) in [(2_025, 10), (2_033, 10), (2_033, 11)] {
             let periods = Self.periods("IN", year, month, 1, lookahead: 60)
             #expect(Self.period(.diwali, in: periods) == nil, "Diwali \(year)")
         }
         // Singapore 2028, Malaysia 2027 and Nepal 2028 are not tabled.
-        #expect(Self.period(.diwali, in: Self.periods("SG", 2028, 10, 1, lookahead: 60)) == nil)
-        #expect(Self.period(.diwali, in: Self.periods("MY", 2027, 10, 1, lookahead: 60)) == nil)
-        #expect(Self.period(.diwali, in: Self.periods("NP", 2028, 10, 1, lookahead: 60)) == nil)
+        #expect(Self.period(.diwali, in: Self.periods("SG", 2_028, 10, 1, lookahead: 60)) == nil)
+        #expect(Self.period(.diwali, in: Self.periods("MY", 2_027, 10, 1, lookahead: 60)) == nil)
+        #expect(Self.period(.diwali, in: Self.periods("NP", 2_028, 10, 1, lookahead: 60)) == nil)
     }
 
     @Test
     func computedDatesAreNotLimitedByATable() {
         // Easter 2035 is 25 Mar; Holy Week is computed, not tabled.
-        expectSpan(Self.period(.holyWeek, in: Self.periods("ES", 2035, 3, 15)), from: (2035, 3, 18), to: (2035, 3, 25))
+        expectSpan(Self.period(.holyWeek, in: Self.periods("ES", 2_035, 3, 15)), from: (2_035, 3, 18), to: (2_035, 3, 25))
     }
 
     // MARK: - Country applicability
@@ -295,13 +295,13 @@ struct LocalRhythmTests {
     func countriesWithoutAVisiblePeriodReturnNothing() {
         for country in ["FI", "DE", "US", "GB", "CH", "AZ", "UZ", "KZ"] {
             for month in 1...12 {
-                #expect(Self.periods(country, 2027, month, 1, lookahead: 31).isEmpty, "\(country) month \(month)")
+                #expect(Self.periods(country, 2_027, month, 1, lookahead: 31).isEmpty, "\(country) month \(month)")
             }
         }
     }
 
     @Test
-    func everyKindAppliesToItsDocumentedCountries() {
+    func everyKindAppliesToItsDocumentedCountries() throws {
         let documented: [LocalRhythmKind: [String]] = [
             .ramadan: ["MA", "DZ", "TN", "LY", "EG", "JO", "SA", "AE", "QA", "KW", "BH", "OM", "TR", "ID", "MY", "BN", "PK", "BD", "SN", "MV", "IR", "IQ", "MR"],
             .eidAlFitr: ["MA", "SA", "AE", "TR", "ID", "MY", "PK", "BD"],
@@ -319,13 +319,13 @@ struct LocalRhythmTests {
 
         // Query a day inside each kind's 2026 period, with a window wide enough to find it.
         let probes: [LocalRhythmKind: (Int, Int, Int)] = [
-            .ramadan: (2026, 2, 25), .eidAlFitr: (2026, 3, 21), .eidAlAdha: (2026, 5, 28),
-            .lunarNewYear: (2026, 2, 17), .holyWeek: (2026, 4, 2), .yomKippur: (2026, 9, 21),
-            .songkran: (2026, 4, 14), .goldenWeek: (2026, 5, 1), .nyepi: (2026, 3, 19),
-            .diwali: (2026, 11, 8), .ferragosto: (2026, 8, 15)
+            .ramadan: (2_026, 2, 25), .eidAlFitr: (2_026, 3, 21), .eidAlAdha: (2_026, 5, 28),
+            .lunarNewYear: (2_026, 2, 17), .holyWeek: (2_026, 4, 2), .yomKippur: (2_026, 9, 21),
+            .songkran: (2_026, 4, 14), .goldenWeek: (2_026, 5, 1), .nyepi: (2_026, 3, 19),
+            .diwali: (2_026, 11, 8), .ferragosto: (2_026, 8, 15)
         ]
         for (kind, countries) in documented {
-            let (year, month, day) = probes[kind]!
+            let (year, month, day) = try #require(probes[kind])
             for country in countries {
                 let found = Self.period(kind, in: Self.periods(country, year, month, day, lookahead: 0))
                 #expect(found != nil, "\(kind) in \(country)")
@@ -335,20 +335,20 @@ struct LocalRhythmTests {
 
     @Test
     func countryCodeIsNormalised() {
-        let reference = Self.periods("SA", 2027, 2, 20, lookahead: 0)
+        let reference = Self.periods("SA", 2_027, 2, 20, lookahead: 0)
         #expect(!reference.isEmpty)
-        #expect(Self.periods(" sa\n", 2027, 2, 20, lookahead: 0) == reference)
-        #expect(Self.periods("sA", 2027, 2, 20, lookahead: 0) == reference)
+        #expect(Self.periods(" sa\n", 2_027, 2, 20, lookahead: 0) == reference)
+        #expect(Self.periods("sA", 2_027, 2, 20, lookahead: 0) == reference)
         #expect(reference.allSatisfy { $0.countryCode == "SA" })
     }
 
     @Test
     func missingOrUnknownCountryReturnsNothing() {
-        #expect(Self.periods(nil, 2027, 2, 20).isEmpty)
-        #expect(Self.periods("", 2027, 2, 20).isEmpty)
-        #expect(Self.periods("   ", 2027, 2, 20).isEmpty)
-        #expect(Self.periods("ZZ", 2027, 2, 20).isEmpty)
-        #expect(Self.periods("SAU", 2027, 2, 20).isEmpty)
+        #expect(Self.periods(nil, 2_027, 2, 20).isEmpty)
+        #expect(Self.periods("", 2_027, 2, 20).isEmpty)
+        #expect(Self.periods("   ", 2_027, 2, 20).isEmpty)
+        #expect(Self.periods("ZZ", 2_027, 2, 20).isEmpty)
+        #expect(Self.periods("SAU", 2_027, 2, 20).isEmpty)
     }
 
     // MARK: - Lookahead window
@@ -356,23 +356,23 @@ struct LocalRhythmTests {
     @Test
     func upcomingPeriodWithinTheLookaheadIsReturned() {
         // Ramadan 2027 starts at 00:00 on 8 Feb. The helper asks at noon, so the window ends at noon.
-        #expect(Self.period(.ramadan, in: Self.periods("SA", 2027, 1, 24, lookahead: 14)) == nil)
-        #expect(Self.period(.ramadan, in: Self.periods("SA", 2027, 1, 25, lookahead: 14)) != nil)
-        #expect(Self.period(.ramadan, in: Self.periods("SA", 2027, 1, 23, lookahead: 15)) == nil)
-        #expect(Self.period(.ramadan, in: Self.periods("SA", 2027, 1, 24, lookahead: 15)) != nil)
-        #expect(Self.period(.ramadan, in: Self.periods("SA", 2027, 1, 1, lookahead: 14)) == nil)
+        #expect(Self.period(.ramadan, in: Self.periods("SA", 2_027, 1, 24, lookahead: 14)) == nil)
+        #expect(Self.period(.ramadan, in: Self.periods("SA", 2_027, 1, 25, lookahead: 14)) != nil)
+        #expect(Self.period(.ramadan, in: Self.periods("SA", 2_027, 1, 23, lookahead: 15)) == nil)
+        #expect(Self.period(.ramadan, in: Self.periods("SA", 2_027, 1, 24, lookahead: 15)) != nil)
+        #expect(Self.period(.ramadan, in: Self.periods("SA", 2_027, 1, 1, lookahead: 14)) == nil)
     }
 
     @Test
-    func lookaheadBoundaryIsExactToTheSecond() {
+    func lookaheadBoundaryIsExactToTheSecond() throws {
         let calendar = Self.calendar()
-        let start = Self.date(2027, 2, 8, in: calendar)
-        let exactly = LocalRhythmCalendar.periods(
-            forCountryCode: "SA", around: calendar.date(byAdding: .day, value: -14, to: start)!,
+        let start = Self.date(2_027, 2, 8, in: calendar)
+        let exactly = try LocalRhythmCalendar.periods(
+            forCountryCode: "SA", around: #require(calendar.date(byAdding: .day, value: -14, to: start)),
             lookaheadDays: 14, calendar: calendar
         )
-        let oneSecondEarlier = LocalRhythmCalendar.periods(
-            forCountryCode: "SA", around: calendar.date(byAdding: .day, value: -14, to: start)!.addingTimeInterval(-1),
+        let oneSecondEarlier = try LocalRhythmCalendar.periods(
+            forCountryCode: "SA", around: #require(calendar.date(byAdding: .day, value: -14, to: start)?.addingTimeInterval(-1)),
             lookaheadDays: 14, calendar: calendar
         )
         #expect(Self.period(.ramadan, in: exactly) != nil)
@@ -381,15 +381,15 @@ struct LocalRhythmTests {
 
     @Test
     func activePeriodIsReturnedWithoutLookahead() {
-        let periods = Self.periods("SA", 2027, 2, 20, lookahead: 0)
-        expectSpan(Self.period(.ramadan, in: periods), from: (2027, 2, 8), to: (2027, 3, 8))
+        let periods = Self.periods("SA", 2_027, 2, 20, lookahead: 0)
+        expectSpan(Self.period(.ramadan, in: periods), from: (2_027, 2, 8), to: (2_027, 3, 8))
         #expect(periods.count == 1)
     }
 
     @Test
     func periodAlreadyActiveStaysInTheListUntilItsLastSecond() {
         let calendar = Self.calendar()
-        let lastSecond = Self.date(2027, 3, 8, 23, 59, 59, in: calendar)
+        let lastSecond = Self.date(2_027, 3, 8, 23, 59, 59, in: calendar)
         let during = LocalRhythmCalendar.periods(forCountryCode: "SA", around: lastSecond, lookaheadDays: 0, calendar: calendar)
         let after = LocalRhythmCalendar.periods(forCountryCode: "SA", around: lastSecond.addingTimeInterval(1), lookaheadDays: 0, calendar: calendar)
         #expect(during.map(\.kind) == [.ramadan])
@@ -398,21 +398,21 @@ struct LocalRhythmTests {
 
     @Test
     func endedPeriodsAreNotReturned() {
-        let periods = Self.periods("SA", 2027, 4, 1, lookahead: 7)
+        let periods = Self.periods("SA", 2_027, 4, 1, lookahead: 7)
         #expect(Self.period(.ramadan, in: periods) == nil)
         #expect(Self.period(.eidAlFitr, in: periods) == nil)
     }
 
     @Test
     func negativeLookaheadBehavesLikeZero() {
-        let negative = Self.periods("SA", 2027, 2, 1, lookahead: -5)
-        #expect(negative == Self.periods("SA", 2027, 2, 1, lookahead: 0))
+        let negative = Self.periods("SA", 2_027, 2, 1, lookahead: -5)
+        #expect(negative == Self.periods("SA", 2_027, 2, 1, lookahead: 0))
     }
 
     @Test
     func resultsAreSortedByStart() {
         // Mid-March 2027 in Indonesia: Nyepi (8 Mar), Ramadan (ended 8 Mar), Eid al-Fitr (9 Mar) all lie around the window.
-        let periods = Self.periods("ID", 2027, 3, 8, lookahead: 60)
+        let periods = Self.periods("ID", 2_027, 3, 8, lookahead: 60)
         #expect(periods.map(\.kind) == [.ramadan, .nyepi, .eidAlFitr])
         #expect(periods.map(\.start) == periods.map(\.start).sorted())
         #expect(Set(periods.map(\.id)).count == periods.count)
@@ -421,7 +421,7 @@ struct LocalRhythmTests {
     @Test
     func overlappingPeriodsAreAllReturned() {
         // Malaysia, 8 Mar 2027: Ramadan is on its last day and Eid al-Fitr starts tomorrow.
-        let kinds = Self.periods("MY", 2027, 3, 8, lookahead: 14).map(\.kind)
+        let kinds = Self.periods("MY", 2_027, 3, 8, lookahead: 14).map(\.kind)
         #expect(kinds.contains(.ramadan))
         #expect(kinds.contains(.eidAlFitr))
     }
@@ -432,22 +432,22 @@ struct LocalRhythmTests {
     func periodBoundariesFollowTheCalendarTimeZone() throws {
         let auckland = Self.calendar("Pacific/Auckland")
         let honolulu = Self.calendar("Pacific/Honolulu")
-        let aucklandPeriod = try #require(Self.period(.ramadan, in: Self.periods("SA", 2027, 2, 10, zone: "Pacific/Auckland")))
-        let honoluluPeriod = try #require(Self.period(.ramadan, in: Self.periods("SA", 2027, 2, 10, zone: "Pacific/Honolulu")))
+        let aucklandPeriod = try #require(Self.period(.ramadan, in: Self.periods("SA", 2_027, 2, 10, zone: "Pacific/Auckland")))
+        let honoluluPeriod = try #require(Self.period(.ramadan, in: Self.periods("SA", 2_027, 2, 10, zone: "Pacific/Honolulu")))
 
-        #expect(aucklandPeriod.start == Self.date(2027, 2, 8, in: auckland))
-        #expect(honoluluPeriod.start == Self.date(2027, 2, 8, in: honolulu))
+        #expect(aucklandPeriod.start == Self.date(2_027, 2, 8, in: auckland))
+        #expect(honoluluPeriod.start == Self.date(2_027, 2, 8, in: honolulu))
         // The same civil day starts 23 hours apart (UTC+13 in February against UTC-10).
-        #expect(honoluluPeriod.start.timeIntervalSince(aucklandPeriod.start) == 23 * 3600)
-        #expect(aucklandPeriod.end == Self.date(2027, 3, 8, 23, 59, 59, in: auckland))
-        #expect(honoluluPeriod.end == Self.date(2027, 3, 8, 23, 59, 59, in: honolulu))
+        #expect(honoluluPeriod.start.timeIntervalSince(aucklandPeriod.start) == 23 * 3_600)
+        #expect(aucklandPeriod.end == Self.date(2_027, 3, 8, 23, 59, 59, in: auckland))
+        #expect(honoluluPeriod.end == Self.date(2_027, 3, 8, 23, 59, 59, in: honolulu))
     }
 
     @Test
     func sameInstantCanBeActiveInOneZoneOnly() {
         // 8 Feb 2027 00:30 in Auckland is still 7 Feb in Honolulu (UTC-10).
         let auckland = Self.calendar("Pacific/Auckland")
-        let instant = Self.date(2027, 2, 8, 0, 30, in: auckland)
+        let instant = Self.date(2_027, 2, 8, 0, 30, in: auckland)
         let inAuckland = LocalRhythmCalendar.periods(forCountryCode: "SA", around: instant, lookaheadDays: 0, calendar: auckland)
         let inHonolulu = LocalRhythmCalendar.periods(forCountryCode: "SA", around: instant, lookaheadDays: 0, calendar: Self.calendar("Pacific/Honolulu"))
         #expect(Self.period(.ramadan, in: inAuckland) != nil)
@@ -457,7 +457,7 @@ struct LocalRhythmTests {
     @Test
     func midnightIsTheExactStartOfTheFirstDay() {
         let tokyo = Self.calendar("Asia/Tokyo")
-        let midnight = Self.date(2026, 4, 29, in: tokyo)
+        let midnight = Self.date(2_026, 4, 29, in: tokyo)
         let atMidnight = LocalRhythmCalendar.periods(forCountryCode: "JP", around: midnight, lookaheadDays: 0, calendar: tokyo)
         let aSecondBefore = LocalRhythmCalendar.periods(forCountryCode: "JP", around: midnight.addingTimeInterval(-1), lookaheadDays: 0, calendar: tokyo)
         #expect(atMidnight.map(\.kind) == [.goldenWeek])
@@ -468,22 +468,22 @@ struct LocalRhythmTests {
     func daylightSavingTimeDoesNotShiftTheDays() throws {
         // Spanish clocks change on the first day of Holy Week 2026 (29 Mar).
         let madrid = Self.calendar("Europe/Madrid")
-        let period = try #require(Self.period(.holyWeek, in: Self.periods("ES", 2026, 3, 25, zone: "Europe/Madrid")))
-        #expect(period.start == Self.date(2026, 3, 29, in: madrid))
-        #expect(period.end == Self.date(2026, 4, 5, 23, 59, 59, in: madrid))
+        let period = try #require(Self.period(.holyWeek, in: Self.periods("ES", 2_026, 3, 25, zone: "Europe/Madrid")))
+        #expect(period.start == Self.date(2_026, 3, 29, in: madrid))
+        #expect(period.end == Self.date(2_026, 4, 5, 23, 59, 59, in: madrid))
         // 8 civil days, one of them 23 hours long.
-        #expect(period.end.timeIntervalSince(period.start) == 8 * 86400 - 3600 - 1)
+        #expect(period.end.timeIntervalSince(period.start) == 8 * 86_400 - 3_600 - 1)
     }
 
     @Test
-    func nonGregorianCallerCalendarStillUsesGregorianDays() {
+    func nonGregorianCallerCalendarStillUsesGregorianDays() throws {
         var hebrewCalendar = Calendar(identifier: .hebrew)
-        hebrewCalendar.timeZone = TimeZone(identifier: "Asia/Jerusalem")!
+        hebrewCalendar.timeZone = try #require(TimeZone(identifier: "Asia/Jerusalem"))
         var gregorian = Calendar(identifier: .gregorian)
         gregorian.timeZone = hebrewCalendar.timeZone
-        let now = Self.date(2027, 10, 1, 12, in: gregorian)
+        let now = Self.date(2_027, 10, 1, 12, in: gregorian)
         let periods = LocalRhythmCalendar.periods(forCountryCode: "IL", around: now, lookaheadDays: 14, calendar: hebrewCalendar)
-        expectSpan(Self.period(.yomKippur, in: periods), from: (2027, 10, 11), to: (2027, 10, 11), zone: "Asia/Jerusalem")
+        expectSpan(Self.period(.yomKippur, in: periods), from: (2_027, 10, 11), to: (2_027, 10, 11), zone: "Asia/Jerusalem")
     }
 
     // MARK: - Content
@@ -494,7 +494,7 @@ struct LocalRhythmTests {
         var kindsSeen: Set<LocalRhythmKind> = []
         for country in countries {
             for (month, day) in [(1, 15), (2, 10), (3, 10), (4, 10), (5, 20), (8, 10), (9, 15), (10, 20), (11, 5)] {
-                for period in Self.periods(country, 2027, month, day, lookahead: 31) + Self.periods(country, 2026, month, day, lookahead: 31) {
+                for period in Self.periods(country, 2_027, month, day, lookahead: 31) + Self.periods(country, 2_026, month, day, lookahead: 31) {
                     kindsSeen.insert(period.kind)
                     #expect(!period.name.isEmpty)
                     #expect(!period.guidance.isEmpty)

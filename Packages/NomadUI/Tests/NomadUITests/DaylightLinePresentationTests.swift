@@ -13,7 +13,7 @@ struct DaylightLinePresentationTests {
             now: noon,
             locale: locale
         ))
-        let zone = TimeZone(identifier: "Europe/Paris")!
+        let zone = try #require(TimeZone(identifier: "Europe/Paris"))
         let day = SolarDay.compute(latitude: 48.8566, longitude: 2.3522, date: noon, timeZone: zone)
         let sunrise = try #require(day.sunrise)
         let sunset = try #require(day.sunset)
@@ -30,10 +30,10 @@ struct DaylightLinePresentationTests {
             now: noon,
             locale: locale
         ))
-        let zone = TimeZone(identifier: "Australia/Sydney")!
+        let zone = try #require(TimeZone(identifier: "Australia/Sydney"))
         let day = SolarDay.compute(latitude: -33.8688, longitude: 151.2093, date: noon, timeZone: zone)
 
-        #expect(presentation.segments.first?.text == "Sunrise \(clock(try #require(day.sunrise), zone))")
+        #expect(try presentation.segments.first?.text == "Sunrise \(clock(#require(day.sunrise), zone))")
     }
 
     @Test

@@ -12,7 +12,7 @@ struct OpenMeteoAirQualityProviderTests {
         // The hourly series starts at the current hour, which is not part of the 12 hour outlook.
         let times = (0...12).map { hour.addingTimeInterval(Double($0) * 3_600) }
         let aqi: [Any] = [41.2, 44, 48, 52, 58, 61, 66, 70, 72, NSNull(), 64, 59, 55]
-        MockURLProtocol.install(try airQualityPayload(times: times, hourlyAQI: aqi, current: [
+        try MockURLProtocol.install(airQualityPayload(times: times, hourlyAQI: aqi, current: [
             "european_aqi": 43.6, "pm2_5": 14.2, "pm10": 31.5, "ozone": 88.0, "nitrogen_dioxide": 12.4,
             "european_aqi_pm2_5": 43.6, "european_aqi_pm10": 33.0, "european_aqi_ozone": 20.0,
             "european_aqi_nitrogen_dioxide": 5.0, "european_aqi_sulphur_dioxide": 1.0
@@ -41,8 +41,7 @@ struct OpenMeteoAirQualityProviderTests {
     func requestRoundsTheCoordinateAndAsksForTheDocumentedVariables() async throws {
         let session = makeSession()
         let hour = Date().roundedDownToHour()
-        MockURLProtocol.install(try airQualityPayload(times: [hour], hourlyAQI: [30], current: ["european_aqi": 30]))
-
+        try MockURLProtocol.install(airQualityPayload(times: [hour], hourlyAQI: [30], current: ["european_aqi": 30]))
 
         let provider = LiveOpenMeteoAirQualityProvider(session: session)
         _ = try await provider.airQuality(for: CLLocationCoordinate2D(latitude: 60.169857, longitude: 24.938379))
@@ -68,8 +67,7 @@ struct OpenMeteoAirQualityProviderTests {
     func negativeZeroAndSouthernWesternCoordinatesRoundCleanly() async throws {
         let session = makeSession()
         let hour = Date().roundedDownToHour()
-        MockURLProtocol.install(try airQualityPayload(times: [hour], hourlyAQI: [30], current: ["european_aqi": 30]))
-
+        try MockURLProtocol.install(airQualityPayload(times: [hour], hourlyAQI: [30], current: ["european_aqi": 30]))
 
         let provider = LiveOpenMeteoAirQualityProvider(session: session)
         _ = try await provider.airQuality(for: CLLocationCoordinate2D(latitude: -0.04, longitude: -33.86))
@@ -84,8 +82,7 @@ struct OpenMeteoAirQualityProviderTests {
     func nearbyCoordinatesInTheSameGridCellShareTheCachedSnapshot() async throws {
         let session = makeSession()
         let hour = Date().roundedDownToHour()
-        MockURLProtocol.install(try airQualityPayload(times: [hour], hourlyAQI: [30], current: ["european_aqi": 30]))
-
+        try MockURLProtocol.install(airQualityPayload(times: [hour], hourlyAQI: [30], current: ["european_aqi": 30]))
 
         let provider = LiveOpenMeteoAirQualityProvider(session: session, ttl: 1_800)
         let first = try await provider.airQuality(for: CLLocationCoordinate2D(latitude: 60.161, longitude: 24.941))
@@ -100,8 +97,7 @@ struct OpenMeteoAirQualityProviderTests {
     func expiredCacheRefetches() async throws {
         let session = makeSession()
         let hour = Date().roundedDownToHour()
-        MockURLProtocol.install(try airQualityPayload(times: [hour], hourlyAQI: [30], current: ["european_aqi": 30]))
-
+        try MockURLProtocol.install(airQualityPayload(times: [hour], hourlyAQI: [30], current: ["european_aqi": 30]))
 
         let provider = LiveOpenMeteoAirQualityProvider(session: session, ttl: 0)
         _ = try await provider.airQuality(for: CLLocationCoordinate2D(latitude: 60.2, longitude: 24.9))
@@ -114,8 +110,7 @@ struct OpenMeteoAirQualityProviderTests {
     func missingCurrentIndexIsAnInvalidResponse() async throws {
         let session = makeSession()
         let hour = Date().roundedDownToHour()
-        MockURLProtocol.install(try airQualityPayload(times: [hour], hourlyAQI: [NSNull()], current: ["european_aqi": NSNull(), "pm2_5": NSNull()]))
-
+        try MockURLProtocol.install(airQualityPayload(times: [hour], hourlyAQI: [NSNull()], current: ["european_aqi": NSNull(), "pm2_5": NSNull()]))
 
         let provider = LiveOpenMeteoAirQualityProvider(session: session)
         await #expect(throws: ProviderError.self) {
@@ -156,8 +151,8 @@ struct OpenMeteoAirQualityProviderTests {
     func timestampsAreInterpretedInTheLocationsTimeZone() async throws {
         let session = makeSession()
         let hour = Date().roundedDownToHour()
-        let zone = TimeZone(identifier: "Asia/Kolkata")!
-        MockURLProtocol.install(try airQualityPayload(
+        let zone = try #require(TimeZone(identifier: "Asia/Kolkata"))
+        try MockURLProtocol.install(airQualityPayload(
             times: (0...2).map { hour.addingTimeInterval(Double($0) * 3_600) },
             hourlyAQI: [90, 95, 99],
             current: ["european_aqi": 90],

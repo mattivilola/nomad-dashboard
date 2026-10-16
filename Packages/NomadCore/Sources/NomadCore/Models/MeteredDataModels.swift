@@ -315,7 +315,6 @@ public enum MeteredUsageFormatting {
     }
 }
 
-
 /// Forward-looking Data Guard numbers derived from a snapshot: what is left of the cap,
 /// when the allowance resets, and how many days the remainder lasts at the current pace.
 public struct MeteredUsageOutlook: Equatable, Sendable {

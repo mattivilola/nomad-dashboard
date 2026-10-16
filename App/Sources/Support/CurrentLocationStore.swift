@@ -115,18 +115,20 @@ final class CurrentLocationStore: NSObject, ObservableObject {
     }
 
     func requestAuthorization() {
-        Self.logger.info("requestAuthorization: begin status=\(self.authorizationStatus.rawValue, privacy: .public)")
+        let status = authorizationStatus.rawValue
+        Self.logger.info("requestAuthorization: begin status=\(status, privacy: .public)")
         requestLocationAccess(openSettingsIfNeeded: Self.openLocationPrivacySettings)
     }
 
     /// Data Guard and Wi‑Fi SSID reads need location permission on modern macOS.
     func requestWiFiSSIDAccess() {
-        Self.logger.info("requestWiFiSSIDAccess: begin status=\(self.authorizationStatus.rawValue, privacy: .public)")
+        let status = authorizationStatus.rawValue
+        Self.logger.info("requestWiFiSSIDAccess: begin status=\(status, privacy: .public)")
         requestLocationAccess(openSettingsIfNeeded: Self.openLocationPrivacySettings)
     }
 
     static func openLocationPrivacySettings() {
-        Self.logger.info("openLocationPrivacySettings: opening System Settings")
+        logger.info("openLocationPrivacySettings: opening System Settings")
         guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices") else {
             return
         }

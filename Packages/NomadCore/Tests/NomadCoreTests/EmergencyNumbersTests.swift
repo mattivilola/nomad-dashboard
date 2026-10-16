@@ -89,7 +89,7 @@ struct EmergencyNumbersTests {
     func additionalServiceNumbersNeverDuplicateTheNumbersAlreadyShown() {
         for code in Locale.Region.isoRegions.map(\.identifier) {
             guard let numbers = EmergencyNumberDirectory.numbers(forCountryCode: code) else { continue }
-            let shown = [numbers.general, numbers.police, numbers.ambulance, numbers.fire].compactMap { $0 }
+            let shown = [numbers.general, numbers.police, numbers.ambulance, numbers.fire].compactMap(\.self)
             for service in numbers.other {
                 #expect(shown.contains(service.number) == false, "\(service.name) duplicates a shown number for \(code)")
             }

@@ -371,7 +371,7 @@ public struct StayCalculator: Sendable {
         for offset in 0..<windowDays where presence[offset]?.isDisjoint(with: members) == false {
             inSchengen[offset] = true
         }
-        let used = inSchengen.filter { $0 }.count
+        let used = inSchengen.filter(\.self).count
 
         var mustLeaveBy: Date?
         if inSchengen[0] {

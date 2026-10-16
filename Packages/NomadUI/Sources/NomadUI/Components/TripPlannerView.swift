@@ -78,7 +78,11 @@ public struct TripPlannerView: View {
                 calendar: model.calendar,
                 locale: model.locale,
                 saveAction: { model.save($0) },
-                deleteAction: session.draft.isNew ? nil : { if let id = session.draft.id { model.delete(id) } },
+                deleteAction: session.draft.isNew ? nil : {
+                    if let id = session.draft.id {
+                        model.delete(id)
+                    }
+                },
                 cancelAction: { model.editor = nil }
             )
         }

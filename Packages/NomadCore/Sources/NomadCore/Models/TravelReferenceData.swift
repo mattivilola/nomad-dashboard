@@ -10,6 +10,7 @@ import Foundation
 // Verified 2026-10
 //
 // MARK: Driving side
+
 //
 // The LEFT-driving list is encoded explicitly (76 jurisdictions: 54 UN member states and 22
 // territories); every other valid ISO 3166-1 alpha-2 code drives on the right. A jurisdiction is on
@@ -29,6 +30,7 @@ import Foundation
 // all countries could be read; the per-country FCDO travel advice pages do not state the side.
 //
 // MARK: Electricity
+
 //
 // Sources, both required to agree:
 //  - IEC World Plugs (the authority named for this data): https://www.iec.ch/world-plugs. IEC
@@ -53,6 +55,7 @@ import Foundation
 // most-visited other destinations.
 //
 // MARK: Currency
+
 //
 // Not stored: it comes from Foundation's region data (CLDR) so it never goes stale here.
 

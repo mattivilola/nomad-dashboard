@@ -1,7 +1,7 @@
 import Foundation
 import NomadCore
-import Testing
 @testable import NomadUI
+import Testing
 
 struct LocalRhythmPresentationTests {
     private typealias Support = StaysTestSupport
@@ -34,8 +34,8 @@ struct LocalRhythmPresentationTests {
     @Test
     func anExpectedPeriodShowsItsRangeAndTheShiftNote() {
         let row = model(
-            period(start: date(2027, 2, 8), end: date(2027, 3, 9, hour: 23, minute: 59)),
-            now: date(2027, 2, 20, hour: 12)
+            period(start: date(2_027, 2, 8), end: date(2_027, 3, 9, hour: 23, minute: 59)),
+            now: date(2_027, 2, 20, hour: 12)
         )
 
         #expect(row.name == "Ramadan")
@@ -47,8 +47,8 @@ struct LocalRhythmPresentationTests {
     @Test
     func aComputedOrFixedPeriodHasNoShiftNote() {
         let row = model(
-            period(start: date(2026, 8, 15), end: date(2026, 8, 15, hour: 23, minute: 59), name: "Ferragosto", confidence: .fixed),
-            now: date(2026, 8, 14, hour: 12)
+            period(start: date(2_026, 8, 15), end: date(2_026, 8, 15, hour: 23, minute: 59), name: "Ferragosto", confidence: .fixed),
+            now: date(2_026, 8, 14, hour: 12)
         )
 
         #expect(row.dates == "15 Aug")
@@ -58,8 +58,8 @@ struct LocalRhythmPresentationTests {
     @Test
     func anUpcomingPeriodSaysHowFarAway() {
         let row = model(
-            period(start: date(2027, 2, 8), end: date(2027, 3, 9, hour: 23, minute: 59)),
-            now: date(2027, 2, 3, hour: 12)
+            period(start: date(2_027, 2, 8), end: date(2_027, 3, 9, hour: 23, minute: 59)),
+            now: date(2_027, 2, 3, hour: 12)
         )
 
         #expect(row.timing == "In 5 days")
@@ -68,8 +68,8 @@ struct LocalRhythmPresentationTests {
     @Test
     func theNameDropsTheExplanatoryParenthetical() {
         let row = model(
-            period(start: date(2027, 2, 6), end: date(2027, 2, 10), name: "Tết (Lunar New Year)"),
-            now: date(2027, 2, 6, hour: 12)
+            period(start: date(2_027, 2, 6), end: date(2_027, 2, 10), name: "Tết (Lunar New Year)"),
+            now: date(2_027, 2, 6, hour: 12)
         )
 
         #expect(row.name == "Tết")
@@ -80,7 +80,7 @@ struct LocalRhythmPresentationTests {
         // Holy Week 2026 runs 29 Mar - 5 Apr in Spain, the country of the preview snapshot.
         let rows = LocalRhythmRowModel.rows(
             snapshot: .preview,
-            now: date(2026, 4, 1, hour: 12),
+            now: date(2_026, 4, 1, hour: 12),
             calendar: Support.calendar,
             locale: Support.locale
         )
@@ -94,7 +94,7 @@ struct LocalRhythmPresentationTests {
     func noRowsOutsideThePeriodsAndLookAhead() {
         let rows = LocalRhythmRowModel.rows(
             snapshot: .preview,
-            now: date(2026, 10, 12, hour: 12),
+            now: date(2_026, 10, 12, hour: 12),
             calendar: Support.calendar,
             locale: Support.locale
         )
@@ -109,7 +109,7 @@ struct LocalRhythmPresentationTests {
             settings: settings,
             snapshot: .preview,
             locationStatusDetail: nil,
-            now: date(2026, 4, 1, hour: 12),
+            now: date(2_026, 4, 1, hour: 12),
             calendar: Support.calendar,
             locale: Support.locale
         )
@@ -117,7 +117,7 @@ struct LocalRhythmPresentationTests {
             settings: settings,
             snapshot: .preview,
             locationStatusDetail: nil,
-            now: date(2026, 10, 12, hour: 12),
+            now: date(2_026, 10, 12, hour: 12),
             calendar: Support.calendar,
             locale: Support.locale
         )
@@ -132,7 +132,7 @@ struct LocalRhythmPresentationTests {
             settings: AppSettings(localInfoEnabled: false),
             snapshot: .preview,
             locationStatusDetail: nil,
-            now: date(2026, 4, 1, hour: 12),
+            now: date(2_026, 4, 1, hour: 12),
             calendar: Support.calendar,
             locale: Support.locale
         )
