@@ -19,6 +19,13 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 - _Nothing yet_
 
+
+## [0.21.2] - 2026-10-19
+
+### Changed
+
+- Maintenance release.
+
 ## [0.21.1] - 2026-10-16
 
 ### Fixed
