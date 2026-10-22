@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.21.5] - 2026-10-22
+
+### Changed
+
+- Keep battery readings current and reduce dashboard energy use
+
 ## [0.21.4] - 2026-10-22
 
 ### Changed
