@@ -195,7 +195,7 @@ Users can understand how the outside network sees them and keep better awareness
 - Shows tomorrow summary when the 7-day outlook is collapsed
 - Shows the UV index as a small stat ("UV 7 (high)") tinted by the WHO bands (sand from 6 to 10, coral from 11, neutral below), with the rest of today's peak when it is higher ("peak 9 at 13:00")
 - Shows air quality as the European Air Quality Index ("AQI 38 · Fair · mostly PM10") with a small 12-hour outlook of one bar per hour; good, fair and moderate stay neutral, poor is sand, very poor and worse are coral
-- Shows the air quality refresh state in its own footer row under the card, next to the weather one
+- Shows refresh footers labeled Weather and Air quality in left and right columns when space allows, stacking on narrow cards, so each timestamp and Refresh or Retry action identifies its data source
 - Shows today's sunrise and sunset ("Sunrise 07:45 · Sunset 18:12") in the card in every travel profile, even when weather data is unavailable, in the time zone of the place you are in, or "Midnight sun" and "Polar night" near the poles
 
 ### Who it helps

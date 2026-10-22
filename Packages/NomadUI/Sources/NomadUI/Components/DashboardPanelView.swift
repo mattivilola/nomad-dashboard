@@ -672,10 +672,25 @@ public struct DashboardPanelView: View {
         ) {
             VStack(alignment: .leading, spacing: 5) {
                 dashboardCard(for: item.cardID, widthMode: item.layoutWidthMode, viewportHeight: viewportHeight)
-                if resolvedCollapsedCards.contains(item.cardID) == false {
-                    ForEach(dataSections(for: item.cardID), id: \.self) { section in
-                        if let state = sectionActivity[section] {
-                            DashboardCardRefreshFooter(section: section, state: state, isOffline: resourcePolicy.isOffline) { retrySection(section) }
+                if resolvedCollapsedCards.contains(item.cardID) == false, dataSections(for: item.cardID).isEmpty == false {
+                    LazyVGrid(
+                        columns: [GridItem(
+                            dataSections(for: item.cardID).count > 1 ? .adaptive(minimum: 180) : .flexible(),
+                            spacing: 16,
+                            alignment: .topLeading
+                        )],
+                        alignment: .leading,
+                        spacing: 5
+                    ) {
+                        ForEach(dataSections(for: item.cardID), id: \.self) { section in
+                            if let state = sectionActivity[section] {
+                                DashboardCardRefreshFooter(
+                                    section: section,
+                                    state: state,
+                                    isOffline: resourcePolicy.isOffline,
+                                    showsSectionTitle: dataSections(for: item.cardID).count > 1
+                                ) { retrySection(section) }
+                            }
                         }
                     }
                 }

@@ -485,26 +485,50 @@ public struct DashboardCardRefreshFooter: View {
     let section: DashboardDataSection
     let state: DashboardSectionActivity
     let isOffline: Bool
+    let showsSectionTitle: Bool
     let retry: () -> Void
-    public init(section: DashboardDataSection, state: DashboardSectionActivity, isOffline: Bool, retry: @escaping () -> Void) {
+    public init(section: DashboardDataSection, state: DashboardSectionActivity, isOffline: Bool, showsSectionTitle: Bool = false, retry: @escaping () -> Void) {
         self.section = section
         self.state = state
         self.isOffline = isOffline
+        self.showsSectionTitle = showsSectionTitle
         self.retry = retry
     }
 
     public var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Label(label, systemImage: isOffline || state.isSaved ? "clock.arrow.circlepath" : state.isRefreshing ? "arrow.triangle.2.circlepath" : "checkmark")
-                .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-            Button(state.message == nil ? "Refresh" : "Retry", action: retry)
-                .buttonStyle(.plain).foregroundStyle(NomadTheme.teal)
-                .disabled(isOffline || state.isRefreshing)
-                .help("Refresh only \(section.title.lowercased())")
+        Group {
+            if showsSectionTitle {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(section.title).fontWeight(.semibold)
+                        Spacer(minLength: 0)
+                        refreshButton
+                    }
+                    statusLabel
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    statusLabel
+                    Spacer(minLength: 0)
+                    refreshButton
+                }
+            }
         }
         .font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.bottom, 3)
         .accessibilityElement(children: .contain)
+    }
+
+    private var refreshButton: some View {
+        Button(state.message == nil ? "Refresh" : "Retry", action: retry)
+            .buttonStyle(.plain).foregroundStyle(NomadTheme.teal)
+            .disabled(isOffline || state.isRefreshing)
+            .help("Refresh only \(section.title.lowercased())")
+            .accessibilityLabel("\(state.message == nil ? "Refresh" : "Retry") \(section.title.lowercased())")
+    }
+
+    private var statusLabel: some View {
+        Label(label, systemImage: isOffline || state.isSaved ? "clock.arrow.circlepath" : state.isRefreshing ? "arrow.triangle.2.circlepath" : "checkmark")
+            .lineLimit(2).fixedSize(horizontal: false, vertical: true)
     }
 
     private var label: String {
