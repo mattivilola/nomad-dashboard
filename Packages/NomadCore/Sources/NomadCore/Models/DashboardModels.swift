@@ -306,7 +306,10 @@ public struct WeatherSnapshot: Codable, Equatable, Sendable {
         self.uvIndex = uvIndex
         self.hourlyForecastSlots = hourlyForecastSlots
         self.dailyForecast = dailyForecast.isEmpty ? tomorrow.map { [$0] } ?? [] : dailyForecast
-        self.tomorrow = self.dailyForecast.first ?? tomorrow
+        let tomorrowDate = Calendar.current.date(byAdding: .day, value: 1, to: fetchedAt)
+        self.tomorrow = tomorrow ?? self.dailyForecast.first { day in
+            tomorrowDate.map { Calendar.current.isDate(day.date, inSameDayAs: $0) } ?? false
+        }
         self.fetchedAt = fetchedAt
     }
 }

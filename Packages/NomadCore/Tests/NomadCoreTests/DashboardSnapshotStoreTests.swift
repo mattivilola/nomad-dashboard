@@ -6,6 +6,21 @@ import Testing
 @MainActor
 struct DashboardSnapshotStoreTests {
     @Test
+    func manualWeatherRefreshForcesProviderAndRetainsLastResultOnFailure() async throws {
+        let settings = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let weather = RecordingWeatherProvider()
+        let store = DashboardSnapshotStore(settingsStore: settings, dependencies: makeDependencies(weatherProvider: weather))
+        store.setCurrentLocation(CLLocation(latitude: 43, longitude: -1))
+        await store.refresh()
+        let saved = try #require(store.snapshot.weather)
+        await store.refresh(section: .weather)
+        #expect(await weather.requests == [false, true])
+        #expect(store.snapshot.weather == saved)
+        #expect(store.snapshot.appState.issues.contains(.weatherUnavailable))
+        #expect(store.sectionActivity[.weather]?.message?.contains("Couldn't update") == true)
+    }
+
+    @Test
     func localAndIndependentCardsPublishBeforeSuspendedWeather() async throws {
         let settings = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         let weather = HeldWeatherProvider()
@@ -3116,6 +3131,22 @@ private actor RecordingLocationProvider: PublicIPLocationProvider {
 private struct FailingLocationProvider: PublicIPLocationProvider {
     func currentLocation(for ipAddress: String, forceRefresh: Bool) async throws -> IPLocationSnapshot {
         throw ProviderError.invalidResponse
+    }
+}
+
+private actor RecordingWeatherProvider: WeatherProvider {
+    var requests: [Bool] = []
+
+    func weather(for coordinate: CLLocationCoordinate2D?) async throws -> WeatherSnapshot {
+        try await weather(for: coordinate, forceRefresh: false)
+    }
+
+    func weather(for coordinate: CLLocationCoordinate2D?, forceRefresh: Bool) async throws -> WeatherSnapshot {
+        requests.append(forceRefresh)
+        if forceRefresh {
+            throw ProviderError.invalidResponse
+        }
+        return try await FixedWeatherProvider().weather(for: coordinate)
     }
 }
 

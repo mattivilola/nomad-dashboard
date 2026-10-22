@@ -3,31 +3,39 @@ import Foundation
 import WeatherKit
 
 public actor LiveWeatherProvider: WeatherProvider {
-    private let service: WeatherService
+    private let loadSnapshot: @Sendable (CLLocationCoordinate2D) async throws -> WeatherSnapshot
     private let ttl: TimeInterval
     private var cache: (key: String, snapshot: WeatherSnapshot)?
     static let forecastHourOffsets = [3, 6, 12, 24]
 
     public init(service: WeatherService = WeatherService(), ttl: TimeInterval = 1_800) {
-        self.service = service
+        loadSnapshot = { coordinate in
+            try await WeatherKitSnapshotProjector.snapshot(using: service, coordinate: coordinate)
+        }
         self.ttl = ttl
     }
 
+    init(ttl: TimeInterval = 1_800, loadSnapshot: @escaping @Sendable (CLLocationCoordinate2D) async throws -> WeatherSnapshot) {
+        self.ttl = ttl
+        self.loadSnapshot = loadSnapshot
+    }
+
     public func weather(for coordinate: CLLocationCoordinate2D?) async throws -> WeatherSnapshot {
+        try await weather(for: coordinate, forceRefresh: false)
+    }
+
+    public func weather(for coordinate: CLLocationCoordinate2D?, forceRefresh: Bool) async throws -> WeatherSnapshot {
         guard let coordinate else {
             throw ProviderError.missingCoordinate
         }
 
         let cacheKey = Self.cacheKey(for: coordinate)
 
-        if let cache, cache.key == cacheKey, abs(cache.snapshot.fetchedAt.timeIntervalSinceNow) < ttl {
+        if !forceRefresh, let cache, cache.key == cacheKey, abs(cache.snapshot.fetchedAt.timeIntervalSinceNow) < ttl {
             return cache.snapshot
         }
 
-        let snapshot = try await WeatherKitSnapshotProjector.snapshot(
-            using: service,
-            coordinate: coordinate
-        )
+        let snapshot = try await loadSnapshot(coordinate)
 
         cache = (cacheKey, snapshot)
         return snapshot
@@ -41,8 +49,8 @@ public actor LiveWeatherProvider: WeatherProvider {
         forecastHourOffsets.map { referenceDate.addingTimeInterval(TimeInterval($0 * 3_600)) }
     }
 
-    static func upcomingDailyForecasts(_ days: [WeatherDaySummary]) -> [WeatherDaySummary] {
-        Array(days.prefix(7))
+    static func upcomingDailyForecasts(_ days: [WeatherDaySummary], now: Date = .now, calendar: Calendar = .current) -> [WeatherDaySummary] {
+        Array(days.filter { $0.date >= calendar.startOfDay(for: now) }.sorted { $0.date < $1.date }.prefix(7))
     }
 
     static func nearestIndex(in dates: [Date], to targetDate: Date) -> Int? {
@@ -69,7 +77,8 @@ private enum WeatherKitSnapshotProjector {
             hourlyForecastChance: weather.hourlyForecast.forecast.first?.precipitationChance
         )
         let dailyForecast = LiveWeatherProvider.upcomingDailyForecasts(
-            weather.dailyForecast.forecast.dropFirst().map(daySummary(from:))
+            weather.dailyForecast.forecast.map(daySummary(from:)),
+            now: fetchedAt
         )
         let hourlyForecast = hourlyForecastSlots(
             from: weather.hourlyForecast.forecast,

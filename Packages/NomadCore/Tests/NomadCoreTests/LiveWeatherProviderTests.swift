@@ -1,8 +1,45 @@
+import CoreLocation
 import Foundation
 @testable import NomadCore
 import Testing
 
 struct LiveWeatherProviderTests {
+    @Test
+    func manualRefreshBypassesFreshWeatherCache() async throws {
+        let loader = WeatherLoadCounter()
+        let provider = LiveWeatherProvider(loadSnapshot: { _ in await loader.load() })
+        let coordinate = CLLocationCoordinate2D(latitude: 43, longitude: -1)
+        _ = try await provider.weather(for: coordinate)
+        _ = try await provider.weather(for: coordinate)
+        #expect(await loader.count == 1)
+        _ = try await provider.weather(for: coordinate, forceRefresh: true)
+        #expect(await loader.count == 2)
+    }
+
+    @Test
+    func dailyOutlookDropsPastDaysAndIncludesToday() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "Europe/Paris"))
+        let now = try #require(calendar.date(from: DateComponents(year: 2_026, month: 10, day: 19, hour: 15)))
+        let days = (-2...8).map { offset in
+            WeatherDaySummary(date: calendar.date(byAdding: .day, value: offset, to: now)!, symbolName: "cloud", summary: "Day \(offset)", temperatureMinCelsius: 10, temperatureMaxCelsius: 20, precipitationChance: 0)
+        }
+        let upcoming = LiveWeatherProvider.upcomingDailyForecasts(days.reversed(), now: now, calendar: calendar)
+        #expect(upcoming.count == 7)
+        #expect(upcoming.first?.summary == "Day 0")
+        #expect(upcoming.last?.summary == "Day 6")
+    }
+
+    @Test
+    func weatherSnapshotSelectsTomorrowWhenDailyForecastStartsToday() {
+        let now = Date()
+        let days = (0...1).map { offset in
+            WeatherDaySummary(date: Calendar.current.date(byAdding: .day, value: offset, to: now)!, symbolName: "cloud", summary: "Day \(offset)", temperatureMinCelsius: 10, temperatureMaxCelsius: 20, precipitationChance: 0)
+        }
+        let snapshot = WeatherSnapshot(currentTemperatureCelsius: 20, apparentTemperatureCelsius: 19, conditionDescription: "Cloudy", symbolName: "cloud", precipitationChance: 0, windSpeedKph: 10, windDirectionDegrees: 0, dailyForecast: days, fetchedAt: now)
+        #expect(snapshot.tomorrow == days[1])
+    }
+
     @Test
     func nearTermPrecipitationChancePrefersMinuteForecast() {
         let chance = LiveWeatherProvider.nearTermPrecipitationChance(
@@ -101,5 +138,14 @@ struct LiveWeatherProviderTests {
 
         #expect(snapshot.tomorrow == dailyForecast.first)
         #expect(snapshot.dailyForecast.count == 2)
+    }
+}
+
+private actor WeatherLoadCounter {
+    var count = 0
+
+    func load() -> WeatherSnapshot {
+        count += 1
+        return WeatherSnapshot(currentTemperatureCelsius: 20, apparentTemperatureCelsius: 19, conditionDescription: "Cloudy", symbolName: "cloud", precipitationChance: 0, windSpeedKph: 10, windDirectionDegrees: 0, fetchedAt: .now)
     }
 }

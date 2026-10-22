@@ -49,6 +49,13 @@ public protocol ReverseGeocodingProvider: Sendable {
 
 public protocol WeatherProvider: Sendable {
     func weather(for coordinate: CLLocationCoordinate2D?) async throws -> WeatherSnapshot
+    func weather(for coordinate: CLLocationCoordinate2D?, forceRefresh: Bool) async throws -> WeatherSnapshot
+}
+
+public extension WeatherProvider {
+    func weather(for coordinate: CLLocationCoordinate2D?, forceRefresh: Bool) async throws -> WeatherSnapshot {
+        try await weather(for: coordinate)
+    }
 }
 
 public protocol FuelPriceProvider: Sendable {

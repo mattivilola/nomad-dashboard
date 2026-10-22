@@ -890,7 +890,7 @@ public final class DashboardSnapshotStore: ObservableObject {
             let value: RemoteValue = try await budget.run {
                 try await withProviderDeadline(seconds: section == .travelAlerts ? 55 : 25) {
                     switch section {
-                    case .weather: return try await .weather(self.dependencies.weatherProvider.weather(for: coordinate))
+                    case .weather: return try await .weather(self.dependencies.weatherProvider.weather(for: coordinate, forceRefresh: manual))
                     case .localInfo: return await .localInfo(self.refreshLocalInfo(manual: manual, ipLocationSnapshot: context))
                     case .fuel:
                         let value = await self.refreshFuelPrices(manual: manual)

@@ -190,7 +190,8 @@ Users can understand how the outside network sees them and keep better awareness
 - Shows current, apparent, wind, and rain-chance key metrics
 - Shows wind speed with compass direction
 - Shows the current temperature and condition symbol on one line, with feels-like, wind (with m/s), and rain chance as small stats beneath it
-- Always shows the near-term hourly strip; only the 7-day outlook folds away
+- Shows upcoming hourly forecasts; only the 7-day outlook folds away. The daily outlook starts with today when available, and expired hours and days disappear even when an update fails
+- Manual Refresh bypasses Nomad's 30-minute weather cache. Saved weather stays visible after a failed update, with a Saved badge, a dated update time, and a location, build, failure or offline explanation; weather older than one hour is also marked Saved
 - Shows tomorrow summary when the 7-day outlook is collapsed
 - Shows the UV index as a small stat ("UV 7 (high)") tinted by the WHO bands (sand from 6 to 10, coral from 11, neutral below), with the rest of today's peak when it is higher ("peak 9 at 13:00")
 - Shows air quality as the European Air Quality Index ("AQI 38 · Fair · mostly PM10") with a small 12-hour outlook of one bar per hour; good, fair and moderate stay neutral, poor is sand, very poor and worse are coral

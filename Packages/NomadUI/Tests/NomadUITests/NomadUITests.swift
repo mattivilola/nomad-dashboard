@@ -863,6 +863,52 @@ struct NomadUITests {
     }
 
     @Test
+    func weatherSectionMarksOldDataAsSaved() throws {
+        let snapshot = DashboardSnapshot.preview
+        let now = snapshot.weather!.fetchedAt.addingTimeInterval(3 * 86_400)
+        let presentation = WeatherSectionPresentation(settings: AppSettings(), snapshot: snapshot, weatherAvailabilityExplanation: nil, locationStatusDetail: nil, now: now)
+        #expect(presentation.badge.title == "Saved")
+        #expect(presentation.subtitle.contains("May be outdated"))
+        #expect(try presentation.subtitle.contains(#require(snapshot.weather?.fetchedAt.formatted(date: .abbreviated, time: .shortened))))
+    }
+
+    @Test
+    func weatherSectionMarksFailedAndOfflineDataAsSavedEvenWhenRecent() throws {
+        let snapshot = DashboardSnapshot.preview
+        for offline in [false, true] {
+            let activity = DashboardSectionActivity(message: "Couldn't update · keeping saved information")
+            let presentation = try WeatherSectionPresentation(settings: AppSettings(), snapshot: snapshot, weatherAvailabilityExplanation: nil, locationStatusDetail: nil, activity: activity, isOffline: offline, now: #require(snapshot.weather?.fetchedAt))
+            #expect(presentation.badge.title == "Saved")
+            #expect(presentation.subtitle.contains(offline ? "Offline" : "Couldn't update"))
+        }
+    }
+
+    @Test
+    func weatherForecastRollsForwardAfterDaysWithoutAnUpdate() throws {
+        let weather = makeWeatherSnapshot()
+        let now = try #require(Calendar.current.date(byAdding: .day, value: 3, to: weather.fetchedAt))
+        let presentation = WeatherForecastPresentation(settings: AppSettings(), weather: weather, widthMode: .wide, now: now)
+        #expect(presentation.hourlySlots.isEmpty)
+        #expect(presentation.dailyRows.count == 5)
+        #expect(presentation.dailyRows.allSatisfy { $0.date >= Calendar.current.startOfDay(for: now) })
+        #expect(presentation.tomorrow?.summary == "Day 4")
+        let expired = WeatherForecastPresentation(settings: AppSettings(), weather: weather, widthMode: .wide, now: now.addingTimeInterval(10 * 86_400))
+        #expect(expired.dailyRows.isEmpty)
+        #expect(expired.shouldShowTomorrowSummary == false)
+    }
+
+    @Test
+    func weatherSectionExplainsMissingLocationAlongsideSavedData() throws {
+        let preview = DashboardSnapshot.preview
+        let snapshot = DashboardSnapshot(network: preview.network, power: preview.power, travelContext: preview.travelContext, weather: preview.weather, marine: nil, appState: AppStatusSnapshot(lastRefresh: .now, updateState: .idle, issues: [.weatherLocationRequired]))
+        let presentation = try WeatherSectionPresentation(settings: AppSettings(), snapshot: snapshot, weatherAvailabilityExplanation: nil, locationStatusDetail: "Location access is denied.", now: #require(snapshot.weather?.fetchedAt))
+        #expect(presentation.badge.title == "Saved")
+        #expect(presentation.subtitle.contains("Location needed"))
+        let fresh = try WeatherSectionPresentation(settings: AppSettings(), snapshot: preview, weatherAvailabilityExplanation: nil, locationStatusDetail: nil, now: #require(preview.weather?.fetchedAt))
+        #expect(fresh.badge.title == "Live")
+    }
+
+    @Test
     func weatherSectionPresentationExplainsBuildIssue() {
         let presentation = WeatherSectionPresentation(
             settings: AppSettings(),

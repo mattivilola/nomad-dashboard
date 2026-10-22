@@ -18,6 +18,7 @@ and this project follows [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - Fixed a crash when Keep Awake With Lid Closed could not connect to its background helper.
+- Manual weather refresh now bypasses the local cache. Saved weather shows its age and update status, and expired forecast hours and days disappear.
 
 
 ## [0.21.2] - 2026-10-19

@@ -1355,7 +1355,7 @@ public struct DashboardPanelView: View {
                 }
             }
 
-            if forecast.shouldShowTomorrowSummary, let tomorrow = weather.tomorrow {
+            if forecast.shouldShowTomorrowSummary, let tomorrow = forecast.tomorrow {
                 let range = Text(tomorrow.temperatureRangeText)
                     .font(.caption)
                     .foregroundStyle(NomadTheme.secondaryText)
@@ -1680,7 +1680,9 @@ public struct DashboardPanelView: View {
             settings: settings,
             snapshot: snapshot,
             weatherAvailabilityExplanation: weatherAvailabilityExplanation,
-            locationStatusDetail: locationStatusDetail
+            locationStatusDetail: locationStatusDetail,
+            activity: sectionActivity[.weather],
+            isOffline: resourcePolicy.isOffline
         )
     }
 
@@ -4768,12 +4770,28 @@ struct WeatherSectionPresentation {
         settings: AppSettings,
         snapshot: DashboardSnapshot,
         weatherAvailabilityExplanation: String?,
-        locationStatusDetail: String?
+        locationStatusDetail: String?,
+        activity: DashboardSectionActivity? = nil,
+        isOffline: Bool = false,
+        now: Date = .now
     ) {
         if let weather = snapshot.weather {
-            badge = PillBadge(title: "Live", symbolName: "cloud.sun.fill", tint: NomadTheme.teal)
-            // The condition itself sits next to the big temperature; the subtitle says how fresh it is.
-            subtitle = "Updated \(NomadFormatters.compactClockTime(weather.fetchedAt))"
+            let failed = snapshot.appState.issues.contains(.weatherUnavailable)
+                || snapshot.appState.issues.contains(.weatherLocationRequired)
+                || activity?.message != nil || weatherAvailabilityExplanation != nil
+            let isSaved = isOffline || failed || activity?.isSaved == true || now.timeIntervalSince(weather.fetchedAt) > 3_600
+            badge = PillBadge(title: isSaved ? "Saved" : "Live", symbolName: isSaved ? "clock" : "cloud.sun.fill", tint: isSaved ? NomadTheme.sand : NomadTheme.teal)
+            let stamp = weather.fetchedAt.formatted(date: .abbreviated, time: .shortened)
+            let reason: String = if isOffline {
+                " · Offline"
+            } else if snapshot.appState.issues.contains(.weatherLocationRequired) {
+                " · Location needed"
+            } else if weatherAvailabilityExplanation != nil {
+                " · WeatherKit unavailable"
+            } else {
+                failed ? " · Couldn't update" : (isSaved ? " · May be outdated" : "")
+            }
+            subtitle = "Updated \(stamp)\(reason)"
             emptyTitle = ""
             emptySystemImage = "cloud.sun.fill"
             emptyMessage = ""
@@ -4817,30 +4835,34 @@ struct WeatherForecastPresentation {
     /// The strip of upcoming hours. Always visible, whatever the disclosure state.
     let hourlySlots: [WeatherHourlyForecastSlotPresentation]
     let dailyRows: [WeatherDaySummary]
+    let tomorrow: WeatherDaySummary?
     /// Whether the 7-day outlook is expanded. Only the outlook folds away.
     let isForecastExpanded: Bool
     /// Whether the 7-day outlook disclosure is offered (wide cards with daily data).
     let showsForecastDisclosure: Bool
     let shouldShowTomorrowSummary: Bool
 
-    init(settings: AppSettings, weather: WeatherSnapshot?, widthMode: DashboardCardWidthMode) {
+    init(settings: AppSettings, weather: WeatherSnapshot?, widthMode: DashboardCardWidthMode, now: Date = .now, calendar: Calendar = .current) {
         guard let weather else {
             hourlySlots = []
             dailyRows = []
+            tomorrow = nil
             isForecastExpanded = false
             showsForecastDisclosure = false
             shouldShowTomorrowSummary = false
             return
         }
 
-        hourlySlots = weather.hourlyForecastSlots.enumerated().map { index, slot in
-            WeatherHourlyForecastSlotPresentation(index: index, slot: slot, referenceDate: weather.fetchedAt)
+        hourlySlots = weather.hourlyForecastSlots.filter { $0.date > now }.enumerated().map { index, slot in
+            WeatherHourlyForecastSlotPresentation(index: index, slot: slot, referenceDate: now)
         }
-        dailyRows = weather.dailyForecast
+        dailyRows = Array(weather.dailyForecast.filter { $0.date >= calendar.startOfDay(for: now) }.sorted { $0.date < $1.date }.prefix(7))
+        let tomorrowDate = calendar.date(byAdding: .day, value: 1, to: now)
+        tomorrow = dailyRows.first { day in tomorrowDate.map { calendar.isDate(day.date, inSameDayAs: $0) } ?? false }
         let canShowOutlook = widthMode != .narrow
         showsForecastDisclosure = canShowOutlook && dailyRows.isEmpty == false
         isForecastExpanded = showsForecastDisclosure && settings.weatherForecastExpanded
-        shouldShowTomorrowSummary = weather.tomorrow != nil && (showsForecastDisclosure == false || isForecastExpanded == false)
+        shouldShowTomorrowSummary = tomorrow != nil && (showsForecastDisclosure == false || isForecastExpanded == false)
     }
 }
 
