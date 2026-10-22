@@ -29,6 +29,7 @@ struct DashboardRootView: View {
     @State private var lastLocationRefreshLocation: CLLocation?
     /// An arrival briefing the user asked for from the header menu, kept until they dismiss it.
     @State private var reopenedArrival: ArrivalEvent?
+    @State private var isDashboardVisible = false
 
     var body: some View {
         DashboardPanelView(
@@ -152,12 +153,15 @@ struct DashboardRootView: View {
                 openInGoogleMapsAction: { openEmergencyHospitalInGoogleMaps(hospital) }
             )
         }
+        .environment(\.nomadInterfaceActive, isDashboardVisible)
+        .background(WindowVisibilityObserver { visible in
+            isDashboardVisible = visible
+            runtimeCoordinator.setVisible(visible, surface: "dashboard")
+        })
         .onDisappear {
             locationRefreshTask?.cancel()
-            runtimeCoordinator.setVisible(false, surface: "dashboard")
         }
         .onAppear {
-            runtimeCoordinator.setVisible(true, surface: "dashboard")
             analytics.recordPrimaryUIOpened(analyticsEnabled: settingsStore.settings.shareAnonymousAnalytics)
         }
     }

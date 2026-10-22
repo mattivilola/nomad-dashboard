@@ -31,12 +31,15 @@ public struct MenuBarStatusPresentation: Equatable, Sendable {
 }
 
 public extension DashboardSnapshot {
-    /// Precedence: metered usage, battery at or below 50%, offline, a caution-or-worse heads-up,
+    /// Precedence: low battery while unplugged (20% or less), metered usage, battery at or below 50%, offline, a caution-or-worse heads-up,
     /// then latency and weather. Info-level heads-ups never reach the menu bar.
     func menuBarStatusPresentation(
         showMeteredUsage: Bool,
         headsUp: DashboardInsight? = nil
     ) -> MenuBarStatusPresentation {
+        if power.snapshot?.state == .battery, let charge = power.snapshot?.chargePercent, charge <= 0.20 {
+            return defaultMenuBarStatusPresentation(headsUp: nil)
+        }
         if showMeteredUsage,
            meteredData.isFeatureEnabled,
            meteredData.isMonitoringActive,
@@ -62,8 +65,9 @@ public extension DashboardSnapshot {
         if let chargePercent = power.snapshot?.chargePercent, chargePercent <= 0.5 {
             return MenuBarStatusPresentation(
                 text: Self.formatBatteryPercentage(chargePercent),
-                symbolName: Self.batterySymbolName(for: chargePercent),
-                branch: .battery
+                symbolName: power.snapshot?.state == .charging ? "battery.100percent.bolt" : Self.batterySymbolName(for: chargePercent),
+                branch: .battery,
+                tone: power.snapshot?.state == .battery && chargePercent <= 0.20 ? .attention : .standard
             )
         }
 
@@ -128,6 +132,8 @@ public extension DashboardSnapshot {
 
     private static func batterySymbolName(for chargePercent: Double) -> String {
         switch chargePercent {
+        case ...0.10:
+            "battery.0percent"
         case ...0.25:
             "battery.25percent"
         case ...0.5:

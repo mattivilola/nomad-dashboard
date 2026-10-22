@@ -77,6 +77,8 @@ You see how much data this connection has used, get warned before overage, and N
 ### What it does
 
 - Shows battery charge percentage
+- Updates power independently from network refreshes using macOS power-change notifications and a one-minute safety read, so a stalled network lookup cannot freeze the battery percentage or charging status
+- Prioritizes battery warnings at 20% or less while unplugged in the menu bar, ahead of data usage and other heads-up items
 - Shows charging state
 - Shows time remaining or time to full charge when available
 - Shows low power mode state
@@ -328,7 +330,7 @@ Users can get a quick sense of local holiday timing, place context, and price pr
 - Can show nearby fuel price information
 - Station rows open the map preview when clicked; a trailing menu offers the preview and Google Maps
 - Can open selected stations in Google Maps
-- Shows prices in the locale's currency style ("1,429 €/L") in primary text rather than fuel-type colors, and the animated road backdrop stays subtle and fades out behind the rows
+- Shows prices in the locale's currency style ("1,429 €/L") in primary text rather than fuel-type colors; the road backdrop fades out behind the rows, stays still on battery or when hidden, and uses at most 15 updates per second when animated on external power
 - Includes diagnostics in Settings (Advanced page) for troubleshooting
 
 ### Who it helps
@@ -781,6 +783,7 @@ One click from the menu bar keeps the Mac awake for exactly as long as needed, t
 - Supports a travel profile (Nomad, Road trip & RV) that sets the recommended card order and heads-up ranking; see Travel Profile
 - Supports configurable refresh cadence and history retention
 - Slows hidden menu-bar background refreshes automatically to reduce battery impact
+- Uses actual window visibility to suspend display-only work when hidden or minimized; automatic refresh feedback stays still, and decorative motion stops on battery
 - Retains a bounded local cache of selected remote dashboard content for a more useful offline or temporarily disconnected view
 - Supports dashboard card reordering
 - Supports dashboard card width customization

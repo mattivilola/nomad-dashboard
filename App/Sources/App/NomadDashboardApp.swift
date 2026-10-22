@@ -231,8 +231,9 @@ struct NomadDashboardApp: App {
                 settingsStore: settingsStore,
                 controller: timeTrackingController
             )
-            .onAppear { runtimeCoordinator.setVisible(true, surface: "time-tracking") }
-            .onDisappear { runtimeCoordinator.setVisible(false, surface: "time-tracking") }
+            .background(WindowVisibilityObserver { visible in
+                runtimeCoordinator.setVisible(visible, surface: "time-tracking")
+            })
             .modifier(SceneAppearanceSync(settingsStore: settingsStore))
         }
         .handlesExternalEvents(matching: [])

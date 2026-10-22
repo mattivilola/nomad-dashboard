@@ -58,7 +58,7 @@ public struct LivePowerMonitor: PowerMonitor {
         let dischargeRateWatts = Self.resolveDischargeRateWatts(
             state: state,
             description: description,
-            registryValues: Self.batteryRegistryValues()
+            registryValues: state == .battery ? Self.batteryRegistryValues() : nil
         )
 
         var adapterWatts: Double?

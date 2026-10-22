@@ -32,6 +32,9 @@ public final class DashboardSnapshotStore: ObservableObject {
     private let dependencies: DashboardDependencies
     private let analytics: AppAnalytics?
     private var refreshTask: Task<Void, Never>?
+    private var powerSourceObserver: PowerSourceChangeObserver?
+    private var powerFallbackTask: Task<Void, Never>?
+    private var powerReadTask: Task<PowerSnapshot?, Never>?
     private var settingsObservation: AnyCancellable?
     private var appliedSettings: AppSettings
     private var currentLocation: CLLocation?
@@ -100,6 +103,8 @@ public final class DashboardSnapshotStore: ObservableObject {
 
     deinit {
         refreshTask?.cancel()
+        powerFallbackTask?.cancel()
+        powerReadTask?.cancel()
         externalRefreshTask?.cancel()
         localRefreshTask?.cancel()
         cacheSaveTask?.cancel()
@@ -109,6 +114,17 @@ public final class DashboardSnapshotStore: ObservableObject {
 
     public func start() {
         guard refreshTask == nil else { return }
+        powerSourceObserver = PowerSourceChangeObserver { [weak self] in
+            Task { [weak self] in await self?.refreshPowerMetrics() }
+        }
+        // This safety read is independent of network work and remains infrequent even when the menu is open.
+        powerFallbackTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refreshPowerMetrics()
+                do { try await Task.sleep(for: .seconds(60), tolerance: .seconds(5)) }
+                catch { return }
+            }
+        }
         refreshTask = Task { [weak self] in
             await self?.initializationTask?.value
             var initial = true
@@ -116,6 +132,7 @@ public final class DashboardSnapshotStore: ObservableObject {
                 guard let self else { return }
                 updateResourcePolicy()
                 _ = scheduleExternalRefresh(force: false, startup: initial)
+                await refreshPowerMetrics(recordHistory: true)
                 await refreshLocalMetrics()
                 initial = false
                 do { try await Task.sleep(for: .seconds(effectiveRefreshInterval(for: settingsStore.settings))) }
@@ -127,6 +144,11 @@ public final class DashboardSnapshotStore: ObservableObject {
     public func stop() {
         refreshTask?.cancel()
         refreshTask = nil
+        powerSourceObserver = nil
+        powerFallbackTask?.cancel()
+        powerFallbackTask = nil
+        powerReadTask?.cancel()
+        powerReadTask = nil
         localRefreshTask?.cancel()
         localRefreshTask = nil
         hasPendingRefresh = false
@@ -296,6 +318,8 @@ public final class DashboardSnapshotStore: ObservableObject {
         }
         await initializationTask?.value
         guard !Task.isCancelled else { return }
+        // Reopening or manually refreshing must update power even if an older network read is stalled.
+        await refreshPowerMetrics(recordHistory: true)
         if let running = localRefreshTask {
             guard !isFollowUp else {
                 await running.value
@@ -481,8 +505,30 @@ public final class DashboardSnapshotStore: ObservableObject {
         await recordLatency(sample)
     }
 
+    /// Kept separate from the shared local refresh so a stuck network provider cannot freeze battery status.
+    /// Concurrent system notifications/reopens share a single read; publication never waits for persistence.
+    func refreshPowerMetrics(recordHistory: Bool = false) async {
+        if let powerReadTask {
+            _ = await powerReadTask.value
+            return
+        }
+        let monitor = dependencies.powerMonitor
+        let task = Task { await monitor.currentSnapshot() }
+        powerReadTask = task
+        let reading = await task.value
+        guard powerReadTask == task else { return }
+        powerReadTask = nil
+        guard !Task.isCancelled, !task.isCancelled else { return }
+        mutateSnapshot {
+            $0.power = PowerSectionSnapshot(snapshot: reading, chargeHistory: $0.power.chargeHistory, dischargeHistory: $0.power.dischargeHistory)
+        }
+        if recordHistory, let reading {
+            await appendHistory(from: reading)
+        }
+    }
+
     private enum LocalReading: Sendable {
-        case throughput(NetworkThroughputSample?), connectivity(ConnectivitySnapshot), power(PowerSnapshot?)
+        case throughput(NetworkThroughputSample?), connectivity(ConnectivitySnapshot)
         case wifi(WiFiSnapshot?), vpn(VPNStatusSnapshot), latency(LatencySample?)
     }
 
@@ -497,7 +543,6 @@ public final class DashboardSnapshotStore: ObservableObject {
         await withTaskGroup(of: LocalReading.self) { group in
             group.addTask { await .throughput(dependencies.throughputMonitor.currentSample()) }
             group.addTask { await .connectivity(dependencies.connectivityMonitor.currentSnapshot()) }
-            group.addTask { await .power(dependencies.powerMonitor.currentSnapshot()) }
             group.addTask { await .wifi(dependencies.wifiMonitor.currentSnapshot()) }
             group.addTask { await .vpn(dependencies.vpnStatusProvider.currentStatus()) }
             if shouldProbeLatency {
@@ -536,11 +581,6 @@ public final class DashboardSnapshotStore: ObservableObject {
                         )
                     }
                     updateResourcePolicy()
-                case let .power(value):
-                    if let value {
-                        mutateSnapshot { $0.power = PowerSectionSnapshot(snapshot: value, chargeHistory: $0.power.chargeHistory, dischargeHistory: $0.power.dischargeHistory) }
-                        await appendHistory(from: value)
-                    }
                 case let .wifi(value):
                     mutateSnapshot { draft in
                         let old = draft.travelContext

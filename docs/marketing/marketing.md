@@ -102,7 +102,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Keeping the Mac awake for 15 minutes up to 8 hours (or until you stop it) during long builds, downloads and remote sessions, with a countdown in the header, and optionally with the lid closed so a build carries on while the MacBook is in the bag (a one-time approval in Login Items; it ends by itself at 10% battery or critical heat)
 - Tracking awake work time locally on the Mac, then assigning it from the dashboard with a compact Allocate menu, interruption counts, and focus-adjusted day, week, and month summaries
 - Optionally collecting stationary workplace visits from authorized device location, reviewing a local work diary, and comparing current and home time
-- Keeping all of the above in a compact menu bar workflow instead of a full-size monitoring dashboard, with hidden background refreshes slowed to protect battery life
+- Keeping all of the above in a compact menu bar workflow, with hidden background refreshes slowed, decorative motion paused on battery, and battery status updated independently of network lookups
 
 ## Benefit Statements
 

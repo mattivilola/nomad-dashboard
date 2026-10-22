@@ -177,7 +177,7 @@ struct MenuBarStatusPresentationTests {
     @Test
     func meteredUsageBeatsOfflineAndHeadsUp() {
         let snapshot = makeSnapshot(
-            chargePercent: 0.2,
+            chargePercent: 0.21,
             connectivity: ConnectivitySnapshot(pathAvailable: true, internetState: .offline, lastCheckedAt: .now),
             latency: 28,
             weather: makeWeather(),
@@ -190,6 +190,19 @@ struct MenuBarStatusPresentationTests {
 
         let hidden = snapshot.menuBarStatusPresentation(showMeteredUsage: false, headsUp: makeHeadsUp(severity: .attention))
         #expect(hidden.branch == .battery)
+    }
+
+    @Test
+    func lowBatteryCannotBeHiddenByMeteredUsageOrHeadsUp() {
+        for charge in [0.20, 0.10, 0.04] {
+            let presentation = makeSnapshot(chargePercent: charge, latency: 28, weather: makeWeather(), meteredData: makeMetered())
+                .menuBarStatusPresentation(showMeteredUsage: true, headsUp: makeHeadsUp(severity: .attention))
+            #expect(presentation.branch == .battery)
+            #expect(presentation.tone == .attention)
+            if charge <= 0.10 {
+                #expect(presentation.symbolName == "battery.0percent")
+            }
+        }
     }
 
     @Test

@@ -6,6 +6,33 @@ import Testing
 @MainActor
 struct DashboardSnapshotStoreTests {
     @Test
+    func batteryUpdatesDuringAStalledLocalRefresh() async throws {
+        let settings = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
+        let throughput = GatedThroughputMonitor()
+        let power = MutablePowerMonitor()
+        let store = DashboardSnapshotStore(settingsStore: settings, dependencies: makeDependencies(throughputMonitor: throughput, powerMonitor: power))
+        let refresh = Task { await store.refresh() }
+        await throughput.waitForCall(1)
+        #expect(store.snapshot.power.snapshot?.chargePercent == 0.72)
+
+        await power.set(charge: 0.04, state: .battery)
+        await store.refreshPowerMetrics()
+        #expect(store.snapshot.power.snapshot?.chargePercent == 0.04)
+        #expect(store.snapshot.menuBarStatusPresentation.text == "4%")
+        #expect(store.snapshot.healthSummary.power.level == .attention)
+
+        await power.set(charge: 0.07, state: .charging)
+        await store.refreshPowerMetrics()
+        #expect(store.snapshot.power.snapshot?.state == .charging)
+        #expect(store.snapshot.power.snapshot?.chargePercent == 0.07)
+        await power.setAvailable(false)
+        await store.refreshPowerMetrics()
+        #expect(store.snapshot.power.snapshot == nil)
+        await throughput.release()
+        await refresh.value
+    }
+
+    @Test
     func manualWeatherRefreshForcesProviderAndRetainsLastResultOnFailure() async throws {
         let settings = try AppSettingsStore(defaults: #require(UserDefaults(suiteName: UUID().uuidString)))
         let weather = RecordingWeatherProvider()
@@ -2331,6 +2358,35 @@ private struct FixedPowerMonitor: PowerMonitor {
             timeToFullChargeMinutes: nil,
             isLowPowerModeEnabled: false,
             dischargeRateWatts: 11,
+            adapterWatts: nil,
+            collectedAt: .now
+        )
+    }
+}
+
+private actor MutablePowerMonitor: PowerMonitor {
+    private var charge = 0.72
+    private var state = PowerSourceState.battery
+    private var isAvailable = true
+
+    func setAvailable(_ available: Bool) {
+        isAvailable = available
+    }
+
+    func set(charge: Double, state: PowerSourceState) {
+        self.charge = charge
+        self.state = state
+    }
+
+    func currentSnapshot() async -> PowerSnapshot? {
+        guard isAvailable else { return nil }
+        return PowerSnapshot(
+            chargePercent: charge,
+            state: state,
+            timeRemainingMinutes: nil,
+            timeToFullChargeMinutes: nil,
+            isLowPowerModeEnabled: false,
+            dischargeRateWatts: nil,
             adapterWatts: nil,
             collectedAt: .now
         )

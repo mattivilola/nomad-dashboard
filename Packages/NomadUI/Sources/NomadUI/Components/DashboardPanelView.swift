@@ -268,7 +268,7 @@ public struct DashboardPanelView: View {
             }
         }
         .frame(width: 430, height: 640)
-        .environment(\.nomadLowImpact, resourcePolicy.reducesBackgroundWork)
+        .environment(\.nomadLowImpact, resourcePolicy.reducesBackgroundWork || snapshot.power.snapshot?.state == .battery)
         .onChange(of: dashboardCardOrder) { _, newValue in
             let sanitizedOrder = DashboardCardID.sanitizedOrder(newValue)
             guard resolvedCardOrder != sanitizedOrder else {
@@ -2482,35 +2482,45 @@ private struct HeaderActionIcon: View {
     var activity: DashboardRefreshActivity = .idle
     /// Overrides the idle icon and border colors, for a persistent "on" state such as Keep Awake.
     var tint: Color?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.nomadLowImpact) private var lowImpact
+    @Environment(\.nomadInterfaceActive) private var interfaceActive
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 10.0, paused: activity == .idle)) { context in
-            let phase = context.date.timeIntervalSinceReferenceDate
-            let rotation = rotationAngle(for: phase)
-            let pulse = pulseValue(for: phase)
-
-            ZStack {
-                if activity != .idle {
-                    Circle()
-                        .stroke(activityTint.opacity(activity == .manualInProgress ? 0.26 : 0.18), lineWidth: 2)
-                        .scaleEffect(1.02 + pulse * (activity == .manualInProgress ? 0.24 : 0.18))
-                        .opacity(activity == .manualInProgress ? 0.65 - pulse * 0.22 : 0.45 - pulse * 0.16)
-                }
-
-                Circle()
-                    .fill(backgroundTint)
-                    .overlay(
-                        Circle()
-                            .stroke(borderTint, lineWidth: 1)
-                    )
-
-                Image(systemName: systemImage)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(foregroundTint)
-                    .rotationEffect(rotation)
+        if activity == .manualInProgress, !reduceMotion, !lowImpact, interfaceActive {
+            TimelineView(.periodic(from: .now, by: 0.1)) { context in
+                icon(phase: context.date.timeIntervalSinceReferenceDate)
             }
-            .frame(width: 34, height: 34)
+        } else {
+            icon(phase: 0)
         }
+    }
+
+    private func icon(phase: TimeInterval) -> some View {
+        let rotation = rotationAngle(for: phase)
+        let pulse = pulseValue(for: phase)
+
+        return ZStack {
+            if activity != .idle {
+                Circle()
+                    .stroke(activityTint.opacity(activity == .manualInProgress ? 0.26 : 0.18), lineWidth: 2)
+                    .scaleEffect(1.02 + pulse * (activity == .manualInProgress ? 0.24 : 0.18))
+                    .opacity(activity == .manualInProgress ? 0.65 - pulse * 0.22 : 0.45 - pulse * 0.16)
+            }
+
+            Circle()
+                .fill(backgroundTint)
+                .overlay(
+                    Circle()
+                        .stroke(borderTint, lineWidth: 1)
+                )
+
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(foregroundTint)
+                .rotationEffect(rotation)
+        }
+        .frame(width: 34, height: 34)
     }
 
     private var foregroundTint: Color {
@@ -3762,6 +3772,7 @@ private struct FuelPricesSectionView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.nomadLowImpact) private var lowImpact
+    @Environment(\.nomadInterfaceActive) private var interfaceActive
     @State private var cardFrame: CGRect = .null
 
     var body: some View {
@@ -3769,7 +3780,7 @@ private struct FuelPricesSectionView: View {
             frame: cardFrame,
             viewportHeight: viewportHeight,
             visualMode: presentation.visualMode,
-            reduceMotion: reduceMotion || lowImpact
+            reduceMotion: reduceMotion || lowImpact || !interfaceActive
         )
 
         DashboardCard(
@@ -3853,15 +3864,9 @@ private struct FuelCardBackdrop: View {
         GeometryReader { geometry in
             Group {
                 if isAnimating {
-                    TimelineView(.animation) { context in
+                    TimelineView(.periodic(from: .now, by: 1.0 / 15.0)) { context in
                         let phase = context.date.timeIntervalSinceReferenceDate
                         backdropContents(size: geometry.size, phase: phase)
-                            .onAppear {
-                                lastResolvedPhase = phase
-                            }
-                            .onChange(of: phase) { _, newPhase in
-                                lastResolvedPhase = newPhase
-                            }
                     }
                 } else {
                     backdropContents(size: geometry.size, phase: resolvedStaticPhase)
@@ -3871,6 +3876,11 @@ private struct FuelCardBackdrop: View {
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+        .onChange(of: isAnimating) { _, animating in
+            if !animating {
+                lastResolvedPhase = Date().timeIntervalSinceReferenceDate
+            }
+        }
     }
 
     private func rowAreaFade(height: CGFloat) -> some View {
