@@ -44,6 +44,8 @@ private keys into tracked config or the shipped app bundle.
 
     Registration must be attempted for both `notRegistered` and `notFound` service states: a failed service lookup alone does not establish that the bundled helper is missing. Registration validates the bundle and surfaces the real macOS error. Verify a signed installed build on first use: approve the background helper if requested, confirm the laptop indicator becomes active and `pmset -g` reports `SleepDisabled 1`, stop the session and confirm it returns to its previous value. Also verify quitting during an active session restores the previous setting. Package tests use a fake registration service and never install a daemon.
 
+    XPC error callbacks must be explicitly `@Sendable`: macOS invokes them on a background queue, and inheriting main-actor isolation crashes the app before it can display the connection error. The package regression test calls a unique nonexistent Mach service to exercise the real failure callback without installing a helper or changing power settings.
+
 `Config/Signing.env` is ignored by git and should stay local to the release machine.
 `Config/AppConfig.local.xcconfig` is also ignored by git and should stay local to developer or release machines.
 

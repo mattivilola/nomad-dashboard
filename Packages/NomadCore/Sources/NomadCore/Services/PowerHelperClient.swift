@@ -244,7 +244,9 @@ private struct HelperProxy {
     ) async throws -> Value {
         try await withCheckedThrowingContinuation { continuation in
             let gate = ResumeOnce(continuation)
-            let object = connection.remoteObjectProxyWithErrorHandler { error in
+            // XPC delivers failures on its own queue. Without @Sendable this closure inherits
+            // HelperProxy's main-actor isolation and traps before it can report the error.
+            let object = connection.remoteObjectProxyWithErrorHandler { @Sendable error in
                 gate.resume(.failure(LidClosedSleepError("Couldn't reach the lid-closed helper: \(error.localizedDescription)")))
             }
             guard let proxy = object as? any NomadPowerHelperProtocol else {

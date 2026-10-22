@@ -85,6 +85,29 @@ struct PowerHelperClientTests {
             service: service
         )
     }
+
+    @Test(.timeLimit(.minutes(1)))
+    func missingHelperReportsConnectionErrorWithoutCrashing() async {
+        // Exercise the real XPC error callback on its background queue without registering
+        // a daemon or changing power settings. A unique service name cannot reach a real helper.
+        let service = FakePowerHelperService(status: .enabled, statusAfterRegistration: .enabled)
+        let client = PowerHelperClient(
+            appBundleIdentifier: "com.iloapps.NomadDashboard.Tests.\(UUID().uuidString)",
+            teamIdentifier: "MM233FKU38",
+            service: service
+        )
+
+        do {
+            try await client.begin(endsAt: nil)
+            Issue.record("A nonexistent helper must report a connection error")
+        } catch let error as LidClosedSleepError {
+            #expect(error.message.hasPrefix("Couldn't reach the lid-closed helper:"))
+        } catch {
+            Issue.record("Unexpected helper error: \(error)")
+        }
+        await client.end()
+        #expect(service.registrationCount == 0)
+    }
 }
 
 @MainActor
