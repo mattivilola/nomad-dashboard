@@ -20,6 +20,12 @@ and this project follows [Semantic Versioning](https://semver.org/).
 - _Nothing yet_
 
 
+## [0.21.4] - 2026-10-22
+
+### Changed
+
+- Clarify weather and air quality refresh footers
+
 ## [0.21.3] - 2026-10-22
 
 ### Changed
