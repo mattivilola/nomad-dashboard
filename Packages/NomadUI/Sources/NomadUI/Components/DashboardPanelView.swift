@@ -53,6 +53,7 @@ public struct DashboardPanelView: View {
     private let openEmergencyHospitalMapPreviewAction: (EmergencyHospitalMapDestination) -> Void
     private let openEmergencyHospitalInGoogleMapsAction: (EmergencyHospitalMapDestination) -> Void
     private let openTravelAlertSourceAction: (URL) -> Void
+    private let openTravelAlertDetailAction: (TravelAlertKind) -> Void
     private let openExternalURLAction: (URL) -> Void
     private let copyTextAction: (String) -> Void
     private let checkForUpdatesAction: (() -> Void)?
@@ -131,6 +132,7 @@ public struct DashboardPanelView: View {
         openEmergencyHospitalMapPreviewAction: @escaping (EmergencyHospitalMapDestination) -> Void = { _ in },
         openEmergencyHospitalInGoogleMapsAction: @escaping (EmergencyHospitalMapDestination) -> Void = { _ in },
         openTravelAlertSourceAction: @escaping (URL) -> Void = { _ in },
+        openTravelAlertDetailAction: @escaping (TravelAlertKind) -> Void = { _ in },
         openExternalURLAction: @escaping (URL) -> Void = { _ in },
         copyTextAction: @escaping (String) -> Void = { _ in },
         checkForUpdatesAction: (() -> Void)? = nil,
@@ -201,6 +203,7 @@ public struct DashboardPanelView: View {
         self.openEmergencyHospitalMapPreviewAction = openEmergencyHospitalMapPreviewAction
         self.openEmergencyHospitalInGoogleMapsAction = openEmergencyHospitalInGoogleMapsAction
         self.openTravelAlertSourceAction = openTravelAlertSourceAction
+        self.openTravelAlertDetailAction = openTravelAlertDetailAction
         self.openExternalURLAction = openExternalURLAction
         self.copyTextAction = copyTextAction
         self.checkForUpdatesAction = checkForUpdatesAction
@@ -1526,7 +1529,7 @@ public struct DashboardPanelView: View {
                             row: row,
                             showsChip: travelAlertsPresentation.showsSignalChips,
                             isCompact: widthMode == .narrow,
-                            openSourceAction: openTravelAlertSourceAction
+                            openDetailAction: { openTravelAlertDetailAction(row.id) }
                         )
                     }
                 }
@@ -4459,11 +4462,53 @@ enum TravelAlertsBadgePresentation: Equatable {
     }
 }
 
-private extension TravelAlertRowModel {
+/// How a signal state is badged: the label, severity and colour/symbol shared by the card row and its detail sheet,
+/// so the two never disagree about what a status looks like.
+struct TravelAlertStatusAppearance: Equatable {
+    let label: String
+    let severity: TravelAlertSeverity
+    let tint: Color
+    let symbolName: String
+
+    init(state: TravelAlertSignalState) {
+        switch state.status {
+        case .checking:
+            self.init(label: "Checking", severity: .info, tint: NomadTheme.secondaryText, symbolName: "clock.fill")
+        case .ready:
+            let severity = state.signal?.severity ?? .clear
+            self.init(
+                label: state.signal?.severity.badgeTitle ?? "Ready",
+                severity: severity,
+                tint: severity.tint,
+                symbolName: severity.symbolName
+            )
+        case .stale:
+            let severity = state.signal?.severity ?? .info
+            self.init(label: "Stale", severity: severity, tint: severity.tint, symbolName: severity.symbolName)
+        case .unavailable:
+            self.init(
+                label: "Unavailable",
+                severity: .info,
+                tint: NomadTheme.sand,
+                symbolName: "exclamationmark.triangle.fill"
+            )
+        }
+    }
+
+    private init(label: String, severity: TravelAlertSeverity, tint: Color, symbolName: String) {
+        self.label = label
+        self.severity = severity
+        self.tint = tint
+        self.symbolName = symbolName
+    }
+}
+
+extension TravelAlertRowModel {
     init(state: TravelAlertSignalState) {
         let title = state.kind.displayName
         let sourceName = state.signal?.sourceName ?? state.sourceName
-        let statusLabel = Self.statusLabel(for: state)
+        let appearance = TravelAlertStatusAppearance(state: state)
+        let statusLabel = appearance.label
         let impactText = Self.impactText(for: state)
         let freshnessText = Self.freshnessText(for: state)
 
@@ -4481,9 +4526,9 @@ private extension TravelAlertRowModel {
                 sourceName: sourceName,
                 sourceURL: nil,
                 count: nil,
-                severity: .info,
-                tint: NomadTheme.secondaryText,
-                symbolName: "clock.fill",
+                severity: appearance.severity,
+                tint: appearance.tint,
+                symbolName: appearance.symbolName,
                 status: .checking
             )
         case .ready:
@@ -4500,14 +4545,13 @@ private extension TravelAlertRowModel {
                 sourceName: sourceName,
                 sourceURL: signal?.sourceURL,
                 count: signal?.itemCount,
-                severity: signal?.severity ?? .clear,
-                tint: (signal?.severity ?? .clear).tint,
-                symbolName: (signal?.severity ?? .clear).symbolName,
+                severity: appearance.severity,
+                tint: appearance.tint,
+                symbolName: appearance.symbolName,
                 status: .ready
             )
         case .stale:
             let signal = state.signal
-            let severity = signal?.severity ?? .info
             let summary = signal.map { "Last known: \($0.summary)" } ?? "Last known alert status unavailable."
             self.init(
                 id: state.kind,
@@ -4521,9 +4565,9 @@ private extension TravelAlertRowModel {
                 sourceName: sourceName,
                 sourceURL: signal?.sourceURL,
                 count: signal?.itemCount,
-                severity: severity,
-                tint: severity.tint,
-                symbolName: severity.symbolName,
+                severity: appearance.severity,
+                tint: appearance.tint,
+                symbolName: appearance.symbolName,
                 status: .stale
             )
         case .unavailable:
@@ -4539,24 +4583,11 @@ private extension TravelAlertRowModel {
                 sourceName: sourceName,
                 sourceURL: nil,
                 count: nil,
-                severity: .info,
-                tint: NomadTheme.sand,
-                symbolName: "exclamationmark.triangle.fill",
+                severity: appearance.severity,
+                tint: appearance.tint,
+                symbolName: appearance.symbolName,
                 status: .unavailable
             )
-        }
-    }
-
-    private static func statusLabel(for state: TravelAlertSignalState) -> String {
-        switch state.status {
-        case .checking:
-            "Checking"
-        case .ready:
-            state.signal?.severity.badgeTitle ?? "Ready"
-        case .stale:
-            "Stale"
-        case .unavailable:
-            "Unavailable"
         }
     }
 
@@ -4600,13 +4631,45 @@ private extension TravelAlertRowModel {
     }
 }
 
+/// A tappable signal block that opens the signal's detail sheet.
+///
+/// SwiftUI does not reliably nest a button inside another button's label, so the row is a layered
+/// pair: a background `Button` owns the whole block as its hit target, the text content passes
+/// clicks through to it, and the advisory "More details" button sits on top as a sibling target.
 private struct TravelAlertSignalRow: View {
     let row: TravelAlertRowModel
     var showsChip = true
     var isCompact: Bool = false
-    var openSourceAction: (URL) -> Void = { _ in }
+    var openDetailAction: () -> Void = {}
+
+    @State private var isHovering = false
+
+    private var cornerRadius: CGFloat {
+        18
+    }
 
     var body: some View {
+        // The button is a background so it always matches the block's size.
+        content
+            .background {
+                Button(action: openDetailAction) {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(row.tint.opacity(isHovering ? 0.13 : 0.08))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .stroke(row.tint.opacity(isHovering ? 0.26 : 0.14), lineWidth: 1)
+                        )
+                        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help("Show details")
+                .accessibilityLabel("\(row.title) details")
+                .accessibilityHint("Shows details")
+            }
+            .onHover { isHovering = $0 }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: isCompact ? 8 : 10) {
             HStack(alignment: .top, spacing: 12) {
                 Text(row.title)
@@ -4624,31 +4687,33 @@ private struct TravelAlertSignalRow: View {
                     )
                 }
             }
+            .allowsHitTesting(false)
 
             if row.showsImpactText {
                 Text(row.impactText.uppercased())
                     .font(.caption.weight(.bold))
                     .foregroundStyle(row.tint.opacity(0.92))
                     .tracking(0.4)
+                    .allowsHitTesting(false)
             }
 
             Text(row.summary)
-                .font(isCompact ? .caption : .caption)
+                .font(.caption)
                 .foregroundStyle(NomadTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
+                .allowsHitTesting(false)
 
             if let detailSummary = detailSummaryText {
                 Text(detailSummary)
                     .font(.caption)
                     .foregroundStyle(NomadTheme.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
+                    .allowsHitTesting(false)
             }
 
-            if let sourceURL = advisorySourceURL {
-                Button("More details") {
-                    openSourceAction(sourceURL)
-                }
-                .buttonStyle(.dashboardInline)
+            if hasMoreDetailsButton {
+                Button("More details", action: openDetailAction)
+                    .buttonStyle(.dashboardInline)
             }
 
             HStack(alignment: .center, spacing: 8) {
@@ -4670,18 +4735,15 @@ private struct TravelAlertSignalRow: View {
                                 .fill(row.tint.opacity(0.12))
                         )
                 }
+
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(NomadTheme.tertiaryText)
             }
+            .allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(isCompact ? 12 : 14)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(row.tint.opacity(0.08))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(row.tint.opacity(0.14), lineWidth: 1)
-        )
     }
 
     private var detailSummaryText: String? {
@@ -4692,16 +4754,13 @@ private struct TravelAlertSignalRow: View {
         return detailSummary == row.summary ? nil : detailSummary
     }
 
-    private var advisorySourceURL: URL? {
-        guard row.id == .advisory else {
-            return nil
-        }
-
-        return row.sourceURL
+    /// The advisory block keeps its inline "More details" shortcut; it opens the same sheet as the row.
+    private var hasMoreDetailsButton: Bool {
+        row.id == .advisory && row.sourceURL != nil
     }
 }
 
-private struct BadgeView: View {
+struct BadgeView: View {
     let badge: PillBadge
     var isCompact: Bool = false
 
@@ -6069,7 +6128,7 @@ public extension HealthLevel {
     }
 }
 
-private extension TravelAlertSeverity {
+extension TravelAlertSeverity {
     var tint: Color {
         switch self {
         case .clear:
@@ -6116,7 +6175,7 @@ private extension TravelAlertSeverity {
     }
 }
 
-private extension TravelAlertKind {
+extension TravelAlertKind {
     var displayName: String {
         switch self {
         case .advisory:
@@ -6144,7 +6203,7 @@ private extension TravelAlertUnavailableReason {
     }
 }
 
-private func travelAlertDateText(_ value: Date) -> String {
+func travelAlertDateText(_ value: Date) -> String {
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "en_US_POSIX")
     formatter.timeZone = TimeZone(secondsFromGMT: 0)

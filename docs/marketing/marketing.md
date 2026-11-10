@@ -88,7 +88,7 @@ People who spend long stretches on the road and want one lightweight place to gl
 - Seeing whether the laptop is charging normally or draining too fast
 - Confirming public IP, device location, network-detected location, time zone, Wi-Fi context, and VPN state
 - Reviewing current weather, wind, and the upcoming unified forecast before moving between locations
-- Surfacing optional travel alerts and regional context while on the move
+- Surfacing optional travel alerts and regional context while on the move, with a details dialog that lists every active alert and links to its original source
 - Checking local holiday timing, city context, and whether local prices feel cheap, medium, or expensive before settling in, including how they compare with your home country across 36 European countries
 - Looking up nearby fuel prices or emergency hospitals when location-aware tools are useful
 - Knowing whom to call and where to go abroad: your foreign ministry's consular emergency line and the nearest embassy or consulate of your country (or, when yours is not represented, the nearest EU or Nordic mission that can help), bundled offline and kept in Saved essentials

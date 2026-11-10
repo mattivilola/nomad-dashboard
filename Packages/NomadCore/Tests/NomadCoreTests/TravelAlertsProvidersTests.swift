@@ -396,6 +396,212 @@ struct TravelAlertsProvidersTests {
     }
 
     @Test
+    func advisoryItemsListSelectedCountryFirstThenSeverityThenName() throws {
+        func match(_ code: String, _ name: String, level: Int) -> AdvisoryMatch {
+            AdvisoryMatch(
+                countryCode: code,
+                countryName: name,
+                destination: SmartravellerDestination(
+                    name: name,
+                    level: level,
+                    url: URL(string: "https://example.com/\(code.lowercased())"),
+                    updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+                )
+            )
+        }
+
+        let signal = try SmartravellerAdvisoryProvider.signal(
+            from: [
+                match("PT", "Portugal", level: 1),
+                match("FR", "France", level: 3),
+                match("ES", "Spain", level: 1),
+                match("DE", "Germany", level: 2)
+            ],
+            primaryCountryCode: "ES",
+            now: .now
+        )
+
+        #expect(signal.items.map(\.id) == ["FR", "DE", "PT", "ES"])
+        let france = try #require(signal.items.first)
+        #expect(france.title == "France")
+        #expect(france.detail == "Level 3: Reconsider your need to travel.")
+        #expect(france.severity == .warning)
+        #expect(france.areaName == nil)
+        #expect(france.sourceName == "Smartraveller")
+        #expect(france.url?.absoluteString == "https://example.com/fr")
+        #expect(france.issuedAt == Date(timeIntervalSince1970: 1_700_000_000))
+    }
+
+    @Test
+    func advisoryItemsPutPrimaryCountryFirstWhenSelected() throws {
+        let signal = try SmartravellerAdvisoryProvider.signal(
+            from: [
+                AdvisoryMatch(
+                    countryCode: "ES",
+                    countryName: "Spain",
+                    destination: SmartravellerDestination(name: "Spain", level: 3, url: nil, updatedAt: nil)
+                ),
+                AdvisoryMatch(
+                    countryCode: "FR",
+                    countryName: "France",
+                    destination: SmartravellerDestination(name: "France", level: 2, url: nil, updatedAt: nil)
+                )
+            ],
+            primaryCountryCode: "ES",
+            now: .now
+        )
+
+        #expect(signal.items.map(\.id) == ["ES", "FR"])
+        #expect(signal.items.first?.url == nil)
+        #expect(signal.items.first?.severity == .warning)
+    }
+
+    @Test
+    func weatherItemsIncludeEveryAlertSortedBySeverityKeepingProviderOrderForTies() throws {
+        let signal = try WeatherKitAlertProvider.signal(
+            from: [
+                WeatherAlertPayload(
+                    detailsURL: #require(URL(string: "https://weather.example/a")),
+                    source: "",
+                    summary: "Wind advisory.",
+                    region: "Coast",
+                    severity: .info
+                ),
+                WeatherAlertPayload(
+                    detailsURL: #require(URL(string: "https://weather.example/b")),
+                    source: "National Weather Service",
+                    summary: "Flood warning.",
+                    severity: .warning
+                ),
+                WeatherAlertPayload(
+                    detailsURL: #require(URL(string: "https://weather.example/c")),
+                    source: "National Weather Service",
+                    summary: "Heat warning.",
+                    severity: .warning
+                )
+            ],
+            fetchedAt: .now
+        )
+
+        #expect(signal.items.count == 3)
+        #expect(signal.items.map(\.title) == ["Flood warning.", "Heat warning.", "Wind advisory."])
+        #expect(signal.items.map(\.severity) == [.warning, .warning, .info])
+        #expect(signal.items.map { $0.url?.absoluteString } == [
+            "https://weather.example/b",
+            "https://weather.example/c",
+            "https://weather.example/a"
+        ])
+        #expect(Set(signal.items.map(\.id)).count == 3)
+        #expect(signal.items.last?.areaName == "Coast")
+        #expect(signal.items.last?.sourceName == "WeatherKit")
+        #expect(signal.items.first?.sourceName == "National Weather Service")
+    }
+
+    @Test
+    func weatherSignalWithoutAlertsHasNoItems() {
+        let signal = WeatherKitAlertProvider.signal(from: [], fetchedAt: .now)
+
+        #expect(signal.items.isEmpty)
+    }
+
+    @Test
+    func securityItemsAreNewestFirstWithPerReportSeverityAndResolvedURLs() {
+        let now = Date()
+        let signal = ReliefWebSecurityProvider.signal(
+            from: [
+                SecurityReportPayload(
+                    title: "Older primary bulletin",
+                    date: now.addingTimeInterval(-48 * 3_600),
+                    primaryCountryName: "Spain",
+                    sourceName: "OCHA",
+                    urlAlias: "https://example.com/older"
+                ),
+                SecurityReportPayload(
+                    title: "Nearby bulletin",
+                    date: now.addingTimeInterval(-6 * 3_600),
+                    primaryCountryName: "France",
+                    sourceName: "ReliefWeb",
+                    urlAlias: "/report/france/nearby"
+                ),
+                SecurityReportPayload(
+                    title: "Fresh primary bulletin",
+                    date: now.addingTimeInterval(-2 * 3_600),
+                    primaryCountryName: "Spain",
+                    sourceName: "ReliefWeb",
+                    urlAlias: nil
+                )
+            ],
+            primaryCountryName: "Spain",
+            matchedCountryNames: ["Spain", "France"],
+            now: now
+        )
+
+        #expect(signal.items.map(\.title) == ["Fresh primary bulletin", "Nearby bulletin", "Older primary bulletin"])
+        #expect(signal.items.map(\.severity) == [.warning, .info, .caution])
+        #expect(signal.items.map(\.areaName) == ["Spain", "France", "Spain"])
+        #expect(signal.items.map { $0.url?.absoluteString } == [
+            nil,
+            "https://reliefweb.int/report/france/nearby",
+            "https://example.com/older"
+        ])
+        #expect(signal.items.first?.issuedAt == now.addingTimeInterval(-2 * 3_600))
+        #expect(Set(signal.items.map(\.id)).count == 3)
+    }
+
+    @Test
+    func signalSnapshotWithoutItemsKeyDecodesToEmptyItems() throws {
+        let json = """
+        {
+          "kind": "weather",
+          "severity": "warning",
+          "title": "Weather alerts",
+          "summary": "Flood warning.",
+          "sourceName": "WeatherKit",
+          "updatedAt": 1700000000,
+          "affectedCountryCodes": [],
+          "itemCount": 1
+        }
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+
+        let snapshot = try decoder.decode(TravelAlertSignalSnapshot.self, from: Data(json.utf8))
+
+        #expect(snapshot.items.isEmpty)
+        #expect(snapshot.itemCount == 1)
+        #expect(snapshot.sourceURL == nil)
+    }
+
+    @Test
+    func signalSnapshotItemsRoundTripThroughCodable() throws {
+        let snapshot = TravelAlertSignalSnapshot(
+            kind: .security,
+            severity: .info,
+            title: "Regional security",
+            summary: "Summary",
+            sourceName: "ReliefWeb",
+            sourceURL: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            affectedCountryCodes: [],
+            items: [
+                TravelAlertItem(
+                    id: "1",
+                    title: "Bulletin",
+                    severity: .info,
+                    areaName: "France",
+                    sourceName: "ReliefWeb",
+                    url: URL(string: "https://reliefweb.int/x"),
+                    issuedAt: Date(timeIntervalSince1970: 1_700_000_000)
+                )
+            ]
+        )
+
+        let decoded = try JSONDecoder().decode(TravelAlertSignalSnapshot.self, from: JSONEncoder().encode(snapshot))
+
+        #expect(decoded == snapshot)
+    }
+
+    @Test
     func securityProviderBuildsDocumentedRequestAndSurfacesConfiguredHTTPErrors() async throws {
         let session = makeMockSession()
         let provider = ReliefWebSecurityProvider(session: session, ttl: 0, appName: "NomadDashboardTests")

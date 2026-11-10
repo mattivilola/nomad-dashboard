@@ -44,7 +44,8 @@
 - Data Guard stores Wi-Fi network names (SSIDs), remembered metered network preferences, and cumulative byte totals locally on the Mac. This data is not uploaded.
 - Travel advisory uses Smartraveller and is enabled by default.
 - Smartraveller advisory fetches use direct HTTPS requests first and may retry through a hidden WebKit-backed page load when the direct transport path stalls.
-- After a destination is matched, Smartraveller may also fetch that destination page directly to extract a short advisory reason sentence and keep a source link for `More details`.
+- After a destination is matched, Smartraveller may also fetch that destination page directly to extract a short advisory reason sentence and keep a source link for the details dialog.
+- The alert details dialog only shows what the last refresh already fetched and makes no request of its own. A source page is opened in your browser only when you click its link.
 - Weather alerts use WeatherKit and stay off until you enable them.
 - Regional security uses ReliefWeb and stays off until you enable it.
 - Advisory and regional security scope use the current country plus bordering countries when country context is available.

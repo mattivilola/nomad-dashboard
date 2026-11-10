@@ -9,7 +9,7 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- _Nothing yet_
+- Travel Alerts details: click any signal to see every active weather alert, security bulletin, or nearby country advisory in a dialog, with links to each original notice and its source.
 
 ### Changed
 

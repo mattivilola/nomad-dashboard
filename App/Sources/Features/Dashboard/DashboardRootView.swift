@@ -24,6 +24,7 @@ struct DashboardRootView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var selectedFuelStation: FuelStationMapDestination?
     @State private var selectedEmergencyHospital: EmergencyHospitalMapDestination?
+    @State private var selectedTravelAlertKind: TravelAlertKind?
     @State private var locationRefreshTask: Task<Void, Never>?
     @State private var pendingLocationRefresh: CLLocation?
     @State private var lastLocationRefreshLocation: CLLocation?
@@ -115,6 +116,7 @@ struct DashboardRootView: View {
             openEmergencyHospitalMapPreviewAction: openEmergencyHospitalMapPreview,
             openEmergencyHospitalInGoogleMapsAction: openEmergencyHospitalInGoogleMaps,
             openTravelAlertSourceAction: openTravelAlertSource,
+            openTravelAlertDetailAction: { selectedTravelAlertKind = $0 },
             openExternalURLAction: openExternalURL,
             copyTextAction: copyText,
             checkForUpdatesAction: checkForUpdatesAction,
@@ -153,6 +155,20 @@ struct DashboardRootView: View {
                 openInGoogleMapsAction: { openEmergencyHospitalInGoogleMaps(hospital) }
             )
         }
+        .sheet(item: $selectedTravelAlertKind) { kind in
+            // Derived from the live snapshot so the open sheet follows refreshes.
+            if let state = snapshotStore.snapshot.travelAlerts?.state(for: kind) {
+                TravelAlertDetailSheet(
+                    presentation: TravelAlertDetailPresentation(state: state),
+                    openURLAction: openTravelAlertSource
+                )
+            }
+        }
+        .onChange(of: selectedTravelAlertState == nil) { _, isMissing in
+            if isMissing {
+                selectedTravelAlertKind = nil
+            }
+        }
         .environment(\.nomadInterfaceActive, isDashboardVisible)
         .background(WindowVisibilityObserver { visible in
             isDashboardVisible = visible
@@ -164,6 +180,10 @@ struct DashboardRootView: View {
         .onAppear {
             analytics.recordPrimaryUIOpened(analyticsEnabled: settingsStore.settings.shareAnonymousAnalytics)
         }
+    }
+
+    private var selectedTravelAlertState: TravelAlertSignalState? {
+        selectedTravelAlertKind.flatMap { snapshotStore.snapshot.travelAlerts?.state(for: $0) }
     }
 
     private func refresh() {
@@ -424,32 +444,32 @@ private struct FuelStationPreviewSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(station.stationName)
-                        .font(.system(size: 22, weight: .semibold, design: .rounded))
-                        .foregroundStyle(NomadTheme.primaryText)
+    private var fuelTint: Color {
+        station.fuelType == .diesel ? NomadTheme.teal : NomadTheme.sand
+    }
 
+    var body: some View {
+        DashboardDetailSheet {
+            DashboardDetailTitleHeader(
+                title: station.stationName,
+                details: {
                     Text(station.fuelType.displayName)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(station.fuelType == .diesel ? NomadTheme.teal : NomadTheme.sand)
+                        .foregroundStyle(fuelTint)
 
                     if let addressLine = station.addressLine {
                         Text(addressLine)
                             .font(.subheadline)
                             .foregroundStyle(NomadTheme.secondaryText)
                     }
+                },
+                accessory: {
+                    Text("\(FuelPriceFormatting.price(station.pricePerLiter, currencyCode: station.currencyCode))/L")
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .foregroundStyle(fuelTint)
                 }
-
-                Spacer(minLength: 12)
-
-                Text("\(FuelPriceFormatting.price(station.pricePerLiter, currencyCode: station.currencyCode))/L")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .foregroundStyle(station.fuelType == .diesel ? NomadTheme.teal : NomadTheme.sand)
-            }
-
+            )
+        } content: {
             FuelStationMapView(
                 stationName: station.stationName,
                 coordinate: station.coordinate
@@ -460,28 +480,25 @@ private struct FuelStationPreviewSheet: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(NomadTheme.cardBorder.opacity(0.85), lineWidth: 1)
             )
-
-            HStack(spacing: 10) {
-                Button("Open in Google Maps") {
-                    openInGoogleMapsAction()
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button("Close") {
-                    dismiss()
-                }
-                .buttonStyle(.bordered)
+        } actions: {
+            Button("Open in Google Maps") {
+                openInGoogleMapsAction()
             }
+            .buttonStyle(.borderedProminent)
+
+            Button("Close") {
+                dismiss()
+            }
+            .buttonStyle(.bordered)
 
             if let updatedAt = station.updatedAt {
+                Spacer(minLength: 12)
+
                 Text("Updated \(NomadFormatters.compactClockTime(updatedAt))")
                     .font(.caption)
                     .foregroundStyle(NomadTheme.tertiaryText)
             }
         }
-        .padding(20)
-        .frame(minWidth: 460, minHeight: 420, alignment: .topLeading)
-        .background(NomadTheme.background)
     }
 }
 
@@ -492,13 +509,10 @@ private struct EmergencyHospitalPreviewSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(hospital.hospitalName)
-                        .font(.system(size: 22, weight: .semibold, design: .rounded))
-                        .foregroundStyle(NomadTheme.primaryText)
-
+        DashboardDetailSheet {
+            DashboardDetailTitleHeader(
+                title: hospital.hospitalName,
+                details: {
                     if hospital.ownership != .unknown {
                         Text(hospital.ownership.displayName)
                             .font(.subheadline.weight(.semibold))
@@ -511,10 +525,8 @@ private struct EmergencyHospitalPreviewSheet: View {
                             .foregroundStyle(NomadTheme.secondaryText)
                     }
                 }
-
-                Spacer(minLength: 12)
-            }
-
+            )
+        } content: {
             EmergencyHospitalMapView(
                 hospitalName: hospital.hospitalName,
                 coordinate: hospital.coordinate
@@ -525,22 +537,17 @@ private struct EmergencyHospitalPreviewSheet: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(NomadTheme.cardBorder.opacity(0.85), lineWidth: 1)
             )
-
-            HStack(spacing: 10) {
-                Button("Open in Google Maps") {
-                    openInGoogleMapsAction()
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button("Close") {
-                    dismiss()
-                }
-                .buttonStyle(.bordered)
+        } actions: {
+            Button("Open in Google Maps") {
+                openInGoogleMapsAction()
             }
+            .buttonStyle(.borderedProminent)
+
+            Button("Close") {
+                dismiss()
+            }
+            .buttonStyle(.bordered)
         }
-        .padding(20)
-        .frame(minWidth: 460, minHeight: 420, alignment: .topLeading)
-        .background(NomadTheme.background)
     }
 }
 

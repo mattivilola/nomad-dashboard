@@ -360,8 +360,34 @@ public actor SmartravellerAdvisoryProvider: TravelAdvisoryProvider {
             affectedCountryCodes: matches
                 .filter { $0.severity > .clear }
                 .map(\.countryCode)
-                .uniqued()
+                .uniqued(),
+            items: advisoryItems(from: matches, selected: selected)
         )
+    }
+
+    /// One item per monitored country; the selected match leads so the detail list opens with what the card headline describes.
+    private static func advisoryItems(from matches: [AdvisoryMatch], selected: AdvisoryMatch) -> [TravelAlertItem] {
+        matches
+            .sorted { lhs, rhs in
+                if (lhs.countryCode == selected.countryCode) != (rhs.countryCode == selected.countryCode) {
+                    return lhs.countryCode == selected.countryCode
+                }
+                if lhs.severity != rhs.severity {
+                    return lhs.severity > rhs.severity
+                }
+                return lhs.countryName.localizedCaseInsensitiveCompare(rhs.countryName) == .orderedAscending
+            }
+            .map { match in
+                TravelAlertItem(
+                    id: match.countryCode,
+                    title: match.countryName,
+                    detail: "\(match.destination.levelLabel): \(match.destination.adviceText.uppercasingFirstLetter()).",
+                    severity: match.severity,
+                    sourceName: "Smartraveller",
+                    url: match.destination.url,
+                    issuedAt: match.destination.updatedAt
+                )
+            }
     }
 
     static func parseDestinations(from data: Data) throws -> [SmartravellerDestination] {
@@ -750,8 +776,30 @@ public actor WeatherKitAlertProvider: TravelWeatherAlertsProvider {
             sourceURL: worst.detailsURL,
             updatedAt: fetchedAt,
             affectedCountryCodes: [],
-            itemCount: itemCount
+            itemCount: itemCount,
+            items: weatherItems(from: alerts)
         )
+    }
+
+    /// Lists every alert, most severe first; the index keeps ties in provider order and makes ids unique when WeatherKit repeats a details URL.
+    private static func weatherItems(from alerts: [WeatherAlertPayload]) -> [TravelAlertItem] {
+        alerts.enumerated()
+            .sorted { lhs, rhs in
+                if lhs.element.severity != rhs.element.severity {
+                    return lhs.element.severity > rhs.element.severity
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map { index, alert in
+                TravelAlertItem(
+                    id: "\(index)-\(alert.detailsURL.absoluteString)",
+                    title: alert.summary,
+                    severity: alert.severity,
+                    areaName: alert.region,
+                    sourceName: alert.source.nilIfEmpty ?? "WeatherKit",
+                    url: alert.detailsURL
+                )
+            }
     }
 
     static func severity(for weatherSeverity: WeatherSeverity) -> TravelAlertSeverity {
@@ -790,6 +838,7 @@ private enum WeatherKitAlertProjector {
                 detailsURL: $0.detailsURL,
                 source: $0.source,
                 summary: $0.summary,
+                region: $0.region,
                 severity: WeatherKitAlertProvider.severity(for: $0.severity)
             )
         }
@@ -942,7 +991,7 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
         let primaryNormalizer = CountryNameResolver().normalized(primaryCountryName)
         let currentCountryReports = reports.filter { CountryNameResolver().normalized($0.primaryCountryName) == primaryNormalizer }
         let nearbyReports = reports.filter { CountryNameResolver().normalized($0.primaryCountryName) != primaryNormalizer }
-        let currentCountryRecentReports = currentCountryReports.filter { now.timeIntervalSince($0.date) <= 24 * 3_600 }
+        let currentCountryRecentReports = currentCountryReports.filter { isRecentPrimaryReport($0, now: now) }
 
         let severity: TravelAlertSeverity = if currentCountryRecentReports.isEmpty == false {
             .warning
@@ -972,25 +1021,71 @@ public actor ReliefWebSecurityProvider: RegionalSecurityProvider {
             "Regional security conditions require immediate review."
         }
 
-        let sourceURL = latestReport?.urlAlias.flatMap { alias -> URL? in
-            if alias.hasPrefix("http") {
-                return URL(string: alias)
-            }
-
-            return URL(string: "https://reliefweb.int\(alias)")
-        }
-
         return TravelAlertSignalSnapshot(
             kind: .security,
             severity: severity,
             title: "Regional security",
             summary: summary,
             sourceName: latestReport?.sourceName ?? "ReliefWeb",
-            sourceURL: sourceURL,
+            sourceURL: latestReport.flatMap(reportURL(for:)),
             updatedAt: latestReport?.date ?? now,
             affectedCountryCodes: [],
-            itemCount: reports.count
+            itemCount: reports.count,
+            items: securityItems(from: reports, primaryCountryName: primaryCountryName, now: now)
         )
+    }
+
+    /// Mirrors the signal's thresholds per report: a fresh primary-country bulletin warns, an older one cautions, nearby ones inform.
+    private static func isRecentPrimaryReport(_ report: SecurityReportPayload, now: Date) -> Bool {
+        now.timeIntervalSince(report.date) <= 24 * 3_600
+    }
+
+    private static func securityItems(
+        from reports: [SecurityReportPayload],
+        primaryCountryName: String,
+        now: Date
+    ) -> [TravelAlertItem] {
+        let resolver = CountryNameResolver()
+        let primaryNormalized = resolver.normalized(primaryCountryName)
+
+        return reports.enumerated()
+            .sorted { lhs, rhs in
+                if lhs.element.date != rhs.element.date {
+                    return lhs.element.date > rhs.element.date
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map { index, report in
+                let severity: TravelAlertSeverity = if resolver.normalized(report.primaryCountryName) != primaryNormalized {
+                    .info
+                } else if isRecentPrimaryReport(report, now: now) {
+                    .warning
+                } else {
+                    .caution
+                }
+
+                return TravelAlertItem(
+                    id: "\(index)-\(report.urlAlias ?? report.title)",
+                    title: report.title,
+                    severity: severity,
+                    areaName: report.primaryCountryName,
+                    sourceName: report.sourceName,
+                    url: reportURL(for: report),
+                    issuedAt: report.date
+                )
+            }
+    }
+
+    private static func reportURL(for report: SecurityReportPayload) -> URL? {
+        guard let alias = report.urlAlias else {
+            return nil
+        }
+
+        if alias.hasPrefix("http") {
+            return URL(string: alias)
+        }
+
+        return URL(string: "https://reliefweb.int\(alias)")
     }
 
     static func parseReports(from data: Data) throws -> [SecurityReportPayload] {
@@ -1124,7 +1219,16 @@ struct WeatherAlertPayload {
     let detailsURL: URL
     let source: String
     let summary: String
+    let region: String?
     let severity: TravelAlertSeverity
+
+    init(detailsURL: URL, source: String, summary: String, region: String? = nil, severity: TravelAlertSeverity) {
+        self.detailsURL = detailsURL
+        self.source = source
+        self.summary = summary
+        self.region = region
+        self.severity = severity
+    }
 }
 
 struct SecurityReportPayload {
@@ -1201,6 +1305,16 @@ enum SmartravellerStageFailureKind: Equatable {
 private struct CountryBorderRecord: Decodable {
     let cca2: String
     let borders: [String]
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
+    }
+
+    func uppercasingFirstLetter() -> String {
+        prefix(1).uppercased() + dropFirst()
+    }
 }
 
 private extension Array where Element: Hashable {

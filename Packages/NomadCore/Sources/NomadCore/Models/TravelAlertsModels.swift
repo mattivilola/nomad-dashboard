@@ -6,6 +6,12 @@ public enum TravelAlertKind: String, Codable, CaseIterable, Equatable, Sendable 
     case security
 }
 
+extension TravelAlertKind: Identifiable {
+    public var id: String {
+        rawValue
+    }
+}
+
 public enum TravelAlertSeverity: String, Codable, CaseIterable, Equatable, Sendable, Comparable {
     case clear
     case info
@@ -57,6 +63,41 @@ public struct TravelAlertSourceDescriptor: Codable, Equatable, Sendable {
     }
 }
 
+/// One concrete advisory, weather alert or security bulletin behind a signal, so detail views can list every item instead of only the headline one.
+public struct TravelAlertItem: Codable, Equatable, Sendable, Identifiable {
+    public let id: String
+    public let title: String
+    public let detail: String?
+    public let severity: TravelAlertSeverity
+    public let areaName: String?
+    public let sourceName: String
+    public let url: URL?
+    public let issuedAt: Date?
+    public let expiresAt: Date?
+
+    public init(
+        id: String,
+        title: String,
+        detail: String? = nil,
+        severity: TravelAlertSeverity,
+        areaName: String? = nil,
+        sourceName: String,
+        url: URL? = nil,
+        issuedAt: Date? = nil,
+        expiresAt: Date? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.severity = severity
+        self.areaName = areaName
+        self.sourceName = sourceName
+        self.url = url
+        self.issuedAt = issuedAt
+        self.expiresAt = expiresAt
+    }
+}
+
 public struct TravelAlertSignalSnapshot: Codable, Equatable, Sendable, Identifiable {
     public let kind: TravelAlertKind
     public let severity: TravelAlertSeverity
@@ -68,6 +109,7 @@ public struct TravelAlertSignalSnapshot: Codable, Equatable, Sendable, Identifia
     public let updatedAt: Date
     public let affectedCountryCodes: [String]
     public let itemCount: Int?
+    public let items: [TravelAlertItem]
 
     public var id: TravelAlertKind {
         kind
@@ -83,7 +125,8 @@ public struct TravelAlertSignalSnapshot: Codable, Equatable, Sendable, Identifia
         sourceURL: URL?,
         updatedAt: Date,
         affectedCountryCodes: [String],
-        itemCount: Int? = nil
+        itemCount: Int? = nil,
+        items: [TravelAlertItem] = []
     ) {
         self.kind = kind
         self.severity = severity
@@ -95,6 +138,30 @@ public struct TravelAlertSignalSnapshot: Codable, Equatable, Sendable, Identifia
         self.updatedAt = updatedAt
         self.affectedCountryCodes = affectedCountryCodes
         self.itemCount = itemCount
+        self.items = items
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, severity, title, summary, detailSummary, sourceName, sourceURL
+        case updatedAt, affectedCountryCodes, itemCount, items
+    }
+
+    /// `items` was added after snapshots were already persisted, so older cache files decode with an empty list.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            kind: container.decode(TravelAlertKind.self, forKey: .kind),
+            severity: container.decode(TravelAlertSeverity.self, forKey: .severity),
+            title: container.decode(String.self, forKey: .title),
+            summary: container.decode(String.self, forKey: .summary),
+            detailSummary: container.decodeIfPresent(String.self, forKey: .detailSummary),
+            sourceName: container.decode(String.self, forKey: .sourceName),
+            sourceURL: container.decodeIfPresent(URL.self, forKey: .sourceURL),
+            updatedAt: container.decode(Date.self, forKey: .updatedAt),
+            affectedCountryCodes: container.decode([String].self, forKey: .affectedCountryCodes),
+            itemCount: container.decodeIfPresent(Int.self, forKey: .itemCount),
+            items: container.decodeIfPresent([TravelAlertItem].self, forKey: .items) ?? []
+        )
     }
 }
 

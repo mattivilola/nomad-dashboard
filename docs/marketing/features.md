@@ -230,8 +230,10 @@ Users can make quick practical decisions about wind, rain risk, the next few hou
 - Aggregates optional travel-oriented alert signals into one condensed card
 - Supports travel advisory, weather alerts, and regional security context
 - Uses the live Smartraveller destinations page first, falls back to `destinations-export`, and can retry through a hidden WebKit fetch when direct transport stalls
-- Keeps Smartraveller severity sourced from the destination list, then optionally fetches the matched destination page for a short reason sentence and a `More details` link
+- Keeps Smartraveller severity sourced from the destination list, then optionally fetches the matched destination page for a short reason sentence
 - Keeps the dashboard compact by summarizing status rather than becoming a full alert center
+- Every signal block is clickable and opens a details dialog: each active weather alert with its level, region and validity, each recent security bulletin with its country and date, or the advisory level of the current country and every bordering country
+- Each item in the dialog links to its original notice, and the dialog links to the source itself (for example the national weather agency, Smartraveller, or ReliefWeb)
 - The card badge always names the highest alert level; stale data is called out beside it ("Updated 12 Oct · may be outdated") instead of replacing it, and each signal states its level once
 
 ### Who it helps
