@@ -9,7 +9,7 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Travel Alerts details: click any signal to see every active weather alert, security bulletin, or nearby country advisory in a dialog, with links to each original notice and its source.
+- _Nothing yet_
 
 ### Changed
 
@@ -19,6 +19,13 @@ and this project follows [Semantic Versioning](https://semver.org/).
 
 - _Nothing yet_
 
+
+## [0.22.0] - 2026-11-10
+
+### Added
+
+- Travel Alerts details: click any signal to see every active weather alert, security bulletin, or nearby country advisory in a dialog, with links to each original notice and its source.
+- Open Travel Alerts details in a shared dialog
 
 ## [0.21.5] - 2026-10-22
 
